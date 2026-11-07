@@ -1,0 +1,39 @@
+
+> viewer@0.0.0 test
+> vitest run --maxWorkers=1 src/components/__tests__/FeatureOptions.test.tsx src/components/systems/__tests__/Watershed.test.tsx src/components/systems/__tests__/SupplyContracts.test.tsx src/lib/__tests__/entityHistory.test.ts src/lib/__tests__/entityHouseholdFirm.test.ts
+
+
+ RUN  v4.1.0 /workspace/Chronicler/viewer
+
+ ❯ src/components/systems/__tests__/Watershed.test.tsx (8 tests | 1 failed) 6273ms
+   × mounts in the livelihoods panel whenever the run records the account 36ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/components/systems/__tests__/Watershed.test.tsx > mounts in the livelihoods panel whenever the run records the account
+TypeError: Cannot read properties of undefined (reading 'length')
+ ❯ MovementBranches src/components/systems/MovementBranches.tsx:17:94
+     15| }) {
+     16|   const regions = bundle.world_state.regions;
+     17|   const read = movementBranchesAt(snapshot, regions.length, bundle.wor…
+       |                                                                                              ^
+     18|   const title = <h3>Movement branches abroad · snapshot {snapshot?.tur…
+     19|   const message = !movementBranchesOn(bundle.history) ? "Movement bran…
+ ❯ Object.react_stack_bottom_frame node_modules/react-dom/cjs/react-dom-client.development.js:25904:20
+ ❯ renderWithHooks node_modules/react-dom/cjs/react-dom-client.development.js:7662:22
+ ❯ updateFunctionComponent node_modules/react-dom/cjs/react-dom-client.development.js:10166:19
+ ❯ beginWork node_modules/react-dom/cjs/react-dom-client.development.js:11778:18
+ ❯ runWithFiberInDEV node_modules/react-dom/cjs/react-dom-client.development.js:874:13
+ ❯ performUnitOfWork node_modules/react-dom/cjs/react-dom-client.development.js:17641:22
+ ❯ workLoopSync node_modules/react-dom/cjs/react-dom-client.development.js:17469:41
+ ❯ renderRootSync node_modules/react-dom/cjs/react-dom-client.development.js:17450:11
+ ❯ performWorkOnRoot node_modules/react-dom/cjs/react-dom-client.development.js:16583:35
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed | 4 passed (5)
+      Tests  1 failed | 44 passed (45)
+   Start at  15:39:45
+   Duration  41.57s (transform 2.13s, setup 313ms, import 3.03s, tests 33.54s, environment 3.56s)
+

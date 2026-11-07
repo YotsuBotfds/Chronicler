@@ -1,0 +1,31 @@
+
+> viewer@0.0.0 test
+> vitest run --maxWorkers=1 src/components/__tests__/FeatureOptions.test.tsx
+
+
+ RUN  v4.1.0 /workspace/Chronicler/viewer
+
+ ❯ src/components/__tests__/FeatureOptions.test.tsx (14 tests | 1 failed) 18088ms
+     × offers the productive-recovery switches off, each disabled until its prerequisites are met 5208ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/components/__tests__/FeatureOptions.test.tsx > FeatureOptions > offers the productive-recovery switches off, each disabled until its prerequisites are met
+Error: Test timed out in 5000ms.
+If this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".
+ ❯ src/components/__tests__/FeatureOptions.test.tsx:149:3
+    147|   });
+    148|
+    149|   it("offers the productive-recovery switches off, each disabled until…
+       |   ^
+    150|     const onChange = vi.fn();
+    151|     render(<Harness catalog={served} onChange={onChange} />);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 13 passed (14)
+   Start at  15:37:51
+   Duration  18.92s (transform 112ms, setup 56ms, import 154ms, tests 18.09s, environment 508ms)
+

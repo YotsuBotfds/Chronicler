@@ -1,0 +1,193 @@
+[
+  {
+    "attempt": "v1",
+    "commit": "ccc864a997134f0dcd4b05a7419a7bce203bfae7",
+    "seconds": 240.39098507800009,
+    "passed": false,
+    "failures": [
+      {
+        "name": "recovery-skills",
+        "node_ids": 8,
+        "command": [
+          "/workspace/cw-b3-offline/bin/python",
+          "-B",
+          "-m",
+          "pytest",
+          "-q",
+          "-x",
+          "--tb=short",
+          "tests/test_recovery_skills_wiring.py",
+          "tests/test_clearing_protection.py",
+          "tests/test_remittances.py",
+          "tests/test_veteran_reintegration.py",
+          "tests/test_apprenticeship.py",
+          "tests/test_repair_projects.py",
+          "tests/test_apprenticeship_v2.py",
+          "tests/test_operating_wear.py",
+          "-p",
+          "python_oracle_guard",
+          "-p",
+          "no:cacheprovider",
+          "--basetemp",
+          "/workspace/evidence/final-offline/pytest/recovery-skills",
+          "-k",
+          "not test_real_cli_and_cross_process_resume_with_different_hashseeds and not test_cross_process_deterministic_with_randomized_python_hash_seed"
+        ],
+        "exit_code": 1,
+        "guard": {
+          "at_utc": "2026-11-07T15:25:26.568928+00:00",
+          "state": "PASS",
+          "guard_active_at_finish": true,
+          "main_source": "/workspace/Chronicler/src/chronicler/main.py",
+          "native_modules_loaded": [],
+          "native_import_attempts_blocked": [],
+          "runtime_factories_replaced_before_collection": true,
+          "python_oracle_factory_calls": {
+            "ecology": 0,
+            "politics": 0
+          },
+          "blocked_io_attempts": [],
+          "local_hostname_metadata_reads": 0,
+          "test_reports": {
+            "passed": 0,
+            "failed": 1,
+            "skipped": 0
+          },
+          "pytest_exitstatus": 1
+        },
+        "passed": false,
+        "seconds": 2.042457208000087
+      }
+    ],
+    "note": "Failure retained; later test enrollment/mock corrections do not change the valid simulation runtime."
+  },
+  {
+    "attempt": "v2",
+    "commit": "1c40ed625aa410692498c40927f02506141a8107",
+    "seconds": 306.3913339640003,
+    "passed": false,
+    "failures": [
+      {
+        "name": "connected-world-a",
+        "node_ids": 4,
+        "command": [
+          "/workspace/cw-b3-offline/bin/python",
+          "-B",
+          "-m",
+          "pytest",
+          "-q",
+          "-x",
+          "--tb=short",
+          "tests/test_wealth_accounting.py",
+          "tests/test_money.py",
+          "tests/test_workshop_economics.py",
+          "tests/test_titled_trade.py",
+          "-p",
+          "python_oracle_guard",
+          "-p",
+          "no:cacheprovider",
+          "--basetemp",
+          "/workspace/evidence/final-offline-v2/pytest/connected-world-a",
+          "-k",
+          "not test_real_cli_and_cross_process_resume_with_different_hashseeds and not test_cross_process_deterministic_with_randomized_python_hash_seed"
+        ],
+        "exit_code": 1,
+        "guard": {
+          "at_utc": "2026-11-07T15:44:41.522400+00:00",
+          "state": "PASS",
+          "guard_active_at_finish": true,
+          "main_source": "/workspace/Chronicler/src/chronicler/main.py",
+          "native_modules_loaded": [],
+          "native_import_attempts_blocked": [],
+          "runtime_factories_replaced_before_collection": true,
+          "python_oracle_factory_calls": {
+            "ecology": 0,
+            "politics": 0
+          },
+          "blocked_io_attempts": [],
+          "local_hostname_metadata_reads": 0,
+          "test_reports": {
+            "passed": 103,
+            "failed": 1,
+            "skipped": 0
+          },
+          "pytest_exitstatus": 1
+        },
+        "passed": false,
+        "seconds": 9.408021670999915
+      }
+    ],
+    "note": "Failure retained; later test enrollment/mock corrections do not change the valid simulation runtime."
+  },
+  {
+    "attempt": "v3",
+    "commit": "830d0dc2ecc7caad12217f88e47d6ffeb21309c1",
+    "seconds": 307.23164823299976,
+    "passed": false,
+    "failures": [
+      {
+        "name": "connected-world-c",
+        "node_ids": 3,
+        "command": [
+          "/workspace/cw-b3-offline/bin/python",
+          "-B",
+          "-m",
+          "pytest",
+          "-q",
+          "-x",
+          "--tb=short",
+          "tests/test_quarantine_rules.py",
+          "tests/test_cw4_screen.py",
+          "tests/test_quarantine_migration.py",
+          "-p",
+          "python_oracle_guard",
+          "-p",
+          "no:cacheprovider",
+          "--basetemp",
+          "/workspace/evidence/final-offline-v3/pytest/connected-world-c",
+          "-k",
+          "not test_real_cli_and_cross_process_resume_with_different_hashseeds and not test_cross_process_deterministic_with_randomized_python_hash_seed"
+        ],
+        "exit_code": 1,
+        "guard": {
+          "at_utc": "2026-11-07T15:56:54.927324+00:00",
+          "state": "PASS",
+          "guard_active_at_finish": true,
+          "main_source": "/workspace/Chronicler/src/chronicler/main.py",
+          "native_modules_loaded": [],
+          "native_import_attempts_blocked": [
+            "chronicler_agents",
+            "chronicler_agents",
+            "chronicler_agents",
+            "chronicler_agents",
+            "chronicler_agents",
+            "chronicler_agents",
+            "chronicler_agents",
+            "chronicler_agents",
+            "chronicler_agents",
+            "chronicler_agents",
+            "chronicler_agents",
+            "chronicler_agents",
+            "chronicler_agents"
+          ],
+          "runtime_factories_replaced_before_collection": true,
+          "python_oracle_factory_calls": {
+            "ecology": 0,
+            "politics": 0
+          },
+          "blocked_io_attempts": [],
+          "local_hostname_metadata_reads": 0,
+          "test_reports": {
+            "passed": 48,
+            "failed": 1,
+            "skipped": 0
+          },
+          "pytest_exitstatus": 1
+        },
+        "passed": false,
+        "seconds": 4.685279956999693
+      }
+    ],
+    "note": "Failure retained; later test enrollment/mock corrections do not change the valid simulation runtime."
+  }
+]

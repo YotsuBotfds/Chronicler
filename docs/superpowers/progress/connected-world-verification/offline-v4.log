@@ -1,0 +1,382 @@
+== chunk academy-restoration-controls: 5 node IDs, 110-second limit
+...........                                                              [100%]
+11 passed in 1.17s
+== chunk crisis-distribution-summary: 2 node IDs, 110-second limit
+.........                                                                [100%]
+9 passed in 0.13s
+== chunk regional-transport-controls: 3 node IDs, 110-second limit
+...........                                                              [100%]
+11 passed in 2.33s
+== chunk forecast-information-qualification: 1 node IDs, 110-second limit
+..                                                                       [100%]
+2 passed in 0.15s
+== chunk forecast-information-contracts: 2 node IDs, 110-second limit
+..............................                                           [100%]
+30 passed in 2.46s
+== chunk academy-service-contracts: 2 node IDs, 110-second limit
+...............................                                          [100%]
+31 passed in 6.11s
+== chunk household-mobility-contracts: 2 node IDs, 110-second limit
+.............................                                            [100%]
+29 passed in 5.46s
+== chunk grain-storage-contracts: 2 node IDs, 110-second limit
+..............                                                           [100%]
+14 passed in 8.83s
+== chunk food-accounting-observations: 2 node IDs, 110-second limit
+.........                                                                [100%]
+9 passed in 4.05s
+== chunk regional-population: 1 node IDs, 110-second limit
+................................                                         [100%]
+32 passed in 1.03s
+== chunk live-what-if: 1 node IDs, 110-second limit
+........................................................................ [ 80%]
+.................                                                        [100%]
+89 passed in 0.22s
+== chunk wealth-floor-checkpoint-metadata-v2: 1 node IDs, 110-second limit
+..........................................................               [100%]
+58 passed in 0.12s
+== chunk build-provenance: 3 node IDs, 110-second limit
+................................................                         [100%]
+48 passed in 0.41s
+== chunk arc-event-types: 1 node IDs, 110-second limit
+........                                                                 [100%]
+8 passed in 0.14s
+== chunk refactor-preflight: 1 node IDs, 110-second limit
+..........                                                               [100%]
+10 passed in 0.35s
+== chunk diagnostics: 16 node IDs, 110-second limit
+........................................................................ [ 97%]
+..                                                                       [100%]
+74 passed in 0.36s
+== chunk core: 61 node IDs, 110-second limit
+........................................................................ [  5%]
+........................................................................ [ 11%]
+........................................................................ [ 17%]
+........................................................................ [ 22%]
+........................................................................ [ 28%]
+........................................................................ [ 34%]
+........................................................................ [ 40%]
+........................................................................ [ 45%]
+........................................................................ [ 51%]
+........................................................................ [ 57%]
+........................................................................ [ 63%]
+........................................................................ [ 68%]
+........................................................................ [ 74%]
+........................................................................ [ 80%]
+........................................................................ [ 85%]
+........................................................................ [ 91%]
+........................................................................ [ 97%]
+................................                                         [100%]
+1256 passed, 2 deselected in 28.55s
+== chunk governance: 7 node IDs, 110-second limit
+........................................................................ [ 12%]
+........................................................................ [ 24%]
+........................................................................ [ 37%]
+........................................................................ [ 49%]
+........................................................................ [ 62%]
+........................................................................ [ 74%]
+........................................................................ [ 87%]
+.......................................................................s [ 99%]
+ss                                                                       [100%]
+575 passed, 3 skipped in 10.04s
+== chunk systems-1: 10 node IDs, 110-second limit
+..........................................s............................. [ 26%]
+......s.................................s............s.................. [ 52%]
+........................s...............................sss..ss......... [ 79%]
+...............s..ss..ss..............................ss                 [100%]
+255 passed, 17 skipped in 18.13s
+== chunk systems-2: 12 node IDs, 110-second limit
+.............................................s.......................... [ 21%]
+.....................s.................................................. [ 43%]
+.........................................s.............................. [ 65%]
+...s.........s..........................................sssss........... [ 87%]
+.....s....................sss......s.....ss                              [100%]
+314 passed, 17 skipped in 32.53s
+== chunk narration: 7 node IDs, 110-second limit
+........................................................................ [ 41%]
+........................................................................ [ 83%]
+.............................                                            [100%]
+173 passed in 6.14s
+== chunk history-forensics: 1 node IDs, 110-second limit
+..................................                                       [100%]
+34 passed in 0.16s
+== chunk expansion-audit: 1 node IDs, 110-second limit
+.....................................................................    [100%]
+69 passed in 0.20s
+== chunk scientific-receipts: 2 node IDs, 110-second limit
+........................................................................ [ 77%]
+.....................                                                    [100%]
+93 passed in 0.42s
+== chunk expansion-comparison: 1 node IDs, 110-second limit
+....................................................                     [100%]
+52 passed in 0.64s
+== chunk proof-contracts: 2 node IDs, 110-second limit
+............................                                             [100%]
+28 passed in 0.39s
+== chunk qualification-tools: 52 node IDs, 110-second limit
+........................................................................ [ 64%]
+........................................                                 [100%]
+112 passed in 1.98s
+== chunk turn-speed: 3 node IDs, 110-second limit
+....................................................                     [100%]
+52 passed in 0.21s
+== chunk validation-tooling: 12 node IDs, 110-second limit
+........................................................................ [ 17%]
+........................................................................ [ 34%]
+........................................................................ [ 52%]
+........................................................................ [ 69%]
+........................................................................ [ 86%]
+.......................................................                  [100%]
+415 passed in 11.43s
+== chunk learning: 1 node IDs, 110-second limit
+................................................................ss       [100%]
+64 passed, 2 skipped in 2.47s
+== chunk population: 2 node IDs, 110-second limit
+......................................ssss                               [100%]
+38 passed, 4 skipped in 0.40s
+== chunk production-ledger: 2 node IDs, 110-second limit
+.................sssssssss                                               [100%]
+17 passed, 9 skipped in 0.60s
+== chunk refugee-routing: 1 node IDs, 110-second limit
+.......................                                                  [100%]
+23 passed in 1.06s
+== chunk checkpoint: 2 node IDs, 110-second limit
+.......................ssssss                                            [100%]
+23 passed, 6 skipped in 3.13s
+== chunk live-checkpoints: 2 node IDs, 110-second limit
+..............ssssss                                                     [100%]
+14 passed, 6 skipped in 16.97s
+== chunk interactive-checkpoints: 3 node IDs, 110-second limit
+............................ss                                           [100%]
+28 passed, 2 skipped in 4.00s
+== chunk public-grain-shipments: 1 node IDs, 110-second limit
+........................................................................ [ 78%]
+....................                                                     [100%]
+92 passed in 0.83s
+== chunk grain-reserves: 2 node IDs, 110-second limit
+..............................................................ss........ [ 74%]
+.........................                                                [100%]
+95 passed, 2 skipped in 1.67s
+== chunk livelihoods: 12 node IDs, 110-second limit
+........................................................................ [ 35%]
+........................................................................ [ 70%]
+............................................................             [100%]
+204 passed in 6.03s
+== chunk livelihoods-work-authority: 2 node IDs, 110-second limit
+..............                                                           [100%]
+14 passed in 0.10s
+== chunk recovery-skills: 8 node IDs, 110-second limit
+........................................................................ [ 40%]
+........................................................................ [ 81%]
+.................................                                        [100%]
+177 passed in 2.84s
+== chunk timber-supply: 2 node IDs, 110-second limit
+...................................................................      [100%]
+67 passed in 0.58s
+== chunk productive-recovery-pl3: 3 node IDs, 110-second limit
+.....................................................................    [100%]
+69 passed in 0.68s
+== chunk household-retail: 3 node IDs, 110-second limit
+........................................................................ [ 57%]
+.....................................................                    [100%]
+125 passed in 1.10s
+== chunk household-retail-war: 1 node IDs, 110-second limit
+.....................................                                    [100%]
+37 passed in 0.55s
+== chunk household-retail-evidence: 1 node IDs, 110-second limit
+..........................................................               [100%]
+58 passed in 0.64s
+== chunk connected-world-a: 4 node IDs, 110-second limit
+........................................................................ [ 52%]
+................................................................         [100%]
+136 passed in 6.23s
+== chunk expansion-wiring: 4 node IDs, 110-second limit
+........................................................................ [ 51%]
+.......................................s.............................    [100%]
+140 passed, 1 skipped in 1.33s
+== chunk feature-options: 1 node IDs, 110-second limit
+.............................................                            [100%]
+45 passed in 3.30s
+== chunk connected-world-e: 5 node IDs, 110-second limit
+........................................................................ [ 36%]
+........................................................................ [ 73%]
+.....................................................                    [100%]
+197 passed in 2.89s
+== chunk connected-world-b: 4 node IDs, 110-second limit
+........................................................................ [ 46%]
+........................................................................ [ 92%]
+............                                                             [100%]
+156 passed in 3.66s
+== chunk ritual-gatherings: 2 node IDs, 110-second limit
+........................................................................ [ 92%]
+......                                                                   [100%]
+78 passed in 0.45s
+== chunk scientific-claims: 2 node IDs, 110-second limit
+.................................................................        [100%]
+65 passed in 3.03s
+== chunk scientific-publication: 1 node IDs, 110-second limit
+...............................                                          [100%]
+31 passed in 0.40s
+== chunk scientific-research: 4 node IDs, 110-second limit
+........................................................................ [ 57%]
+......................................................                   [100%]
+126 passed in 2.41s
+== chunk transaction-receipts: 2 node IDs, 110-second limit
+.....................................................                    [100%]
+53 passed in 0.47s
+== chunk expansion-experiments: 1 node IDs, 110-second limit
+........................................................................ [ 71%]
+.............................                                            [100%]
+101 passed in 1.81s
+== chunk domestic-credit: 1 node IDs, 110-second limit
+..................................                                       [100%]
+34 passed in 0.54s
+== chunk faiths: 1 node IDs, 110-second limit
+..................                                                       [100%]
+18 passed in 0.74s
+== chunk decision-delivery-python: 1 node IDs, 110-second limit
+........................................................................ [ 87%]
+..........                                                               [100%]
+82 passed in 0.49s
+== chunk health-care-policy: 4 node IDs, 110-second limit
+............................................................................... [ 31%]
+........................................ [ 47%]
+........................................................................ [ 76%]
+..........................................................               [100%]
+=============================== warnings summary ===============================
+tests/test_health_care_policy.py::HealthCarePolicyTests::test_setter_validates_complete_candidate_before_mutation
+  /workspace/cw-b3-offline/lib/python3.13/site-packages/pydantic/main.py:464: UserWarning: Pydantic serializer warnings:
+    PydanticSerializationUnexpectedValue(Expected `bool` - serialized value may not be as expected [field_name='care_enabled', input_value='false', input_type=str])
+    return self.__pydantic_serializer__.to_python(
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+249 passed, 1 warning, 97 subtests passed in 2.56s
+== chunk practice-growth-observer: 2 node IDs, 110-second limit
+........................................................................ [ 66%]
+....................................                                     [100%]
+108 passed in 1.36s
+== chunk native-ci-metadata-contracts: 2 node IDs, 110-second limit
+........................................................................ [ 33%]
+........................................................................ [ 66%]
+........................................................................ [ 99%]
+.                                                                        [100%]
+217 passed in 0.39s
+== chunk ci-artifact-intake-pure-contracts: 1 node IDs, 110-second limit
+........................................................................ [ 68%]
+.................................                                        [100%]
+105 passed in 0.38s
+== chunk kin-root-exposure-contracts: 2 node IDs, 110-second limit
+........................................................................ [ 55%]
+.........................................................                [100%]
+129 passed in 0.28s
+== chunk ci-critical-path-contracts: 1 node IDs, 110-second limit
+.................................                                        [100%]
+33 passed in 0.10s
+== chunk named-context-benchmark-contracts: 1 node IDs, 110-second limit
+...........................                                              [100%]
+27 passed in 0.14s
+== chunk paired-context-benchmark-contracts: 1 node IDs, 110-second limit
+.........................................                                [100%]
+41 passed in 0.14s
+== chunk connected-world-c: 3 node IDs, 110-second limit
+........................................................................ [ 42%]
+........................................................................ [ 84%]
+...........................                                              [100%]
+171 passed in 5.63s
+== chunk connected-world-d: 2 node IDs, 110-second limit
+........................................................                 [100%]
+56 passed in 9.40s
+== chunk connected-world-c2: 2 node IDs, 110-second limit
+.............................................................            [100%]
+61 passed in 0.27s
+== chunk connected-world-x: 2 node IDs, 110-second limit
+.......................................................                  [100%]
+55 passed in 5.64s
+== chunk connected-world-d1: 2 node IDs, 110-second limit
+.................................................                        [100%]
+49 passed in 0.31s
+== chunk connected-world-completion: 9 node IDs, 110-second limit
+........................................................................ [ 36%]
+........................................................................ [ 72%]
+......................................................                   [100%]
+198 passed in 1.80s
+== chunk connected-world-readers: 3 node IDs, 110-second limit
+....................................................................     [100%]
+68 passed in 0.38s
+chunk academy-restoration-controls: PASS, 2.4 s of 110 s; 11 passed, 0 skipped, 0 failed
+chunk crisis-distribution-summary: PASS, 1.4 s of 110 s; 9 passed, 0 skipped, 0 failed
+chunk regional-transport-controls: PASS, 3.7 s of 110 s; 11 passed, 0 skipped, 0 failed
+chunk forecast-information-qualification: PASS, 1.3 s of 110 s; 2 passed, 0 skipped, 0 failed
+chunk forecast-information-contracts: PASS, 3.7 s of 110 s; 30 passed, 0 skipped, 0 failed
+chunk academy-service-contracts: PASS, 7.3 s of 110 s; 31 passed, 0 skipped, 0 failed
+chunk household-mobility-contracts: PASS, 6.6 s of 110 s; 29 passed, 0 skipped, 0 failed
+chunk grain-storage-contracts: PASS, 9.9 s of 110 s; 14 passed, 0 skipped, 0 failed
+chunk food-accounting-observations: PASS, 5.1 s of 110 s; 9 passed, 0 skipped, 0 failed
+chunk regional-population: PASS, 2.0 s of 110 s; 32 passed, 0 skipped, 0 failed
+chunk live-what-if: PASS, 1.3 s of 110 s; 89 passed, 0 skipped, 0 failed
+chunk wealth-floor-checkpoint-metadata-v2: PASS, 1.1 s of 110 s; 58 passed, 0 skipped, 0 failed
+chunk build-provenance: PASS, 1.5 s of 110 s; 48 passed, 0 skipped, 0 failed
+chunk arc-event-types: PASS, 1.2 s of 110 s; 8 passed, 0 skipped, 0 failed
+chunk refactor-preflight: PASS, 1.4 s of 110 s; 10 passed, 0 skipped, 0 failed
+chunk diagnostics: PASS, 1.3 s of 110 s; 74 passed, 0 skipped, 0 failed
+chunk core: PASS, 30.4 s of 110 s; 1256 passed, 0 skipped, 0 failed
+chunk governance: PASS, 11.3 s of 110 s; 575 passed, 3 skipped, 0 failed
+chunk systems-1: PASS, 19.4 s of 110 s; 255 passed, 17 skipped, 0 failed
+chunk systems-2: PASS, 34.4 s of 110 s; 314 passed, 17 skipped, 0 failed
+chunk narration: PASS, 7.8 s of 110 s; 173 passed, 0 skipped, 0 failed
+chunk history-forensics: PASS, 1.2 s of 110 s; 34 passed, 0 skipped, 0 failed
+chunk expansion-audit: PASS, 1.4 s of 110 s; 69 passed, 0 skipped, 0 failed
+chunk scientific-receipts: PASS, 1.7 s of 110 s; 93 passed, 0 skipped, 0 failed
+chunk expansion-comparison: PASS, 1.9 s of 110 s; 52 passed, 0 skipped, 0 failed
+chunk proof-contracts: PASS, 1.4 s of 110 s; 28 passed, 0 skipped, 0 failed
+chunk qualification-tools: PASS, 3.0 s of 110 s; 112 passed, 0 skipped, 0 failed
+chunk turn-speed: PASS, 1.2 s of 110 s; 52 passed, 0 skipped, 0 failed
+chunk validation-tooling: PASS, 13.1 s of 110 s; 415 passed, 0 skipped, 0 failed
+chunk learning: PASS, 3.6 s of 110 s; 64 passed, 2 skipped, 0 failed
+chunk population: PASS, 1.6 s of 110 s; 38 passed, 4 skipped, 0 failed
+chunk production-ledger: PASS, 1.7 s of 110 s; 17 passed, 9 skipped, 0 failed
+chunk refugee-routing: PASS, 2.2 s of 110 s; 23 passed, 0 skipped, 0 failed
+chunk checkpoint: PASS, 4.3 s of 110 s; 23 passed, 6 skipped, 0 failed
+chunk live-checkpoints: PASS, 18.1 s of 110 s; 14 passed, 6 skipped, 0 failed
+chunk interactive-checkpoints: PASS, 5.3 s of 110 s; 28 passed, 2 skipped, 0 failed
+chunk public-grain-shipments: PASS, 2.2 s of 110 s; 92 passed, 0 skipped, 0 failed
+chunk grain-reserves: PASS, 2.8 s of 110 s; 95 passed, 2 skipped, 0 failed
+chunk livelihoods: PASS, 7.4 s of 110 s; 204 passed, 0 skipped, 0 failed
+chunk livelihoods-work-authority: PASS, 1.1 s of 110 s; 14 passed, 0 skipped, 0 failed
+chunk recovery-skills: PASS, 4.1 s of 110 s; 177 passed, 0 skipped, 0 failed
+chunk timber-supply: PASS, 1.7 s of 110 s; 67 passed, 0 skipped, 0 failed
+chunk productive-recovery-pl3: PASS, 1.9 s of 110 s; 69 passed, 0 skipped, 0 failed
+chunk household-retail: PASS, 2.2 s of 110 s; 125 passed, 0 skipped, 0 failed
+chunk household-retail-war: PASS, 1.7 s of 110 s; 37 passed, 0 skipped, 0 failed
+chunk household-retail-evidence: PASS, 1.8 s of 110 s; 58 passed, 0 skipped, 0 failed
+chunk connected-world-a: PASS, 7.5 s of 110 s; 136 passed, 0 skipped, 0 failed
+chunk expansion-wiring: PASS, 2.6 s of 110 s; 140 passed, 1 skipped, 0 failed
+chunk feature-options: PASS, 4.5 s of 110 s; 45 passed, 0 skipped, 0 failed
+chunk connected-world-e: PASS, 4.2 s of 110 s; 197 passed, 0 skipped, 0 failed
+chunk connected-world-b: PASS, 4.9 s of 110 s; 156 passed, 0 skipped, 0 failed
+chunk ritual-gatherings: PASS, 1.7 s of 110 s; 78 passed, 0 skipped, 0 failed
+chunk scientific-claims: PASS, 4.3 s of 110 s; 65 passed, 0 skipped, 0 failed
+chunk scientific-publication: PASS, 1.6 s of 110 s; 31 passed, 0 skipped, 0 failed
+chunk scientific-research: PASS, 3.8 s of 110 s; 126 passed, 0 skipped, 0 failed
+chunk transaction-receipts: PASS, 1.8 s of 110 s; 53 passed, 0 skipped, 0 failed
+chunk expansion-experiments: PASS, 3.2 s of 110 s; 101 passed, 0 skipped, 0 failed
+chunk domestic-credit: PASS, 2.0 s of 110 s; 34 passed, 0 skipped, 0 failed
+chunk faiths: PASS, 1.8 s of 110 s; 18 passed, 0 skipped, 0 failed
+chunk decision-delivery-python: PASS, 1.8 s of 110 s; 82 passed, 0 skipped, 0 failed
+chunk health-care-policy: PASS, 3.7 s of 110 s; 346 passed, 0 skipped, 0 failed
+chunk practice-growth-observer: PASS, 2.6 s of 110 s; 108 passed, 0 skipped, 0 failed
+chunk native-ci-metadata-contracts: PASS, 1.6 s of 110 s; 217 passed, 0 skipped, 0 failed
+chunk ci-artifact-intake-pure-contracts: PASS, 1.9 s of 110 s; 105 passed, 0 skipped, 0 failed
+chunk kin-root-exposure-contracts: PASS, 1.6 s of 110 s; 129 passed, 0 skipped, 0 failed
+chunk ci-critical-path-contracts: PASS, 1.4 s of 110 s; 33 passed, 0 skipped, 0 failed
+chunk named-context-benchmark-contracts: PASS, 1.5 s of 110 s; 27 passed, 0 skipped, 0 failed
+chunk paired-context-benchmark-contracts: PASS, 1.5 s of 110 s; 41 passed, 0 skipped, 0 failed
+chunk connected-world-c: PASS, 7.0 s of 110 s; 171 passed, 0 skipped, 0 failed
+chunk connected-world-d: PASS, 10.6 s of 110 s; 56 passed, 0 skipped, 0 failed
+chunk connected-world-c2: PASS, 1.4 s of 110 s; 61 passed, 0 skipped, 0 failed
+chunk connected-world-x: PASS, 6.7 s of 110 s; 55 passed, 0 skipped, 0 failed
+chunk connected-world-d1: PASS, 1.4 s of 110 s; 49 passed, 0 skipped, 0 failed
+chunk connected-world-completion: PASS, 2.9 s of 110 s; 198 passed, 0 skipped, 0 failed
+chunk connected-world-readers: PASS, 1.5 s of 110 s; 68 passed, 0 skipped, 0 failed
+Lane: PASS in 336.2 s
+Evidence: /workspace/evidence/final-offline-v4

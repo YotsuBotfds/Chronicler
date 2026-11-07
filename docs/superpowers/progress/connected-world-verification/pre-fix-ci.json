@@ -1,0 +1,44 @@
+{
+  "run": 42388560576,
+  "head": "063658b9169b5458a5214c0865ed89c7dd67a4b2",
+  "status": "failed; blocked this head from merge",
+  "no_rust": {
+    "passed": 11404,
+    "failed": 5,
+    "skipped": 452,
+    "subtests": 623,
+    "failures": [
+      "attribution registration order",
+      "guild registration order",
+      "care/wealth obsolete exclusion",
+      "append-only money books",
+      "wealth mode registration"
+    ]
+  },
+  "native": {
+    "shard0": {
+      "passed": 7118,
+      "failed": 5,
+      "skipped": 4,
+      "subtests": 407
+    },
+    "shard1": {
+      "passed": 4956,
+      "failed": 4,
+      "skipped": 2,
+      "subtests": 216
+    },
+    "additional_failures": [
+      "two exact purpose tables omitted appended restitution10",
+      "two unknown-purpose tests still used now-valid code10"
+    ]
+  },
+  "fixes": [
+    "b14e3bdd",
+    "79a7f411",
+    "0235b10b",
+    "aeecbe2e"
+  ],
+  "runtime_changes": false,
+  "current_checks": "Full offline V4 green; native purpose modules17pass; final-head all-nine Tests remains a separate required gate."
+}
