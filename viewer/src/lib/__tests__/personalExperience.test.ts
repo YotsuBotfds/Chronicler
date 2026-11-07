@@ -100,3 +100,12 @@ it("separates rules3 installed scores, personal controls and independent D3 inpu
   a6_rows:[],a6_rows_total:0,d3_rows:[[7,1,.2],[7,1,.15]],d3_rows_total:2,rows:[[7,1,.3]],rows_total:1,rows_installed:1});
  expect(adaptiveAt(s,2)).not.toBeNull(); // Multiple D3 inputs combine under one cap.
 });
+
+it("does not relabel a legacy record-only score proposal as an installed input",()=>{
+ const b=bundle(),record=(b.history[0] as unknown as {livelihoods:{adaptive_livelihoods:Record<string,unknown>}}).livelihoods.adaptive_livelihoods;
+ record.mode="record_only";(record.frame as Record<string,unknown>).rows_installed=0;
+ const row=entityHistory(indexEntityHistory(b),{kind:"person",id:7}).find(r=>r.source?.includes("/frame/rows/"))!;
+ expect(row.text).toContain("Legacy prepared destination score proposal");
+ expect(row.text).toContain("does not establish actual application or a move");
+ expect(row.text).not.toContain("Installed destination score input");
+});
