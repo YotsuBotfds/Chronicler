@@ -38,6 +38,14 @@ def extract(bundle: dict, flags) -> tuple[dict, list[str]]:
     nregions = len(regions) if isinstance(regions, list) else 0
     if not nregions:
         problems.append("world_state.regions missing or empty")
+    civilizations = SR._get(bundle, ("world_state", "civilizations"))
+    names = [row.get("name") for row in civilizations if isinstance(row, dict)] \
+        if isinstance(civilizations, list) else []
+    if not names or not all(isinstance(name, str) and name for name in names) or len(names) != len(set(names)):
+        problems.append("world_state.civilizations stable names missing or malformed")
+        civ_names = set()
+    else:
+        civ_names = set(names)
     history = bundle.get("history")
     if not isinstance(history, list) or not history:
         return {}, [*problems, "history missing or empty"]
@@ -301,8 +309,17 @@ def extract(bundle: dict, flags) -> tuple[dict, list[str]]:
         for event in events:
             if isinstance(event, dict) and event.get("event_type") == "epidemic_arrival":
                 actors = event.get("actors")
-                if isinstance(actors, list) and len(actors) == 2 and actors[0] != actors[1] \
-                        and integer(event.get("turn")):
+                # Arrival emission deduplicates the controlled source/target
+                # names. Zero/one actors are legitimate uncontrolled or same-
+                # polity arrivals, not cross-polity events. Unknown names or
+                # out-of-history turns are malformed, never a counted event.
+                if not integer(event.get("turn")) or event["turn"] not in seen_turns:
+                    problems.append("epidemic_arrival turn is outside observed completed history")
+                elif not isinstance(actors, list) or len(actors) > 2 \
+                        or not all(isinstance(name, str) and name in civ_names for name in actors) \
+                        or len(actors) != len(set(actors)):
+                    problems.append("epidemic_arrival actors are malformed or not stable controlled polities")
+                elif len(actors) == 2:
                     m["arrivals_world"] += 1
     for key in ("route_turns_removed", "forgone_income", "closed_pair_turns"):
         m[key] = amount((last_rules or {}).get("totals") or {}, key, "quarantine totals")
