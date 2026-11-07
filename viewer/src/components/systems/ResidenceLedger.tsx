@@ -37,7 +37,7 @@ export function ResidenceLedger({ bundle, snapshot, currentTurn, onSelectRegion 
   const frame = record.frame;
   const p = record.parameters as Record<string, number>;
   const intro = <>
-    <p className="systems-note">Simulation turn {record.source_turn}, observed since turn {frame.observed_from} (earlier history is unknown, not zero). Record only: nothing in the simulation reads this panel's numbers. A person is displaced from the move that left home driven by flight (war, battle, conquest or persecution memories, persecution, the safety need) or hunger until they return home, resettle ({p.rehome_turns ?? 20} turns at one residence; moving on, for any reason, keeps them displaced) or die. The anchor is the event at home in the {p.anchor_turns ?? 5} turns before leaving: war (a change of ruler, an occupation or a conquest), famine, persecution, or none. A voluntary migrant takes their new region as home at once; enlistment never changes home.</p>
+    <p className="systems-note">Simulation turn {record.source_turn}, observed since turn {frame.observed_from} (earlier history is unknown, not zero). Record only: nothing in the simulation reads this panel's numbers. A person is displaced from the move that left home driven by flight (memories of famine, battle, conquest or persecution; persecution; the safety need) or hunger until they return home, resettle ({p.rehome_turns ?? 20} turns at one residence; moving on, for any reason, keeps them displaced) or die. The anchor is the event at home in the {p.anchor_turns ?? 5} turns before leaving: war (a change of ruler between civilizations, an occupation, a conquest, a battle or a siege), famine, persecution, or none. A voluntary migrant takes their new region as home at once; enlistment never changes home.</p>
   </>;
   if (reading.state === "recorded_zero") {
     return section(turn, <>{intro}<p className="systems-note">{reading.note}.</p>{recent}</>);
@@ -58,22 +58,22 @@ function Frame({ frame, events, dropped, turn, link }: {
   const longest = events.filter((e) => e.kind !== "opened").reduce((m, e) => Math.max(m, e.length), 0);
   return <>
     <p className="systems-note">{t.displaced} of {t.observed} people observed are displaced ({percent(t.displaced, t.observed)}): {t.displaced_flight} fled, {t.displaced_hunger} left hungry. Anchored at home to war {t.displaced_war}, famine {t.displaced_famine}, persecution {t.displaced_persecution}, no event {t.displaced_none}{t.anchor_partial ? ` (${t.anchor_partial} of them left before the ledger had watched their home for the whole window)` : ""}.{t.deferred ? ` ${t.deferred} merchant(s) first seen on a trip are recorded when it ends.` : ""}</p>
-    <p className="systems-note">This turn: {t.moves} moves ({t.moves_flight} flight, {t.moves_hunger} hunger, {t.moves_voluntary} voluntary, {t.moves_other} other); {t.opened} spell(s) opened; {closed.length ? closed.map((k) => `${t[k]} ${CLOSURE_LABEL[k]}`).join(", ") : "no spell closed"}; {t.rehomed} migrant(s) took a new home; {t.deaths} death(s){longest ? `; the longest spell closed lasted ${longest} turns` : ""}.{t.trip_relocations ? ` ${t.trip_relocations} trip(s) ended away from home (an unclassified relocation).` : ""}</p>
+    <p className="systems-note">This turn: {t.moves} moves ({t.moves_flight} flight, {t.moves_hunger} hunger, {t.moves_voluntary} voluntary, {t.moves_other} other); {t.opened} spell(s) opened{t.opened_war ? ` (${t.opened_war} anchored to war)` : ""}; {closed.length ? closed.map((k) => `${t[k]} ${CLOSURE_LABEL[k]}`).join(", ") : "no spell closed"}; {t.rehomed} migrant(s) took a new home; {t.deaths} death(s){longest ? `; the longest spell closed lasted ${longest} turns` : ""}.{t.trip_relocations ? ` ${t.trip_relocations} trip(s) ended away from home (an unclassified relocation).` : ""}</p>
     {stock.length ? <div className="systems-table-wrap"><table className="systems-table" aria-label={`Open displacement spells at snapshot ${turn}`}>
-      <thead><tr><th>Region</th><th>Residents</th><th>Displaced here (fled · hungry)</th><th>Anchor: war · famine · persecution · none</th><th>Displaced from here</th></tr></thead>
+      <thead><tr><th>Region</th><th>Residents</th><th>Displaced here (fled · hungry)</th><th>Anchor: war · famine · persecution · none</th><th>Displaced from here (war-anchored)</th></tr></thead>
       <tbody>{stock.map((r) => <tr key={r.region}>
         <td>{link(r.region)}</td><td>{r.residents}</td>
         <td>{r.displaced} ({r.displaced_flight} · {r.displaced_hunger})</td>
         <td>{r.displaced_war} · {r.displaced_famine} · {r.displaced_persecution} · {r.displaced_none}</td>
-        <td>{r.displaced_from}</td>
+        <td>{r.displaced_from} ({r.displaced_from_war})</td>
       </tr>)}</tbody>
     </table></div> : <p className="systems-note">No one is recorded in any region (recorded zero).</p>}
     {flows.length ? <div className="systems-table-wrap"><table className="systems-table" aria-label={`Movement and spells at snapshot ${turn}`}>
-      <thead><tr><th>Region</th><th>Departures (flight · hunger · voluntary · other)</th><th>Arrivals (displaced)</th><th>Spells opened</th><th>Returned home</th><th>Resettled</th><th>Died displaced</th><th>Deaths</th></tr></thead>
+      <thead><tr><th>Region</th><th>Departures (flight · hunger · voluntary · other)</th><th>Arrivals (displaced)</th><th>Spells opened (war-anchored)</th><th>Returned home (war-anchored)</th><th>Resettled</th><th>Died displaced</th><th>Deaths</th></tr></thead>
       <tbody>{flows.map((r: ResidenceRegionRow) => <tr key={r.region}>
         <td>{link(r.region)}</td>
         <td>{r.departures} ({r.departures_flight} · {r.departures_hunger} · {r.departures_voluntary} · {r.departures_other})</td>
-        <td>{r.arrivals} ({r.arrivals_displaced})</td><td>{r.opened}</td><td>{r.returned}</td>
+        <td>{r.arrivals} ({r.arrivals_displaced})</td><td>{r.opened} ({r.opened_war})</td><td>{r.returned} ({r.returned_war})</td>
         <td>{r.resettled}</td><td>{r.died_displaced}</td><td>{r.deaths}</td>
       </tr>)}</tbody>
     </table></div> : <p className="systems-note">No one moved, left, returned, resettled or died this turn (recorded zero).</p>}

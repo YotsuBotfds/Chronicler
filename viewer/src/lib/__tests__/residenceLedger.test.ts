@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { Bundle, TurnSnapshot } from "../../types";
 import { readResidenceLedger } from "../recordReading";
 import { residenceLedgerAt, residenceLedgerOn, residenceZero, TOTAL_KEYS, type ResidenceLedgerRecord } from "../residenceLedger";
-import { RECORD_189, RECORD_190, REGION_NAMES } from "./residenceLedgerFixture";
+import { RECORD_121, RECORD_122, REGION_NAMES } from "./residenceLedgerFixture";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 type Rec = Record<string, any>;
@@ -18,12 +18,12 @@ const regions = REGION_NAMES.length;
 
 describe("residenceLedgerAt", () => {
   it("accepts the natural records and their sums", () => {
-    const r = residenceLedgerAt(snap(190, clone(RECORD_190)), regions) as ResidenceLedgerRecord;
+    const r = residenceLedgerAt(snap(122, clone(RECORD_122)), regions) as ResidenceLedgerRecord;
     expect(r).not.toBeNull();
-    expect(r.frame!.totals.displaced).toBe(165);
+    expect(r.frame!.totals.displaced).toBe(254);
     expect(r.frame!.regions.reduce((a, x) => a + x.residents, 0)).toBe(r.frame!.totals.observed);
-    expect(r.events!.filter((e) => e.kind === "returned")).toHaveLength(4);
-    expect(residenceLedgerAt(snap(189, clone(RECORD_189)), regions)).not.toBeNull();
+    expect(r.events!.filter((e) => e.kind === "returned")).toHaveLength(2);
+    expect(residenceLedgerAt(snap(121, clone(RECORD_121)), regions)).not.toBeNull();
     expect(residenceZero(r.frame!)).toBe(false);
   });
 
@@ -40,38 +40,38 @@ describe("residenceLedgerAt", () => {
     ["a frame without events but a frame", (r: Rec) => { r.frame = null; }],
     ["a frame of another epoch", (r: Rec) => { r.observed_from = 5; }],
   ])("refuses %s", (_name, edit) => {
-    const r = clone(RECORD_190) as Rec;
+    const r = clone(RECORD_122) as Rec;
     edit(r);
-    expect(residenceLedgerAt(snap(190, r), regions)).toBeNull();
+    expect(residenceLedgerAt(snap(122, r), regions)).toBeNull();
   });
 
   it("accepts an unobserved record (frame and events null) and events dropped beyond the bound", () => {
-    const r = clone(RECORD_190) as Rec;
+    const r = clone(RECORD_122) as Rec;
     r.frame = null;
     r.events = null;
-    expect(residenceLedgerAt(snap(190, r), regions)?.frame).toBeNull();
-    const d = clone(RECORD_190) as Rec;
+    expect(residenceLedgerAt(snap(122, r), regions)?.frame).toBeNull();
+    const d = clone(RECORD_122) as Rec;
     d.events = d.events.slice(0, 3);
-    d.events_dropped = RECORD_190.events.length - 3;
-    expect(residenceLedgerAt(snap(190, d), regions)).not.toBeNull();
+    d.events_dropped = RECORD_122.events.length - 3;
+    expect(residenceLedgerAt(snap(122, d), regions)).not.toBeNull();
   });
 });
 
 describe("readResidenceLedger: six readings stay distinct", () => {
   const zero = () => {
-    const r = clone(RECORD_190) as Rec;
+    const r = clone(RECORD_122) as Rec;
     for (const k of TOTAL_KEYS) r.frame.totals[k] = 0;
     r.frame.regions = [];
     r.events = [];
     return r;
   };
   const cases: [string, TurnSnapshot[], number, string][] = [
-    ["disabled", [snap(189, undefined), snap(190, undefined)], 1, "off in this run"],
-    ["absent", [snap(189, clone(RECORD_189)), snap(190, undefined)], 1, "unknown, not zero"],
-    ["malformed", [snap(189, clone(RECORD_189)), snap(190, { ...clone(RECORD_190), stage: "X" })], 1, "malformed"],
-    ["unobserved", [snap(190, { ...clone(RECORD_190), frame: null, events: null })], 0, "not observed"],
-    ["recorded_zero", [snap(190, zero())], 0, "nothing happened"],
-    ["recorded", [snap(190, clone(RECORD_190))], 0, ""],
+    ["disabled", [snap(121, undefined), snap(122, undefined)], 1, "off in this run"],
+    ["absent", [snap(121, clone(RECORD_121)), snap(122, undefined)], 1, "unknown, not zero"],
+    ["malformed", [snap(121, clone(RECORD_121)), snap(122, { ...clone(RECORD_122), stage: "X" })], 1, "malformed"],
+    ["unobserved", [snap(122, { ...clone(RECORD_122), frame: null, events: null })], 0, "not observed"],
+    ["recorded_zero", [snap(122, zero())], 0, "nothing happened"],
+    ["recorded", [snap(122, clone(RECORD_122))], 0, ""],
   ];
   it.each(cases)("%s", (state, history, index, note) => {
     const reading = readResidenceLedger(bundle(history), history[index]);
@@ -81,7 +81,7 @@ describe("readResidenceLedger: six readings stay distinct", () => {
   });
 
   it("residenceLedgerOn tells a run that records it", () => {
-    expect(residenceLedgerOn([snap(1, undefined), snap(2, clone(RECORD_190))])).toBe(true);
+    expect(residenceLedgerOn([snap(1, undefined), snap(2, clone(RECORD_122))])).toBe(true);
     expect(residenceLedgerOn([snap(1, undefined)])).toBe(false);
     expect(residenceLedgerOn(undefined)).toBe(false);
   });

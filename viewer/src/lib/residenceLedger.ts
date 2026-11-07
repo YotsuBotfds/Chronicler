@@ -29,6 +29,13 @@ export const REGION_KEYS = [
   "departures", "departures_flight", "departures_hunger", "departures_voluntary", "departures_other",
   "opened", "returned", "resettled", "died_displaced", "deaths",
   "attached", "attached_away", "in_transit",
+  // Review M1 (appended): arrivals and departures by cause and anchor.
+  "opened_flight", "opened_hunger",
+  "opened_war", "opened_famine", "opened_persecution", "opened_none",
+  "returned_war", "returned_famine", "returned_persecution", "returned_none",
+  "displaced_from_war", "displaced_from_famine", "displaced_from_persecution", "displaced_from_none",
+  "arrivals_flight", "arrivals_hunger", "arrivals_voluntary", "arrivals_other",
+  "arrivals_displaced_war", "arrivals_displaced_famine", "arrivals_displaced_persecution", "arrivals_displaced_none",
 ] as const;
 /** ``residence_ledger_state.TOTAL_KEYS`` (declaration order). */
 export const TOTAL_KEYS = [
@@ -41,6 +48,13 @@ export const TOTAL_KEYS = [
   "attached", "attached_away", "in_transit",
   "new_rows", "newborn_rows", "trip_relocations", "unexplained_relocations", "move_origin_mismatches",
   "recent_movers_native", "away_from_birth_region",
+  "opened_flight", "opened_hunger",
+  "opened_war", "opened_famine", "opened_persecution", "opened_none",
+  "returned_war", "returned_famine", "returned_persecution", "returned_none",
+  "displaced_from_war", "displaced_from_famine", "displaced_from_persecution", "displaced_from_none",
+  "arrivals_flight", "arrivals_hunger", "arrivals_voluntary", "arrivals_other",
+  "arrivals_displaced_war", "arrivals_displaced_famine", "arrivals_displaced_persecution", "arrivals_displaced_none",
+  "invalid_moves",
 ] as const;
 /** Totals that are all zero in a recorded-zero frame (``residence_ledger._ZERO_KEYS``). */
 const ZERO_KEYS = ["displaced", "attached", "moves", "opened", ...CLOSURES, "deaths"] as const;
@@ -63,6 +77,8 @@ export interface ResidenceFrame {
 export interface SpellEvent {
   id: number; kind: "opened" | Closure; turn: number; region: number;
   start: number; origin: number; cause: Cause; anchor: Anchor; length: number;
+  /** The opening move's native driver code (kept across onward moves); null: no driver. */
+  driver: number | null;
   /** Not an applied migration (a trip that ended away from home, or unexplained). */
   relocation?: boolean;
 }
@@ -89,6 +105,7 @@ function validEvent(e: unknown, regions: number, source: number): boolean {
   return count(e.id) && among(kinds, e.kind) && e.turn === source && count(e.region) && e.region < regions
     && count(e.start) && e.start <= source && count(e.origin) && e.origin < regions && among(CAUSES, e.cause)
     && among(ANCHORS, e.anchor) && e.length === source - (e.start as number)
+    && (e.driver === null || count(e.driver))
     && (e.relocation === undefined || e.relocation === true);
 }
 
