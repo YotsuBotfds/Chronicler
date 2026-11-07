@@ -171,6 +171,7 @@ REQUIREMENTS: dict[str, tuple[dict, ...]] = {
     # C2: L9 funds the carers; the epidemic model and its ledger are the effect's
     # authority; the A1 ledger does not itemize care wages (mutual exclusion).
     "epidemic_care": (_HYBRID, _feature("local_budgets"), _setting("epidemiology"), _excludes("wealth_accounting")),
+    "residence_ledger": (_HYBRID,),
     "attribution_records": (_HYBRID,),
     "wealth_accounting": (_HYBRID, _excludes("epidemic_care")),
     # An explicit legacy is the option omitted: it needs nothing (lead decision m4).

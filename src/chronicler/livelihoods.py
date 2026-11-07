@@ -62,6 +62,12 @@ The connected-world program appends:
   tick's case fatality (mode ``care``) or nothing (``cost_only``, the cost
   control); inserted after A3 and A4 and before D2 and the ledger, so its Phase 2 work
   comes after every other work consumer.
+* ``--residence-ledger`` (X1, the lead-owned displacement contract): home,
+  residence, army attachment and displacement spells with cause and dated
+  home-region anchor, written once per turn in Phase 10 after the rosters are
+  reconciled and read by consumers only the next turn; inserted after C2's
+  epidemic care, immediately before D2 and the wealth ledger. It changes
+  nothing it observes and books no labour.
 * ``--attribution-records`` (D2): observation-only records of actor, victim and
   cause (granary seizures, casualties by cause, restored-civ identity reuse,
   burdens per actor -> victim pair); inserted after A3 and before the wealth ledger,
@@ -160,6 +166,7 @@ LIVELIHOODS_ARG_KEYS: tuple[str, ...] = (
     "workshop_economics_rules",
     "titled_trade",
     "epidemic_care", "epidemic_care_mode",
+    "residence_ledger",
     "attribution_records",
     "wealth_accounting",
 )
@@ -437,6 +444,17 @@ _HELP = {
         "care (default): the carers' capacity lowers the next tick's case fatality; cost_only: the cost control "
         "with the same carers, farm time, withheld income and wages and no effect on fatality"
     ),
+    "residence_ledger": (
+        "Residence ledger (X1, the displacement contract): a record-only ledger of where each person lives, "
+        "where they belong and why they left: home (the residence when first observed, changed only by a "
+        "voluntary or unclassified move of a person who is not displaced, or after 20 turns settled "
+        "elsewhere; never by enlistment), residence, army attachment and displacement spells opened by a "
+        "flight- or hunger-driven move from home, with the opening driver and the home-region event (war, "
+        "famine, persecution) dated in the 5 turns before, kept open by any onward move and closed on "
+        "return, resettlement, death, a rebuilt pool or an unobserved gap; one frame per turn dated by its "
+        "source turn, readable by a consumer only the next turn; changes nothing; requires --agents hybrid "
+        "(default off)"
+    ),
     "attribution_records": (
         "Attribution records (D2): observation-only records of who did what to whom, at the event: "
         "granary seizures with their actor and victim; enlisted soldiers' deaths per war and cause - "
@@ -703,6 +721,12 @@ def _check_prerequisites(world: Any, values: dict, agent_mode: str, args: Any = 
         # needs the switch and is fixed once the world ran with it.
         from chronicler.epidemic_care import check_request
         check_request(world, values, args, agent_mode=agent_mode, on=lambda name: _on(world, values, name))
+    if _on(world, values, "residence_ledger") and agent_mode != "hybrid":
+        # Also when only saved: the ledger reads the hybrid agent pool, its
+        # moves and the rosters; a resume outside hybrid is refused until ended.
+        saved = values["residence_ledger"] is not True
+        raise ValueError("--residence-ledger requires --agents hybrid"
+                         + ("; this world has it on: pass --no-residence-ledger to end it" if saved else ""))
     if _on(world, values, "attribution_records") and agent_mode != "hybrid":
         # Also when only saved: the records observe hybrid runs (army rosters,
         # the native tick); a resume outside hybrid is refused until ended.
