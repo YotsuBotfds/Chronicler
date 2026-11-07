@@ -1,0 +1,46 @@
+{
+  "status": "PASS; independently reviewed actual source, completed held metrics/report and retained raw worlds",
+  "held_source": "5ec73003837b5149091593ffa411d33dd32e9491",
+  "physics_source": "eaa4a5d3e1cb5c958b5e32719601c28986c9f6ac",
+  "native_sha256": "59f536b8f4a6c2bc82c51eeaec55f3aff6b0a1c5c8f1a324049ad15b42c51617",
+  "rust_inputs_sha256": "38b21020673a028ce6bcd76e19fb3e0c01eed5893b89f1ce6ff6eda6cf8925a2",
+  "preregistration_sha256": "f8924582ad5292d27e185fe4eea69241c130b71b25e5471aa05128783640941d",
+  "cases": 60,
+  "worlds": 12,
+  "arms": 5,
+  "turns": 120,
+  "failures": 0,
+  "missing_outcomes": 0,
+  "outcomes": 131,
+  "primaries": 3,
+  "simulation_s": 1298.0,
+  "extraction_s": 169.4,
+  "total_s": 1467.4,
+  "actual_core_hours": 0.40761111111111115,
+  "wall_s": 1473.2,
+  "compute_ceiling_core_hours": 1.0,
+  "prior_projection_margin_core_hours": 0.7805,
+  "independent_review": [
+    "Evidence agent and separate readback reviewer inspected exact source/identities/56 Rust inputs, all 60 unique cases/all 120 turns/strict 131 outcomes and ten raw first-world bundles plus Arrow.",
+    "All 6 primary, 256 secondary and 88 fixed-harm report rows/sign flips were independently recomputed; controls, unconditioned enrollment and physical/native closures pass."
+  ],
+  "retained_limits": [
+    "Both balance primaries are negative; procedural D3 death primary is positive and service primary negative; material food-shortfall and epidemic harms remain.",
+    "Unknown migration causes are 85.07% template/98.29% procedural; X1 to C2 exposure feedback forbids interpreting lower classified displacement as a health benefit.",
+    "Bounded A6 samples dropped 776/205136 rows and do not substitute for whole-world totals.",
+    "Template786 forest stand is unrecorded without capacity; famine/war-cause mortality remains null.",
+    "120-turn, 12-world bounded screen, not full 200-seed/procedural qualification or default promotion."
+  ],
+  "files": {
+    "README.md": "b560bdce3278e7e7928b4537b0dd8ea989138a2752cbfd3680cb39a6cbd97f6a",
+    "check.txt": "87bdcf906bcd38cdb75fbddec8e8488e874b9414ca2a6dd3061a2aaac6629ed7",
+    "held-run.json": "24d8b227cc1107cc94e13617187bae16b2d34e9c5883bb8d71b1b803049ae673",
+    "manual-summary.json": "c3d7d2dac85526cde3d678d21370c29a01fbf258d19039799cea30a400591bcc",
+    "metrics.jsonl": "b8365bf868b7cfdfa88740304a669429be2bff52d1000c9f0cd7b039eb0fba45",
+    "preregistration-frozen.md": "f8924582ad5292d27e185fe4eea69241c130b71b25e5471aa05128783640941d",
+    "registry-return-rows.json": "10aba1bfdee89c7202fbebd2384d0e6e646f751c7fba3b34d92a2a0a7e02cd2e",
+    "report.md": "c6be63fb3e73288c48f3a1c7955777996ed4845cc2266781762394c7b91ef50b",
+    "retained-bundle-identities.json": "7c912d583eb4293e8b81041067955ef3d2457406b0d8324f53876beb22d0bd70",
+    "source.txt": "9fe7afc6ff27fbad5a65e98fcacc4863b1e7850a3f3952daf6045c0960fd821c"
+  }
+}

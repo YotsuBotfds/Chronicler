@@ -1,0 +1,27 @@
+{
+ "screen": "CW6",
+ "cohort": "held",
+ "out": "/workspace/evidence/cw6/held",
+ "identity": "45b176288eaf43018283a542f1531f855e58b8c6e55e0bb55bd0bef5b9624ab9",
+ "preregistration": "f8924582ad5292d27e185fe4eea69241c130b71b25e5471aa05128783640941d docs/superpowers/progress/connected-world-screens-cw6-integrated.md",
+ "started": "2026-11-07T15:51:57Z",
+ "seeds": {
+  "template": [
+   781,
+   782,
+   783,
+   784,
+   785,
+   786
+  ],
+  "procedural": [
+   881,
+   882,
+   883,
+   884,
+   885,
+   886
+  ]
+ },
+ "reason": null
+}

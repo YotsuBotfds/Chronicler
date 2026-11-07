@@ -1,0 +1,154 @@
+{
+  "t": {
+    "balance": {
+      "control": "A6R",
+      "field": "balance_change_per_1000_pt",
+      "FULL_minus_control": {
+        "781": -3.284635623793257,
+        "782": -6.578073839047187,
+        "783": 6.086508086241256,
+        "784": -1.8122295268298103,
+        "785": -9.863968706111821,
+        "786": -5.057139675720888
+      },
+      "mean": -3.418256547543618,
+      "min": -9.863968706111821,
+      "max": 6.086508086241256,
+      "positive": 1,
+      "negative": 5,
+      "zero": 0
+    },
+    "deaths": {
+      "control": "D3R",
+      "field": "deaths_per_1000_pt",
+      "FULL_minus_control": {
+        "781": -1.358905291933807,
+        "782": 0.09806281928076643,
+        "783": -0.22491776362116056,
+        "784": -0.8267408236515088,
+        "785": 0.0,
+        "786": -0.1494099447736872
+      },
+      "mean": -0.41031850078323284,
+      "min": -1.358905291933807,
+      "max": 0.09806281928076643,
+      "positive": 1,
+      "negative": 4,
+      "zero": 1
+    },
+    "service": {
+      "control": "SUP",
+      "field": "service_per_region_turn",
+      "FULL_minus_control": {
+        "781": 0.011145833333332744,
+        "782": -0.0016674967706202803,
+        "783": 0.013667110653905024,
+        "784": 0.0,
+        "785": 0.003583333273728506,
+        "786": 0.0
+      },
+      "mean": 0.004454796748390999,
+      "min": -0.0016674967706202803,
+      "max": 0.013667110653905024,
+      "positive": 3,
+      "negative": 1,
+      "zero": 2
+    },
+    "FULL_totals": {
+      "army_consumed": 312,
+      "army_demand": 684,
+      "army_hunger_ration_turns": 372,
+      "timber_orders": 40,
+      "timber_delivered_milli": 56673,
+      "infra_work": 172.05814759805799,
+      "d3_evacuated": 103,
+      "d3_returned": 55,
+      "d3_wounded": 10,
+      "all_migrations": 6195,
+      "unknown_migration_drivers": 5270,
+      "x1_displaced_person_turns": 11696,
+      "dropped_a6_rows": 776,
+      "claims_unpaid_final_milli": 0,
+      "claims_unrecorded_milli": 0,
+      "unknown_migration_share": 0.8506860371267151
+    }
+  },
+  "p": {
+    "balance": {
+      "control": "A6R",
+      "field": "balance_change_per_1000_pt",
+      "FULL_minus_control": {
+        "881": -0.005535587995204594,
+        "882": -4.72644153683834,
+        "883": -2.054393147228893,
+        "884": 3.975577561524112,
+        "885": -3.754569600172834,
+        "886": 0.3690784955766411
+      },
+      "mean": -1.0327139691890865,
+      "min": -4.72644153683834,
+      "max": 3.975577561524112,
+      "positive": 2,
+      "negative": 4,
+      "zero": 0
+    },
+    "deaths": {
+      "control": "D3R",
+      "field": "deaths_per_1000_pt",
+      "FULL_minus_control": {
+        "881": -0.4819170271937292,
+        "882": 0.20880346461506072,
+        "883": -0.8028152971078732,
+        "884": -1.0052145603035,
+        "885": 2.368725308187555,
+        "886": 1.405735609292897
+      },
+      "mean": 0.2822195829150684,
+      "min": -1.0052145603035,
+      "max": 2.368725308187555,
+      "positive": 3,
+      "negative": 3,
+      "zero": 0
+    },
+    "service": {
+      "control": "SUP",
+      "field": "service_per_region_turn",
+      "FULL_minus_control": {
+        "881": 0.008249502643406736,
+        "882": -0.0008092018560947878,
+        "883": -0.03889322912227389,
+        "884": 0.020070089953424297,
+        "885": -0.012336145845551982,
+        "886": -0.019718416752798618
+      },
+      "mean": -0.007239566829981374,
+      "min": -0.03889322912227389,
+      "max": 0.020070089953424297,
+      "positive": 2,
+      "negative": 4,
+      "zero": 0
+    },
+    "FULL_totals": {
+      "army_consumed": 1498,
+      "army_demand": 5465,
+      "army_hunger_ration_turns": 3967,
+      "timber_orders": 140,
+      "timber_delivered_milli": 129995,
+      "infra_work": 726.3847264004871,
+      "d3_evacuated": 521,
+      "d3_returned": 215,
+      "d3_wounded": 99,
+      "all_migrations": 22338,
+      "unknown_migration_drivers": 21956,
+      "x1_displaced_person_turns": 4047,
+      "dropped_a6_rows": 205136,
+      "claims_unpaid_final_milli": 0,
+      "claims_unrecorded_milli": 0,
+      "unknown_migration_share": 0.9828990957113439
+    }
+  },
+  "timing": {
+    "wall_s": 1298.0,
+    "extract_s": 169.4
+  }
+}
