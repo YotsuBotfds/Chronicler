@@ -80,6 +80,19 @@
   index — disclosed); floods are events from storage released by upstream forest loss; terrain cap
   changes recorded. **CW3** (procedural 851–856): all three primaries null; the cost of clearing
   protection raised downstream food shortfall (cost not held equal across arms).
+- **X1 lane** (`claude/cw-x1-residence`, from `bac45cb5`; not merged): `--residence-ledger`, the
+  lead-owned displacement contract from audit A6 section 11 — record-only, hybrid only, default
+  off; home, residence, attachment and displacement spells (cause flight/hunger, dated
+  home-region anchor war/famine/persecution/none, closures returned/resettled/died/pool_reset/
+  unobserved_gap) written once per turn in the livelihoods Phase 10 hook after
+  `reconcile_rosters`, before D2 and A1; readers get T's frame at T+1 only (`read_frame`,
+  `own_row` for A6, `separation` for D3) and a guard refuses any other read by decision modules;
+  a viewer panel; one layer `cwx1`. Found: a merchant trip unwound on conquest is a second native
+  relocation path (recorded as an unclassified relocation; audit 11.2 said only
+  `apply_migrations`). Lead decision pending: 11.1 read literally resettles a displaced person's
+  voluntary onward move; with the audit probe's rule the ledger reproduces audit section 10
+  within 0.01. [Integration page](integration/residence-ledger.md) (verification and
+  development-world evidence).
 - **Lanes in flight** (each on its own branch, provisional witness layers regenerated at
   integration): A5 retail rules v2, war reaches owned stock once per event (RL1–RL3; review
   merge-ready); A1 `--wealth-accounting` observation ledger (RL7; review fixes); B1 `--watershed
