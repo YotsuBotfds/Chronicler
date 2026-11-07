@@ -271,7 +271,10 @@ def run(args):
         after = resource.getrusage(resource.RUSAGE_CHILDREN)
         row = {"name": case["name"], "exit_code": proc.returncode, "command": command,
                "process_wall_seconds": time.monotonic() - wall,
-               "child_cpu_seconds": after.ru_utime + after.ru_stime - usage.ru_utime - usage.ru_stime}
+               "child_cpu_seconds": after.ru_utime + after.ru_stime - usage.ru_utime - usage.ru_stime,
+               "directory_bytes_after_exit": sum(p.stat().st_size for p in directory.rglob("*") if p.is_file()),
+               "file_bytes_after_exit": {p.relative_to(directory).as_posix(): p.stat().st_size
+                                         for p in directory.rglob("*") if p.is_file()}}
         result.append(row)
         (out / "runs.json").write_text(json.dumps(result, indent=2) + "\n")
         print(json.dumps(row), flush=True)
