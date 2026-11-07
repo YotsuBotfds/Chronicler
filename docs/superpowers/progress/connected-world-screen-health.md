@@ -52,7 +52,10 @@ The three primary outcomes are:
    A run with no infection has an undefined denominator, never a fabricated zero.
 3. PA minus PS whole-world cross-polity epidemic arrivals, the count of
    `epidemic_arrival` events with exactly two different controlled polity actors.
-   Uncontrolled/same-polity arrivals are outside this definition.
+   Actors must resolve to stable civilization names in the saved world and the
+   arrival turn must be in the completed history. Invalid names/dates fail
+   extraction. Valid uncontrolled/same-polity arrivals (zero/one actor after
+   the emitter's deduplication) are outside this definition.
 
 Every enrolled world is included regardless of whether a mechanism acts.
 The runner's eligibility flag means intention-to-treat enrollment here; it is

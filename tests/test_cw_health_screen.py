@@ -36,9 +36,10 @@ def _bundle(mode="active", policy="evidence"):
             "epidemics": {"active": [], "deaths": 2, "deaths_total": 2, "quarantine_rules": rules},
             "livelihoods": {"public_health": ph, "epidemic_care": care},
             "food_accounting": {"source_turn": 0, "regions": [{"sufficiency_after_relief": .5}]}}
-    return {"world_state": {"regions": [{"name": "A"}]}, "history": [snap], "events_timeline": [
+    return {"world_state": {"regions": [{"name": "A"}], "civilizations": [{"name": "A"}, {"name": "B"}]},
+            "history": [snap], "events_timeline": [
             {"event_type": "epidemic_arrival", "actors": ["A", "B"], "turn": 0},
-            {"event_type": "epidemic_arrival", "actors": ["A", "A"], "turn": 0}]}
+            {"event_type": "epidemic_arrival", "actors": ["A"], "turn": 0}]}
 
 
 def _ph(b):
@@ -141,3 +142,25 @@ def test_unpaid_team_never_dates_enforcement_capacity(CW):
     ph["guard_capacity"] = [[0, 1]]
     ph["totals"]["guard_farm_time"] = 1
     assert any("full named paid work" in x for x in CW.extract(b, ())[1])
+
+
+@pytest.mark.parametrize("mutation,reason", [
+    (lambda b: b["events_timeline"][0].__setitem__("turn", 999), "outside observed"),
+    (lambda b: b["events_timeline"][0].__setitem__("turn", -1), "outside observed"),
+    (lambda b: b["events_timeline"][0].__setitem__("actors", ["A", "ghost"]), "stable controlled"),
+    (lambda b: b["events_timeline"][0].__setitem__("actors", ["A", "A"]), "malformed"),
+    (lambda b: b["events_timeline"][0].__setitem__("actors", [None, "B"]), "malformed"),
+    (lambda b: b["events_timeline"][0].__setitem__("actors", "AB"), "malformed"),
+])
+def test_primary_arrivals_reject_future_ghost_or_malformed_provenance(CW, mutation, reason):
+    b = _bundle()
+    mutation(b)
+    m, problems = CW.extract(b, ())
+    assert m["arrivals_world"] == 0 and any(reason in p for p in problems)
+
+
+def test_valid_uncontrolled_arrival_is_recorded_outside_primary(CW):
+    b = _bundle()
+    b["events_timeline"].append({"event_type": "epidemic_arrival", "turn": 0, "actors": []})
+    m, problems = CW.extract(b, ())
+    assert problems == [] and m["arrivals_world"] == 1
