@@ -158,6 +158,10 @@ def _close(world, state, t, order, reason, sim=None, acc=None):
            credited_milli=order.credited_milli, refunded_milli=order.refunded_milli)
     state.orders.remove(order)
     state.closed.append(order)
+    # Preserve the physical terminal outcome and its cargo namespace. A local
+    # commons deposit is not a return to the original owner or region.
+    from chronicler.adaptive_livelihoods import note_trade
+    note_trade(world, order.holder, order.dest, reason, None, order.id, package="timber_orders")
     del state.closed[:-MAX_CLOSED]
     check_order(order)
 
@@ -259,7 +263,9 @@ def _price(world, state, region):
     return (max(candidates)[0], max(candidates)[2]) if candidates else None
 
 
-def dispatch(world, state, t, sim, origin, dest, holder, path, quantity, price, budget, acc=None):
+_UNREAD = object()
+
+def dispatch(world, state, t, sim, origin, dest, holder, path, quantity, price, budget, acc=None, *, known_markets=_UNREAD):
     """Validated atomic dispatch: exact stock, merchant purchase and real escrow."""
     from chronicler import repair_projects as RP
     from chronicler import timber_supply as TS
@@ -275,6 +281,11 @@ def dispatch(world, state, t, sim, origin, dest, holder, path, quantity, price, 
     price_turn, price_milli = price
     if price_turn >= world.turn or price_milli <= 0:
         raise RuntimeError("timber orders refuse same-turn/future/invalid plan prices")
+    from chronicler.adaptive_livelihoods import trade_destinations, accepts_trade_destination
+    if known_markets is _UNREAD:
+        known_markets = trade_destinations(world, sim, [holder])
+    if not accepts_trade_destination(world, holder, dest, known_markets):
+        return None
     commitments = RP._commitments(world, sim)
     free = max(0.0, RP._free_timber(world, origin, commitments, 0.0) - TS.store_free(world, origin) - TS._wants(world).get(origin, 0.0))
     quantity = min(quantity, math.floor(free * MILLI), TT._capacity(TT._graph(world)[0], path))
@@ -359,6 +370,8 @@ def phase10_before_reserves(world, acc, economy_result, agent_bridge):
         busy |= {s.holder for s in retail.shipments}
     if callable(getattr(sim, "work_reservations", None)):
         busy |= {int(r[0]) for r in sim.work_reservations(world.turn)}
+    from chronicler.adaptive_livelihoods import trade_destinations
+    known_markets = trade_destinations(world, sim, people)
     for dest, payer, gap in _needs(world):
         allowance = max(0, (envelope(world, payer, SERVICE) or 0) - t.spent.get(payer, 0))
         if not allowance:
@@ -372,7 +385,7 @@ def phase10_before_reserves(world, acc, economy_result, agent_bridge):
             if path is not None and price is not None:
                 candidates.append((len(path), origin, holder, path, price))
         for _hops, origin, holder, path, price in sorted(candidates):
-            order = dispatch(world, state, t, sim, origin, dest, holder, path, math.floor(gap * MILLI), price, allowance, acc)
+            order = dispatch(world, state, t, sim, origin, dest, holder, path, math.floor(gap * MILLI), price, allowance, acc, known_markets=known_markets)
             if order is not None:
                 busy.add(holder)
                 break

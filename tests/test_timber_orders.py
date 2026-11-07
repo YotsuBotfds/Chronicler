@@ -196,3 +196,35 @@ def test_configuration_uses_supplied_mode_before_world_runtime_is_synchronized()
         timber_supply=NS(enabled=True), local_budgets=NS(enabled=True)))
     T.set_timber_orders_enabled(world, True, agent_mode="hybrid")
     assert world.livelihoods.timber_orders.enabled
+
+
+def test_rules2_trade_gate_blocks_unknown_market_before_stock_or_escrow_moves(lane):
+    world,state,sim,_ = lane
+    world.livelihoods.adaptive_livelihoods = NS(enabled=True,rules="2",mode="adapt",trade_experience=[],counters={})
+    sim.usable_trade_destinations = lambda ids,turn: [(aid,[]) for aid in ids]
+    assert buy(lane) is None
+    assert not state.orders and state.next_order == 0 and sim.wealth[17] == 10
+    assert world.regions[0].stockpile.goods["timber"] == 10
+    assert [c.treasury for c in world.civilizations] == [50,50]
+    sim.usable_trade_destinations = lambda ids,turn: [(aid,[1]) for aid in ids]
+    assert buy(lane) is not None
+
+
+def test_rules2_personal_timber_route_failure_cools_down_known_destination(lane,monkeypatch):
+    world,state,sim,_ = lane
+    memory = world.livelihoods.adaptive_livelihoods = NS(enabled=True,rules="2",mode="adapt",trade_experience=[],counters={})
+    sim.usable_trade_destinations = lambda ids,turn: [(aid,[1]) for aid in ids]
+    order = buy(lane)
+    assert order is not None
+    monkeypatch.setattr(TT,"_graph",lambda *_: ({},set()))
+    world.turn += 1
+    T.phase10_before_reserves(world,None,None,NS(_sim=sim))
+    assert order.outcome == "route_lost"
+    assert memory.trade_experience == [{"turn":3,"id":17,"region":1,"kind":"shipment","outcome":"route_lost","cause":None,"shipment":order.id,"package":"timber_orders"}]
+    world.turn += 1
+    monkeypatch.setattr(TT,"_graph",lambda *_: ({(0,1):(False,-1.0)},set()))
+    assert buy(lane) is None
+    assert memory.counters["trade_personal_return_refusal"] == 1
+    # Record-only observes the failure but leaves the dispatch decision unchanged.
+    memory.mode = "record_only"
+    assert buy(lane) is not None

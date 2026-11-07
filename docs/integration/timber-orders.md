@@ -73,3 +73,14 @@ stock protection, dated-price refusal, net-of-transit demand and non-food war
 seizure liability. Natural-world activation, exact enabled resume, held evidence
 and browser/scale checks must be recorded against the integrated source; these
 tests do not establish qualification.
+
+With active A6 rules 2, dispatch uses the same canonical dated personal market
+information gate as titled food trade. An unknown destination cannot consume
+stock, merchant money or treasury escrow. A surviving carrier's own terminal
+cargo outcome is recorded with `package: timber_orders`; a route failure,
+recipient loss, release, expiry or seizure discourages that person's next
+order to that destination over A6's declared experience window. The recorded
+outcome remains the actual timber outcome: a local commons deposit is never
+renamed a return to the original owner. Record-only and rules 1 preserve the
+previous dispatch decisions. Completed delivery still controls physical store
+credit and actual payment independently of these choice inputs.
