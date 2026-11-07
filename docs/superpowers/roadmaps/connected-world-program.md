@@ -66,6 +66,37 @@ Terms (owner instruction and amendment):
   including invalid combinations and compatible all-enabled checkpoint cases. No target count.
 - **Compatibility.** Supported old bundles and historical imports stay loadable; unsupported
   resumes and malformed data are rejected explicitly.
+- **Displacement (lead-owned; lane X1, `--residence-ledger`,
+  [integration page](../../integration/residence-ledger.md)).** One record-only ledger, hybrid
+  only, default off, adopted from audit A6 section 11:
+  - *Definitions.* Residence = the native region after the tick (a merchant on a trip keeps the
+    last one); location = residence except a merchant in transit or a person on a roster (record
+    only); attachment = `(army_id, army region)` after `reconcile_rosters`; home = the residence
+    at first observation (birth region for the born), changed only by a voluntary or
+    unclassified move of a person who is not displaced or after `REHOME_TURNS = 20` turns at one
+    residence, never by enlistment.
+    A displacement spell opens when an applied move leaves home with a C1b flight or hunger
+    driver (a follower carries its lead's), with `cause`, the home-region `anchor` (war, famine,
+    persecution, none) dated in the `ANCHOR_TURNS = 5` turns before (conquest, occupation, a
+    battle or siege at home and famine onset anchor the same turn's departures; a change of
+    controller between civilizations without conquest, and persecution, from the next turn), the
+    opening driver kept, and closes only `returned`, `resettled` (`REHOME_TURNS` at
+    one residence), `died`, `pool_reset` or `unobserved_gap`: any onward move of a displaced
+    person keeps the spell open (lead decision, 2026-11-07, resolving 11.1). Displaced = an open
+    spell. Separation is computed on demand only.
+  - *One writer*: the livelihoods `phase10` hook of T after `reconcile_rosters`, before D2 and
+    A1, from T's applied moves with drivers, the post-tick snapshot, trips, rosters and region
+    events; one frame stamped `source_turn = T`; rows bounded by stable id, in exact
+    checkpoints only (not in the bundle or state file), omitted while off; an exact resume restores it; a rebuilt pool (legacy resume) rebuilds
+    nothing (`pool_reset`, `observed_from`). Late army dissolutions are seen at T+1.
+  - *Readers* get T's frame at T+1 only (`read_frame` aggregates for C2 and rulers, split by
+    cause and anchor; an `OwnRow` accessor bound to one person for A6; `separation` for D3; a
+    same-turn or future read is refused; a Phase 10 consumer sits before the writer in the switch
+    order). The guard
+    `tests/test_residence_ledger_guard.py` refuses any other read of the ledger by a decision
+    module; each consumer registers its read there. RS4 keeps its diaspora ledger (agreement
+    tested); the bridge's displaced share stays narration-only; the native cooldown and birth
+    region are unchanged.
 
 ## 3. Sequence (dependency-aware queue)
 
@@ -381,6 +412,9 @@ Maintained as slices land.
 | Phase 2, after every other package's `prepare_phase2`: name and reserve carers, lower `farm_labor_factor` | C2 | `epidemic_care.prepare_phase2` (livelihoods order: before D2 and A1) |
 | Phase 2 after the economy tick: withhold income share, pay wages (`care_wage`), date capacity T | C2 | `epidemic_care.finish_phase2` |
 | Phase 10: L9 settles care envelopes, then proposes T + 1's from T's reported outbreaks | C2 / L9 | `local_budgets.phase10` with `epidemic_care.BUDGET_PROVIDER` |
+| Phase 1–9, `before_agent_tick` of T: consumers read the residence ledger's frame dated T−1 (`read_frame`, an `OwnRow` accessor, `separation`; a read of T's frame at T is refused): C2's crowding at the epidemic tick, A6 before the tick, D3 at Phase 5 | X1 | lead (contract); C, D, A6 |
+| Phase 10, livelihoods `phase10`, after every acting package, A3 and C2, immediately before D2 and A1: `residence_ledger` writes T's frame from T's applied moves, the post-tick snapshot, trips, the reconciled rosters and region events (X1) | X1 | lead |
+| End-of-turn sync: army dissolutions; the ledger sees them at T+1 | X1 | — |
 
 ## 7. Seeds
 
