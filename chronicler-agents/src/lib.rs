@@ -30,6 +30,7 @@ pub mod wealth_transfer;
 pub mod wealth_observation;
 pub mod enlisted_service;
 pub mod adaptive_migration;
+pub mod adaptive_information;
 pub mod relocation;
 pub mod migration_closure;
 pub mod provisioning;
