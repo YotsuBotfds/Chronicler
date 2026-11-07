@@ -167,12 +167,12 @@ def enforcement_cost(world, default):
 
 
 def _available(world, rid, commitments):
-    from chronicler.household_retail import pilot_entry
     region = world.regions[rid]
     held = float(commitments.get(region.name, {}).get("grain", 0.0))
-    pilot = pilot_entry(world, rid)
-    owned = pilot.goods[0] / 1000 if pilot is not None else 0.0
-    return max(0, math.floor((float(region.stockpile.goods.get("grain", 0.0)) - held - owned) * 1000))
+    # Retail titles have their separate `reg.goods` physical store. The
+    # economy returns only commons into region.stockpile: subtracting owned
+    # goods here again would understate reachable public supply.
+    return max(0, math.floor((float(region.stockpile.goods.get("grain", 0.0)) - held) * 1000))
 
 
 def _sources(world, rid, civ):
