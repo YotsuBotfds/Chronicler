@@ -318,25 +318,26 @@ living), as audit 14 question 6 anticipated; this turn's displaced arrivals are 
 it. A resettlement comes `REHOME_TURNS` after the last move, so a spell with onward moves lasts
 longer than 20 turns (median 25 on template 7).
 
-## Verification (lane X1, 2026-11-07; merged head with main `d8a5277b`; Linux, Python 3.13, native extension `20e77f99…` = main's Rust, no native change)
+## Verification (lane X1, 2026-11-07; merged head with main `4ecfb54d`; Linux, Python 3.13, native extension `43cbd22a…` = main's Rust after A4, no native change in this lane)
 
 - **Offline**: `tests/test_residence_ledger.py` (47) and `tests/test_residence_ledger_guard.py` (7)
-  in the oracle chunk `connected-world-x`; the D2 provenance guard extended; C2's ordering test
-  expects the record-only ledger after `epidemic_care`; the focused, order, catalog, matrix,
-  manifest, shard, C2 and witness suites: 791 passed. `scripts/run_python_oracle_checks.py`: PASS,
-  72 chunks in 304.7 s (slowest chunk 35.8 s of 110 s; `connected-world-x` 6.0 s, 54 passed).
+  in the oracle chunk `connected-world-x`; the D2 provenance guard extended; the C2 and A4 order
+  tests expect the record-only ledger between `epidemic_care` and `attribution_records`; the
+  focused, order, catalog, matrix, manifest, shard, C2, A4 and witness suites: 824 passed.
+  `scripts/run_python_oracle_checks.py`: PASS, 72 chunks in 322.4 s (slowest chunk 38.3 s of 110 s;
+  `connected-world-x` 5.8 s, 54 passed).
 - **Native** (`tests/test_residence_ledger_native.py`, shard 0, 7 tests): record-only identity on
   template 7 (with RS4) and procedural 13; frame invariants on 60-turn runs; RS4 agreement; an
   exact resume inside open spells; a legacy state-file resume; separation at the next turn. With
-  the D2, A1, RS4 and C2 native suites and the feature matrix: 112 passed. Offline lane: the
+  the D2, A1, RS4, C2 and A4 native suites and the feature matrix: 171 passed. Offline lane: the
   module skips.
-- **Witness**: layer `cwx1` rebuilt against `d8a5277b` and appended last (after `cwc2`); it
+- **Witness**: layer `cwx1` rebuilt against `4ecfb54d` and appended last (after `cwa4`); it
   inverts the two pinned edits (`batch_manifest.py`, `tests/test_batch_manifest.py`); every
   chained witness suite passes.
 - **Feature-off identity** (`scripts/turn_speed_identity.py`, 9 cases, each side its own source
-  tree): against the `8abc1acb` reference outputs, against `bac45cb5` and against `main`
-  `d8a5277b`: 399 files, 0 differences each; explicit `--no-residence-ledger` (hybrid_s42,
-  proc48_hybrid_s42): 203 files, 0 differences.
+  tree, native `43cbd22a…`): against the `8abc1acb` reference outputs, against `bac45cb5` and
+  against `main` `4ecfb54d`: 399 files, 0 differences each; explicit `--no-residence-ledger`
+  (hybrid_s42, proc48_hybrid_s42): 203 files, 0 differences.
 - **Record-only identity**: ledger on against off, every file equal after removing only the
   record: the six hybrid cases: 366 files, 0 differences (800 snapshots carry the record); every
   catalog switch on with A1 (the matrix's all-enabled hybrid set): 205 files, 0 differences; the
@@ -346,11 +347,14 @@ longer than 20 turns (median 25 on template 7).
   `hybrid_s42_long` PASS at 19 resume points (16 with open spells, 14 with war-anchored spells,
   6 with armies on campaign); `proc32_hybrid_s11` PASS at all 39 (37 with open spells, 23 with
   armies); writing checkpoints changes nothing (111 and 40 files, 0 differences).
-- **Viewer**: `npx vitest run --maxWorkers=1` 165 files, 1,636 passed, 2 skipped; `npm run lint`
+- **Viewer**: `npx vitest run --maxWorkers=1` 167 files, 1,647 passed, 2 skipped; `npm run lint`
   clean; `npm run build` passes (the existing large-chunk warning).
 - **Preflight** (`refactor_preflight.py --git-diff origin/main`): content pins only on
   `batch_manifest.py` and `tests/test_batch_manifest.py` (covered by `cwx1`); the other enforced
   entries are test-module enrollment (shard owner, oracle chunk).
+- The development-world measurements and costs above were taken before the A4 merge with native
+  `20e77f99…` (A4's switches are off in them; feature-off output is identical across the two
+  extensions, above).
 
 ## Not done in this slice
 
