@@ -1381,8 +1381,12 @@ SCREENS["CW3"] = SR.Screen(
 # income and wages, no effect on case fatality), EF care. Every arm: hybrid, epidemics and
 # the contact ledger on (defaults), --grain-reserves --local-budgets. World turn w is
 # recorded by the snapshot labelled w + 1 (``source_turn`` w; its ``tick`` is the epidemic
-# tick of w, which applied the capacity of the carers named in w - 1). Deaths per new
-# infection are pooled ratios over region-turns: sum of deaths over sum of new infections.
+# tick of w, which applied the capacity of the carers named in w - 1). A cell is a
+# region-turn (w, j); its infectious person-turns are the tick's mean infectious people
+# (``tick.regions[*].infectious_pt``: sum over pathogens of burden x n after the tick).
+# Fatality per infectious person-turn is a pooled ratio: sum of deaths over sum of
+# infectious person-turns (about SUBSTEPS x recovery x case fatality; unlike deaths per new
+# infection it does not move with the outbreak's phase).
 
 CW5C_CARE = "--epidemic-care"
 CW5C_MODE = "--epidemic-care-mode"
@@ -1390,9 +1394,13 @@ _CW5C_BASE = ("--turns", "200", "--agents", "hybrid", "--simulate-only", "--grai
 #: Region-turns where food sufficiency after relief is below this are famine region-turns
 #: (``ecology.FAMINE_SEVERE_SUFFICIENCY``, the severity line of the famine component).
 CW5C_FAMINE = 0.6
-#: Counters the extractor checks its frame sums against (last snapshot).
+#: Lifetime counters the extractor checks its frame sums against (last snapshot), and the
+#: capacity refusals that must stay zero in a natural run.
 CW5C_COUNTERS = ("covered_region_turns", "carer_turns", "farm_time_removed", "wages_paid_milli", "unpaid_bills",
-                 "capacity_stale", "capacity_future")
+                 "envelope_coins", "capacity_stale", "capacity_future", "capacity_out_of_range",
+                 "capacity_unconsumed")
+#: The care factor at full coverage (``epidemic_care.CARE_CFR_REDUCTION``), for the reports.
+CW5C_REDUCTION = 0.3
 
 
 def _cw5c_mode(flags) -> str | None:
@@ -1408,7 +1416,7 @@ def _cw5c_care(snapshots: dict[int, dict]) -> dict[int, dict]:
 
 
 def cw5c_activation(bundle: dict, flags) -> tuple[bool | None, str]:
-    """EC and EF act when care capacity reached a tick with infectious people
+    """EC and EF act when care capacity reached an epidemic tick with infectious people
     (coverage > 0); E0 acts when an outbreak was reported (it has no care by rule)."""
     mode = _cw5c_mode(flags)
     snaps = _cw4_snapshots(bundle)
@@ -1423,11 +1431,34 @@ def cw5c_activation(bundle: dict, flags) -> tuple[bool | None, str]:
                   if isinstance(a, dict) and SR._num(a.get("coverage")) and a["coverage"] > 0)
     staffed = sum(1 for r in care.values() for row in (r.get("frame") or [])
                   if isinstance(row, dict) and row.get("carers"))
-    return (covered > 0), f"{covered} covered region-turns, {staffed} staffed envelopes ({mode})"
+    return (covered > 0), f"{covered} covered region-turns, {staffed} staffed region envelopes ({mode})"
 
 
 def _cw5c_rate(num: float, den: float, per: float = 1.0) -> float | None:
     return per * num / den if den > 0 else None
+
+
+def _cw5c_at(row: dict, cells) -> float | None:
+    """Fatality per infectious person-turn of one run at the given cells (``[w, j]``):
+    sum of its deaths over sum of its infectious person-turns there (a cell where the run
+    had no infection counts zero of both)."""
+    m = row.get("m") or {}
+    table = m.get("cells")
+    if not isinstance(table, list) or cells is None:
+        return None
+    index = {(w, j): (d, i) for w, j, d, i in table}
+    deaths = infectious = 0.0
+    for w, j in cells:
+        d, i = index.get((w, j), (0, 0.0))
+        deaths += d
+        infectious += i
+    return _cw5c_rate(deaths, infectious)
+
+
+def cw5c_itt_pair(arm_row: dict, control_row: dict) -> tuple[float | None, float | None]:
+    """Primary 2: both arms read at the cells the control (EC) covered."""
+    cells = (control_row.get("m") or {}).get("covered_cells")
+    return _cw5c_at(arm_row, cells), _cw5c_at(control_row, cells)
 
 
 def cw5c_extract(bundle: dict, flags) -> tuple[dict, list[str]]:
@@ -1441,9 +1472,9 @@ def cw5c_extract(bundle: dict, flags) -> tuple[dict, list[str]]:
     problems: list[str] = []
     # --- epidemic measures defined in every arm (as CW4) ------------------------------
     world_deaths = world_pt = 0.0
-    reported_rt = itt_rt = 0
-    itt_deaths = itt_cases = 0.0
-    counts_at: dict[int, list] = {}
+    deaths_at: dict[int, float] = {}
+    reported_rt = cont_rt = 0
+    cont_deaths = cont_cases = 0.0
     previous: set[int] = set()
     for w, snap in sorted(snaps.items()):
         epi = snap.get("epidemics")
@@ -1453,6 +1484,7 @@ def cw5c_extract(bundle: dict, flags) -> tuple[dict, list[str]]:
             continue
         if SR._num(epi.get("deaths")):
             world_deaths += epi["deaths"]
+            deaths_at[w] = epi["deaths"]
         else:
             problems.append(f"epidemics.deaths missing at snapshot {w + 1}")
         regional = snap.get("regional_population")
@@ -1461,7 +1493,6 @@ def cw5c_extract(bundle: dict, flags) -> tuple[dict, list[str]]:
                 or regional.get("source_turn") != w:
             problems.append(f"regional_population counts missing or misdated at snapshot {w + 1}")
         else:
-            counts_at[w] = counts
             world_pt += sum(counts)
         by_region: dict[int, list[float]] = {}
         for row in epi["active"]:
@@ -1473,13 +1504,11 @@ def cw5c_extract(bundle: dict, flags) -> tuple[dict, list[str]]:
             cell[0] += row["deaths"]
             cell[1] += row["cases"]
         reported_rt += len(by_region)
-        # Continuing outbreak region-turns (every arm, the population care could reach):
-        # reported at this tick and at the tick before.
         for j, (d, c) in by_region.items():
             if j in previous:
-                itt_rt += 1
-                itt_deaths += d
-                itt_cases += c
+                cont_rt += 1
+                cont_deaths += d
+                cont_cases += c
         previous = set(by_region)
     m["world_epidemic_deaths"] = SR.harm_value({"harm": {"d": SR.harm_epidemic_deaths(bundle)}}, "d")
     if m["world_epidemic_deaths"] is not None and world_deaths != m["world_epidemic_deaths"]:
@@ -1488,11 +1517,10 @@ def cw5c_extract(bundle: dict, flags) -> tuple[dict, list[str]]:
     m["world_person_turns"] = world_pt
     m["world_deaths_per_1000_pt"] = _cw5c_rate(world_deaths, world_pt, 1000.0)
     m["reported_region_turns"] = reported_rt
-    m["itt_region_turns"] = itt_rt
-    m["itt_deaths"] = itt_deaths
-    m["itt_cases"] = itt_cases
-    m["itt_cfr"] = _cw5c_rate(itt_deaths, itt_cases)
-    # --- hunger and stability (every arm) ---------------------------------------------
+    # Continuing-outbreak region-turns (reported at this tick and the one before), every arm.
+    m["continuing_region_turns"] = cont_rt
+    m["continuing_deaths_per_case"] = _cw5c_rate(cont_deaths, cont_cases)
+    # --- hunger, stability and unrest (every arm) --------------------------------------
     dearth = famine = 0
     stab, stab_n = 0.0, 0
     unrest, unrest_n = 0.0, 0
@@ -1539,10 +1567,11 @@ def cw5c_extract(bundle: dict, flags) -> tuple[dict, list[str]]:
     m["l9_relief_coins"] = awarded.get("relief", 0)
     # --- the care records (EC, EF) ------------------------------------------------------
     care = _cw5c_care(snaps)
-    keys = ("covered_region_turns", "covered_deaths", "covered_cases", "covered_cfr", "covered_person_turns",
-            "covered_deaths_per_1000_pt", "applied_region_turns", "staffed_envelopes", "envelopes", "carers_named",
-            "care_time", "farm_time_removed", "wages_paid", "wages_due", "unpaid_bills", "income_withheld",
-            "refused_capacity", "mean_coverage")
+    keys = ("world_infectious_pt", "world_deaths_per_ipt", "cells", "covered_cells", "covered_region_turns",
+            "covered_deaths", "covered_infectious_pt", "covered_dpi", "covered_death_share", "mean_relative_factor",
+            "floored_region_turns", "applied_region_turns", "mean_coverage", "staffed_envelopes", "envelopes",
+            "carers_named", "care_time", "farm_time_removed", "farm_time_unpaid", "wages_paid", "wages_due",
+            "unpaid_bills", "income_withheld", "envelope_coins_executed", "care_coins_unspent", "refused_capacity")
     if mode is None:
         if care:
             problems.append("an epidemic care record in an arm without care")
@@ -1551,18 +1580,35 @@ def cw5c_extract(bundle: dict, flags) -> tuple[dict, list[str]]:
         return m, problems
     if len(care) != len(snaps):
         problems.append(f"epidemic care recorded in {len(care)} of {len(snaps)} snapshots under {mode}")
-    covered = applied = staffed = envelopes = carers = unpaid = refused = 0
-    c_deaths = c_cases = c_pt = care_time = farm = paid = due = withheld = coverage_sum = 0.0
+    cells: list[list] = []
+    covered_cells: list[list[int]] = []
+    world_ipt = 0.0
+    covered = applied = staffed = envelopes = carers = unpaid = refused = floored = 0
+    c_deaths = c_ipt = care_time = farm = paid = due = withheld = coverage_sum = relative_sum = unpaid_farm = 0.0
+    paid_milli = executed = 0
     for w, r in sorted(care.items()):
         if r.get("mode") != mode or r.get("source_turn") != w:
             problems.append(f"care record at snapshot {w + 1}: mode {r.get('mode')!r} or source turn "
                             f"{r.get('source_turn')!r} differs")
             continue
         tick, frame = r.get("tick"), r.get("frame")
-        if not isinstance(tick, dict) or not isinstance(frame, list):
-            problems.append(f"care record at snapshot {w + 1} not observed (tick or frame null)")
+        if not isinstance(tick, dict) or not isinstance(frame, list) or not isinstance(tick.get("regions"), list):
+            problems.append(f"care record at snapshot {w + 1} not observed (tick, its regions or frame null)")
             continue
         refused += len(tick.get("refused") or [])
+        tick_deaths = 0
+        for row in tick["regions"]:
+            j, d, i = row.get("region"), row.get("deaths"), row.get("infectious_pt")
+            if not isinstance(j, int) or not 0 <= j < len(names) or not SR._num(d) or not SR._num(i):
+                problems.append(f"malformed care tick region at snapshot {w + 1}")
+                continue
+            tick_deaths += d
+            world_ipt += i
+            if d or i:
+                cells.append([w, j, int(d), round(float(i), 6)])
+        if w in deaths_at and tick_deaths != deaths_at[w]:
+            problems.append(f"care tick regions' deaths {tick_deaths} differ from epidemics.deaths {deaths_at[w]} "
+                            f"at snapshot {w + 1}")
         for a in tick.get("applied") or []:
             applied += 1
             j = a.get("region")
@@ -1572,14 +1618,18 @@ def cw5c_extract(bundle: dict, flags) -> tuple[dict, list[str]]:
             coverage_sum += a["coverage"]
             if a["coverage"] <= 0:
                 continue
-            if not SR._num(a.get("deaths")) or not SR._num(a.get("cases")):
-                problems.append(f"covered region {j} at snapshot {w + 1}: deaths or cases not observed")
+            if not SR._num(a.get("deaths")) or not SR._num(a.get("infectious_after")) \
+                    or not SR._num(a.get("combined_factor")):
+                problems.append(f"covered region {j} at snapshot {w + 1}: deaths or infectious not observed")
                 continue
             covered += 1
+            covered_cells.append([w, j])
             c_deaths += a["deaths"]
-            c_cases += a["cases"]
-            if w in counts_at:
-                c_pt += counts_at[w][j]
+            c_ipt += a["infectious_after"]
+            tech = a.get("techniques_factor") if SR._num(a.get("techniques_factor")) else 1.0
+            # The care part of the factor applied (cost_only: 1), after the one floor.
+            relative_sum += a["combined_factor"] / tech
+            floored += bool(a.get("floored"))
         for row in frame:
             envelopes += 1
             if row.get("carers"):
@@ -1587,66 +1637,134 @@ def cw5c_extract(bundle: dict, flags) -> tuple[dict, list[str]]:
             carers += len(row.get("carers") or [])
             care_time += row.get("care_time") or 0.0
             farm += row.get("farm_time_removed") or 0.0
-            paid += (row.get("wages_paid_milli") or 0) / _MILLI
+            paid_milli += row.get("wages_paid_milli") or 0
             due += (row.get("wages_due_milli") or 0) / _MILLI
             withheld += sum(c.get("income_withheld") or 0.0 for c in row.get("carers") or [])
-        unpaid += sum(1 for row in r.get("ledger") or [] if str(row.get("status", "")).startswith("refused"))
-    m.update(covered_region_turns=covered, covered_deaths=c_deaths, covered_cases=c_cases,
-             covered_cfr=_cw5c_rate(c_deaths, c_cases), covered_person_turns=c_pt,
-             covered_deaths_per_1000_pt=_cw5c_rate(c_deaths, c_pt, 1000.0), applied_region_turns=applied,
+            if row.get("unpaid_reason"):
+                unpaid_farm += row.get("care_time") or 0.0
+        for row in r.get("ledger") or []:
+            unpaid += str(row.get("status", "")).startswith("refused")
+            executed += row.get("envelope_coins") or 0
+    paid = paid_milli / _MILLI
+    m.update(world_infectious_pt=world_ipt, world_deaths_per_ipt=_cw5c_rate(world_deaths, world_ipt),
+             cells=cells, covered_cells=covered_cells, covered_region_turns=covered, covered_deaths=c_deaths,
+             covered_infectious_pt=c_ipt, covered_dpi=_cw5c_rate(c_deaths, c_ipt),
+             covered_death_share=_cw5c_rate(c_deaths, world_deaths),
+             mean_relative_factor=relative_sum / covered if covered else None, floored_region_turns=floored,
+             applied_region_turns=applied, mean_coverage=coverage_sum / applied if applied else None,
              staffed_envelopes=staffed, envelopes=envelopes, carers_named=carers, care_time=care_time,
-             farm_time_removed=farm, wages_paid=paid, wages_due=due, unpaid_bills=unpaid, income_withheld=withheld,
-             refused_capacity=refused, mean_coverage=coverage_sum / applied if applied else None)
+             farm_time_removed=farm, farm_time_unpaid=unpaid_farm, wages_paid=paid, wages_due=due,
+             unpaid_bills=unpaid, income_withheld=withheld, envelope_coins_executed=executed,
+             care_coins_unspent=executed - paid, refused_capacity=refused)
     # The frames are summed per snapshot; the lifetime counters must agree (no frame lost).
     last = care.get(max(care)) if care else None
     counters = (last or {}).get("counters") or {}
-    checks = {"carer_turns": carers, "farm_time_removed": farm, "unpaid_bills": unpaid,
-              "capacity_stale": None, "capacity_future": None}
+    checks = {"covered_region_turns": covered, "carer_turns": carers, "farm_time_removed": farm,
+              "wages_paid_milli": paid_milli, "unpaid_bills": unpaid, "envelope_coins": executed,
+              "farm_time_unpaid": unpaid_farm}
     for key, value in checks.items():
         got = counters.get(key, 0)
-        if value is None:
-            if got:
-                problems.append(f"care counters record {got} {key} capacity rows (never expected)")
-            continue
         if not SR._num(got) or abs(got - value) > 1e-4 * max(1.0, abs(value)):
             problems.append(f"care counter {key} is {got}, the frames sum to {value}")
+    for key in ("capacity_stale", "capacity_future", "capacity_out_of_range", "capacity_unconsumed"):
+        if counters.get(key, 0):
+            problems.append(f"care counters record {counters[key]} {key} capacity rows (never expected)")
     if refused:
-        problems.append(f"{refused} capacity rows refused at a tick (stale or future) in a natural run")
+        problems.append(f"{refused} capacity rows refused at a tick in a natural run")
     return m, problems
+
+
+def _cw5c_report(rows, strata) -> list[str]:
+    """The mechanism check and the reach and attenuation of care, per world (EC, EF)."""
+    by = {(r["arm"], r["stratum"], r["seed"]): r for r in rows}
+
+    def fmt(v, spec=".4g"):
+        return "n/a" if v is None else format(v, spec)
+
+    out = ["\n## CW5c mechanism check (not evidence that care works: coverage is about 1 by construction)\n",
+           "Fatality per infectious person-turn in each arm's own covered region-turns, the EF/EC ratio, and the "
+           "mean care factor EF applied there (combined / techniques: 1 - 0.3 x coverage under the floor) with its "
+           "floored count. The ratio should sit near the factor.\n",
+           "| World | EC own covered | EF own covered | EF / EC | EF mean applied factor | EF floored | EF mean coverage |",
+           "| --- | --- | --- | --- | --- | --- | --- |"]
+    reach = ["\n## CW5c reach and attenuation\n",
+             "Reach: the share of EC's epidemic deaths in EC's covered region-turns. Implied maximum: reach x (1 - "
+             "EF's mean applied factor), the fall in world deaths if care cut every covered death by that factor and "
+             "nothing else changed. Realized: the EF - EC change of the world epidemic death rate, relative to EC.\n",
+             "| World | EC reach | EF mean applied factor | Implied maximum fall | Realized change |",
+             "| --- | --- | --- | --- | --- |"]
+    for tag, seeds in strata.items():
+        for seed in seeds:
+            ec, ef = by.get(("EC", tag, seed)), by.get(("EF", tag, seed))
+            if ec is None or ef is None or ec["rc"] != 0 or ef["rc"] != 0:
+                out.append(f"| {tag}{seed} | not run or failed | | | | | |")
+                reach.append(f"| {tag}{seed} | not run or failed | | | |")
+                continue
+            a, b = ec.get("m") or {}, ef.get("m") or {}
+            ratio = (b["covered_dpi"] / a["covered_dpi"]) if a.get("covered_dpi") and b.get("covered_dpi") is not None \
+                else None
+            factor = b.get("mean_relative_factor")
+            out.append(f"| {tag}{seed} | {fmt(a.get('covered_dpi'))} | {fmt(b.get('covered_dpi'))} | {fmt(ratio)} | "
+                       f"{fmt(factor)} | {b.get('floored_region_turns')} | {fmt(b.get('mean_coverage'))} |")
+            share = a.get("covered_death_share")
+            implied = share * (1 - factor) if share is not None and factor is not None else None
+            r0, r1 = a.get("world_deaths_per_1000_pt"), b.get("world_deaths_per_1000_pt")
+            realized = (r1 - r0) / r0 if r0 and r1 is not None else None
+            reach.append(f"| {tag}{seed} | {fmt(share)} | {fmt(factor)} | "
+                         f"{fmt(-implied if implied is not None else None, '+.3f')} | {fmt(realized, '+.3f')} |")
+    return out + reach
 
 
 def _cw5c_outcomes() -> tuple[SR.Outcome, ...]:
     h = lambda key: (lambda r: SR.harm_value(r, key))  # noqa: E731
+    unused = lambda r: None  # noqa: E731  (a paired outcome reads both rows)
     return (
-        # Primaries: EF - EC (care against its cost control).
-        SR.Outcome("cw5c_covered_cfr", "Realized deaths per new infection in covered region-turns (EF - EC; each "
-                   "arm's own covered region-turns)", "EF", "EC", _m("covered_cfr"), primary=True),
+        # Primaries: EF - EC (care against its cost control), unconditioned or on EC's cells.
         SR.Outcome("cw5c_world_death_rate", "World epidemic deaths per 1,000 person-turns over the whole run (EF - EC)",
                    "EF", "EC", _m("world_deaths_per_1000_pt"), primary=True),
-        SR.Outcome("cw5c_covered_death_rate", "Epidemic deaths per 1,000 person-turns in covered region-turns "
-                   "(EF - EC; each arm's own covered region-turns)", "EF", "EC", _m("covered_deaths_per_1000_pt"),
-                   primary=True),
-        # Secondaries: every arm's continuing-outbreak region-turns (defined without care).
-        SR.Outcome("cw5c_itt_cfr", "Deaths per new infection in continuing-outbreak region-turns (EF - EC)",
-                   "EF", "EC", _m("itt_cfr")),
-        SR.Outcome("cw5c_itt_cfr_vs_none", "Deaths per new infection in continuing-outbreak region-turns (EF - E0)",
-                   "EF", "E0", _m("itt_cfr")),
+        SR.Outcome("cw5c_itt_cfr", "Epidemic deaths per infectious person-turn in the region-turns EC covered, "
+                   "read at the same cells in both arms (EF - EC; intention to treat)", "EF", "EC", unused,
+                   primary=True, pair=cw5c_itt_pair),
+        SR.Outcome("cw5c_world_dpi", "World epidemic deaths per infectious person-turn over the whole run (EF - EC)",
+                   "EF", "EC", _m("world_deaths_per_ipt"), primary=True),
+        # Secondaries.
         SR.Outcome("cw5c_world_deaths", "World epidemic deaths, count (EF - EC)", "EF", "EC", _m("world_epidemic_deaths")),
         SR.Outcome("cw5c_world_death_rate_vs_none", "World epidemic deaths per 1,000 person-turns (EF - E0)",
                    "EF", "E0", _m("world_deaths_per_1000_pt")),
-        SR.Outcome("cw5c_cost_world_death_rate", "World epidemic deaths per 1,000 person-turns (EC - E0: the cost "
+        SR.Outcome("cw5c_cost_world_death_rate", "World epidemic deaths per 1,000 person-turns (EC - E0: the cost's "
                    "effect)", "EC", "E0", _m("world_deaths_per_1000_pt")),
+        SR.Outcome("cw5c_continuing_deaths_per_case", "Deaths per new infection in continuing-outbreak region-turns "
+                   "(EF - EC)", "EF", "EC", _m("continuing_deaths_per_case")),
+        SR.Outcome("cw5c_continuing_deaths_per_case_vs_none", "Deaths per new infection in continuing-outbreak "
+                   "region-turns (EF - E0)", "EF", "E0", _m("continuing_deaths_per_case")),
         SR.Outcome("cw5c_covered_region_turns", "Covered region-turns (EF - EC; selection)", "EF", "EC",
                    _m("covered_region_turns")),
+        # Mechanism check (each arm's own covered cells; reported, not evidence).
+        SR.Outcome("cw5c_mech_covered_dpi", "Mechanism check: deaths per infectious person-turn in each arm's own "
+                   "covered region-turns (EF - EC; selection; see the ratio table)", "EF", "EC", _m("covered_dpi")),
+        SR.Outcome("cw5c_mech_factor", "Mechanism check: mean care factor applied in covered region-turns (EF)", "EF",
+                   None, _m("mean_relative_factor")),
         SR.Outcome("cw5c_mean_coverage", "Mean coverage over region-turns with capacity (EF)", "EF", None,
                    _m("mean_coverage")),
+        SR.Outcome("cw5c_reach", "Reach: share of EC's epidemic deaths in its covered region-turns (EC)", "EC", None,
+                   _m("covered_death_share")),
         # Fixed harm panel beside the primaries.
         SR.Outcome("cw5c_h_farm_time", "Carer farm time removed, worker-turns (EF)", "EF", None, _m("farm_time_removed")),
         SR.Outcome("cw5c_h_farm_time_cost", "Carer farm time removed, worker-turns (EC)", "EC", None,
                    _m("farm_time_removed")),
+        SR.Outcome("cw5c_h_carers_held", "Carer-turns held from drafting and academy teaching (EF)", "EF", None,
+                   _m("carers_named")),
+        SR.Outcome("cw5c_h_carers_held_cost", "Carer-turns held from drafting and academy teaching (EC)", "EC", None,
+                   _m("carers_named")),
         SR.Outcome("cw5c_h_wages", "Care wages paid, treasury units (EF)", "EF", None, _m("wages_paid")),
+        SR.Outcome("cw5c_h_wages_cost", "Care wages paid, treasury units (EC)", "EC", None, _m("wages_paid")),
         SR.Outcome("cw5c_h_income_withheld", "Carers' ordinary income withheld, wealth units (EF)", "EF", None,
                    _m("income_withheld")),
+        SR.Outcome("cw5c_h_income_withheld_cost", "Carers' ordinary income withheld, wealth units (EC)", "EC", None,
+                   _m("income_withheld")),
+        SR.Outcome("cw5c_h_unpaid_bills", "Care wage bills refused at payment (EF)", "EF", None, _m("unpaid_bills")),
+        SR.Outcome("cw5c_h_unpaid_bills_cost", "Care wage bills refused at payment (EC)", "EC", None,
+                   _m("unpaid_bills")),
         SR.Outcome("cw5c_h_food_shortfall", "Food shortfall after relief over the run (EF - EC)", "EF", "EC",
                    h("food_shortfall")),
         SR.Outcome("cw5c_h_food_shortfall_cost", "Food shortfall after relief over the run (EC - E0: the cost)",
@@ -1656,9 +1774,16 @@ def _cw5c_outcomes() -> tuple[SR.Outcome, ...]:
         SR.Outcome("cw5c_h_famine", "Famine region-turns, sufficiency after relief below 0.6 (EC - E0)", "EC", "E0",
                    _m("famine_region_turns")),
         SR.Outcome("cw5c_h_dearth_care", "Dearth region-turns (EF - EC)", "EF", "EC", _m("dearth_region_turns")),
+        SR.Outcome("cw5c_h_famine_care", "Famine region-turns (EF - EC: more survivors to feed)", "EF", "EC",
+                   _m("famine_region_turns")),
         SR.Outcome("cw5c_h_care_coins", "L9 coins awarded to care envelopes (EF)", "EF", None, _m("l9_care_coins")),
+        SR.Outcome("cw5c_h_care_coins_cost", "L9 coins awarded to care envelopes (EC)", "EC", None, _m("l9_care_coins")),
+        SR.Outcome("cw5c_h_care_coins_unspent", "Care envelope coins executed but not paid out as wages (EC)", "EC",
+                   None, _m("care_coins_unspent")),
         SR.Outcome("cw5c_h_other_coins", "L9 coins awarded to every other service (EC - E0: displacement within L9)",
                    "EC", "E0", _m("l9_other_coins")),
+        SR.Outcome("cw5c_h_other_coins_care", "L9 coins awarded to every other service (EF - EC)", "EF", "EC",
+                   _m("l9_other_coins")),
         SR.Outcome("cw5c_h_relief_coins", "L9 coins awarded to granary relief (EC - E0)", "EC", "E0",
                    _m("l9_relief_coins")),
         SR.Outcome("cw5c_h_treasury", "Treasury at the end (EC - E0)", "EC", "E0", h("treasury")),
@@ -1672,6 +1797,8 @@ def _cw5c_outcomes() -> tuple[SR.Outcome, ...]:
         SR.Outcome("cw5c_h_population", "Population at the end (EF - EC)", "EF", "EC", h("population")),
         SR.Outcome("cw5c_h_population_cost", "Population at the end (EC - E0)", "EC", "E0", h("population")),
         SR.Outcome("cw5c_h_migration", "Agents moving between regions over the run (EF - EC)", "EF", "EC",
+                   h("out_migration")),
+        SR.Outcome("cw5c_h_migration_cost", "Agents moving between regions over the run (EC - E0)", "EC", "E0",
                    h("out_migration")),
     )
 
@@ -1691,7 +1818,8 @@ SCREENS["CW5c"] = SR.Screen(
                    CW5C_MODE, "care"),
     ),
     outcomes=_cw5c_outcomes(),
-    activation=cw5c_activation, extract=cw5c_extract, control_activation=True, ready=True, module=MODULE)
+    activation=cw5c_activation, extract=cw5c_extract, control_activation=True, report=_cw5c_report, ready=True,
+    module=MODULE)
 
 
 # --- DEV: the development smoke screen ---------------------------------------------
