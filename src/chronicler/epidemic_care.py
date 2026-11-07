@@ -469,6 +469,10 @@ def prepare_phase2(world, region_input, agent_bridge, snapshot, acc):
                     wage = min(_wage(share), money_left)
                     if share < MIN_SHARE or wage < 1:
                         break
+                if getattr(world.livelihoods, "adaptive_livelihoods", None) is not None:
+                    from chronicler.adaptive_livelihoods import accepts_offer
+                    if not accepts_offer(world, aid, "epidemic_care"):
+                        continue
                 r.carers.append(Carer(agent_id=aid, origin="urban_farmer" if urban else "rural_farmer", share=share,
                                       wage_due_milli=wage))
                 care += share
@@ -640,17 +644,27 @@ def after_agent_tick(world, agent_bridge):
     shared paid-work receipt, taken once per turn by whichever package asks first)."""
     state = _state(world)
     t = state._turn
-    if t is None or t.turn != world.turn or not t.finished or not t.installed:
+    if t is None or t.turn != world.turn or not t.finished:
         return []
     from chronicler.livelihoods import paid_work_receipt
-    receipt = paid_work_receipt(world, t.sim)
-    if receipt is None:
+    receipt = paid_work_receipt(world, t.sim) if t.installed else {}
+    if receipt is None and t.installed:
         raise RuntimeError("paid work receipt missing for this turn's carers")
+    adaptive = getattr(world.livelihoods, "adaptive_livelihoods", None)
     for r in t.receipts:
         for x in r.carers:
-            if x.agent_id in receipt:
-                x.income_withheld = float(receipt[x.agent_id][2])
+            observed = receipt.get(x.agent_id)
+            if observed is not None:
+                x.income_withheld = float(observed[2])
                 _bump(state, "income_withheld", x.income_withheld)
+            if adaptive is not None:
+                from chronicler.adaptive_livelihoods import forgone_title, note_work
+                withheld = (round(float(observed[2]) * MILLI) if observed is not None
+                            and abs(float(observed[0]) - x.share) <= 1e-6
+                            else 0 if not r.paid else None)
+                note_work(world, x.agent_id, "epidemic_care", paid_milli=x.wage_paid_milli,
+                          withheld_milli=withheld, title_forgone_milli=forgone_title(world, r.region),
+                          source="epidemic_care:untruncated keyed wage and attributable paid-work receipt")
     t.receipt_read = True
     return []
 

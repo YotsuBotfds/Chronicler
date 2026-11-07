@@ -3,8 +3,9 @@ from __future__ import annotations
 
 import ast
 import pickle
+import sys
 from pathlib import Path
-from types import SimpleNamespace
+from types import ModuleType, SimpleNamespace
 
 import pytest
 
@@ -312,3 +313,91 @@ def test_public_health_guard_wages_replace_flat_charge_only_when_enabled():
     assert PH.enforcement_cost(w, 2) == 0
     st.enabled = False
     assert PH.enforcement_cost(w, 2) == 2
+
+
+def _adaptive_seam(w, monkeypatch, *, declined=()):
+    """Exercise the owned adapter without importing another lane's module."""
+    object.__setattr__(w.livelihoods, "adaptive_livelihoods", SimpleNamespace(enabled=True))
+    adapter = ModuleType("chronicler.adaptive_livelihoods")
+    offers, work = [], []
+    def accept(world, aid, kind):
+        offers.append((aid, kind))
+        return aid not in declined
+    adapter.accepts_offer = accept
+    adapter.note_work = lambda world, aid, kind, **kw: work.append((aid, kind, kw))
+    adapter.forgone_title = lambda world, region: None
+    monkeypatch.setitem(sys.modules, "chronicler.adaptive_livelihoods", adapter)
+    return offers, work
+
+
+def test_adaptive_care_new_offers_skip_booked_people_and_keep_exact_untruncated_receipts(monkeypatch):
+    w, _st = _enabled()
+    offers, work = _adaptive_seam(w, monkeypatch, declined=(2,))
+    _outbreak(w, 0, burden=.05)
+    _envelope(w, 0, 8)
+    sim = _Sim(_people())
+    sim.reserve_work(w.turn, 3, [(1, 1.0)])
+    bridge = _Bridge(sim)
+    EC.prepare_phase2(w, _batch(w, sim), bridge, sim.get_snapshot(), None)
+    assert (1, "epidemic_care") not in offers and (2, "epidemic_care") in offers
+    named = {x.agent_id for r in w.livelihoods.epidemic_care._turn.receipts for x in r.carers}
+    assert named and not named & {1, 2}
+    monkeypatch.setattr(EC, "MAX_FRAME_ROWS", 0)
+    EC.finish_phase2(w, SimpleNamespace(market_prices={}), bridge, None)
+    assert w.livelihoods.epidemic_care.frame == []
+    sim.tick(w.turn)
+    EC.after_agent_tick(w, bridge)
+    assert {aid for aid, _kind, _values in work} == named
+    assert all(kind == "epidemic_care" and values["paid_milli"] > 0
+               and values["withheld_milli"] > 0 and values["title_forgone_milli"] is None
+               for _aid, kind, values in work)
+
+
+def test_adaptive_guard_new_offer_and_exact_receipt(monkeypatch):
+    w, st = _enabled()
+    offers, work = _adaptive_seam(w, monkeypatch, declined=(1,))
+    _guard_plan(w, st)
+    _envelope(w, 0, 4)
+    sim = _Sim(_people())
+    bridge = _Bridge(sim)
+    batch = EC.prepare_phase2(w, _batch(w, sim), bridge, sim.get_snapshot(), None)
+    PH.prepare_phase2(w, batch, bridge, sim.get_snapshot(), None)
+    assert offers == [(1, "border_guard"), (2, "border_guard")]
+    EC.finish_phase2(w, SimpleNamespace(market_prices={}), bridge, None)
+    PH.finish_phase2(w, SimpleNamespace(), bridge, None)
+    sim.tick(w.turn)
+    EC.after_agent_tick(w, bridge)
+    PH.after_agent_tick(w, bridge)
+    assert len(work) == 1
+    aid, kind, values = work[0]
+    assert aid == 2 and kind == "border_guard"
+    assert values["paid_milli"] == 500 and values["withheld_milli"] == 300
+    assert values["title_forgone_milli"] is None
+
+
+def test_adaptive_guard_mixed_paid_share_never_invents_personal_cost(monkeypatch):
+    w, st = _enabled()
+    _offers, work = _adaptive_seam(w, monkeypatch)
+    st.guard_turn = w.turn
+    st.guards = [{"civ": 0, "target": 1, "payment": "paid", "members": [
+        {"agent_id": 1, "region": 0, "share": .5, "wage_paid_milli": 250, "income_withheld": None}]}]
+    monkeypatch.setattr("chronicler.livelihoods.paid_work_receipt", lambda w, s: {1: (1.0, .3, .3)})
+    PH.after_agent_tick(w, _Bridge(_Sim(_people())))
+    assert work[0][2]["paid_milli"] == 250
+    assert work[0][2]["withheld_milli"] is None and work[0][2]["title_forgone_milli"] is None
+
+
+def test_adaptive_unpaid_care_records_zero_payment_and_zero_service_withheld(monkeypatch):
+    w, _st = _enabled()
+    _offers, work = _adaptive_seam(w, monkeypatch)
+    _outbreak(w, 0, burden=.05)
+    _envelope(w, 0, 8)
+    sim = _Sim(_people())
+    bridge = _Bridge(sim)
+    EC.prepare_phase2(w, _batch(w, sim), bridge, sim.get_snapshot(), None)
+    w.civilizations[0].treasury = 0
+    EC.finish_phase2(w, SimpleNamespace(market_prices={}), bridge, None)
+    EC.after_agent_tick(w, bridge)
+    assert work
+    assert all(values["paid_milli"] == 0 and values["withheld_milli"] == 0
+               and values["title_forgone_milli"] is None for _aid, _kind, values in work)
