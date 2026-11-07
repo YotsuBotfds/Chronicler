@@ -602,3 +602,31 @@ def test_the_snapshot_is_dated_and_unknown_when_stale():
     h.world.turn += 1
     stale = livelihoods_snapshot_fields(h.world)["livelihoods"]["titled_trade"]
     assert stale["frame"] is None and stale["flows"] is None
+
+
+def test_a_sea_lane_loses_its_expected_raid_share_and_a_refused_claim_goes_to_the_commons(monkeypatch):
+    h = TradeHarness()
+    _market(h)
+    _run_until_dispatch(h)
+    ship = h.tt.shipments[0]
+    cargo = list(ship.cargo)
+    real = TT._graph
+
+    def sea(world):
+        edges, closed = real(world)
+        return {**edges, (VERDANT, THORNWOOD): (False, 0.1)}, closed
+    monkeypatch.setattr(TT, "_graph", sea)
+    # Every claim slot is taken: the holder's delivery cannot become a claim.
+    monkeypatch.setattr(HR, "MAX_CLAIMS", h.state.claims_count())
+    commons = h.world.regions[THORNWOOD].stockpile.goods.get("grain", 0.0)
+    h.turn({VERDANT: {"grain": 30.0}})
+    closed = next(s for s in h.tt.closed if s.id == ship.id)
+    sea_loss = [math.floor(v * 0.1) for v in cargo]
+    assert closed.losses["sea_loss"] == sum(sea_loss)
+    after_sea = [v - x for v, x in zip(cargo, sea_loss)]
+    decay = [math.floor(v * r) for v, r in zip(after_sea, TT.TRANSIT_DECAY)]
+    assert closed.losses["transit_decay"] == sum(decay)
+    assert closed.outcome == "delivered" and closed.delivered == 0
+    assert closed.deposited == sum(after_sea) - sum(decay) and closed.deposit_reason == "claims_refused"
+    assert 90 not in h.state.region(THORNWOOD).claims
+    assert h.world.regions[THORNWOOD].stockpile.goods.get("grain", 0.0) >= commons

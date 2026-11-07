@@ -1005,3 +1005,19 @@ def test_the_ceiling_never_exceeds_the_inventory_room():
         assert firm.inventory <= INVENTORY_CAP and _receipt(world).free_use_upper_bound == 0
     # A full inventory is a declared reason not to operate (and counts idle).
     assert "inventory_full" in E.IDLE_REASONS
+
+
+def test_the_rules_option_requires_workshop_economics_and_a_new_state_takes_it():
+    from chronicler.livelihoods import configure_livelihoods
+    from chronicler.main import _build_parser
+    from chronicler.world_gen import generate_world
+    parse = _build_parser().parse_args
+    world = generate_world(seed=42)
+    with pytest.raises(ValueError, match="requires --workshop-economics"):
+        configure_livelihoods(world, parse(["--workshop-economics-rules", "2"]), agent_mode="hybrid")
+    assert world.livelihoods is None
+    world = _world(mode=None)
+    E.set_workshop_economics_enabled(world, True, args=SimpleNamespace(workshop_economics_rules="2"))
+    state = _econ(world)
+    assert state.rules_version == 2 and state.log[-1].detail["rules_version"] == 2
+    assert E.owned_output(world) and state.model_dump()["rules_version"] == 2

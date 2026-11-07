@@ -1,6 +1,7 @@
 # Workshop economics and the shared payment seam (A3, `--workshop-economics`)
 
-Connected-world program, slice A3-1. Default off; requires `--workshop-payroll`
+Connected-world program, slices A3-1 and A3-2 (owned output,
+`--workshop-economics-rules 2`, section "A3-2" below). Default off; requires `--workshop-payroll`
 (so `--workshops` in operate mode and `--agents hybrid`). Design source: the A3
 workshop-economics audit (sections 4-5) and the A1-A2 audit's payment seam
 (section 3.3), with the lead's decisions. Code: `src/chronicler/money.py` (the
@@ -328,6 +329,11 @@ cost at the plan price. The L6a reader
 
 ## Native change
 
+A3-2 (batched with A4-1's native parts into one build): the optional
+`workshop_owned_crafts` column (`economy::tick_economy_core_full`, parsed in
+`ffi/mod.rs`; both files pinned, witness layer `cwa4`), transient, no
+checkpoint layout change. A3-1:
+
 One appended transfer purpose, `wares_purchase` (code 7, after
 `food_procurement`; append-only, nothing renumbered). Households pay through
 debit rows of the existing keyed `transfer` (limited at zero, one key per firm
@@ -349,13 +355,55 @@ the appended name and refuse 8.
 | `DEPOPULATION_SHARE`, `DEPOPULATION_WINDOW` | 0.25, 10 turns | the `depopulated` reason |
 | `K_RAW_PER_WORK`, `WAGE_PER_WORK`, `INVENTORY_CAP`, `WARES_WEAR`, hours, layoffs, `RESERVE_TURNS` | L1 and L6a values | unchanged |
 
+## A3-2: owned output (`--workshop-economics-rules 2`)
+
+Rules version 2 removes the recorded limit "same-tick free use" (below): a
+firm's output never passes through the commons, so it reaches anyone only by
+sale. Version 1 (the default, and the version of every state saved before
+A3-2) keeps A3-1 exactly; a state keeps its version (`rules_version`, omitted
+while 1, so A3-1 dumps keep their bytes), and a conflicting
+`--workshop-economics-rules` is refused at startup and on an exact resume. The
+option requires `--workshop-economics`.
+
+- **Native column.** The Phase 2 region batch carries the optional Float32
+  column `workshop_owned_crafts`: each firm region's inventory at opening, in
+  loads (null elsewhere; absent when no firm exists). In such a region the
+  native economy crafts as before (same inputs, same ceiling, the output
+  reported in `craft_output` and counted in production) but adds none of it to
+  the commons stockpile: the people's free draw (step 3b) takes only the
+  commons (imports, legacy city crafts elsewhere, wares households bought) and
+  native merchants cannot load the firm's wares. The firm's inventory counts in
+  the region's wares supply for prices, as retail's owned food counts in food
+  prices. The conservation batch gains `workshop_owned_outflow` (the wares
+  handed to firms) only when the column is present. Hybrid economy only; a
+  negative or non-finite value is refused.
+- **Title.** Payroll titles the whole output, `floor(output x 1000)`
+  milli-loads, straight into the firm's inventory (material source
+  `workshop_output`), never debiting the commons; `produced == titled` and
+  `free_use_upper_bound == 0` on every receipt (raised otherwise), counted in
+  `owned_output`.
+- **No lost output.** One raw load makes one load of wares, so the firm's
+  input capacity (and therefore its ceiling) is bounded by its inventory room
+  (`INVENTORY_CAP - inventory`); a full inventory is a reason not to operate
+  (`inventory_full`, counted idle). Wear keeps some room open, so a firm
+  without customers keeps buying inputs to replace worn wares until its budget
+  runs out.
+- **Customers.** Households buy the gap the commons leaves; under version 2
+  the commons hold none of the firm's output, so their purchases are the only
+  way it reaches them. Academies as before. A merchant buying firm wares is
+  A4's wares slice (A4-W), not this one.
+- **Viewer.** The A3 reader accepts `rules_version: 2` and then refuses any
+  receipt with free use or an untitled share; the panel says which rules the
+  record follows and shows the output taken straight into inventory.
+
 ## Boundaries and declared limits (slice A3-1)
 
-- **Same-tick free use.** The tick's craft output enters the commons before
-  title, so the people's draw and same-tick merchant departures can still take
-  part of the firm's new output free when the commons does not already cover
-  them (recorded per firm-turn as `free_use_upper_bound`; A3-2's native
-  owned-output column ends it).
+- **Same-tick free use** (rules version 1 only; removed by A3-2, which
+  records `free_use_upper_bound` 0 by construction). The tick's craft output
+  enters the commons before title, so the people's draw and same-tick merchant
+  departures can still take part of the firm's new output free when the
+  commons does not already cover them (recorded per firm-turn as
+  `free_use_upper_bound`).
 - Paid wares delivered to the commons can be loaded by merchants free (A4).
 - Spouses buy as separate households; adults pay for their own resident
   children only; a child with no adult parent in the region pays from its own
