@@ -40,7 +40,7 @@ export function publicHealthAt(snapshot: TurnSnapshot, regions: number, civs: nu
   if (!r.supplies.every(s => object(s) && s.turn === r.source_turn && idx(s.civ, civs) && idx(s.region, regions)
     && nullableIdx(s.source, regions) && nullableIdx(s.seller, civs)
     && [s.need_milli, s.food_milli, s.charged_milli, s.internal_milli].every(integer)
-    && s.food_milli <= s.need_milli && nonnegative(s.patients)
+    && Number(s.food_milli) <= Number(s.need_milli) && nonnegative(s.patients)
     && (s.price_milli === null || integer(s.price_milli) && s.price_milli > 0) && typeof s.reason === "string")) return null;
   if (!r.decisions.every(d => object(d) && idx(d.civ, civs) && idx(d.target, civs) && d.civ !== d.target
     && Array.isArray(d.report_ids) && d.report_ids.every(integer)
