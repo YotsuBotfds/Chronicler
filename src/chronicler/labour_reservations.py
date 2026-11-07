@@ -4,7 +4,8 @@ Connected-world shared contract (lead decision for C2, to be reused by D3):
 nobody is booked twice in one turn across rural health care's prepared
 patient and caregiver rows, the shared native work registry (L1 workshop
 crews, L5 learners, RS1 apprentices, RS2/PL3 repair crews, PL1 woodcutters
-and C2 carers, each reserved under a native category), people away on a
+and C2 carers, each reserved under a native category; carers carry their
+own label ``registry_care``), people away on a
 merchant trip, the enlisted, and the mentors RS1 seated for this turn.
 
 :func:`booked` reads those holders and returns each person's first reason in
@@ -26,8 +27,10 @@ from importlib import import_module
 #: any other), in declaration order.
 REGISTRY_CATEGORIES: tuple[str, ...] = ("workshop", "learning", "apprentice", "repair")
 #: Reasons, in the order :func:`booked` assigns them (a person's first reason wins).
+#: ``registry_care``: C2's carers of this turn (a Python label: they hold the
+#: native registry's ``repair`` category, whose four categories are fixed).
 REASONS: tuple[str, ...] = (
-    "health_patient", "health_caregiver",
+    "health_patient", "health_caregiver", "registry_care",
     *(f"registry_{name}" for name in REGISTRY_CATEGORIES), "registry_other",
     "trip", "enlisted", "mentor",
 )
@@ -53,6 +56,15 @@ def health_rows(world) -> tuple[set[int], set[int]]:
     return patients, givers
 
 
+def carers(world, turn: int) -> set[int]:
+    """C2's carers named for ``turn`` (its in-flight plan; empty otherwise). Reads only."""
+    care = getattr(getattr(world, "livelihoods", None), "epidemic_care", None)
+    t = getattr(care, "_turn", None) if care is not None else None
+    if t is None or getattr(t, "turn", None) != turn:
+        return set()
+    return {int(x.agent_id) for r in t.receipts for x in r.carers}
+
+
 def booked(world, sim, turn: int) -> dict[int, str]:
     """Stable id -> the first reason the person may not take new work in ``turn``."""
     out: dict[int, str] = {}
@@ -64,6 +76,7 @@ def booked(world, sim, turn: int) -> dict[int, str]:
     patients, givers = health_rows(world)
     put(patients, "health_patient")
     put(givers, "health_caregiver")
+    put(carers(world, turn), "registry_care")
     reservations = getattr(sim, "work_reservations", None)
     if callable(reservations):
         for aid, category, _fraction in sorted(reservations(turn)):

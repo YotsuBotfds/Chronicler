@@ -181,11 +181,13 @@ def _outbreak(w, region, *, n=200, burden=0.05, pathogen=1, reported=True, i=0.0
 
 
 def _envelope(w, region, amount, *, civ=0, cid=None):
+    """One civ's care envelope for this turn (one region or a list of them)."""
     st = w.livelihoods.local_budgets
     cid = st.next_cid if cid is None else cid
     st.next_cid = max(st.next_cid, cid + 1)
+    regions = list(region) if isinstance(region, (list, tuple)) else [region]
     st.open.append(Commitment(cid=cid, civ=civ, service=EC.SERVICE, pid=0, decided_turn=w.turn - 1, for_turn=w.turn,
-                              recipients=[region], claims=[f"{EC.SERVICE}:{region}"], amount=amount,
+                              recipients=regions, claims=[f"{EC.SERVICE}:{civ}"], amount=amount,
                               unit="care_time", expected=amount / 0.5))
     return cid
 
@@ -753,3 +755,142 @@ def test_counters_and_parameters_are_declared():
     assert math.isclose(EC.PATIENTS_PER_CARER, 1.0 / 0.2)
     from chronicler.health_care_state import HealthCareState
     assert HealthCareState().care_fraction == 0.2
+
+
+# --- review of 3e5ee44d: per-civ envelopes, payment refusal, labels, order ------------------
+
+def test_one_proposal_per_civ_covers_its_outbreak_regions_and_rounds_up_once():
+    w = _world()
+    _outbreak(w, 0, burden=0.05)           # 10 infectious: 2 worker-turns, 1000 milli
+    _outbreak(w, 1, burden=0.01)           # 2 infectious: 0.4 worker-turns, 200 milli
+    (p,) = EC.BUDGET_PROVIDER.proposals(w, 0, _obs(w))
+    assert p["recipients"] == [0, 1] and p["claims"] == ["epidemic_care:0"]
+    assert p["detail"]["wages_milli"] == 1200 and p["cost"] == 2          # not one coin per region (3)
+    assert p["expected"] == pytest.approx(2.4)
+
+
+def test_one_envelope_serves_its_regions_most_infectious_first_within_the_award():
+    w = _world()
+    _outbreak(w, 0, burden=0.01)           # 2 infectious: 0.4 worker-turns
+    _outbreak(w, 1, burden=0.05)           # 10 infectious: 2 worker-turns
+    _envelope(w, [0, 1], 1)                # 1000 milli: region 1 first takes all of it
+    _phase2(w, _Sim(_people()))
+    by = {r.region: r for r in w.livelihoods.epidemic_care.frame}
+    assert by[1].care_time == pytest.approx(2.0, abs=1e-6) and by[1].limit == "need_met"
+    assert by[0].carers == [] and by[0].limit == "envelope"
+    assert sum(r.wages_due_milli for r in by.values()) <= 1000
+    (row,) = w.livelihoods.epidemic_care.ledger
+    assert row.envelope_coins == 1 and row.status == "paid"
+
+
+def test_a_bill_refused_at_payment_withholds_nothing_pays_nobody_and_gives_no_capacity():
+    """Other packages charge the treasury in Phase 2 before C2 pays: the bill is
+    quoted again at payment, before any income is withheld."""
+    w = _world(treasury=5)
+    _outbreak(w, 0, burden=0.05)
+    cid = _envelope(w, 0, 2)
+    sim = _Sim(_people())
+    bridge = _Bridge(sim)
+    EC.prepare_phase2(w, _batch(w, sim), bridge, sim.get_snapshot(), None)
+    assert w.livelihoods.epidemic_care._turn.receipts[0].carers          # booked at prepare
+    w.civilizations[0].treasury = 0                                      # another package's charge
+    EC.finish_phase2(w, SimpleNamespace(), bridge, None)
+    st = w.livelihoods.epidemic_care
+    (r,) = st.frame
+    assert r.unpaid_reason == "payer_short" and not r.paid and r.wages_paid_milli == 0
+    assert sim.paid is None and sim.transfers == []                      # nothing withheld, nothing moved
+    assert st.capacity == []
+    (row,) = st.ledger
+    assert row.status == "refused:payer_short" and row.due_milli == 1000 and row.paid_milli == 0
+    assert st.counters["unpaid_bills"] == 1 and st.counters["farm_time_unpaid"] == pytest.approx(2.0, abs=1e-6)
+    c = next(c for c in w.livelihoods.local_budgets.open if c.cid == cid)
+    assert EC.BUDGET_PROVIDER.settle(w, c, _obs(w))["reason"] == "treasury_shortfall"
+
+
+def test_an_envelope_without_patients_leaves_a_nothing_due_ledger_row():
+    w = _world()
+    _envelope(w, 0, 1)
+    _phase2(w, _Sim(_people()))
+    (row,) = w.livelihoods.epidemic_care.ledger
+    assert (row.status, row.envelope_coins, row.due_milli) == ("nothing_due", 1, 0)
+    assert w.livelihoods.epidemic_care.counters["envelope_coins"] == 1
+
+
+def test_an_envelope_that_ran_out_as_the_need_grew_settles_as_a_cost_that_rose():
+    w = _world()
+    _outbreak(w, 0, burden=0.2)            # 8 worker-turns needed
+    cid = _envelope(w, 0, 1)
+    c = next(c for c in w.livelihoods.local_budgets.open if c.cid == cid)
+    c.expected = 8.0                       # the full need was promised; the award was 1 coin
+    _phase2(w, _Sim(_people()))
+    assert w.livelihoods.epidemic_care.frame[0].limit == "envelope"
+    assert EC.BUDGET_PROVIDER.settle(w, c, _obs(w))["reason"] == "cost_rose"
+
+
+def test_the_shared_query_labels_carers_as_care():
+    w = _world()
+    _outbreak(w, 0, burden=0.025)
+    _envelope(w, 0, 1)
+    sim = _Sim(_people())
+    EC.prepare_phase2(w, _batch(w, sim), _Bridge(sim), sim.get_snapshot(), None)
+    booked = LR.booked(w, sim, 5)
+    assert booked[1] == "registry_care" and all(c == 3 for _a, c, _f in sim.work_reservations(5))
+    assert "registry_care" in LR.REASONS
+
+
+def test_the_tick_record_reads_every_infected_region_after_the_tick(monkeypatch):
+    w = _world()
+    w.epidemics.initialized_turn = 0
+    _outbreak(w, 0, burden=0.05, i=0.05, s=0.7)
+    _outbreak(w, 2, burden=0.02, i=0.02, s=0.7)
+    w.livelihoods.epidemic_care.capacity = [CareCapacity(region=0, source_turn=4, carers=1, care_time=1.0,
+                                                         patients=5.0)]
+    EP.tick_epidemics(w)
+    EC._observe_tick(w, w.livelihoods.epidemic_care)
+    regions = {r.region: r for r in w.livelihoods.epidemic_care.regions}
+    assert set(regions) == {r.region for r in w.epidemics.rows} | {j for j, _k, _d in w.epidemics.last_deaths}
+    assert sum(r.deaths for r in regions.values()) == sum(d for _j, _k, d in w.epidemics.last_deaths)
+    burden = {row.region: row.burden * row.n for row in w.epidemics.rows}
+    assert all(regions[j].infectious_pt == pytest.approx(v) for j, v in burden.items())
+    assert w.livelihoods.epidemic_care.applied[0].infectious_after == pytest.approx(burden[0])
+
+
+def test_a_capacity_row_naming_no_region_and_one_left_unconsumed_are_counted():
+    w = _world()
+    st = w.livelihoods.epidemic_care
+    st.capacity = [CareCapacity(region=99, source_turn=4, carers=1, care_time=1.0, patients=5.0)]
+    EC.care_factors(w, [])
+    assert [(r.region, r.reason) for r in st.refused] == [(99, "out_of_range")]
+    assert st.counters["capacity_out_of_range"] == 1
+    st.capacity = [CareCapacity(region=0, source_turn=4, carers=1, care_time=1.0, patients=5.0)]
+    _phase2(w, _Sim(_people()))
+    assert st.counters["capacity_unconsumed"] == 1 and st.capacity == []
+
+
+def test_carers_are_booked_after_every_other_work_consumer():
+    """C2 names its carers after every other package's Phase 2 planning: no
+    switch after it in the hook order plans work, apart from the observers."""
+    from importlib import import_module
+    from chronicler.livelihoods_state import LIVELIHOODS_SWITCHES
+    later = LIVELIHOODS_SWITCHES[LIVELIHOODS_SWITCHES.index("epidemic_care") + 1:]
+    assert later == ("attribution_records", "wealth_accounting")
+    for name in later:
+        module = import_module("chronicler." + name)
+        assert not hasattr(module, "reserve_first")
+        assert not hasattr(module, "reserve_work")
+    # The observers' Phase 2 hooks reserve nobody: no registry write in their source.
+    for name in later:
+        assert "reserve_work" not in (SRC / f"{name}.py").read_text(encoding="utf-8")
+
+
+def test_prepaid_units_are_split_over_the_regions_of_the_bill():
+    w = _world()
+    book = money.MoneyBook()
+    sim = _Sim(_people())
+    bill = money.Bill(purpose="care_wage", batch=3, phase="x",
+                      lines=((money.agent(1), 1500), (money.agent(200), 1500)), payer=money.treasury(0),
+                      regions=(0, 2))
+    got = money.pay(w, bill, turn=5, book=book, sim=sim)
+    assert got.treasury_units == -3
+    by_region = {t.region: t.treasury_units for t in book.totals}
+    assert by_region == {0: -2, 2: -1} and sum(by_region.values()) == -3

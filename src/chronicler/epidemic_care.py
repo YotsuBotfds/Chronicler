@@ -9,19 +9,23 @@ decisions); integration page ``docs/integration/epidemic-care.md``.
 
 Funding (one authority). An L9 provider (:data:`BUDGET_PROVIDER`, service
 ``epidemic_care``, group ``relief``) proposes, in Phase 10 of turn T for turn
-T + 1, one divisible envelope per region of the ruler with a reported
-outbreak at T's tick: the wages of the care time its infectious people need
-(``infectious / PATIENTS_PER_CARER`` worker-turns at ``WAGE_MILLI``). The
-commons' stake is the deaths care would avert at full coverage (persistence
+T + 1, one divisible envelope per ruler covering every region of it with a
+reported outbreak at T's tick: the wages of the care time their infectious
+people need (``infectious / PATIENTS_PER_CARER`` worker-turns at
+``WAGE_MILLI``), rounded up once to L9's whole coin (at most one coin per civ
+and turn beyond the need; an award's unspent part lapses at settlement, as
+every envelope's does). The commons' stake is the deaths care would avert at
+full coverage (persistence
 forecast from T's tick: ``CARE_CFR_REDUCTION x sum over pathogens of burden x
 n x SUBSTEPS x recovery x cfr``) valued at ``DEATH_FOOD_EQUIVALENT`` food
 units each (L9's ``horizon`` turns of one person's food), the unit the
 commons' other proposals use. Nothing is spent outside an accepted envelope;
 there is no treasury charge of its own and no flat cost.
 
-Carers (Phase 2 of T + 1, after every other work consumer). For each open
-envelope the carers are named from the living adult farmers resident in the
-region who hold no other work this turn (:func:`labour_reservations.booked`:
+Carers (Phase 2 of T + 1, after every other work consumer). Each open
+envelope serves its regions most infectious first; the carers are named from
+the living adult farmers resident in a region who hold no other work this
+turn (:func:`labour_reservations.booked`:
 rural health patients and caregivers, the shared native work registry, trips,
 the enlisted, seated mentors), in ascending stable id: no random draw. Each
 gives at most their own farm time (1 for a rural farmer,
@@ -29,10 +33,16 @@ gives at most their own farm time (1 for a rural farmer,
 covers the region's infectious people at this turn's tick, within the
 envelope's wages and the payer's projected treasury. They are reserved in the
 shared work registry (category ``repair``: the native registry's categories
-are fixed, as PL1's woodcutters use it), their farm time leaves the region's
-native farm labour through ``farm_labor_factor``
-(``recovery_crews.remove_farm_time``) and, after the economy tick, the same
-share of their ordinary income is withheld by the next wealth phase
+are fixed, as PL1's woodcutters use it; the shared query labels them
+``registry_care``), so that turn they are neither drafted by campaigns nor
+taken for academy teaching (both skip registry holders: part of care's cost).
+Their farm time leaves the region's native farm labour through
+``farm_labor_factor`` (``recovery_crews.remove_farm_time``). After the economy
+tick, once every earlier package has charged the treasury, each paying civ's
+wage bill is quoted again: a bill that would be refused pays nobody and
+withholds nothing, and its carers give no capacity (their booked farm time is
+lost, recorded as ``farm_time_unpaid``). Otherwise the same share of the
+carers' ordinary income is withheld by the next wealth phase
 (``extend_paid_work``) and their wages are paid by stable id through the
 payment seam (``money.pay``, purpose ``care_wage``, one bill per paying civ,
 batch ``CARE_WAGE_BATCH + civ``; whole bill or nothing, exactly once).
@@ -40,7 +50,8 @@ batch ``CARE_WAGE_BATCH + civ``; whole bill or nothing, exactly once).
 Capacity. The patients they can serve (``care time x PATIENTS_PER_CARER``)
 are recorded as dated state ``(region, source_turn T + 1, patients)`` and
 read by the next epidemic tick only (Phase 1 of T + 2), which consumes it: a
-row of any other date is refused (``stale``/``future``) and never applied.
+row of any other date, or naming no region, is refused (``stale``,
+``future``, ``out_of_range``) and never applied.
 
 Effect (``care`` only). At that tick, coverage ``c = min(1, patients /
 infectious)`` with the infectious people of the last tick (sum over pathogens
@@ -63,7 +74,7 @@ import math
 
 from chronicler.epidemic_care_state import (
     COUNTERS, MAX_FRAME_ROWS, MODES, CapacityRefusal, CareApplied, CareCapacity, CareReceipt, Carer,
-    CivWageLedger, EpidemicCareState,
+    CivWageLedger, EpidemicCareState, TickRegion,
 )
 
 MILLI = 1000
@@ -108,6 +119,8 @@ class _Turn:
     def __init__(self, turn: int, sim):
         self.turn, self.sim = turn, sim
         self.receipts: list[CareReceipt] = []
+        #: civ -> coins of the care envelopes it executes this turn.
+        self.envelopes: dict[int, int] = {}
         self.prepared = False
         self.finished = False
         self.installed = False
@@ -264,7 +277,8 @@ def care_factors(world, rows) -> list[float] | None:
                 raise RuntimeError(f"two care capacity rows for region {c.region}")
             applying[c.region] = c
         else:
-            reason = "future" if c.source_turn >= turn else "stale"
+            reason = ("out_of_range" if c.source_turn == turn - 1 else
+                      "future" if c.source_turn >= turn else "stale")
             refused.append(CapacityRefusal(region=c.region, source_turn=c.source_turn, reason=reason))
             _bump(state, f"capacity_{reason}")
     state.capacity = []
@@ -293,6 +307,7 @@ def care_factors(world, rows) -> list[float] | None:
             _bump(state, "covered_region_turns")
     state.tick_turn = turn
     state.applied = applied
+    state.regions = []          # filled after the tick (Phase 2, ``_observe_tick``)
     state.refused = sorted(refused, key=lambda r: (r.region, r.source_turn, r.reason))
     _bump(state, "ticks_observed")
     if all(f == 1.0 for f in factors):
@@ -317,11 +332,13 @@ def combine(techniques: list[float] | None, care: list[float]) -> list[float]:
 
 
 def _observe_tick(world, state) -> None:
-    """Phase 2: this turn's tick deaths, new infections and infectious people
-    after the tick, for the regions where capacity applied (dated the tick)."""
-    if state.tick_turn != world.turn or not state.applied:
+    """Phase 2: this turn's tick, after it (dated the tick): every region with
+    an infection row or deaths (deaths, infectious person-turns, new
+    infections), and the same for the regions where capacity applied."""
+    if state.tick_turn != world.turn:
         return
     epi = world.epidemics
+    n = len(world.regions)
     deaths: dict[int, int] = {}
     for j, _k, d in epi.last_deaths:
         deaths[j] = deaths.get(j, 0) + int(d)
@@ -329,6 +346,9 @@ def _observe_tick(world, state) -> None:
     for row in epi.rows:
         cases[row.region] = cases.get(row.region, 0.0) + row.cases
     after = _infectious(world, epi.rows)
+    present = {row.region for row in epi.rows if 0 <= row.region < n} | {j for j in deaths if 0 <= j < n}
+    state.regions = [TickRegion(region=j, deaths=deaths.get(j, 0), infectious_pt=after[j],
+                                cases=round(cases.get(j, 0.0), 6)) for j in sorted(present)]
     for a in state.applied:
         a.deaths = deaths.get(a.region, 0)
         a.cases = round(cases.get(a.region, 0.0), 6)
@@ -340,12 +360,12 @@ def _observe_tick(world, state) -> None:
 # ---------------------------------------------------------------------------
 
 def _envelopes(world) -> list:
-    """This turn's open L9 commitments for care, by region then cid."""
+    """This turn's open L9 commitments for care (one per civ), by civ then cid."""
     from chronicler.local_budgets import _open_for, _state as budget_state
     budgets = budget_state(world)
     if budgets is None:
         return []
-    return sorted(_open_for(budgets, world, SERVICE), key=lambda c: (c.recipients[0] if c.recipients else -1, c.cid))
+    return sorted(_open_for(budgets, world, SERVICE), key=lambda c: (c.civ, c.cid))
 
 
 def _f32_floor(x: float) -> float:
@@ -360,7 +380,12 @@ def _wage(share: float) -> int:
 
 def prepare_phase2(world, region_input, agent_bridge, snapshot, acc):
     """Name and reserve this turn's carers and lower the regions' farm labour;
-    charges nothing (wages are paid after the native economy tick)."""
+    charges nothing (wages are paid after the native economy tick).
+
+    One envelope per civ covers all of its recipient regions: they draw on it
+    in the order of their infectious people (most first, then region index),
+    each up to its own need, within the envelope and the civ's projected
+    treasury (plus its prepaid carry)."""
     state = _state(world)
     turn = world.turn
     _observe_tick(world, state)
@@ -385,67 +410,72 @@ def prepare_phase2(world, region_input, agent_bridge, snapshot, acc):
     booked = labour_reservations.booked(world, sim, turn)
     infectious = _infectious(world, world.epidemics.rows)
     civs = world.civilizations
+    n = len(world.regions)
     budgets: dict[int, int] = {}
     removal: dict[int, float] = {}
     reserve: list[tuple[int, float]] = []
     taken: set[int] = set()
+    staffed: set[int] = set()
     for c in commitments:
-        rid = c.recipients[0]
-        inf = infectious[rid] if 0 <= rid < len(infectious) else 0.0
-        need = inf / PATIENTS_PER_CARER
-        r = CareReceipt(turn=turn, region=rid, civ=c.civ, commitment=c.cid, envelope=c.amount, infectious=inf,
-                        need=need, eligible=0)
-        t.receipts.append(r)
         name = civs[c.civ].name if 0 <= c.civ < len(civs) else None
-        if not 0 <= rid < len(world.regions) or name is None or world.regions[rid].controller != name:
-            r.limit = "recipient_lost"
-            continue
-        if need < MIN_SHARE:
-            r.limit = "no_patients"
-            continue
-        if c.civ not in budgets:
-            budgets[c.civ] = (_civ_budget(world, c.civ, acc) * MILLI
-                              + state.book.carry.get(f"{c.civ}:{PURPOSE}", 0))
         envelope_left = int(c.amount) * MILLI
-        eligible = [(aid, settlement) for aid, occupation, settlement in people.residents(rid)
-                    if occupation == FARMER and aid not in booked and aid not in taken]
-        r.eligible = len(eligible)
-        care, limit = 0.0, None
-        for aid, settlement in eligible:
-            remaining = need - care
-            if remaining < MIN_SHARE:
-                limit = "need_met"
-                break
-            farm, _diverted, urban = _farm_share(cities, rid, settlement)
-            share = _f32_floor(min(farm, remaining))
-            if share < MIN_SHARE:
+        t.envelopes[c.civ] = t.envelopes.get(c.civ, 0) + int(c.amount)
+        order = sorted(set(c.recipients), key=lambda j: (-(infectious[j] if 0 <= j < n else 0.0), j))
+        for rid in order:
+            inf = infectious[rid] if 0 <= rid < n else 0.0
+            need = inf / PATIENTS_PER_CARER
+            r = CareReceipt(turn=turn, region=rid, civ=c.civ, commitment=c.cid, envelope=c.amount, infectious=inf,
+                            need=need, eligible=0)
+            t.receipts.append(r)
+            if not 0 <= rid < n or name is None or world.regions[rid].controller != name or rid in staffed:
+                r.limit = "recipient_lost"
                 continue
-            money_left = min(envelope_left, budgets[c.civ])
-            wage = _wage(share)
-            if wage > money_left:
-                share = _f32_floor(min(share, money_left / WAGE_MILLI))
-                limit = "envelope" if envelope_left <= budgets[c.civ] else "treasury"
-                wage = min(_wage(share), money_left)
-                if share < MIN_SHARE or wage < 1:
+            if need < MIN_SHARE:
+                r.limit = "no_patients"
+                continue
+            if c.civ not in budgets:
+                budgets[c.civ] = (_civ_budget(world, c.civ, acc) * MILLI
+                                  + state.book.carry.get(f"{c.civ}:{PURPOSE}", 0))
+            eligible = [(aid, settlement) for aid, occupation, settlement in people.residents(rid)
+                        if occupation == FARMER and aid not in booked and aid not in taken]
+            r.eligible = len(eligible)
+            care, limit = 0.0, None
+            for aid, settlement in eligible:
+                remaining = need - care
+                if remaining < MIN_SHARE:
+                    limit = "need_met"
                     break
-            r.carers.append(Carer(agent_id=aid, origin="urban_farmer" if urban else "rural_farmer", share=share,
-                                  wage_due_milli=wage))
-            care += share
-            envelope_left -= wage
-            budgets[c.civ] -= wage
-            taken.add(aid)
-            if limit is not None:
-                break
-        if limit is None:
-            limit = "need_met" if need - care < MIN_SHARE else "labour"
-        r.limit = limit
-        r.care_time = math.fsum(x.share for x in r.carers)
-        r.patients = r.care_time * PATIENTS_PER_CARER
-        r.wages_due_milli = sum(x.wage_due_milli for x in r.carers)
-        r.farm_time_removed = r.care_time
-        if r.carers:
-            removal[rid] = removal.get(rid, 0.0) + r.care_time
-            reserve.extend((x.agent_id, x.share) for x in r.carers)
+                farm, _diverted, urban = _farm_share(cities, rid, settlement)
+                share = _f32_floor(min(farm, remaining))
+                if share < MIN_SHARE:
+                    continue
+                money_left = min(envelope_left, budgets[c.civ])
+                wage = _wage(share)
+                if wage > money_left:
+                    share = _f32_floor(min(share, money_left / WAGE_MILLI))
+                    limit = "envelope" if envelope_left <= budgets[c.civ] else "treasury"
+                    wage = min(_wage(share), money_left)
+                    if share < MIN_SHARE or wage < 1:
+                        break
+                r.carers.append(Carer(agent_id=aid, origin="urban_farmer" if urban else "rural_farmer", share=share,
+                                      wage_due_milli=wage))
+                care += share
+                envelope_left -= wage
+                budgets[c.civ] -= wage
+                taken.add(aid)
+                if limit is not None:
+                    break
+            if limit is None:
+                limit = "need_met" if need - care < MIN_SHARE else "labour"
+            r.limit = limit
+            r.care_time = math.fsum(x.share for x in r.carers)
+            r.patients = r.care_time * PATIENTS_PER_CARER
+            r.wages_due_milli = sum(x.wage_due_milli for x in r.carers)
+            r.farm_time_removed = r.care_time
+            if r.carers:
+                staffed.add(rid)
+                removal[rid] = removal.get(rid, 0.0) + r.care_time
+                reserve.extend((x.agent_id, x.share) for x in r.carers)
     if reserve:
         # All or none; the native registry refuses anyone already holding work.
         sim.reserve_work(turn, CATEGORY_REPAIR, sorted(reserve))
@@ -454,9 +484,13 @@ def prepare_phase2(world, region_input, agent_bridge, snapshot, acc):
 
 
 def finish_phase2(world, economy_result, agent_bridge, acc):
-    """After the native economy tick: withhold the carers' income share for
-    the next wealth phase, pay their wages (one keyed bill per paying civ),
-    date the capacity for the next tick and commit the frame."""
+    """After the native economy tick (and every earlier package's Phase 2
+    charges): quote each paying civ's wage bill against its treasury now; a
+    bill that would be refused pays nobody and withholds nothing, and its
+    carers give no capacity (their booked farm time is lost, recorded). Then
+    withhold the paid carers' income share for the next wealth phase, pay
+    their wages (one keyed bill per civ), date the capacity for the next tick
+    and commit the frame."""
     state = _state(world)
     t = state._turn
     if t is None or t.turn != world.turn or not t.prepared:
@@ -464,14 +498,23 @@ def finish_phase2(world, economy_result, agent_bridge, acc):
     if t.finished:
         raise RuntimeError("epidemic care already settled for this turn")
     turn = world.turn
-    rows = sorted((x.agent_id, x.share) for r in t.receipts for x in r.carers)
+    bills = _quote_bills(world, state, t, acc)
+    refused = {civ for civ, (_bill, quote, _items) in bills.items() if not quote.ok}
+    for r in t.receipts:
+        if r.civ in refused and r.carers:
+            r.unpaid_reason = bills[r.civ][1].reason
+            _bump(state, "farm_time_unpaid", r.care_time)
+    rows = sorted((x.agent_id, x.share) for r in t.receipts if r.civ not in refused for x in r.carers)
     if rows:
         t.sim.extend_paid_work(turn, rows)
         t.installed = True
-    ledger = _pay_wages(world, state, t, acc)
+    ledger = _pay_wages(world, state, t, acc, bills)
+    if state.capacity:
+        # Unreachable while every turn's tick consumes the capacity first.
+        _bump(state, "capacity_unconsumed", len(state.capacity))
     capacity = []
     for r in sorted(t.receipts, key=lambda r: r.region):
-        if r.carers:
+        if r.carers and r.paid:
             if any(c.region == r.region for c in capacity):
                 raise RuntimeError(f"two care envelopes staffed region {r.region} in one turn")
             capacity.append(CareCapacity(region=r.region, source_turn=turn, carers=len(r.carers),
@@ -494,6 +537,7 @@ def finish_phase2(world, economy_result, agent_bridge, acc):
         _bump(state, "patients", r.patients)
         _bump(state, "farm_time_removed", r.farm_time_removed)
     for row in ledger:
+        _bump(state, "envelope_coins", row.envelope_coins)
         _bump(state, "wages_due_milli", row.due_milli)
         _bump(state, "wages_paid_milli", row.paid_milli)
         _bump(state, "wage_residual_milli", row.residual_milli)
@@ -504,34 +548,51 @@ def finish_phase2(world, economy_result, agent_bridge, acc):
     return []
 
 
-def _pay_wages(world, state, t: _Turn, acc) -> list[CivWageLedger]:
-    """One bill per paying civ: payer its treasury, lines its carers' wages by
-    stable id (``money.pay``: validated whole, exactly once per (turn,
-    ``care_wage``, ``CARE_WAGE_BATCH + civ``)). A refused bill pays nobody of
-    that civ: its carers worked unpaid this turn (recorded)."""
+def _quote_bills(world, state, t: _Turn, acc) -> dict:
+    """{civ: (bill, quote, items)} for every civ with wages due: the bill is
+    validated whole against the payer's treasury as it stands now (after the
+    other packages' Phase 2 charges), moving nothing."""
     from chronicler import money
-    turn = world.turn
     by_civ: dict[int, list[tuple[Carer, int, CareReceipt]]] = {}
     for r in t.receipts:
         for x in r.carers:
             if x.wage_due_milli > 0:
                 by_civ.setdefault(r.civ, []).append((x, r.region, r))
-    ledger = []
+    out = {}
     for civ in sorted(by_civ):
         items = sorted(by_civ[civ], key=lambda item: item[0].agent_id)
-        due = sum(x.wage_due_milli for x, _rid, _r in items)
-        key = f"{civ}:{PURPOSE}"
-        before = state.book.carry.get(key, 0)
         bill = money.Bill(purpose="care_wage", batch=CARE_WAGE_BATCH + civ, phase="phase2",
                           lines=tuple((money.agent(x.agent_id), x.wage_due_milli) for x, _rid, _r in items),
                           payer=money.treasury(civ), regions=tuple(rid for _x, rid, _r in items))
-        got = money.pay(world, bill, turn=turn, book=state.book, acc=acc, sim=t.sim)
-        row = CivWageLedger(turn=turn, civ=civ, due_milli=due, carry_before=before)
-        if not got.ok:
-            row.status = f"refused:{got.reason}"
-            row.carry_after = before
-            ledger.append(row)
+        out[civ] = (bill, money.quote(world, bill, turn=world.turn, book=state.book, acc=acc, sim=t.sim), items)
+    return out
+
+
+def _pay_wages(world, state, t: _Turn, acc, bills: dict) -> list[CivWageLedger]:
+    """Pay each quoted bill (``money.pay``: validated whole again, exactly once
+    per (turn, ``care_wage``, ``CARE_WAGE_BATCH + civ``)); a ledger row for
+    every civ that executed an envelope: ``paid``, ``nothing_due`` (no wage
+    was due) or ``refused:<reason>`` (nobody of that civ paid or withheld)."""
+    from chronicler import money
+    turn = world.turn
+    ledger = []
+    for civ in sorted(set(t.envelopes) | set(bills)):
+        key = f"{civ}:{PURPOSE}"
+        before = state.book.carry.get(key, 0)
+        row = CivWageLedger(turn=turn, civ=civ, envelope_coins=t.envelopes.get(civ, 0), due_milli=0,
+                            carry_before=before, carry_after=before)
+        ledger.append(row)
+        if civ not in bills:
+            row.status = "nothing_due"
             continue
+        bill, quote, items = bills[civ]
+        row.due_milli = sum(x.wage_due_milli for x, _rid, _r in items)
+        if not quote.ok:
+            row.status = f"refused:{quote.reason}"
+            continue
+        got = money.pay(world, bill, turn=turn, book=state.book, acc=acc, sim=t.sim)
+        if not got.ok:
+            raise RuntimeError(f"care wages of civ {civ} refused at payment after a passing quote ({got.reason})")
         flows = {int(f.payee[1]): f for f in got.flows or ()}
         for x, _rid, r in items:
             f = flows[x.agent_id]
@@ -544,7 +605,6 @@ def _pay_wages(world, state, t: _Turn, acc) -> list[CivWageLedger]:
         row.treasury_units = -int(got.treasury_units)
         row.carry_after = state.book.carry.get(key, 0)
         check_ledger(row)
-        ledger.append(row)
     return ledger
 
 
@@ -623,7 +683,13 @@ def on_pool_reset(world) -> None:
 # ---------------------------------------------------------------------------
 
 class _CareEnvelopes:
-    """L9 provider (``local_budgets.PROVIDERS``, appended). See the module docstring."""
+    """L9 provider (``local_budgets.PROVIDERS``, appended). See the module docstring.
+
+    One divisible proposal per civ covers every region of the civ with a
+    reported outbreak (claim ``epidemic_care:<civ>``), so its cost is the
+    whole wage need rounded up once to L9's coin: at most one coin per civ and
+    turn is reserved beyond the need (L9 counts whole coins; the unspent part
+    of an award lapses at settlement, as every envelope's does)."""
 
     services = (SERVICE,)
     group = "relief"
@@ -642,23 +708,22 @@ class _CareEnvelopes:
         reported = sorted({row.region for row in rows if row.reported and 0 <= row.region < n})
         infectious = _infectious(world, rows)
         deaths = _expected_deaths(world, rows)
-        out = []
-        for rid in reported:
-            if world.regions[rid].controller != name:
-                continue
-            need = infectious[rid] / PATIENTS_PER_CARER
-            if need < MIN_SHARE:
-                continue
-            cost = max(1, -(-_wage_total(need) // MILLI))
-            averted = CARE_CFR_REDUCTION * deaths[rid]
-            stake = averted * food_per_death
-            out.append(dict(service=SERVICE, recipients=[rid], claims=[f"{SERVICE}:{rid}"], cost=cost,
-                            divisible=True, unit="care_time", expected=round(need, 6),
-                            relief={"commons": round(stake, 6)} if stake > EPS else {},
-                            detail={"infectious": round(infectious[rid], 6),
-                                    "expected_deaths": round(deaths[rid], 6),
-                                    "deaths_averted": round(averted, 6), "food_per_death": round(food_per_death, 6)}))
-        return out
+        regions = [rid for rid in reported if world.regions[rid].controller == name
+                   and infectious[rid] / PATIENTS_PER_CARER >= MIN_SHARE]
+        if not regions:
+            return []
+        need = math.fsum(infectious[rid] / PATIENTS_PER_CARER for rid in regions)
+        wages = sum(_wage_total(infectious[rid] / PATIENTS_PER_CARER) for rid in regions)
+        cost = max(1, -(-wages // MILLI))
+        averted = CARE_CFR_REDUCTION * math.fsum(deaths[rid] for rid in regions)
+        stake = averted * food_per_death
+        return [dict(service=SERVICE, recipients=regions, claims=[f"{SERVICE}:{civ}"], cost=cost,
+                     divisible=True, unit="care_time", expected=round(need, 6),
+                     relief={"commons": round(stake, 6)} if stake > EPS else {},
+                     detail={"regions": len(regions), "wages_milli": wages,
+                             "infectious": round(math.fsum(infectious[rid] for rid in regions), 6),
+                             "expected_deaths": round(math.fsum(deaths[rid] for rid in regions), 6),
+                             "deaths_averted": round(averted, 6), "food_per_death": round(food_per_death, 6)})]
 
     def install(self, world, commitments) -> None:
         return None
@@ -668,29 +733,36 @@ class _CareEnvelopes:
         if state is None or state.frame_turn != world.turn or state.frame is None:
             reason = "no_economy" if obs.economy is None else "service_off"
             return {"outcome": "deferred", "reason": reason, "spent": 0, "delivered": 0.0, "ratio": 0.0}
-        r = next((r for r in state.frame if r.commitment == c.cid), None)
-        if r is None:
+        rs = [r for r in state.frame if r.commitment == c.cid]
+        if not rs:
             return {"outcome": "deferred", "reason": "service_off", "spent": 0, "delivered": 0.0, "ratio": 0.0}
-        detail = {"carers": len(r.carers), "care_time": round(r.care_time, 6), "patients": round(r.patients, 6),
-                  "limit": r.limit, "wages_paid_milli": r.wages_paid_milli}
-        if r.limit == "recipient_lost":
+        paid = sum(r.wages_paid_milli for r in rs)
+        delivered = math.fsum(r.care_time for r in rs if r.paid)
+        limits = [r.limit for r in rs]
+        detail = {"regions": len(rs), "carers": sum(len(r.carers) for r in rs), "care_time": round(delivered, 6),
+                  "limits": ",".join(sorted(set(limits))), "wages_paid_milli": paid}
+        # L9 counts whole coins: the wages, floored (the civ's exact charge,
+        # whole units with a prepaid carry, is C2's wage ledger).
+        spent = paid // MILLI
+        if all(limit == "recipient_lost" for limit in limits):
             return {"outcome": "deferred", "reason": "recipient_lost", "spent": 0, "delivered": 0.0, "ratio": 0.0,
                     "detail": detail}
-        if r.limit == "no_patients":
-            return {"outcome": "kept", "reason": None, "spent": 0, "delivered": 0.0, "ratio": 1.0, "detail": detail}
-        # L9 counts whole coins: the region's wages, floored (the civ's exact
-        # charge, whole units with a prepaid carry, is C2's wage ledger).
-        spent = r.wages_paid_milli // MILLI
-        if r.wages_due_milli and not r.paid:
-            return {"outcome": "deferred", "reason": "treasury_shortfall", "spent": 0, "delivered": r.care_time,
+        if any(r.unpaid_reason for r in rs):
+            return {"outcome": "deferred", "reason": "treasury_shortfall", "spent": spent, "delivered": delivered,
                     "ratio": 0.0, "detail": detail}
-        ratio = min(1.0, r.care_time / c.expected) if c.expected > EPS else 1.0
+        if all(limit in ("no_patients", "recipient_lost") for limit in limits):
+            return {"outcome": "kept", "reason": None, "spent": 0, "delivered": 0.0, "ratio": 1.0, "detail": detail}
+        ratio = min(1.0, delivered / c.expected) if c.expected > EPS else 1.0
         from chronicler.local_budgets import KEPT_RATIO
-        if ratio >= KEPT_RATIO or r.limit == "need_met":
-            return {"outcome": "kept", "reason": None, "spent": spent, "delivered": r.care_time,
-                    "ratio": 1.0 if r.limit == "need_met" else ratio, "detail": detail}
-        reason = {"labour": "work_short", "treasury": "treasury_shortfall"}.get(r.limit, "work_short")
-        return {"outcome": "deferred", "reason": reason, "spent": spent, "delivered": r.care_time,
+        if ratio >= KEPT_RATIO or all(limit in ("need_met", "no_patients", "recipient_lost") for limit in limits):
+            return {"outcome": "kept", "reason": None, "spent": spent, "delivered": delivered,
+                    "ratio": 1.0 if ratio < KEPT_RATIO else ratio, "detail": detail}
+        # The first binding limit: an envelope that ran out while the need grew
+        # since the proposal is a cost that rose (review n5), not a labour shortage.
+        reasons = {"treasury": "treasury_shortfall", "labour": "work_short", "envelope": "cost_rose"}
+        reason = next((reasons[limit] for limit in ("treasury", "labour", "envelope") if limit in limits),
+                      "work_short")
+        return {"outcome": "deferred", "reason": reason, "spent": spent, "delivered": delivered,
                 "ratio": ratio, "detail": detail}
 
     def obligations(self, world, civ: int, obs) -> int:
@@ -728,7 +800,8 @@ def snapshot_summary(world) -> dict:
     tick = None
     if state.tick_turn == source:
         tick = {"turn": state.tick_turn, "applied": [a.model_dump() for a in state.applied],
-                "refused": [r.model_dump() for r in state.refused]}
+                "refused": [r.model_dump() for r in state.refused],
+                "regions": [r.model_dump() for r in state.regions]}
     return {
         "schema_version": 1, "stage": "C2", "mode": state.mode, "source_turn": source,
         "units": {"money": "milli_treasury_units", "care": "worker_turns", "patients": "people", "milli": MILLI},

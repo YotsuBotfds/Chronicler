@@ -153,7 +153,7 @@ MONEY_BILLS: dict[tuple[str, str], tuple[str, ...]] = {
     ("workshop_economics", "sell_to_households"): ("wares_purchase",),
     ("workshop_economics", "open_firms"): ("firm_capital",),
     # C2: carers' wages, treasury to agents (prepaid carry rule).
-    ("epidemic_care", "_pay_wages"): ("care_wage",),
+    ("epidemic_care", "_quote_bills"): ("care_wage",),
 }
 #: Every reference to a writer or router name that is not a call: the name
 #: strings packages use to check the extension has a method

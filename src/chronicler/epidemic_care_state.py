@@ -25,8 +25,9 @@ from chronicler.money import MoneyBook
 
 #: ``--epidemic-care-mode`` values (first: the default when enabled).
 MODES: tuple[str, ...] = ("care", "cost_only")
-#: Why a capacity row did not apply at a tick (append only).
-CAPACITY_REFUSALS: tuple[str, ...] = ("stale", "future")
+#: Why a capacity row did not apply at a tick (append only). ``out_of_range``:
+#: dated right but naming no region of the world.
+CAPACITY_REFUSALS: tuple[str, ...] = ("stale", "future", "out_of_range")
 #: What limited a region's carers in Phase 2 (append only). ``need_met``: the
 #: carers cover the infectious people; ``envelope``: the L9 envelope's wages;
 #: ``treasury``: the payer's projected treasury; ``labour``: no more eligible
@@ -42,6 +43,11 @@ COUNTERS: tuple[str, ...] = (
     "wages_due_milli", "wages_paid_milli", "wage_residual_milli", "treasury_units", "unpaid_bills",
     "income_withheld", "pool_resets", "turns_discarded",
     *(f"limit_{name}" for name in LIMITS),
+    # Review of 3e5ee44d (appended): coins of the care envelopes C2 executed;
+    # farm time given by carers of a civ whose wage bill was refused at payment
+    # (no wage, no income withheld, no capacity); capacity rows dated wrongly
+    # because their region is out of range; rows a settlement found unconsumed.
+    "envelope_coins", "farm_time_unpaid", "capacity_out_of_range", "capacity_unconsumed",
 )
 #: Settled rows kept in one frame (bounded).
 MAX_FRAME_ROWS = 256
@@ -68,6 +74,20 @@ class CapacityRefusal(BaseModel):
     region: int
     source_turn: int
     reason: str
+
+
+class TickRegion(BaseModel):
+    """One region at one epidemic tick, after the tick (every region with an
+    infection row or deaths): its epidemic deaths, the infectious person-turns
+    the tick spent (sum over pathogens of the tick's mean infectious share x
+    population, ``burden x n``) and its new infections. Recorded in every
+    care arm, covered or not, so a region-turn can be read the same way in
+    ``care`` and ``cost_only``."""
+
+    region: int
+    deaths: int
+    infectious_pt: float
+    cases: float
 
 
 class CareApplied(BaseModel):
@@ -128,6 +148,9 @@ class CareReceipt(BaseModel):
     farm_time_removed: float = 0.0
     limit: str = "need_met"   # LIMITS
     paid: bool = False        # the civ's wage bill settled (False: refused or nothing due)
+    #: The payment seam's refusal of the civ's bill at payment (``payer_short``,
+    #: ...): its carers were neither paid nor withheld and gave no capacity.
+    unpaid_reason: str | None = None
 
 
 class CivWageLedger(BaseModel):
@@ -136,13 +159,15 @@ class CivWageLedger(BaseModel):
 
     turn: int
     civ: int
+    #: Coins of the civ's care envelopes executed this turn (L9's award).
+    envelope_coins: int = 0
     due_milli: int
     paid_milli: int = 0
     residual_milli: int = 0
     treasury_units: int = 0
     carry_before: int = 0
     carry_after: int = 0
-    status: str = "paid"      # "paid", "nothing_due" or "refused:<reason>"
+    status: str = "paid"      # "paid", "nothing_due" (an envelope, no wage due) or "refused:<reason>"
 
 
 class EpidemicCareState(BaseModel):
@@ -155,6 +180,8 @@ class EpidemicCareState(BaseModel):
     tick_turn: int | None = None
     applied: list[CareApplied] = Field(default_factory=list)
     refused: list[CapacityRefusal] = Field(default_factory=list)
+    #: Every region of that tick, after it (filled in Phase 2 of the same turn).
+    regions: list[TickRegion] = Field(default_factory=list)
     #: The last Phase 2 frame (``frame_turn``); None rows: not settled.
     frame_turn: int | None = None
     frame: list[CareReceipt] | None = Field(default=None, exclude_if=_is_none)

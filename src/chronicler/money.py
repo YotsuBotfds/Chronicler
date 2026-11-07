@@ -397,9 +397,9 @@ def _debit_prepaid(world, civ: int, purpose: str, debit: int, flows: list[MoneyF
     """A treasury -> agents bill (``TREASURY_AGENT_PURPOSES``): ``debit`` (what
     the agents took) is paid from the prepaid carry first, then in whole
     treasury units; the unspent rest of the last unit stays prepaid. Exact:
-    ``units x 1000 + carry before == debit + carry after``. The first flow
-    records the units (negative) and the carry before, the last the carry
-    after. Returns the units paid."""
+    ``units x 1000 + carry before == debit + carry after``. Each flow records
+    its share of the units (negative, by what its agent took); the first flow
+    the carry before, the last the carry after. Returns the units paid."""
     key = f"{civ}:{purpose}"
     before = book.carry.get(key, 0)
     units = max(0, -(-(debit - before) // MILLI))
@@ -411,10 +411,19 @@ def _debit_prepaid(world, civ: int, purpose: str, debit: int, flows: list[MoneyF
     else:
         book.carry.pop(key, None)
     _move_treasury(world, civ, -units, acc)
-    for f in flows:
-        f.treasury_units = 0
+    # The units are split over the flows by what each agent took (largest
+    # remainder, then flow order), so per-region totals add up to the bill's
+    # units; the carry is the bill's (first flow before, last flow after).
+    weights = [f.applied for f in flows]
+    whole = sum(weights)
+    shares = [units * w // whole if whole else 0 for w in weights]
+    rests = sorted(range(len(flows)), key=lambda i: (-(units * weights[i] % whole if whole else 0), i))
+    for i in rests[:units - sum(shares)]:
+        shares[i] += 1
+    for f, share in zip(flows, shares):
+        f.treasury_units = -share
     if flows:
-        flows[0].treasury_units, flows[0].carry_before = -units, before
+        flows[0].carry_before = before
         flows[-1].carry_after = after
     return units
 
