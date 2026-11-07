@@ -540,12 +540,12 @@ gate and the procedural qualification gate.
 
 ## 10. Limits and open questions
 
-- **Named, paid crews.** Works use anonymous, unpaid farm labour only. PL3's named crews
-  (`--recovery-crews`) remain granary-only: paying named infrastructure crews needs a
-  treasury-to-agent payment, which the payment seam's first slice refuses, and a new ledger channel.
-  Recorded as a missing capability.
-- **Coins are destroyed.** The `public_works` sink pays no one (section 5): a declared
-  deflationary leak, like the undeclared granary coins of storage and RS2.
+- **Named crews require PL3.** With `--recovery-crews`, works use the named, paid or unpaid
+  farm crews described below. Without PL3, the earlier anonymous, unpaid labour contract remains.
+  Neither path reassigns native occupations.
+- **Material coins are destroyed.** The `public_works` material sink pays no one (section 5).
+  Accepted named wages use the separate treasury-to-agent channel described below; they are not
+  recorded as a public-works sink.
 - **PL1 supply is bounded by PL1's own rules.** The works now ask PL1 for timber after RS2
   (section 5), but PL1 sends a crew only to a healthy forest within two hops that no other crew is
   cutting, so many works' needs are refused `no_forest`, `too_far`, `forest_busy` or
@@ -587,8 +587,8 @@ labor fills a named request. Unpaid PL3 control names, reserves and withholds
 the same work. PL3 being off preserves the explicitly anonymous B3 contract.
 
 Paid crews request 500 milli-coins per actual delivered worker-turn (the
-existing repair wage). Irrigation's remaining100 milli/work is material;
-roads' nominal500 milli/work is the wage. Fractional rounding can leave a
+existing repair wage). Irrigation's remaining 100 milli/work is material;
+roads' nominal 500 milli/work is the wage. Fractional rounding can leave a
 small material remainder. `infrastructure_wage` routes through native
 `repair_wage`, batch `0xB3000 + civ`, separate from all existing consumers.
 Every payer's wages and materials are quoted against one finite treasury and
@@ -608,8 +608,8 @@ wages. `cost_only` changes no condition while retaining these same work and
 money mechanisms. None of this constitutes native occupation reassignment,
 a second spendable balance or a globally conserved cash system.
 
-A natural procedural31,32x10,72turn development run with PL1 supplied real
-active crews and passed exact resume at61. The earlier44turn run had no B3
+A natural procedural seed 31, 32 regions, 10 agents per region, 72-turn development run with PL1 supplied real
+active crews and passed exact resume at turn 61. The earlier 44-turn run had no B3
 crew activation because timber was unavailable; that null is not evidence
 that wages ran. The helper contracts additionally exercise trip/registry and
 age exclusions, no duplicate worker, unpaid control and wealth-ceiling
