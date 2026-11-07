@@ -23,20 +23,27 @@ from pydantic import BaseModel, Field, PrivateAttr
 PAYROLL_MODES: tuple[str, ...] = ("paid", "unpaid_labor", "no_customer")
 #: Firm closure reasons, in declaration order (append only). ``insolvent``
 #: is a declared run of insolvent turns; the others mirror the L1 site's.
-FIRM_CLOSE_REASONS: tuple[str, ...] = ("insolvent", "city_fell", "city_missing", "region_changed")
+#: ``idle`` (A3, ``--workshop-economics``): a run of turns without an
+#: affordable input or a sale.
+FIRM_CLOSE_REASONS: tuple[str, ...] = ("insolvent", "city_fell", "city_missing", "region_changed", "idle")
 #: Money transfer kinds (append only). ``sale``: buyer treasury -> firm cash;
 #: ``wage``: firm cash -> agent wealth; ``distribution``: firm cash -> owner
 #: treasury; ``write_off``: firm cash -> named sink (no owner, sub-unit rest);
-#: ``stipend`` (RS1): firm cash -> an apprentice's wealth.
-MONEY_KINDS: tuple[str, ...] = ("sale", "wage", "distribution", "write_off", "stipend")
+#: ``stipend`` (RS1): firm cash -> an apprentice's wealth. A3
+#: (``--workshop-economics``): ``capital`` (owner treasury -> firm cash, once),
+#: ``input_purchase`` (firm cash -> the commons owner's treasury) and
+#: ``household_sale`` (households' wealth -> firm cash).
+MONEY_KINDS: tuple[str, ...] = ("sale", "wage", "distribution", "write_off", "stipend", "capital",
+                                "input_purchase", "household_sale")
 #: Material transfer kinds (append only). ``title``: region market -> firm
 #: inventory; ``delivery``: firm inventory -> academy inventory; ``wear``:
-#: firm inventory -> named sink; ``return``: firm inventory -> region market.
-MATERIAL_KINDS: tuple[str, ...] = ("title", "delivery", "wear", "return")
+#: firm inventory -> named sink; ``return``: firm inventory -> region market;
+#: ``household_delivery`` (A3): firm inventory -> region market, paid by households.
+MATERIAL_KINDS: tuple[str, ...] = ("title", "delivery", "wear", "return", "household_delivery")
 #: Account kinds named by transfers (append only).
 ACCOUNT_KINDS: tuple[str, ...] = (
     "civ_treasury", "workshop_cash", "agent_wealth", "region_market", "workshop_inventory",
-    "academy_inventory", "sink",
+    "academy_inventory", "sink", "households",
 )
 
 MAX_OWED = 16
@@ -153,6 +160,13 @@ class PayrollReceipt(BaseModel):
     #: RS1 apprentice stipends paid from cash after this receipt's payroll pass
     #: (``cash_close`` already net of them); absent unless apprenticeship paid one.
     stipends: int | None = Field(default=None, exclude_if=_is_none)
+    #: A3 (``--workshop-economics``), absent otherwise: the owner's starting
+    #: capital received this turn, inputs paid, household sales paid and the
+    #: wares delivered to households (``cash_close``/``inventory_close`` net of them).
+    capital: int | None = Field(default=None, exclude_if=_is_none)
+    inputs: int | None = Field(default=None, exclude_if=_is_none)
+    household_sales: int | None = Field(default=None, exclude_if=_is_none)
+    household_sold: int | None = Field(default=None, exclude_if=_is_none)
 
 
 class WorkshopPayrollState(BaseModel):

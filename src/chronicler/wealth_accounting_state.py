@@ -42,6 +42,7 @@ CHANNELS: tuple[tuple[str, str | None, str], ...] = (
     ("remittance", "remittances", "sender -> recipient, fee to the courier sink (RS4)"),
     ("relocation_fare", "relocation_costs", "movers -> travel sink (L7)"),
     ("domestic_credit", None, "treasury <-> merchants, net applied (domestic credit)"),
+    ("wares_purchase", "workshop_economics", "households -> workshop firm cash, wares bought by id (A3)"),
 )
 CHANNEL_NAMES: tuple[str, ...] = tuple(c[0] for c in CHANNELS)
 
@@ -75,12 +76,17 @@ WEALTH_WRITER_METHODS: tuple[str, ...] = (
 #: the guard. A new helper (A3's ``money.py``) is declared here.
 WEALTH_ROUTERS: dict[str, tuple[str, ...]] = {
     "pay_from_firm": ("apprentice_stipend",),
+    # The shared payment seam (connected-world A3): ``money.pay`` routes every
+    # agent-wealth line of a bill through ``money._native_transfer``; the
+    # purposes it may carry are ``MONEY_PURPOSE_CHANNELS``.
+    "_native_transfer": ("wares_purchase",),
 }
 #: The arguments that identify a payer path, ``(position, keyword)``.
 WEALTH_PATH_ARGS: dict[str, tuple[tuple[int | None, str], ...]] = {
     "transfer_wealth": ((1, "purpose"), (2, "batch")),
     "remit_wealth": ((1, "batch"),),
     "pay_from_firm": ((None, "purpose"),),
+    "_native_transfer": ((2, "purpose"),),
 }
 #: The one registry of payer paths: ``(module under chronicler, enclosing
 #: function, writer or router, identifying arguments as written) -> (call
@@ -117,6 +123,27 @@ WEALTH_WRITERS: dict[tuple[str, str, str, str], tuple[int, tuple[str, ...]]] = {
     ("learning_cohorts", "before_agent_tick", "reserve_learning_attendance", ""): (1, ("withheld_learning",)),
     ("simulation", "run_turn_result.tick_agents", "prepare_teaching_work", ""): (1, ("withheld_teaching",)),
     ("health_care", "prepare_health_care", "prepare_health_work", ""): (2, ("withheld_health",)),
+    # A3 (the payment seam): the router's one native call, and its two callers in
+    # ``money.pay`` (a payment's agent credits, a collection's agent debits).
+    ("money", "_native_transfer", "transfer_wealth", "purpose=code,batch=batch"): (1, ("wares_purchase",)),
+    ("money", "pay", "_native_transfer", "purpose=bill.purpose"): (2, ("wares_purchase",)),
+}
+#: Purposes ``money.pay`` may move agent wealth for, with the ledger channel
+#: each is read as (``money.flows_for_turn``); ``money`` refuses any other
+#: agent-wealth purpose at run time, so a new payer through the seam must add
+#: its row here (and its channel). Append only.
+MONEY_PURPOSE_CHANNELS: dict[str, str] = {
+    "wares_purchase": "wares_purchase",
+}
+#: Every bill built for the payment seam outside ``money`` itself:
+#: ``(module under chronicler, enclosing function) -> purposes`` (a literal
+#: ``purpose=`` at each ``Bill(...)``). ``tests/test_money.py`` walks ``src/``
+#: and fails on an unregistered or stale caller, a non-literal purpose, or an
+#: agent-wealth purpose without a ledger channel. Append only.
+MONEY_BILLS: dict[tuple[str, str], tuple[str, ...]] = {
+    ("workshop_economics", "charge_inputs"): ("firm_input_purchase",),
+    ("workshop_economics", "sell_to_households"): ("wares_purchase",),
+    ("workshop_economics", "open_firms"): ("firm_capital",),
 }
 #: Every reference to a writer or router name that is not a call: the name
 #: strings packages use to check the extension has a method
@@ -143,7 +170,7 @@ WEALTH_WRITER_REFERENCES: dict[tuple[str, str, str], int] = {
 #: (append only; a native test fails when the extension grows past it).
 KNOWN_PURPOSES: tuple[str, ...] = (
     "workshop_wage", "relocation_fare", "apprentice_stipend", "repair_wage", "remittance", "food_purchase",
-    "food_procurement",
+    "food_procurement", "wares_purchase",
 )
 
 #: Continuity of an opening with the previous closing.
@@ -164,7 +191,7 @@ MAX_CONTINUITY_REGIONS = 16
 #: units, ``withheld_*`` ordinary income withheld (wealth units),
 #: ``treasury_*``/``tithe_*`` treasury units.
 LIFETIME: tuple[str, ...] = (
-    *(f"{name}_{side}_milli" for name in CHANNEL_NAMES for side in ("in", "out")),
+    *(f"{name}_{side}_milli" for name in CHANNEL_NAMES[:10] for side in ("in", "out")),
     "delta", "native_model", "discontinuity",
     *(f"withheld_{name}" for name in WITHHELD_PACKAGES), "withheld_unattributed",
     # tithe_potential replaced tithe_offered in place once, before the first
@@ -172,6 +199,9 @@ LIFETIME: tuple[str, ...] = (
     "treasury_tax_created", "tithe_potential", "treasury_to_households_milli",
     "treasury_to_firm_cash_milli", "firm_cash_to_treasury_milli", "treasury_charged",
     "tithe_at_threshold_after_tick", "withheld_retail",
+    # A3 (workshop economics), appended: its typed channel, then its treasury side.
+    "wares_purchase_in_milli", "wares_purchase_out_milli", "treasury_to_firm_capital_milli",
+    "firm_inputs_to_treasury_milli", "asset_subsidy_units",
 )
 
 #: Lifetime counters (declaration order; append only).

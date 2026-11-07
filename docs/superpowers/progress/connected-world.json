@@ -1,17 +1,18 @@
 {
   "schema_version": 1,
-  "board_version": 12,
+  "board_version": 13,
   "title": "Connected-world program (A livelihoods and trade, B watersheds and infrastructure, C public health, D institutions and war, E stories and evidence) operational board",
   "plan": "docs/superpowers/roadmaps/connected-world-program.md",
   "owner_instruction": "2026-11-06 (after #82): own the A-E program end to end with parallel workers, integrating and evaluating each slice and continuing across slice boundaries; merges of this program authorized after independent review, green premerge Tests on the reviewed head and verified main CI; new systems opt-in and off by default; no default promotion; full 200-seed and procedural qualification gates restricted; bounded held screens (procedural included) authorized; no purchases, paid credits, paid narration APIs, deployments, credential or sharing changes. Amendment (same day): tiers sequence work and are not stopping points; failures block the affected merge, not the program; pin 8abc1acb as the original reference; default-path changes behind a switch or rules version.",
   "reference": {
     "original": "8abc1acb3adf978ea212a570fb1dfbbfe9723ec3",
     "original_native_sha256": "101a4cd5b928b14f43539f925fa565036b94e38d91b9698071c80fa3656e0df3",
-    "native_build": "maturin develop --release --locked into ~/.venvs/chronicler-native, 3m14s on 4 cores; identical to the checkpoint-2/3 extension"
+    "native_build": "maturin develop --release --locked into ~/.venvs/chronicler-native, 3m14s on 4 cores; identical to the checkpoint-2/3 extension",
+    "main_native_sha256": "e724072d7888888ede86acccb8db745c219c445fd47644ec9abe8ed5493e865b (main ae94bca6 onward until the next Rust change)"
   },
   "durable_location": {
     "branch": "main (merged slices) plus the lane and integration branches listed in lanes",
-    "base": "main at 5108f8b9 (#86)"
+    "base": "main at ae94bca6 (#87)"
   },
   "status_values": ["proposed", "ready", "active", "blocked", "integrated", "evaluated", "merged", "deferred"],
   "machine": {
@@ -106,7 +107,9 @@
       "branch": "claude/cw-a3-workshop-economics",
       "base": "A1 head fee5de7f",
       "scope": "--workshop-economics A3-1: money.py seam, paid inputs, firm cash, household customers, arrears, idle closure; one native purpose append",
-      "status": "approved (f051f927, native 2831bbd4); merges after S1; CW2 after A3-2"
+      "status": "approved (code and integration reviews); PR",
+      "head": "a40c00d0",
+      "native": "20e77f99 (main Rust + the wares_purchase purpose)"
     },
     {
       "id": "S1",
@@ -120,15 +123,21 @@
       "id": "B2",
       "branch": "claude/cw-b2-flow",
       "scope": "recalibrated watershed constants; flow mode replacing native water terms, irrigation bonus and cascade",
-      "status": "review: changes requested (terrain clamp, chronic floods, calibration CV); fixes in progress"
+      "status": "review fixes + snowmelt channel done; merging main; reviewer re-check then CW3"
     },
     {
       "id": "C1b",
       "branch": "claude/cw-c1b-migration",
       "scope": "--quarantine-channels trade,migration: native transient closure input refusing migration between closed pairs",
-      "status": "approved; CW4b run and checked; PR",
+      "status": "merged (#87)",
       "head": "bfe3a6fe",
       "native": "e724072d"
+    },
+    {
+      "id": "D2",
+      "branch": "claude/cw-d2-attribution",
+      "scope": "--attribution-records observer: granary seizure actor, casualty split, restoration records, provenance guard, burden records",
+      "status": "active"
     }
   ],
   "recorded_limits": [
@@ -279,9 +288,19 @@
       "premerge_run": 42309801686,
       "main_run": 42311590554,
       "date": "2026-11-06"
+    },
+    {
+      "pr": 87,
+      "slice": "C1b migration closure + CW4b",
+      "merge_commit": "ae94bca677af5b39277eae26fda5a52db3b56f7e",
+      "merge_tree": "fd5d6a41",
+      "reviewed_head": "1d5e7d3f",
+      "premerge_run": 42314946436,
+      "main_run": 42316405830,
+      "date": "2026-11-07"
     }
   ],
-  "next": "Open the C1b PR; A3 PR after its main merge; B2 snowmelt fix, re-review, CW3; D2 attribution; then A4-1 + A3-2 batched native lane, B3 infrastructure condition, C2 care, D4, E linked histories.",
+  "next": "Merge the A3 PR; then A4-1 + A3-2 batched native lane (owned cargo, firm-output column), B3 infrastructure condition, C2 care; B2 re-review then CW3; D2 review then PR; E linked histories.",
   "baseline": {
     "oracle_lane": "PASS, 63 chunks, 295.5 s, slowest 32.4 s of 110 s",
     "native_check": "check_python_env --expect native PASS (101a4cd5)",
@@ -326,5 +345,6 @@
       "harms": "food shortfall up 10 of 12; merchant unwinds up everywhere; refusals mostly flight",
       "page": "docs/superpowers/progress/connected-world-screens-cw4b.md"
     }
-  }
+  },
+  "events": ["2026-11-07 ~00:10Z: container restart stopped lanes A3, B2, D2 mid-task; all resumed from saved transcripts with no work lost; shared native venv rebuilt from main ae94bca6 (e724072d)."]
 }

@@ -46,6 +46,10 @@ The connected-world program appends:
 * ``--watershed`` (B1, B2): a conserved water account on the drainage graph of a
   procedural world; mode ``record_only`` changes nothing outside its record,
   mode ``flow`` makes the account's derived index the water index.
+* ``--workshop-economics`` (A3): an L6a workshop firm buys its raw inputs from
+  the commons owner, starts with owner capital and sells to households as
+  well as academies; inserted before the ledger and without hooks of its own
+  (the workshop and payroll seams call it).
 * ``--wealth-accounting`` (A1): an observation-only ledger of agent wealth per
   region and turn (opening, typed flows from the packages' receipts, closing,
   the labelled native-model residual); appended last so its Phase 2 and Phase 10
@@ -109,6 +113,7 @@ LIVELIHOODS_CHOICES: dict[str, tuple[str, ...]] = {
     "household_retail_boundary": ("market", "paid_work", "all", "schedule"),
     "household_retail_rules": ("2", "1"),
     "watershed_mode": ("record_only", "flow"),
+    "workshop_economics_mode": ("market", "free_inputs", "academy_only"),
 }
 #: All parser destinations owned here (``batch_manifest.SIMULATION_ARG_KEYS``).
 LIVELIHOODS_ARG_KEYS: tuple[str, ...] = (
@@ -133,6 +138,7 @@ LIVELIHOODS_ARG_KEYS: tuple[str, ...] = (
     "household_retail", "household_retail_mode", "household_retail_boundary",
     "household_retail_rules",
     "watershed", "watershed_mode",
+    "workshop_economics", "workshop_economics_mode",
     "wealth_accounting",
 )
 #: Options that take a file path (A2R), parser destinations owned here too
@@ -367,6 +373,18 @@ _HELP = {
         "downstream water, and the account's floods act on capacity and soil while the old river flood is "
         "superseded; flow requires the native ecology"
     ),
+    "workshop_economics": (
+        "Workshop economics (A3): each L6a workshop firm opens once with a capital payment from its "
+        "region's ruler (no second firm at a closed firm's city), pays the ruler who owns the commons "
+        "for the raw timber and ore it converts, before converting them, at the raw price the economy "
+        "computed in an earlier tick, and sells wares to academies and, by stable id, to the region's "
+        "households (adults pay); a site without a firm, or a firm that cannot pay for inputs, "
+        "produces nothing; firms close when insolvent or idle; requires --workshop-payroll (default off)"
+    ),
+    "workshop_economics_mode": (
+        "market (default); free_inputs: the cost control, every rule as market except that the input "
+        "charge is recorded and not taken; academy_only: the demand control with no household customers"
+    ),
     "wealth_accounting": (
         "Wealth accounting (A1): an observation-only ledger of agent wealth; each turn and region it "
         "reads the balance at the Phase 2 opening (checked bit for bit against the last closing) and "
@@ -571,6 +589,15 @@ def _check_prerequisites(world: Any, values: dict, agent_mode: str, args: Any = 
             saved = values["timber_supply"] is not True
             raise ValueError("--timber-supply requires --agents hybrid, --repair-projects and --timber-stock"
                              + ("; this world has it on: pass --no-timber-supply to end it" if saved else ""))
+    if _on(world, values, "workshop_economics"):
+        # Also when only saved: a resume that ends payroll (or leaves hybrid)
+        # would otherwise keep A3 firms unseen; --no-workshop-economics ends it.
+        if agent_mode != "hybrid" or not _on(world, values, "workshop_payroll") \
+                or not _workshops_operate(world, values, args):
+            saved = values["workshop_economics"] is not True
+            raise ValueError("--workshop-economics requires --workshop-payroll (--workshops in operate mode, "
+                             "--agents hybrid)"
+                             + ("; this world has it on: pass --no-workshop-economics to end it" if saved else ""))
     if _on(world, values, "wealth_accounting") and agent_mode != "hybrid":
         # Also when only saved: the ledger reads the hybrid agent pool; a resume
         # outside hybrid is refused until the switch is ended (dated).
@@ -659,6 +686,7 @@ _CHOICE_FIELDS: dict[str, tuple[str, str]] = {
     "household_retail_boundary": ("household_retail", "boundary"),
     "household_retail_rules": ("household_retail", "rules"),
     "watershed_mode": ("watershed", "mode"),
+    "workshop_economics_mode": ("workshop_economics", "mode"),
 }
 
 

@@ -48,13 +48,22 @@
   credited to households in every activated world; wider `paid_work` enrollment alone **lowered**
   it in every activated world (mostly replaced farm income, partly lower remittances); the wage's
   effect on the priced-out rate was null.
-- **C1b PR** (`claude/cw-c1b-migration`): `--quarantine-channels trade|trade,migration` — closures
+- **PR #87 merged** at `ae94bca6` (tree `fd5d6a41` = reviewed head `1d5e7d3f`; premerge Tests
+  42314946436 and main Tests 42316405830 green), C1b: `--quarantine-channels trade|trade,migration` — closures
   also refuse migration between closed polities through a transient native input (no checkpoint
   layout change; default `trade` byte-identical to C1); refused, not diverted; refused in modes where
   Python moves people (off, shadow). **CW4b** (template 3101–3106, procedural 3201–3206; 36 runs, 0
   failed): against cost-only the primaries lean lower but are not consistent; as a secondary, adding
   the migration channel to a trade closure lowered arrivals and deaths in all 6 template worlds;
   food shortfall after relief rose in 10 of 12 worlds.
+- **A3 PR** (`claude/cw-a3-workshop-economics`): `--workshop-economics` (requires workshop payroll;
+  modes market, free_inputs, academy_only) with the shared `money.py` seam — whole-bill validation,
+  exactly-once settlement, refused credits returned to the payer — inputs bought at the plan price
+  (the region's last positive raw price, else the ruler's realm), production only from paid inputs,
+  one-off ruler capital with no rescue, household customers, arrears and idle closure, closed cities
+  never readmitted; one appended native purpose (`wares_purchase`). Development activation: under
+  market most firms close idle (70 of 102); nothing converted unpaid. CW2 (held) waits for A3-2's
+  firm-output column.
 - **Lanes in flight** (each on its own branch, provisional witness layers regenerated at
   integration): A5 retail rules v2, war reaches owned stock once per event (RL1–RL3; review
   merge-ready); A1 `--wealth-accounting` observation ledger (RL7; review fixes); B1 `--watershed

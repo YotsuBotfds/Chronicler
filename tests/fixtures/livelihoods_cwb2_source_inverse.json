@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "layer": "cwb2",
-  "parent": "ae94bca677af5b39277eae26fda5a52db3b56f7e",
+  "parent": "8401aa74218ce57ce4bb286695f2319735c2dbd4",
   "files": {
     "src/chronicler/agent_bridge.py": {
       "sha256": "7ef273b84fb5f4daed2423fbff176682b1644272682681173d720bb56cff8307",
