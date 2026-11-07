@@ -1,0 +1,5 @@
+Traceback (most recent call last):
+  File "/workspace/evidence/cwr-viewer/verify-arrival-clocks-old-empty-mutant.py", line 55, in <module>
+    assert following_share is None if same_turn_share is None else following_share is not None and math.isclose(following_share, same_turn_share, abs_tol=1e-12)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError

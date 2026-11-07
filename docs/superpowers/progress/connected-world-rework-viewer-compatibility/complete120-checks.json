@@ -13,8 +13,11 @@
   },
   "arrival_clock_readback": {
     "regional_observations": 3840,
-    "different_from_same_turn": 2392,
-    "all_prior_frame_shares_match": true
+    "different_from_same_turn": 2163,
+    "all_prior_frame_shares_match": true,
+    "comparison_values_checked_against_next_saved_ph": 3808,
+    "superseded_counter": 2392,
+    "counter_correction": "Complete sparse-empty current regions must use zero, matching prior-frame arithmetic and next saved PH output."
   },
   "browser": {
     "selected_turns": [
