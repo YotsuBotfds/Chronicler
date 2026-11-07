@@ -105,6 +105,13 @@ def test_generic_control_tree_still_reports_labeled_full_minus_control(CW):
     assert o.read(control) - o.read(full) == 3
 
 
+def test_preregistered_serial_runtime_does_not_inherit_three_job_default(CW):
+    assert CW.serial_run_args(["run", "out"])[-2:] == ["--jobs", "1"]
+    assert CW.serial_run_args(["run", "out", "--jobs=1"])[-1] == "--jobs=1"
+    with pytest.raises(ValueError, match="exactly one"):
+        CW.serial_run_args(["run", "out", "--jobs", "2"])
+
+
 def test_sidecar_counts_untruncated_migrations_and_unknown_provenance(CW, tmp_path):
     import pyarrow as pa
     import pyarrow.ipc as ipc

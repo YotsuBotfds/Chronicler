@@ -384,11 +384,23 @@ SCREEN = SR.Screen(name="CW6", title="Connected World integrated A-E bounded scr
 
 
 def main(argv=None):
+    argv = serial_run_args(list(sys.argv[1:] if argv is None else argv))
     SR.load_bundle_file = load_bundle_file
     try:
         return SR.main(argv, {"CW6": SCREEN}, prog="cw_integrated_screen.py")
     finally:
         SR.load_bundle_file = _load_bundle_file
+
+
+def serial_run_args(argv):
+    if argv and argv[0] == "run":
+        jobs = [token.split("=", 1)[1] for token in argv if token.startswith("--jobs=")]
+        jobs += [argv[i + 1] for i, token in enumerate(argv[:-1]) if token == "--jobs"]
+        if jobs and jobs != ["1"]:
+            raise ValueError("CW6 preregistration requires exactly one simulation job")
+        if not jobs:
+            argv = [*argv, "--jobs", "1"]
+    return argv
 
 
 if __name__ == "__main__":
