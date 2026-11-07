@@ -85,7 +85,7 @@
   L9-funded named carers (provider `epidemic_care`), farm time out through `farm_labor_factor`,
   wages through `money.py` (`care_wage`), dated capacity that multiplies the next tick's case
   fatality by `1 - 0.3 x coverage` under one floor with techniques; layer `cwc2`; viewer care
-  panel. **CW5c** (frozen at `c854215a`, held run 2026-11-07 on template 3301-3306 and procedural
+  panel. **CW5c** (frozen at `ca2e1c84`, code `c854215a`; held run 2026-11-07 on template 3301-3306 and procedural
   3401-3406: 36 runs, 0 failed, 0.152 of 0.50 core-hours): EF (care) - EC (cost only) world death
   rate lower on 6 of 6 template worlds, procedural mixed (3 / 3); ITT fatality at EC's covered
   cells and world deaths per infectious person-turn lower on 6 of 6 template and 5 of 6

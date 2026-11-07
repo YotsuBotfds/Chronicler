@@ -481,10 +481,14 @@ stratum share the sign):
 - **World death rate:** lower under EF on 6 of 6 template worlds; procedural **mixed** (3 / 3,
   54 of 64): no direction.
 - **ITT fatality at EC's covered cells:** lower under EF on 6 of 6 template and 5 of 6
-  procedural worlds (higher on 3404). EF / EC there: template 0.60-0.81, procedural 0.66-0.83
+  procedural worlds (higher on 3404). EF / EC there: template 0.60-0.80, procedural 0.66-0.83
   and 1.19 (3404). It is a total effect, including pathogen-mix differences after divergence.
 - **World deaths per infectious person-turn:** lower under EF on 6 of 6 template and 5 of 6
   procedural worlds (higher on 3404; 14 of 64).
+
+On 3404 all three primaries reverse: EF had a pestilence outbreak EC never had (513 of EF's 938
+world epidemic deaths); without pestilence, EF / EC at EC's covered cells is 0.73 (0.1315 /
+0.1813).
 
 ### Mechanism check, by pathogen, and reach (secondary; not evidence that care works)
 
@@ -493,8 +497,8 @@ stratum share the sign):
   0.733, 1.202, 0.610, 0.806; EF's mean applied factor 0.700-0.702 on every world (nothing
   floored; mean coverage 0.993-1.000 / 0.992-0.997). `cw5c_mech_covered_dpi` (EF - EC): -0.0849
   (0 / 6 / 0, 2 of 64) / -0.0401 (1 / 5 / 0, 4 of 64).
-- **By pathogen at EC's covered cells** (R1): EF was lower than EC in **every one of the 31
-  world-pathogen readings** with both values. EF / EC: template plague 0.68-0.80 (4 worlds), pox
+- **By pathogen at EC's covered cells** (R1): EF was lower than EC in **every one of the 36
+  world-pathogen readings** with both values (template 18, procedural 18). EF / EC: template plague 0.68-0.80 (4 worlds), pox
   0.58-0.59 (2), fever 0.58-0.75 (6), flux 0.63-0.79 (3), pestilence 0.69-0.79 (3); procedural
   plague 0.73-0.94, pox 0.71-0.87, fever 0.61-0.86 (6 worlds each); no flux there; pestilence
   only in EF on 3404 (no value). The frozen text names no value where neither arm had the
@@ -505,14 +509,14 @@ stratum share the sign):
 
   | World | Reach | Implied maximum | Realized | World | Reach | Implied maximum | Realized |
   | --- | --- | --- | --- | --- | --- | --- | --- |
-  | t3301 | 0.859 | -0.256 | -0.280 | p3401 | 0.798 | -0.239 | +0.025 |
+  | t3301 | 0.858 | -0.256 | -0.280 | p3401 | 0.798 | -0.239 | +0.025 |
   | t3302 | 0.477 | -0.142 | -0.420 | p3402 | 0.753 | -0.224 | -0.066 |
   | t3303 | 0.908 | -0.272 | -0.404 | p3403 | 0.578 | -0.173 | -0.116 |
   | t3304 | 0.556 | -0.167 | -0.253 | p3404 | 0.823 | -0.246 | +0.573 |
   | t3305 | 0.821 | -0.245 | -0.203 | p3405 | 0.701 | -0.210 | -0.389 |
   | t3306 | 0.653 | -0.195 | -0.007 | p3406 | 0.730 | -0.218 | +0.078 |
 
-  Reach: template 0.712 [0.477, 0.908], procedural 0.731 [0.578, 0.823]. The realized fall was
+  Reach: template 0.712 [0.477, 0.908], procedural 0.730 [0.578, 0.823]. The realized fall was
   larger than the implied maximum on four template worlds and one procedural world, smaller on
   four, and of the opposite sign on three procedural worlds; trajectories diverge after the first
   effect, so the gap is not decomposed here. The page's untested prediction said "by much less
@@ -560,3 +564,7 @@ No world failed, none was incomplete, no outcome was missing, and the run did no
 ceiling. These are whole-trajectory comparisons on six worlds per stratum with a declared effect
 size: they describe direction and spread on held worlds, not whether nursing works, and they do
 not license promotion (the owner's decision).
+
+**Corrections after the independent check (2026-11-07):** per-pathogen readings with both
+values 36, not 31; template ITT EF / EC range 0.60-0.80, not 0.60-0.81; t3301 reach 0.858, not
+0.859; procedural mean reach 0.730, not 0.731; the sentence on 3404's pestilence outbreak added.
