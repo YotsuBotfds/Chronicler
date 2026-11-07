@@ -105,6 +105,29 @@ def test_quarantine_actual_channels_schema_and_receipt_dates_are_required(CW):
     assert any("quarantine receipt" in p for p in CW.extract(b, ())[1])
 
 
+@pytest.mark.parametrize("paid", [None, "paid", "missing"])
+def test_unknown_income_requires_observed_care_payment_status(CW, paid):
+    b = _bundle()
+    row = {"turn": 0, "civ": 0, "wages_paid_milli": 0, "farm_time_removed": 1,
+           "paid": paid, "carers": [{"income_withheld": None}]}
+    if paid == "missing":
+        del row["paid"]
+    _care(b)["frame"] = [row]
+    m, problems = CW.extract(b, ())
+    assert any("care receipt paid status" in p for p in problems)
+    assert m["care_income_unknown_person_turns"] == 0
+
+
+@pytest.mark.parametrize("payment", [None, "pending", "no_workers"])
+def test_unknown_income_requires_recognized_guard_payment_status(CW, payment):
+    b = _bundle()
+    _ph(b)["guards"] = [{"turn": 0, "civ": 0, "target": 1, "work": 0, "staffed": False,
+                        "payment": payment, "members": [{"wage_paid_milli": 0, "income_withheld": None}]}]
+    m, problems = CW.extract(b, ())
+    assert any("guard payment status" in p for p in problems)
+    assert m["guard_income_unknown_person_turns"] == 0
+
+
 def test_all_enrolled_worlds_even_unactivated_have_outcomes(CW):
     b = _bundle()
     m, problems = CW.extract(b, ())
@@ -125,7 +148,7 @@ def test_material_paid_guard_and_single_envelope_closure(CW):
     ph["supplies"] = [{"turn": 0, "civ": 0, "region": 0, "source": 0, "seller": 0, "food_milli": 1000,
                        "need_milli": 1000, "charged_milli": 0, "internal_milli": 1000, "price_milli": 1000,
                        "reason": "supplied"}]
-    care["frame"] = [{"turn": 0, "civ": 0, "wages_paid_milli": 500, "farm_time_removed": 1,
+    care["frame"] = [{"turn": 0, "civ": 0, "wages_paid_milli": 500, "farm_time_removed": 1, "paid": True,
                       "carers": [{"income_withheld": .2}]}]
     ph["totals"] = {"food_consumed_milli": 1000, "gross_supplies_milli": 1000, "internal_supplies_milli": 1000,
                      "guard_farm_time": 1, "guard_wages_milli": 500, "guard_income_withheld": .3,
@@ -222,7 +245,7 @@ def test_one_coin_cannot_prefund_two_wages_despite_retained_value_fitting(CW):
     b = _bundle()
     ph, care = _ph(b), _care(b)
     care["ledger"][0]["envelope_coins"] = 1
-    care["frame"] = [{"turn": 0, "civ": 0, "wages_paid_milli": 250, "farm_time_removed": .5,
+    care["frame"] = [{"turn": 0, "civ": 0, "wages_paid_milli": 250, "farm_time_removed": .5, "paid": True,
                       "carers": [{"income_withheld": .1}]}]
     ph["guards"] = [{"turn": 0, "civ": 0, "target": 1, "work": 1, "staffed": True, "payment": "paid",
                      "members": [{"wage_due_milli": 500, "wage_paid_milli": 500, "income_withheld": .3}]}]
