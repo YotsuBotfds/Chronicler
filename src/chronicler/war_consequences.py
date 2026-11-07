@@ -8,6 +8,8 @@ enlistment neither teleports nor prevents native migration.
 """
 from __future__ import annotations
 
+from copy import deepcopy
+
 from chronicler.utils import stable_hash_int
 from chronicler.war_consequences_state import WarConsequencesState
 
@@ -111,6 +113,11 @@ attrition and other lethal causes keep their existing authority.
     return [entry for entry in victims if entry not in wounded_set], wounded
 
 
+def _refresh_return_stock(world, state):
+    if state.last_turn == world.turn and state.frame is not None:
+        state.frame["return_experiences"] = len(state.returns)
+
+
 def note_release(world, army, entries, cause):
     for aid, region in entries:
         _note(world, "released", id=int(aid), region=int(region), army=army.army_id, cause=cause)
@@ -122,6 +129,7 @@ def note_release(world, army, entries, cause):
                 war = max(matching, key=lambda w: w.start_turn)
                 _remember_return(_state(world), aid, {"turn": int(world.turn), "kind": "released_service",
                     "wars": [[war.war_key, war.start_turn]]})
+                _refresh_return_stock(world, _state(world))
 
 
 def movement_rows(world, aid, origin, prior, *, attached=()):
@@ -171,6 +179,7 @@ def note_migration(world, aid, origin, destination, prior):
     if int(destination) == prior["home"] and int(aid) in state.returns:
         _note(world, "returned", id=int(aid), region=int(destination), cause=state.returns[int(aid)]["kind"])
         del state.returns[int(aid)]
+    _refresh_return_stock(world, state)
 
 
 def before_agent_tick(world, agent_bridge, economy_result=None):
@@ -213,6 +222,9 @@ def on_pool_reset(world):
     if state is None:
         return
     state.pending.clear()
+    state.noted_turn = None
+    state.noted_keys.clear()
+    state._key_set.clear()
     state.separation = state.frame = None
     state.threats.clear()
     state.pending_threats.clear()
@@ -280,5 +292,5 @@ def snapshot_summary(world):
         return {}
     state = _state(world)
     return {"schema_version": 1, "stage": "D3", "source_turn": state.last_turn,
-            "mode": state.mode, "frame": state.frame, "history": state.history,
-            "history_dropped": state.history_dropped, "counters": state.counters}
+            "mode": state.mode, "frame": deepcopy(state.frame), "history": deepcopy(state.history),
+            "history_dropped": state.history_dropped, "counters": dict(state.counters)}

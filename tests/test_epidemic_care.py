@@ -561,9 +561,10 @@ def test_settlement_reads_the_turns_frame():
 
 def test_the_provider_is_appended_and_inactive_without_the_switch():
     # Appended after every earlier provider; B3's works proposal (landed later) follows it.
-    assert LB.PROVIDERS[-2:] == ("chronicler.epidemic_care:BUDGET_PROVIDER",
-                                 "chronicler.infrastructure_condition:BUDGET_PROVIDER")
-    assert LB.PROVIDERS[:-2] == (
+    assert LB.PROVIDERS[-3:] == ("chronicler.epidemic_care:BUDGET_PROVIDER",
+                                 "chronicler.infrastructure_condition:BUDGET_PROVIDER",
+                                 "chronicler.timber_orders:BUDGET_PROVIDER")
+    assert LB.PROVIDERS[:-3] == (
         "chronicler.local_budgets:RELIEF", "chronicler.local_budgets:GRANARY", "chronicler.local_budgets:WORKSHOP",
         "chronicler.local_budgets:TEACHING", "chronicler.local_budgets:WARDENS", "chronicler.local_budgets:RELOCATION",
         "chronicler.clearing_protection:BUDGET_PROVIDER", "chronicler.local_budgets:REPAIRS",
@@ -678,14 +679,14 @@ def test_cli_parser_forwarding_and_manifest():
     assert simulation_config(args)["epidemic_care_mode"] == "cost_only"
 
 
-def test_the_catalog_declares_the_exclusion_on_both_sides():
+def test_the_catalog_accepts_itemized_care_and_wealth_together():
     from chronicler import feature_catalog as fc
     assert fc.exclusion_problems() == []
     surface = {"agents": "hybrid", "values": {}, "settings": {"epidemiology": True}}
     assert fc.validate_features({"grain_reserves": True, "local_budgets": True, "epidemic_care": True}, surface) is None
     refusal = fc.validate_features({"grain_reserves": True, "local_budgets": True, "epidemic_care": True,
                                     "wealth_accounting": True}, surface)
-    assert refusal == "'epidemic_care' (--epidemic-care) requires --wealth-accounting off"
+    assert refusal is None
     assert fc.validate_features({"epidemic_care": True}, {"agents": "hybrid", "values": {},
                                 "settings": {"epidemiology": False}}).endswith("requires --local-budgets")
 
@@ -916,7 +917,10 @@ def test_carers_are_booked_after_every_other_work_consumer():
     from chronicler.livelihoods_state import LIVELIHOODS_SWITCHES
     later = LIVELIHOODS_SWITCHES[LIVELIHOODS_SWITCHES.index("epidemic_care") + 1:]
     # D1b moves purses; X1 is record-only. Neither books labour.
-    assert later == ("guild_leagues", "residence_ledger", "attribution_records", "wealth_accounting")
+    assert later == ("guild_leagues", "war_requisition", "war_consequences", "adaptive_livelihoods",
+                     "public_health", "movement_branches", "residence_ledger", "attribution_records", "wealth_accounting")
+    # Border watch is the one later worker; its planner respects care reservations.
+    later = tuple(name for name in later if name != "public_health")
     for name in later:
         module = import_module("chronicler." + name)
         assert not hasattr(module, "reserve_first")

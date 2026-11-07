@@ -208,3 +208,36 @@ def test_local_threat_is_observed_before_tick_for_residents_not_attached_people(
     w.turn += 1
     assert d3.movement_rows(w, 7, 0, {"home": 0}) == [(7, 1, .20)]
     assert d3.movement_rows(w, 7, 0, {"home": 0}, attached={7}) == []
+
+
+def test_pool_reset_does_not_deduplicate_reused_identity_within_same_turn():
+    w = world()
+    d3._note(w, "wounded", id=7, army=1, region=0, cause="battle")
+    d3.on_pool_reset(w)
+    d3._note(w, "wounded", id=7, army=1, region=0, cause="battle")
+    assert len(w.livelihoods.war_consequences.pending) == 1
+
+
+def test_late_return_updates_published_return_stock():
+    w = world()
+    state = w.livelihoods.war_consequences
+    state.last_turn = w.turn
+    state.frame = {"turn": w.turn, "events": [], "events_dropped": 0, "return_experiences": 1}
+    state.returns[7] = {"turn": 1, "kind": "evacuated", "wars": []}
+    d3.note_migration(w, 7, 0, 1, {"home": 1})
+    assert state.frame["return_experiences"] == 0
+    assert state.frame["events"][-1]["kind"] == "returned"
+
+
+def test_completed_snapshot_cannot_acquire_future_campaign_events():
+    from copy import deepcopy
+    w = world()
+    d3._note(w, "released", id=1, army=1, region=0, cause="demobilized")
+    d3.phase10(w, None, None, bridge([]))
+    record = d3.snapshot_summary(w)
+    frozen = deepcopy(record)
+    w.turn += 1
+    d3._note(w, "released", id=2, army=1, region=0, cause="demobilized")
+    d3.phase10(w, None, None, bridge([]))
+    assert record == frozen
+    assert max(r["turn"] for r in record["history"]) <= record["source_turn"]
