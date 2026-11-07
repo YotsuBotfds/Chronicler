@@ -1,3 +1,7 @@
+# Connected World rework active — 2026-11-07
+
+Fetched main2726bf449d0e4d581a72034000ee0861a58ee439, nine-job Tests42397121718 green. Original worktrees preserved, no open PRs at start. [Current rework ledger](superpowers/progress/connected-world-rework.md) and board supersede the historical completion/next tasks below. Attribution-to-C2 exposure coupling reproduced; D3 movement scores also incorrectly depend on A6 record/shuffle controls. Lead owns shared schemas/native/bridge/X1/registry. Parallel isolated lanes verify historical causal evidence, profile actual runtime/storage, optimize measured viewer costs and review contracts. Next: implement corrected versioned physical exposure/control contracts and adversarial lifecycle tests, then fresh preregistered bounded comparisons and same-scale performance before/after. Defaults stay off; restricted qualification/default promotion unrun.
+
 # 2026-11-07 — A–E adopted scope integrated and evaluated; main CI verified
 
 Main is `dde9e2f971eca864e90ecdb40cb3af8d1596a5e9` (#96), tree identical to independently reviewed `c32c2bbd742f96401171761ddff44f9ccfb96e67`. Premerge Tests `42391897267` passed all nine jobs; main Tests `42393043134` passed all nine jobs, independently verified. #94/#95 main CI also passed all nine jobs each.

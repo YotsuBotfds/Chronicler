@@ -1,0 +1,12 @@
+{
+  "node": "v24.19.0",
+  "chromium": "Chromium 154.0.8037.57 built on Debian GNU/Linux 13 (trixie)",
+  "platform": "Linux-6.18.57-x86_64-with-glibc2.41",
+  "cpu_max": "400000 100000",
+  "memory_max": 17179869184,
+  "source_before": "2726bf449d0e4d581a72034000ee0861a58ee439",
+  "source_after": "cf0925d93fe1dff4687326e2d583d3d727d6c0a4",
+  "pilot_seconds": 40.99566001,
+  "budget_seconds": 900,
+  "budget_reason": "120T timingpilot; three repeats \u00d7 byte-scaled expected total558s with1.5margin837s<900; same datasets/horizons, one browser process."
+}

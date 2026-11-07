@@ -1,0 +1,106 @@
+{
+  "source": "/workspace/cwr-viewer/viewer/src/lib/entityHistory.ts",
+  "source_sha256": "cbd66d40b59372fa652adacfd15e77d75fb8d23c727c982d757c9e69263b670d",
+  "compiled_sha256": "4d286453adea50030764a673b215b4e1c750674b1471e720bf628cb3593e2ce8",
+  "bundle": "/workspace/evidence/cw6/pilot-final/runs/FULL-p19/chronicle_bundle.json",
+  "bundle_sha256": "f6cb5562a4aaec888b6f2a03b4c4b01bd1e8d49737aec22673034eba30ce0ee2",
+  "bundle_bytes": 37962968,
+  "locale": {
+    "locale": "en-US",
+    "numberingSystem": "latn",
+    "style": "decimal",
+    "minimumIntegerDigits": 1,
+    "minimumFractionDigits": 0,
+    "maximumFractionDigits": 3,
+    "useGrouping": "auto",
+    "notation": "standard",
+    "signDisplay": "auto",
+    "roundingIncrement": 1,
+    "roundingMode": "halfExpand",
+    "roundingPriority": "auto",
+    "trailingZeroDisplay": "auto"
+  },
+  "primitive_equivalence": [
+    {
+      "value": "-Infinity",
+      "legacy": "-∞",
+      "reused": "-∞"
+    },
+    {
+      "value": "-123456789.1234567",
+      "legacy": "-123,456,789.123",
+      "reused": "-123,456,789.123"
+    },
+    {
+      "value": "-0.0005",
+      "legacy": "-0.001",
+      "reused": "-0.001"
+    },
+    {
+      "value": "-0.00001",
+      "legacy": "-0",
+      "reused": "-0"
+    },
+    {
+      "value": "-0",
+      "legacy": "-0",
+      "reused": "-0"
+    },
+    {
+      "value": "0",
+      "legacy": "0",
+      "reused": "0"
+    },
+    {
+      "value": "0.0005",
+      "legacy": "0.001",
+      "reused": "0.001"
+    },
+    {
+      "value": "0.09490852802991867",
+      "legacy": "0.095",
+      "reused": "0.095"
+    },
+    {
+      "value": "1.23456789",
+      "legacy": "1.235",
+      "reused": "1.235"
+    },
+    {
+      "value": "123456789.1234567",
+      "legacy": "123,456,789.123",
+      "reused": "123,456,789.123"
+    },
+    {
+      "value": "Infinity",
+      "legacy": "∞",
+      "reused": "∞"
+    },
+    {
+      "value": "NaN",
+      "legacy": "NaN",
+      "reused": "NaN"
+    }
+  ],
+  "timings_ms": {
+    "read": 18.027389,
+    "JSON.parse": 466.761252,
+    "decode": 563.5760819999999,
+    "indexEntityHistory": 587.010468,
+    "availableEntities": 154.05491899999993,
+    "person13": 26.866179999999986,
+    "region3": 24.135196000000178
+  },
+  "diagnostic_toLocaleString_calls": 0,
+  "diagnostic_toLocaleString_ms": 0,
+  "index_sha256": "ff4554e9f262cc6804e1c8a04c478ede21c3bb5aa19fb95b120d363e83b21e0d",
+  "queries_sha256": "5ff2f7d87680485c92943995777884d1aee494fc28673cc6c1d00b4f71c7e3b7",
+  "snapshots": 120,
+  "observations": 190555,
+  "entities": 3279,
+  "available": 3279,
+  "person_rows": 5852,
+  "region_rows": 4913,
+  "node_rss_bytes": 546021376,
+  "note": "Formatting wrapper is diagnostic overhead. Browser timings are the primary user-facing measurements. No input/data reduction."
+}

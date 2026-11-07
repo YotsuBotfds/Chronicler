@@ -1,0 +1,219 @@
+{
+  "generated": "2026-11-07T20:43:24.020Z",
+  "build": "/workspace/cwr-viewer/viewer/dist",
+  "python": "/workspace/cw-evidence-native/bin/python",
+  "journey": "history",
+  "out": "/workspace/evidence/cwr-viewer/optimized-journey",
+  "bundle": "/workspace/evidence/cw6/pilot-final/runs/FULL-p19/chronicle_bundle.json",
+  "turns": "27",
+  "constructed": null,
+  "build_files_sha256": {
+    "assets/AreaChart-PrxIkU6f.js": "bb188966a740bb2c2b3117e29bfe329bd00f9f3ef0f41633c3b5db6c0b4bc583",
+    "assets/BatchAnalytics-C_AK_IDJ.js": "b84b72e0478ee11d5311c0ab4dab95495f4005e008e6d5cbf756dd9ce576fa75",
+    "assets/BatchCompare-B9jWkql5.js": "fe952af66deb79c743da4915da9527eb7819b400580c67d7f561fd245e4a52d6",
+    "assets/BatchCompare-CS4vW-yu.css": "35c60ba060a011a452342ccde389ab3c89960ed3492610c41cd3314b261beb80",
+    "assets/BatchPanel-BUfpAyZI.js": "ed31ee871dd4503b41bb83f0fe440812fd867dacde57e59bb708abece602b062",
+    "assets/bundleDecode.worker-BUpfiHcT.js": "aa45701b940e43cf15cc174b840e50af5ce86a01882f529199bae870aa1a2d62",
+    "assets/CartesianChart-BWwuoct2.js": "65461dfe25784f741a3ef9c8458ee616e68a13c8324d6c2ec7a0c726808903ab",
+    "assets/ChronicleSources-BTNieffh.css": "15891ddf7a9dfaf14b79d99777c0a03c8c7f962f0a63b26867d32bc0606ad285",
+    "assets/ChronicleSources-ygZiFuOI.js": "79de8d9b9e6836d047010b7ee0d3b78ca71495a7dafd274b155b2db0060890e7",
+    "assets/faiths-Cw5iQFVm.js": "8e7a0d2b48f577e8c58303f8797c0c3fbd3f4b175a0e6d705a34bd78892a0367",
+    "assets/index-BmbUubGl.js": "f1f4649be846c184586bb45eaec34b8b5a3fd50caacaf68b24d815c4c81d3345",
+    "assets/index-CQnzAFm-.css": "d1ac1e8fb3f497a788f6520aaaba403fe54684caf2df04bca495ece62172ebd5",
+    "assets/InterventionPanel-BaVtBPcV.css": "af2700d69880d25ce71113aea0882c1f9cfea110e9a356935df372fb6d70628f",
+    "assets/InterventionPanel-DrXrMiBm.js": "e159dde27e8dbefedcf98c080887f88d35576a0b8e60e793ea6d26964b8a548e",
+    "assets/LanguagesPanel-zbf8g724.js": "6dfe17ac8845008186d4cbdb14f4e449da09d5cfb7537d89a0dd298730e78354",
+    "assets/learningServices-DNMQNWeB.js": "3c28ac55c7c38487c246e5133417bc7e4ecfba16d70b340b337651f20f3bc1c0",
+    "assets/LineChart-C8ev6IFv.js": "6a91c4b1e0b3dc6e6aa61b1cda3065ed62ca4f055e916b27299b7b40a386efd3",
+    "assets/RegionHistoryInspector-C0OEWtd0.css": "0c2304e349c6101f77a2f6e69d795c9ecf157c981e29cf7b766e81bef9058a39",
+    "assets/RegionHistoryInspector-DEUCa51m.js": "572b87adc07ac0475813f275cf4c32d7148bcc947c16937be73c912ba615b15b",
+    "assets/SystemsPanel-ChnP7WyW.js": "d3c126a1f67bde6e56e2accde4332918363cb7d3e45f452c359938e35944b1d2",
+    "assets/watershed-DvJh8fZd.js": "6d51b5b3637d2ecd494bff7dc1c4664bf0b04e5aba1aa584559edd2eb0ceaa20",
+    "favicon.svg": "61bc9a161de58248288e6905425d7180f0624c2865007b97d763fdac12043a66",
+    "icons.svg": "b45fa506195cfcdef406ba9f0c77b36ddc1a7c224040926ec70abc2fdea7b93a",
+    "index.html": "897769f098f8896ab4d0237e3d3014b6cb2f4ad8ef019c2de5dd78f0ea1e4c34"
+  },
+  "journey_script_sha256": "ec8a9c665fb2ad6698c6355388b67988793e4d48f16f0baba164ca655ea5c496",
+  "bundle_sha256": "f6cb5562a4aaec888b6f2a03b4c4b01bd1e8d49737aec22673034eba30ce0ee2",
+  "build_index_sha256": "897769f098f8896ab4d0237e3d3014b6cb2f4ad8ef019c2de5dd78f0ea1e4c34",
+  "evidence": "Provided saved bundle; construction metadata retained explicitly; expectations decoded by Python bundle_codec. Browser journeys are bounded UI checks, not qualification.",
+  "viewports": {
+    "desktop": {
+      "checks": [
+        {
+          "label": "desktop: explicit construction metadata controls the demonstration notice",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "label": "desktop snapshot27: panel mounts and has finite text",
+          "ok": true,
+          "detail": "Linked histories\n\nSaved completed-turn observations joined by stable id. These links show participation and co-occurrence, not causation. Regional totals are context and are never assigned to a person. Gaps are not interpolated; an absent id does not prove death, migration, or inactivity outside the"
+        },
+        {
+          "label": "desktop: named person is selectable",
+          "ok": true,
+          "detail": "army:army-1,army:army-2,army:army-3,army:army-4,army:army-5,army:army-6,army:army-7,army:army-8,army:army-9,claim:0,claim:1,claim:2,claim:3,claim:4,claim:5,claim:6,claim:7,claim:8,claim:9,claim:10"
+        },
+        {
+          "label": "desktop: displayed source pointers exist in actual bundle",
+          "ok": true,
+          "detail": "/history/26/livelihoods/watershed\n/history/26/livelihoods/workshop_economics\n/history/26/livelihoods/workshop_payroll\n/history/26/livelihoods/reform_services\n/history/26/livelihoods/guild_leagues\n/history/26/livelihoods/movement_branches\n/history/26/livelihoods/epidemic_care\n/history/26/livelihoods/household_retail/regions/0\n/history/26/livelihoods/public_health/environment/1/displaced_share\n/history/26/livelihoods/public_health/environment/1/water_service\n/history/26/livelihoods/public_health/environment/1/crowding_factor\n/history/26/livelihoods/public_health/environment/1/flux_factor\n/history/26/livelihoods/watershed/regions\n/history/26/livelihoods/public_health/environment/0/displaced_share\n/history/26/livelihoods/public_health/environment/0/water_service\n/history/26/livelihoods/public_health/environment/0/crowding_factor\n/history/26/livelihoods/public_health/environment/0/flux_factor\n/history/26/livelihoods/watershed/regions\n/history/26/livelihoods/household_retail/regions/1\n/history/26/livelihoods/public_health/environment/2/displaced_share\n/history/26/livelihoods/public_health/environment/2/water_service\n/history/26/livelihoods/public_health/environment/2/crowding_factor\n/history/26/livelihoods/public_health/environment/2/flux_factor\n/history/26/livelihoods/watershed/regions"
+        },
+        {
+          "label": "desktop: individual and regional evidence are visibly distinct",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "label": "desktop: earlier-page source pointers retain their original snapshot indices",
+          "ok": true,
+          "detail": "/history/25/livelihoods/watershed/regions\n/history/25/livelihoods/household_retail/regions/2\n/history/25/livelihoods/public_health/environment/3/displaced_share\n/history/25/livelihoods/public_health/environment/3/water_service\n/history/25/livelihoods/public_health/environment/3/crowding_factor\n/history/25/livelihoods/public_health/environment/3/flux_factor\n/history/25/livelihoods/watershed/regions\n/history/26/livelihoods/recovery_crews/receipts/0/members/0\n/history/26/livelihoods/repair_projects\n/history/26/livelihoods/timber_supply\n/history/26/livelihoods/household_retail\n/history/26/livelihoods/titled_trade\n/history/26/livelihoods/residence_ledger\n/history/26/livelihoods/timber_orders\n/history/26/livelihoods/war_requisition/frame/claims/92\n/history/26/livelihoods/adaptive_livelihoods/frame/work/0\n/history/26/livelihoods/adaptive_livelihoods/frame/offers/7\n/history/26/livelihoods/adaptive_livelihoods/frame/rows/12\n/history/26/livelihoods/adaptive_livelihoods/frame/known_destinations/41\n/history/26/livelihoods/adaptive_livelihoods/frame/known_destinations/42\n/history/26/livelihoods/adaptive_livelihoods/frame/known_destinations/43\n/history/26/livelihoods/war_consequences\n/history/26/livelihoods/public_health\n/history/26/livelihoods/infrastructure_condition\n/history/26/livelihoods/watershed\n/history/26/livelihoods/workshop_economics\n/history/26/livelihoods/workshop_payroll\n/history/26/livelihoods/reform_services\n/history/26/livelihoods/guild_leagues\n/history/26/livelihoods/movement_branches\n/history/26/livelihoods/epidemic_care\n/history/26/livelihoods/household_retail/regions/0\n/history/26/livelihoods/public_health/environment/1/displaced_share\n/history/26/livelihoods/public_health/environment/1/water_service\n/history/26/livelihoods/public_health/environment/1/crowding_factor\n/history/26/livelihoods/public_health/environment/1/flux_factor\n/history/26/livelihoods/watershed/regions\n/history/26/livelihoods/public_health/environment/0/displaced_share\n/history/26/livelihoods/public_health/environment/0/water_service\n/history/26/livelihoods/public_health/environment/0/crowding_factor\n/history/26/livelihoods/public_health/environment/0/flux_factor\n/history/26/livelihoods/watershed/regions\n/history/26/livelihoods/household_retail/regions/1\n/history/26/livelihoods/public_health/environment/2/displaced_share\n/history/26/livelihoods/public_health/environment/2/water_service\n/history/26/livelihoods/public_health/environment/2/crowding_factor\n/history/26/livelihoods/public_health/environment/2/flux_factor\n/history/26/livelihoods/watershed/regions"
+        },
+        {
+          "label": "desktop: actual named repair wage and withheld ordinary income",
+          "ok": true,
+          "detail": "Snapshot 27\nSource turn 26\trecovery crews\nRepair work 1; wage 2 coins; ordinary income withheld 0.095\tStable id\nRecorded\tProject #0Open Thogoriel Wood\t/history/26/livelihoods/recovery_crews/receipts/0/members/0"
+        },
+        {
+          "label": "desktop: chain opens the actual named worker's stable history at the same snapshot",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "label": "desktop: related project button changes stable-id entity",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "label": "desktop: history snapshot link seeks timeline",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "label": "desktop: regional inspector opens linked aggregate history by region identity",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "label": "desktop: historical search reaches the same recorded region without a future jump",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "label": "desktop snapshot27: explanatory text stays within section",
+          "ok": true,
+          "detail": "[{\"left\":56,\"right\":1384,\"sectionLeft\":39,\"sectionRight\":1401},{\"left\":56,\"right\":1384,\"sectionLeft\":39,\"sectionRight\":1401}]"
+        },
+        {
+          "label": "desktop snapshot27: no horizontal document overflow",
+          "ok": true,
+          "detail": "{\"page\":1440,\"viewport\":1440}"
+        },
+        {
+          "label": "desktop: no browser console or page errors",
+          "ok": true,
+          "detail": ""
+        }
+      ],
+      "messages": [],
+      "screenshots": [
+        "desktop-snapshot27.png"
+      ],
+      "timings_ms": {
+        "saved_bundle_load": 1829,
+        "initial_systems_panel": 1334,
+        "journey": 10330
+      }
+    },
+    "phone": {
+      "checks": [
+        {
+          "label": "phone: explicit construction metadata controls the demonstration notice",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "label": "phone snapshot27: panel mounts and has finite text",
+          "ok": true,
+          "detail": "Linked histories\n\nSaved completed-turn observations joined by stable id. These links show participation and co-occurrence, not causation. Regional totals are context and are never assigned to a person. Gaps are not interpolated; an absent id does not prove death, migration, or inactivity outside the"
+        },
+        {
+          "label": "phone: named person is selectable",
+          "ok": true,
+          "detail": "army:army-1,army:army-2,army:army-3,army:army-4,army:army-5,army:army-6,army:army-7,army:army-8,army:army-9,claim:0,claim:1,claim:2,claim:3,claim:4,claim:5,claim:6,claim:7,claim:8,claim:9,claim:10"
+        },
+        {
+          "label": "phone: displayed source pointers exist in actual bundle",
+          "ok": true,
+          "detail": "/history/26/livelihoods/watershed\n/history/26/livelihoods/workshop_economics\n/history/26/livelihoods/workshop_payroll\n/history/26/livelihoods/reform_services\n/history/26/livelihoods/guild_leagues\n/history/26/livelihoods/movement_branches\n/history/26/livelihoods/epidemic_care\n/history/26/livelihoods/household_retail/regions/0\n/history/26/livelihoods/public_health/environment/1/displaced_share\n/history/26/livelihoods/public_health/environment/1/water_service\n/history/26/livelihoods/public_health/environment/1/crowding_factor\n/history/26/livelihoods/public_health/environment/1/flux_factor\n/history/26/livelihoods/watershed/regions\n/history/26/livelihoods/public_health/environment/0/displaced_share\n/history/26/livelihoods/public_health/environment/0/water_service\n/history/26/livelihoods/public_health/environment/0/crowding_factor\n/history/26/livelihoods/public_health/environment/0/flux_factor\n/history/26/livelihoods/watershed/regions\n/history/26/livelihoods/household_retail/regions/1\n/history/26/livelihoods/public_health/environment/2/displaced_share\n/history/26/livelihoods/public_health/environment/2/water_service\n/history/26/livelihoods/public_health/environment/2/crowding_factor\n/history/26/livelihoods/public_health/environment/2/flux_factor\n/history/26/livelihoods/watershed/regions"
+        },
+        {
+          "label": "phone: individual and regional evidence are visibly distinct",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "label": "phone: earlier-page source pointers retain their original snapshot indices",
+          "ok": true,
+          "detail": "/history/25/livelihoods/watershed/regions\n/history/25/livelihoods/household_retail/regions/2\n/history/25/livelihoods/public_health/environment/3/displaced_share\n/history/25/livelihoods/public_health/environment/3/water_service\n/history/25/livelihoods/public_health/environment/3/crowding_factor\n/history/25/livelihoods/public_health/environment/3/flux_factor\n/history/25/livelihoods/watershed/regions\n/history/26/livelihoods/recovery_crews/receipts/0/members/0\n/history/26/livelihoods/repair_projects\n/history/26/livelihoods/timber_supply\n/history/26/livelihoods/household_retail\n/history/26/livelihoods/titled_trade\n/history/26/livelihoods/residence_ledger\n/history/26/livelihoods/timber_orders\n/history/26/livelihoods/war_requisition/frame/claims/92\n/history/26/livelihoods/adaptive_livelihoods/frame/work/0\n/history/26/livelihoods/adaptive_livelihoods/frame/offers/7\n/history/26/livelihoods/adaptive_livelihoods/frame/rows/12\n/history/26/livelihoods/adaptive_livelihoods/frame/known_destinations/41\n/history/26/livelihoods/adaptive_livelihoods/frame/known_destinations/42\n/history/26/livelihoods/adaptive_livelihoods/frame/known_destinations/43\n/history/26/livelihoods/war_consequences\n/history/26/livelihoods/public_health\n/history/26/livelihoods/infrastructure_condition\n/history/26/livelihoods/watershed\n/history/26/livelihoods/workshop_economics\n/history/26/livelihoods/workshop_payroll\n/history/26/livelihoods/reform_services\n/history/26/livelihoods/guild_leagues\n/history/26/livelihoods/movement_branches\n/history/26/livelihoods/epidemic_care\n/history/26/livelihoods/household_retail/regions/0\n/history/26/livelihoods/public_health/environment/1/displaced_share\n/history/26/livelihoods/public_health/environment/1/water_service\n/history/26/livelihoods/public_health/environment/1/crowding_factor\n/history/26/livelihoods/public_health/environment/1/flux_factor\n/history/26/livelihoods/watershed/regions\n/history/26/livelihoods/public_health/environment/0/displaced_share\n/history/26/livelihoods/public_health/environment/0/water_service\n/history/26/livelihoods/public_health/environment/0/crowding_factor\n/history/26/livelihoods/public_health/environment/0/flux_factor\n/history/26/livelihoods/watershed/regions\n/history/26/livelihoods/household_retail/regions/1\n/history/26/livelihoods/public_health/environment/2/displaced_share\n/history/26/livelihoods/public_health/environment/2/water_service\n/history/26/livelihoods/public_health/environment/2/crowding_factor\n/history/26/livelihoods/public_health/environment/2/flux_factor\n/history/26/livelihoods/watershed/regions"
+        },
+        {
+          "label": "phone: actual named repair wage and withheld ordinary income",
+          "ok": true,
+          "detail": "Snapshot 27\nSource turn 26\trecovery crews\nRepair work 1; wage 2 coins; ordinary income withheld 0.095\tStable id\nRecorded\tProject #0Open Thogoriel Wood\t/history/26/livelihoods/recovery_crews/receipts/0/members/0"
+        },
+        {
+          "label": "phone: chain opens the actual named worker's stable history at the same snapshot",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "label": "phone: related project button changes stable-id entity",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "label": "phone: history snapshot link seeks timeline",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "label": "phone: regional inspector opens linked aggregate history by region identity",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "label": "phone: historical search reaches the same recorded region without a future jump",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "label": "phone snapshot27: explanatory text stays within section",
+          "ok": true,
+          "detail": "[{\"left\":42,\"right\":348,\"sectionLeft\":25,\"sectionRight\":365},{\"left\":42,\"right\":348,\"sectionLeft\":25,\"sectionRight\":365}]"
+        },
+        {
+          "label": "phone snapshot27: no horizontal document overflow",
+          "ok": true,
+          "detail": "{\"page\":676,\"viewport\":676}"
+        },
+        {
+          "label": "phone: no browser console or page errors",
+          "ok": true,
+          "detail": ""
+        }
+      ],
+      "messages": [],
+      "screenshots": [
+        "phone-snapshot27.png"
+      ],
+      "timings_ms": {
+        "saved_bundle_load": 1803,
+        "initial_systems_panel": 1425,
+        "journey": 12940
+      }
+    }
+  },
+  "failures": 0
+}

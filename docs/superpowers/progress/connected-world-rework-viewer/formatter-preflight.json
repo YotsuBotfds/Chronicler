@@ -1,0 +1,117 @@
+{
+  "root": "/workspace/cwr-viewer",
+  "moves": {},
+  "not_covered": [
+    "paths built at runtime (Path segments joined with '/', f-strings, globs, rglob, os.walk)",
+    "source read through inspect.getsource, ast.parse of an imported module, or __file__ arithmetic",
+    "whole-tree digests recomputed at run time (native wheel receipts, benchmark source identities)",
+    "TypeScript and Rust module graphs beyond literal import specifiers and `mod` lines; tsc -b and cargo check them",
+    "multi-line imports outside parentheses, aliases re-exported under another name, star imports",
+    "behavioral pins: golden outputs, snapshot bytes, RNG streams and checkpoint identity",
+    "private archives, other branches, external repositories and published receipts"
+  ],
+  "reports": [
+    {
+      "path": "viewer/src/lib/entityHistory.ts",
+      "exists": true,
+      "sha256": "7a47a9903b20d2605668b71f65cfc84256488738b94124d158c185980071f23a",
+      "role": "viewer module",
+      "findings": [
+        {
+          "level": "reference",
+          "kind": "viewer import",
+          "where": "viewer/src/components/systems/EntityHistory.tsx:3",
+          "detail": "imports a module named entityHistory; confirm it resolves here"
+        },
+        {
+          "level": "reference",
+          "kind": "viewer import",
+          "where": "viewer/src/components/systems/RecoveryChain.tsx:11",
+          "detail": "imports a module named entityHistory; confirm it resolves here"
+        },
+        {
+          "level": "reference",
+          "kind": "viewer import",
+          "where": "viewer/src/lib/__tests__/entityHistory.test.ts:2",
+          "detail": "imports a module named entityHistory; confirm it resolves here"
+        },
+        {
+          "level": "reference",
+          "kind": "viewer import",
+          "where": "viewer/src/lib/__tests__/entityHistoryInstitutions.test.ts:2",
+          "detail": "imports a module named entityHistory; confirm it resolves here"
+        },
+        {
+          "level": "reference",
+          "kind": "viewer import",
+          "where": "viewer/src/lib/__tests__/entityHouseholdFirm.test.ts:6",
+          "detail": "imports a module named entityHistory; confirm it resolves here"
+        },
+        {
+          "level": "reference",
+          "kind": "viewer import",
+          "where": "viewer/src/lib/__tests__/entityInfrastructure.test.ts:4",
+          "detail": "imports a module named entityHistory; confirm it resolves here"
+        },
+        {
+          "level": "reference",
+          "kind": "viewer import",
+          "where": "viewer/src/lib/__tests__/entityWatershed.test.ts:4",
+          "detail": "imports a module named entityHistory; confirm it resolves here"
+        },
+        {
+          "level": "reference",
+          "kind": "viewer import",
+          "where": "viewer/src/lib/__tests__/personalExperience.test.ts:5",
+          "detail": "imports a module named entityHistory; confirm it resolves here"
+        },
+        {
+          "level": "reference",
+          "kind": "viewer import",
+          "where": "viewer/src/lib/__tests__/supplyContracts.test.ts:4",
+          "detail": "imports a module named entityHistory; confirm it resolves here"
+        },
+        {
+          "level": "reference",
+          "kind": "viewer import",
+          "where": "viewer/src/lib/entityHistoryNavigation.ts:1",
+          "detail": "imports a module named entityHistory; confirm it resolves here"
+        },
+        {
+          "level": "reference",
+          "kind": "docs",
+          "where": "1 documents",
+          "detail": "name the path (1 lines), e.g. docs/superpowers/audits/connected-world/audit-e-verification-playbook.md; dated records keep old paths, current guides need updates"
+        }
+      ],
+      "verdict": "references found: review each before changing (coverage incomplete)"
+    },
+    {
+      "path": "viewer/src/components/systems/EntityHistory.tsx",
+      "exists": true,
+      "sha256": "21242daa594975d95528de35551899b2427725aedbc72fd4c7a09aad5c5e2ba8",
+      "role": "viewer module",
+      "findings": [
+        {
+          "level": "reference",
+          "kind": "viewer import",
+          "where": "viewer/src/components/systems/LivelihoodsPanel.tsx:5",
+          "detail": "imports a module named EntityHistory; confirm it resolves here"
+        },
+        {
+          "level": "reference",
+          "kind": "viewer import",
+          "where": "viewer/src/components/systems/__tests__/EntityHistory.test.tsx:3",
+          "detail": "imports a module named EntityHistory; confirm it resolves here"
+        },
+        {
+          "level": "reference",
+          "kind": "viewer import",
+          "where": "viewer/src/components/systems/__tests__/SupplyContracts.test.tsx:5",
+          "detail": "imports a module named EntityHistory; confirm it resolves here"
+        }
+      ],
+      "verdict": "references found: review each before changing (coverage incomplete)"
+    }
+  ]
+}
