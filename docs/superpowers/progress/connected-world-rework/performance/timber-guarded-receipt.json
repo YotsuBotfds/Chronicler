@@ -1,0 +1,58 @@
+{
+  "kind": "exact official selected offline chunk; full gate separate",
+  "chunk": "connected-world-completion",
+  "command": [
+    "/workspace/cw-b3-offline/bin/python",
+    "-B",
+    "-m",
+    "pytest",
+    "-q",
+    "-x",
+    "--tb=short",
+    "tests/test_public_health_integration.py",
+    "tests/test_movement_branches.py",
+    "tests/test_timber_orders.py",
+    "tests/test_connected_record_provenance.py",
+    "tests/test_cw_health_screen.py",
+    "tests/test_war_requisition.py",
+    "tests/test_war_consequences.py",
+    "tests/test_adaptive_livelihoods.py",
+    "tests/test_public_health.py",
+    "-p",
+    "python_oracle_guard",
+    "-p",
+    "no:cacheprovider",
+    "--basetemp",
+    "/workspace/evidence/cwr-profile/timber-guarded-chunk/pytest",
+    "-k",
+    "not test_real_cli_and_cross_process_resume_with_different_hashseeds and not test_cross_process_deterministic_with_randomized_python_hash_seed"
+  ],
+  "limit_seconds": 110,
+  "seconds": 3.7713232479982253,
+  "exit_code": 0,
+  "guard": {
+    "at_utc": "2026-11-07T20:53:27.859331+00:00",
+    "state": "PASS",
+    "guard_active_at_finish": true,
+    "main_source": "/workspace/cwr-profile/src/chronicler/main.py",
+    "native_modules_loaded": [],
+    "native_import_attempts_blocked": [],
+    "runtime_factories_replaced_before_collection": true,
+    "python_oracle_factory_calls": {
+      "ecology": 0,
+      "politics": 0
+    },
+    "blocked_io_attempts": [],
+    "local_hostname_metadata_reads": 0,
+    "test_reports": {
+      "passed": 206,
+      "failed": 0,
+      "skipped": 0
+    },
+    "pytest_exitstatus": 0
+  },
+  "source_sha256": {
+    "src/chronicler/timber_orders.py": "8d9d12fbb51abefd4eb3dfd6e66ac1ea8beb88e7b293aaf6dfe1cfa080986c54",
+    "tests/test_timber_orders.py": "79b06b550d93979cf861c2511afc61644321f137498adc41943966d9cedf2d24"
+  }
+}
