@@ -188,6 +188,9 @@ struct MigrationChoice {
     opportunity: f32,
     threat_changed: bool,
     religion_changed: bool,
+    /// The selected score/opportunity uses A6 information or own experience;
+    /// the legacy migration budget has no independent term for either.
+    adaptive_attribution: bool,
     /// River bonus and packet (threat, religion) adjustment in the target's
     /// score, for the migration budget.
     river: f32,
@@ -208,6 +211,7 @@ impl MigrationChoice {
             opportunity: 0.0,
             threat_changed: false,
             religion_changed: false,
+            adaptive_attribution: false,
             river: 0.0,
             news: 0.0,
             voluntary: VoluntaryPull::default(),
@@ -272,6 +276,8 @@ fn best_migration_target_observed<O: DecisionObserver>(
     let mut gate_open = [false; VOLUNTARY_DRIVERS];
     let mut unadapted_best = own_score;
     let mut unadapted_target = region_id as u16;
+    let mut selected_adaptive_delta = 0.0;
+    let mut information_used = false;
     for &adj_id in &regions[region_id].adjacency {
         let adj = adj_id as usize;
         if adj >= regions.len() {
@@ -279,6 +285,7 @@ fn best_migration_target_observed<O: DecisionObserver>(
         }
 
         let known = pool.adaptive_information.as_ref().map_or(true, |info| info.knows(pool.ids[slot], adj as u16));
+        information_used |= !known;
         let adj_pop = if known { region_population_count(stats, adj) } else { 0 };
         let adj_cap = if known { regions[adj].carrying_capacity.max(1) as f32 } else { 1.0 };
         let adj_pop_ratio = adj_pop as f32 / adj_cap;
@@ -397,15 +404,18 @@ fn best_migration_target_observed<O: DecisionObserver>(
             unadapted_best = with_pull(adj_score, pull);
             unadapted_target = adj as u16;
         }
-        if let Some(a) = &pool.adaptive_migration { adj_score += a.score(pool.ids[slot], adj as u16); }
+        let packet_news = adj_score - pre_news_score;
+        let adaptive_delta = pool.adaptive_migration.as_ref().map_or(0.0, |a| a.score(pool.ids[slot], adj as u16));
+        if adaptive_delta != 0.0 { adj_score += adaptive_delta; }
         let became_best = with_pull(adj_score, pull) > best_adj_score;
         if became_best {
             best_adj_score = with_pull(adj_score, pull);
             best_base_score = adj_score;
             best_adj_id = adj as u16;
             best_river = river;
-            best_news = adj_score - pre_news_score;
+            best_news = packet_news;
             best_voluntary = voluntary;
+            selected_adaptive_delta = adaptive_delta;
         }
         if O::ENABLED { observer.end_candidate(pull, adj_score, river, pre_news_score, became_best); }
     }
@@ -417,7 +427,8 @@ fn best_migration_target_observed<O: DecisionObserver>(
         target: best_adj_id,
         opportunity: (best_base_score - own_score).max(0.0),
         threat_changed: threat_best_adj_id != baseline_best_adj_id,
-        religion_changed: best_adj_id != threat_best_adj_id,
+        religion_changed: unadapted_target != threat_best_adj_id,
+        adaptive_attribution: information_used || selected_adaptive_delta != 0.0 || best_adj_id != unadapted_target,
         river: best_river,
         news: best_news,
         voluntary: best_voluntary,
@@ -440,6 +451,9 @@ fn migration_terms(
     need_mods: &crate::needs::NeedUtilityModifiers,
 ) -> [f32; MIGRATION_TERMS] {
     let mut terms = [0.0f32; MIGRATION_TERMS];
+    // A6 has no calibrated legacy attribution term. Honest unknown avoids
+    // assigning foreign truth or personal experience to food/news/religion.
+    if choice.adaptive_attribution { return terms; }
     let sat = pool.satisfaction(slot);
     let sat_term = W_MIGRATE_SAT * (MIGRATE_SATISFACTION_THRESHOLD - sat).max(0.0);
     let opp_term = W_MIGRATE_OPP * (choice.opportunity - MIGRATE_HYSTERESIS).max(0.0);
@@ -1179,7 +1193,8 @@ fn evaluate_region_decisions_observer<L: crate::pool::SlotLookup, O: DecisionObs
                         persecution_push, &mem_mods, &need_mods,
                     );
                     pending.migration_drivers.record(&terms);
-                    let dominant = dominant_term(&terms);
+                    let dominant = if choice.adaptive_attribution { crate::tick::NO_MIGRATION_DRIVER }
+                                   else { dominant_term(&terms) };
                     pending.migration_drivers.record_age(pool.ages[slot], dominant);
                     pending.migration_dominant.push((slot, dominant));
                 }
@@ -1839,6 +1854,11 @@ mod tests {
         let second = best_migration_target_for_agent(&pool,&regions,&stats,0,0,None);
         assert_eq!(first.target,second.target);
         assert_eq!(first.opportunity.to_bits(),second.opportunity.to_bits());
+        assert!(first.adaptive_attribution && second.adaptive_attribution);
+        let memory = crate::memory::compute_memory_utility_modifiers(&pool,0);
+        let needs = crate::needs::compute_need_utility_modifiers(&pool,0);
+        let terms = migration_terms(&pool,&regions,&stats,0,0,&second,0.0,&memory,&needs);
+        assert_eq!(terms,[0.0;MIGRATION_TERMS]);
         pool.adaptive_information.as_mut().unwrap().known=vec![(pool.ids[0],1)];
         let known = best_migration_target_for_agent(&pool,&regions,&stats,0,0,None);
         assert!(known.opportunity > second.opportunity);
@@ -2708,6 +2728,19 @@ mod packet_consumer_tests {
         (pool, regions, slot)
     }
 
+    #[test]
+    fn adaptive_target_change_is_not_packet_news_or_religion() {
+        let (mut pool, regions, slot) = migration_world(crate::agent::BELIEF_NONE);
+        let stats = compute_region_stats(&pool,&regions,&signals(regions.len()));
+        let plain = best_migration_target_for_agent(&pool,&regions,&stats,0,slot,None);
+        assert_eq!(plain.target,1);
+        pool.adaptive_migration=Some(crate::adaptive_migration::AdaptiveMigration::new(3,vec![(pool.ids[slot],2,0.3)]));
+        let changed = best_migration_target_for_agent(&pool,&regions,&stats,0,slot,None);
+        assert_eq!(changed.target,2);
+        assert_eq!(changed.news,0.0);
+        assert!(!changed.religion_changed && !changed.threat_changed);
+    }
+
     fn target(pool: &AgentPool, regions: &[RegionState], slot: usize) -> (u16, bool, bool) {
         let stats = compute_region_stats(pool, regions, &signals(regions.len()));
         let c = best_migration_target_for_agent(pool, regions, &stats, 0, slot, None);
@@ -2882,6 +2915,17 @@ mod ablation_tests {
             && a.loyalty_drifts.iter().zip(&b.loyalty_drifts)
                 .all(|(x, y)| x.0 == y.0 && x.1.to_bits() == y.1.to_bits())
             && a.migration_dominant == b.migration_dominant
+    }
+
+    #[test]
+    fn record_only_empty_adaptive_input_preserves_decisions_drivers_and_rng() {
+        let (mut pool, regions, slots) = world(100);
+        let (plain, next) = decide(&pool,&regions,&slots,None);
+        pool.adaptive_migration=Some(crate::adaptive_migration::AdaptiveMigration::new(3,vec![]));
+        let (recorded, recorded_next)=decide(&pool,&regions,&slots,None);
+        assert!(same(&plain,&recorded)); assert_eq!(next,recorded_next);
+        assert_eq!(crate::persist::encode(crate::persist::KIND_AGENT,&plain.migration_drivers),
+                   crate::persist::encode(crate::persist::KIND_AGENT,&recorded.migration_drivers));
     }
 
     #[test]

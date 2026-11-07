@@ -194,6 +194,8 @@ pub struct AgentSimulator {
     /// Detached decision observations; neither configuration nor frame persists.
     decision_delivery_config: Option<crate::decision_delivery::DeliveryConfig>,
     decision_delivery_frame: Option<crate::decision_delivery::DeliveryFrame>,
+    /// The legacy driver budget has no independently declared A6 term.
+    adaptive_driver_budget_unavailable: bool,
     mobility_gate_frame: Option<crate::household::MobilityGateFrame>,
     /// Transient teaching receipt; not an additional persistent work account.
     teaching_result: Option<crate::teaching_work::TeachingPlan>,
@@ -256,6 +258,7 @@ impl AgentSimulator {
             transaction_receipts_limit: None,
             decision_delivery_config: None,
             decision_delivery_frame: None,
+            adaptive_driver_budget_unavailable: false,
             mobility_gate_frame: None,
             teaching_result: None,
             last_teaching_turn: None,
@@ -1033,6 +1036,9 @@ impl AgentSimulator {
             return Err(PyValueError::new_err("adaptive information region out of range"));
         }
         if self.pool.adaptive_information.is_some() { return Err(PyValueError::new_err("adaptive information already pending")); }
+        if self.decision_delivery_config.is_some() {
+            return Err(PyValueError::new_err("adaptive information refuses the legacy decision observer"));
+        }
         let (mut input, mut receipt) = crate::adaptive_information::build(&self.pool,turn,&own_known);
         input.known.retain(|r| (r.1 as usize) < self.num_regions);
         receipt.retain(|r| (r.1 as usize) < self.num_regions);
@@ -1055,6 +1061,9 @@ impl AgentSimulator {
         }
         if self.pool.adaptive_migration.is_some() || self.pool.adaptive_migration_receipt.is_some() {
             return Err(PyValueError::new_err("adaptive migration pending or receipt untaken"));
+        }
+        if !rows.is_empty() && self.decision_delivery_config.is_some() {
+            return Err(PyValueError::new_err("adaptive migration refuses the legacy decision observer"));
         }
         self.pool.adaptive_migration = Some(crate::adaptive_migration::AdaptiveMigration::new(turn, rows));
         Ok(())
@@ -1977,6 +1986,8 @@ impl AgentSimulator {
             _ => None,
         };
 
+        let adaptive_budget_unavailable = self.pool.adaptive_information.is_some()
+            || self.pool.adaptive_migration.as_ref().is_some_and(|a| !a.rows.is_empty());
         let targeted_deaths = std::mem::take(&mut self.pending_targeted_deaths);
         let tick_options = self.tick_options;
         let delivery_config = self.decision_delivery_config.as_ref();
@@ -2037,6 +2048,7 @@ impl AgentSimulator {
         self.formation_stats = formation_stats;
         self.demographic_debug = demo_debug;
         self.household_stats = household_stats;
+        self.adaptive_driver_budget_unavailable = adaptive_budget_unavailable;
         self.merchant_trip_stats = merchant_stats;
         if let Some(limit) = self.transaction_receipts_limit {
             // A successful tick without merchant state did not observe mobility.
@@ -2748,7 +2760,11 @@ impl AgentSimulator {
     /// `get_household_stats`). Diagnostic only; production Python does not
     /// read it.
     #[pyo3(name = "get_migration_driver_stats")]
-    pub fn get_migration_driver_stats(&self) -> std::collections::HashMap<String, f64> {
+    pub fn get_migration_driver_stats(&self) -> PyResult<std::collections::HashMap<String, f64>> {
+        if self.adaptive_driver_budget_unavailable || self.pool.adaptive_information.is_some()
+            || self.pool.adaptive_migration.as_ref().is_some_and(|a| !a.rows.is_empty()) {
+            return Err(PyValueError::new_err("legacy migration driver budget is unavailable with active adaptive inputs"));
+        }
         let d = &self.household_stats.migration_drivers;
         let mut m = std::collections::HashMap::new();
         m.insert("evaluated".into(), d.evaluated as f64);
@@ -2770,7 +2786,7 @@ impl AgentSimulator {
         for (i, count) in d.community_ties.iter().enumerate() {
             m.insert(format!("community_ties_{i}"), *count as f64);
         }
-        m
+        Ok(m)
     }
 
     /// M50b: Return ALL relationship edges as an Arrow RecordBatch.
@@ -4453,6 +4469,10 @@ impl AgentSimulator {
     #[pyo3(signature = (enabled, max_agent_rows = 4096, max_candidate_rows = 16384, selected_agent_ids = None, *, max_move_rows = 16384))]
     pub fn configure_decision_delivery(&mut self, enabled: bool, max_agent_rows: usize,
         max_candidate_rows: usize, selected_agent_ids: Option<Vec<u32>>, max_move_rows: usize) -> PyResult<()> {
+        if enabled && (self.pool.adaptive_information.is_some()
+            || self.pool.adaptive_migration.as_ref().is_some_and(|a| !a.rows.is_empty())) {
+            return Err(PyValueError::new_err("legacy decision observer refuses active adaptive inputs"));
+        }
         let config = if enabled {
             Some(crate::decision_delivery::DeliveryConfig::new(max_agent_rows,
                 max_candidate_rows, selected_agent_ids).and_then(|c| c.with_move_limit(max_move_rows)).map_err(PyValueError::new_err)?)
@@ -5798,7 +5818,7 @@ crate::persist_struct!(AgentSimulator {
     merchant_trip_stats, knowledge_stats, hybrid_economy_mode, pending_targeted_deaths,
     movements, pending_movement_leaders, pending_promotion_memories, tick_options,
 } skip { snapshot_cache } transient {
-    health_work, transaction_receipts_limit, decision_delivery_config, decision_delivery_frame, mobility_gate_frame,
+    health_work, transaction_receipts_limit, decision_delivery_config, decision_delivery_frame, adaptive_driver_budget_unavailable, mobility_gate_frame,
     teaching_result, last_teaching_turn, last_craft_input
 });
 
