@@ -426,3 +426,137 @@ worktree's `.venv` (no extension).
   clean; `npm run build` passes.
 - **Not run:** the 200-seed and procedural qualification gates (restricted); the CW5c held cohort
   (awaits the freeze); `cargo` builds and Rust tests (no Rust change); browser journeys.
+
+## Results (held run, 2026-11-07)
+
+Read after the run; nothing below changed an arm, outcome, definition or parameter, and no held
+seed was rerun or tuned on. Full report: `connected-world-screens-cw5c/held/report.md` (every
+per-world value of every outcome and harm, and the mechanism, per-pathogen and reach tables),
+with the compact `metrics.jsonl`, `source.txt` and `held-run.json` beside it.
+
+**Run.** `flock <held-run lock> <native python> scripts/connected_world_screens.py run HELD
+--screen CW5c --cohort held --pilot .../pilot/metrics.jsonl --jobs 2 --keep-first` on source
+`ca2e1c84` (the frozen code `c854215a` plus this page, its pilot files and the status line; `git
+diff --stat c854215a ca2e1c84` touches only those; dirty 0); the lock was free when it started.
+Started 05:59:48Z, finished 06:04:22Z: **36 runs, 0 failed, complete, every outcome extracted**;
+**0.152 core-hours** of simulation and extraction (ceiling 0.50; the pilot projected 0.195), 274 s
+of wall time at 2 processes; no ceiling stop, no resume. `check --metrics ... --cohort held`
+passes on the full and the compact metrics; `mark-run` recorded `cw5c-held-t` and `cw5c-held-p`
+as run (36 rows, complete). Identities: run digest `73d906ec…`; native `20e77f99…`; runner
+`55b7e2c5…`; screen module `9ce196bf…`; registry content `fa4731ea…`; preregistration
+`5533559a…` (this page as frozen at `ca2e1c84`). Seconds per run: E0 t 10.2, p 18.8; EC t 10.8,
+p 19.9; EF t 10.8, p 20.4. **Metrics (R3):** the full file (2.7 MB) stays outside the repository,
+`/home/user/evidence/c2/cw5c/held/metrics.jsonl`, SHA-256
+`4af5a34a90075829e335641b627a0b90168219d12ba54d6265b474be1c25b7bb`; the committed compact file
+(109 KB) gives a byte-identical report. **Independent checker** on the kept bundles (t3301 and
+p3401, all three arms) with the committed compact file: **110,529 checks, 0 failures**,
+including primary 2 and every per-pathogen reading recomputed from the raw bundles and the
+compact file's stored pairs for those worlds.
+
+**Activation (before any effect).** EC and EF activated on 6 of 6 worlds in both strata (E0 is
+the root). Covered region-turns per world: EC template 35-623, procedural 1,176-1,958; EF
+template 31-666, procedural 1,264-1,819. Carer-turns: EC 37-664 / 1,275-2,075; EF 34-707 /
+1,380-1,951. Region-turns with a reported outbreak in E0: 56-567 / 1,430-2,081. No capacity was
+refused or left unconsumed, no wage bill was refused and no care factor was floored.
+
+Uncertainty below is descriptive (six worlds per stratum): mean, min/max, sign counts (> 0 / < 0
+/ = 0) and how many of the 64 sign assignments of the per-world differences give a mean at least
+as far from zero as the observed one (2 of 64 is the most extreme possible). Not significance
+tests.
+
+### Primary outcomes (EF - EC on each world)
+
+| Outcome | Stratum | Per world | Mean [min, max] | >0 / <0 / =0 | Sign flips at least as extreme (of 64) |
+| --- | --- | --- | --- | --- | --- |
+| `cw5c_world_death_rate` (per 1,000 person-turns) | template | 3301 -1.711, 3302 -3.752, 3303 -1.382, 3304 -0.2487, 3305 -0.8495, 3306 -0.0536 | -1.333 [-3.752, -0.054] | 0 / 6 / 0 | 2 |
+| `cw5c_world_death_rate` | procedural | 3401 +0.170, 3402 -0.437, 3403 -0.623, 3404 +3.076, 3405 -2.157, 3406 +0.464 | +0.082 [-2.157, +3.076] | 3 / 3 / 0 | 54 |
+| `cw5c_itt_cfr` (deaths per infectious person-turn at EC's covered cells) | template | -0.0791, -0.1242, -0.0476, -0.1249, -0.0400, -0.0390 | -0.0758 [-0.1249, -0.0390] | 0 / 6 / 0 | 2 |
+| `cw5c_itt_cfr` | procedural | -0.0358, -0.0409, -0.04495, +0.03485, -0.0652, -0.0389 | -0.0318 [-0.0652, +0.0349] | 1 / 5 / 0 | 4 |
+| `cw5c_world_dpi` (world deaths per infectious person-turn) | template | -0.0732, -0.1394, -0.0383, -0.06365, -0.0340, -0.0385 | -0.0645 [-0.1394, -0.0340] | 0 / 6 / 0 | 2 |
+| `cw5c_world_dpi` | procedural | -0.0253, -0.0340, -0.0350, +0.0547, -0.0630, -0.0238 | -0.0211 [-0.0630, +0.0547] | 1 / 5 / 0 | 14 |
+
+**Reading under the frozen rule** (a direction only when at least 5 of 6 activated worlds of a
+stratum share the sign):
+
+- **World death rate:** lower under EF on 6 of 6 template worlds; procedural **mixed** (3 / 3,
+  54 of 64): no direction.
+- **ITT fatality at EC's covered cells:** lower under EF on 6 of 6 template and 5 of 6
+  procedural worlds (higher on 3404). EF / EC there: template 0.60-0.81, procedural 0.66-0.83
+  and 1.19 (3404). It is a total effect, including pathogen-mix differences after divergence.
+- **World deaths per infectious person-turn:** lower under EF on 6 of 6 template and 5 of 6
+  procedural worlds (higher on 3404; 14 of 64).
+
+### Mechanism check, by pathogen, and reach (secondary; not evidence that care works)
+
+- **Own-covered ratio** (EF / EC of fatality per infectious person-turn in each arm's own
+  covered cells): template 0.684, 0.604, 0.630, 0.476, 0.762, 0.793; procedural 0.738, 0.724,
+  0.733, 1.202, 0.610, 0.806; EF's mean applied factor 0.700-0.702 on every world (nothing
+  floored; mean coverage 0.993-1.000 / 0.992-0.997). `cw5c_mech_covered_dpi` (EF - EC): -0.0849
+  (0 / 6 / 0, 2 of 64) / -0.0401 (1 / 5 / 0, 4 of 64).
+- **By pathogen at EC's covered cells** (R1): EF was lower than EC in **every one of the 31
+  world-pathogen readings** with both values. EF / EC: template plague 0.68-0.80 (4 worlds), pox
+  0.58-0.59 (2), fever 0.58-0.75 (6), flux 0.63-0.79 (3), pestilence 0.69-0.79 (3); procedural
+  plague 0.73-0.94, pox 0.71-0.87, fever 0.61-0.86 (6 worlds each); no flux there; pestilence
+  only in EF on 3404 (no value). The frozen text names no value where neither arm had the
+  pathogen; a reading with one arm only (3404 pestilence) has none either, since the paired
+  reading needs both values.
+- **Reach and attenuation** (EC reach; implied maximum fall = reach x (1 - factor); realized
+  EF - EC change of the world death rate, relative to EC):
+
+  | World | Reach | Implied maximum | Realized | World | Reach | Implied maximum | Realized |
+  | --- | --- | --- | --- | --- | --- | --- | --- |
+  | t3301 | 0.859 | -0.256 | -0.280 | p3401 | 0.798 | -0.239 | +0.025 |
+  | t3302 | 0.477 | -0.142 | -0.420 | p3402 | 0.753 | -0.224 | -0.066 |
+  | t3303 | 0.908 | -0.272 | -0.404 | p3403 | 0.578 | -0.173 | -0.116 |
+  | t3304 | 0.556 | -0.167 | -0.253 | p3404 | 0.823 | -0.246 | +0.573 |
+  | t3305 | 0.821 | -0.245 | -0.203 | p3405 | 0.701 | -0.210 | -0.389 |
+  | t3306 | 0.653 | -0.195 | -0.007 | p3406 | 0.730 | -0.218 | +0.078 |
+
+  Reach: template 0.712 [0.477, 0.908], procedural 0.731 [0.578, 0.823]. The realized fall was
+  larger than the implied maximum on four template worlds and one procedural world, smaller on
+  four, and of the opposite sign on three procedural worlds; trajectories diverge after the first
+  effect, so the gap is not decomposed here. The page's untested prediction said "by much less
+  than 30 %"; the template changes were -0.7 % to -42 % (three of them -28 %, -40 % and -42 %).
+
+### Harms (beside the primaries; template / procedural)
+
+- **EF - EC:** epidemic deaths (count) -45 [-100, -5] (0 / 6 / 0, 2 of 64) / +3.8 [-196, +199]
+  (3 / 3 / 0, 56 of 64); population at the end +25.7 (5 / 1 / 0, 8 of 64) / -3.7 (4 / 2 / 0, 62
+  of 64); **food shortfall after relief +294 [-349, +990] (5 / 1 / 0, 10 of 64)** / -465 [-1,901,
+  +1,235] (2 / 4 / 0, 24 of 64); dearth region-turns +15.8 (4 / 2 / 0) / -131 (2 / 4 / 0); famine
+  region-turns -16 (2 / 4 / 0) / -105 (2 / 3 / 1); treasury +61 (3 / 3 / 0) / -50 (3 / 3 / 0);
+  stability +1.75 (3 / 3 / 0) / -0.61 (3 / 3 / 0); city unrest +0.0002 (4 / 2 / 0, 64 of 64) /
+  +0.012 (4 / 2 / 0); migration +115 (4 / 2 / 0) / +173 (4 / 2 / 0); other services' L9 coins
+  -0.8 (2 / 3 / 1) / +1.2 (2 / 4 / 0); wealth Gini +0.151 (5 / 1 / 0, 6 of 64) / +0.010 (4 / 2 /
+  0).
+- **Care's cost (EC, per world):** farm time removed 152 [12, 227] / 603 [487, 728]
+  worker-turns; carer-turns held from drafting and teaching 435 [37, 664] / 1,625 [1,275, 2,075];
+  wages 75.8 [6.1, 113.6] / 301 [243, 364] treasury units; income withheld 19.8 / 78.8 wealth
+  units; refused bills 0 on every world (EF too); L9 coins to care 268 [35, 429] / 958 [807,
+  1,128], of which executed but not paid as wages 190 [29, 312] / 651 [560, 765]. EF's are close
+  (farm time 166 / 652, wages 82.8 / 326, care coins 283 / 975).
+- **EC - E0:** other services' L9 coins -5 [-18, +4] (1 / 5 / 0, 10 of 64) / -1.5 [-15, +31]
+  (1 / 4 / 1, 60 of 64), all of it granary relief; food shortfall -98 (2 / 4 / 0) / +268 (4 / 2 /
+  0); dearth +15.2 (4 / 2 / 0) / +101 (4 / 2 / 0); famine +17.7 (4 / 2 / 0) / +92 (4 / 2 / 0);
+  epidemic deaths +13.3 (2 / 4 / 0) / +50 (3 / 3 / 0); world death rate +0.49 (4 / 2 / 0, 50 of
+  64) / +0.33 (3 / 3 / 0, 44 of 64); population -11.3 (3 / 3 / 0) / -53 (2 / 4 / 0, 12 of 64);
+  treasury +60 (3 / 3 / 0) / -25 (2 / 4 / 0); stability -0.78 / -0.84 (3 / 3 / 0 each); **city
+  unrest -0.021 (0 / 6 / 0, 2 of 64) / -0.018 (1 / 5 / 0, 6 of 64)**; migration -15 (3 / 3 / 0) /
+  -226 (2 / 4 / 0).
+- Not recorded in these runs: priced-out persons and children (household retail off), forest
+  stand (timber stock off); famine and war deaths have no bundle field ("requires slice
+  extractor").
+
+### Other secondaries (template / procedural)
+
+- World epidemic deaths, count (EF - EC): above. World death rate EF - E0: -0.84 (1 / 5 / 0, 4 of
+  64) / +0.41 (4 / 2 / 0, 40 of 64).
+- Deaths per new infection in continuing-outbreak region-turns: EF - EC -0.0192 (0 / 6 / 0, 2 of
+  64) / -0.0061 (1 / 5 / 0, 18 of 64); EF - E0 -0.0200 (0 / 6 / 0, 2 of 64) / -0.0051 (2 / 4 / 0,
+  22 of 64).
+- Covered region-turns (selection), EF - EC: +26.8 (4 / 2 / 0) / +32.5 (4 / 2 / 0, 50 of 64).
+
+No world failed, none was incomplete, no outcome was missing, and the run did not reach its
+ceiling. These are whole-trajectory comparisons on six worlds per stratum with a declared effect
+size: they describe direction and spread on held worlds, not whether nursing works, and they do
+not license promotion (the owner's decision).

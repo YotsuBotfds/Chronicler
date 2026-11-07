@@ -85,9 +85,14 @@
   L9-funded named carers (provider `epidemic_care`), farm time out through `farm_labor_factor`,
   wages through `money.py` (`care_wage`), dated capacity that multiplies the next tick's case
   fatality by `1 - 0.3 x coverage` under one floor with techniques; layer `cwc2`; viewer care
-  panel; the **CW5c** preregistration (template 3301-3306, procedural 3401-3406) awaits the lead's
-  review: [integration page](integration/epidemic-care.md),
-  [preregistration](superpowers/progress/connected-world-screens-cw5c.md). Held run not started.
+  panel. **CW5c** (frozen at `c854215a`, held run 2026-11-07 on template 3301-3306 and procedural
+  3401-3406: 36 runs, 0 failed, 0.152 of 0.50 core-hours): EF (care) - EC (cost only) world death
+  rate lower on 6 of 6 template worlds, procedural mixed (3 / 3); ITT fatality at EC's covered
+  cells and world deaths per infectious person-turn lower on 6 of 6 template and 5 of 6
+  procedural worlds; food shortfall higher on 5 of 6 template worlds (procedural 2 / 4):
+  [integration page](integration/epidemic-care.md),
+  [preregistration and results](superpowers/progress/connected-world-screens-cw5c.md). Not
+  merged; the write-up awaits the independent check.
 - **Lanes in flight** (each on its own branch, provisional witness layers regenerated at
   integration): A5 retail rules v2, war reaches owned stock once per event (RL1–RL3; review
   merge-ready); A1 `--wealth-accounting` observation ledger (RL7; review fixes); B1 `--watershed
