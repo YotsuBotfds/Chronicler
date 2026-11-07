@@ -1,0 +1,8 @@
+🐍 Found CPython 3.13 at /workspace/cw-evidence-native/bin/python
+🔗 Found pyo3 bindings
+📡 Using build options features from pyproject.toml
+   Compiling chronicler-agents v0.1.0 (/workspace/cw-evidence/chronicler-agents)
+    Finished `release` profile [optimized] target(s) in 1m 49s
+📦 Built wheel for CPython 3.13 to /tmp/.tmpC0cKQt/chronicler_agents-0.1.0-cp313-cp313-linux_x86_64.whl
+✏️ Setting installed package as editable
+🛠 Installed chronicler-agents-0.1.0
