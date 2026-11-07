@@ -60,7 +60,8 @@ TOTAL_KEYS: tuple[str, ...] = (
     "displaced_war", "displaced_famine", "displaced_persecution", "displaced_none",
     "anchor_any_war", "anchor_any_famine", "anchor_any_persecution", "anchor_war_or_famine", "anchor_partial",
     "moves", "moves_flight", "moves_hunger", "moves_voluntary", "moves_other",
-    "opened", "returned", "resettled", "died", "pool_reset", "unobserved_gap", "rehomed", "deaths",
+    "opened", "returned", "resettled", "resettled_by_move", "died", "pool_reset", "unobserved_gap", "rehomed",
+    "deaths",
     "attached", "attached_away", "in_transit",
     "new_rows", "newborn_rows", "trip_relocations", "unexplained_relocations", "move_origin_mismatches",
     # Record-only comparisons with the measures the contract replaces (audit section 10).

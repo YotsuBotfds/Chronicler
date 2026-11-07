@@ -241,6 +241,10 @@ def _event(aid: int, kind: str, spell: Spell, region: int, turn: int) -> dict:
             "origin": spell.origin, "cause": spell.cause, "anchor": spell.anchor, "length": int(turn) - spell.start}
 
 
+#: How a ``resettled`` closure came about (an event's ``by``).
+RESETTLED_BY: tuple[str, ...] = ("rehome_turns", "move")
+
+
 def _group(code: int | None) -> str:
     name = migration_driver_name(code)
     if name in _FLIGHT:
@@ -340,14 +344,19 @@ def _anchor(t: _Turn, region: int) -> tuple[str, list[str]]:
     return (present[0] if present else "none"), present
 
 
-def _close(state: ResidenceLedgerState, t: _Turn, aid: int, row: ResidenceRow, reason: str, region: int) -> None:
+def _close(state: ResidenceLedgerState, t: _Turn, aid: int, row: ResidenceRow, reason: str, region: int,
+           *, by: str | None = None) -> None:
     spell, row.spell = row.spell, None
     t.totals[reason] += 1
     _bump(state, f"closed_{reason}")
     key = {"returned": "returned", "resettled": "resettled", "died": "died_displaced"}.get(reason)
     if key is not None:
         t.region[region][key] += 1
-    t.event(_event(aid, reason, spell, region, t.turn))
+    event = _event(aid, reason, spell, region, t.turn)
+    if by is not None:
+        event["by"] = by
+        t.totals["resettled_by_move"] += int(by == "move")
+    t.event(event)
 
 
 def _move(state: ResidenceLedgerState, t: _Turn, aid: int, row: ResidenceRow, frm: int, to: int,
@@ -377,7 +386,7 @@ def _move(state: ResidenceLedgerState, t: _Turn, aid: int, row: ResidenceRow, fr
             row.spell.moves += 1
         else:
             # A voluntary or unclassified move re-homes at once: the spell resettles there.
-            _close(state, t, aid, row, "resettled", to)
+            _close(state, t, aid, row, "resettled", to, by="move")
             row.home, row.home_since = to, turn
     elif group in CAUSES:
         anchor, kinds = _anchor(t, frm)
@@ -522,7 +531,7 @@ def phase10(world, acc, economy_result, agent_bridge):
     # 4. Resettlement after REHOME_TURNS at one residence.
     for aid, row in rows.items():
         if row.spell is not None and turn - row.res_since >= REHOME_TURNS:
-            _close(state, t, aid, row, "resettled", row.res)
+            _close(state, t, aid, row, "resettled", row.res, by="rehome_turns")
             row.home, row.home_since = row.res, turn
 
     # 5. Attachment from the reconciled rosters (enlistment never re-homes).
