@@ -312,6 +312,12 @@ this slice, nothing was built here).
   table cross the checkpoint).
 - **Viewer:** `npm test -- --maxWorkers=2` 161 files, 1,595 passed, 2 skipped; `npm run lint` clean;
   `npm run build` passes (the existing large-chunk warning).
+- **Final check (F1-F4), head after `084c9cc6`:** focused 192 passed (D2, guard, war, retail war,
+  catalog, ledger); native D2 4 passed; observer identity `proc48_hybrid_s42` all-switch with
+  `--workshop-economics`: 93 files, 0 differences, 150 snapshots carry the record; offline lane
+  PASS, 70 chunks, 343.7 s (slowest 38.2 s of 110 s); viewer 161 files, 1,596 passed, 2 skipped
+  (a first run at load average 10 timed out four unrelated tests at 5 s; all passed in the rerun),
+  lint clean, build passes.
 - **Preflight** (`refactor_preflight.py --git-diff origin/main`): the only content-pinned files
   are `batch_manifest.py` and `tests/test_batch_manifest.py`, carried by the provisional layer
   `cwd2` (two hunks and one, read: the new key in `SIMULATION_ARG_KEYS` and in the omit-when-unset
