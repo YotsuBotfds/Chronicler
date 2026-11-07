@@ -212,11 +212,13 @@ def test_switch_registry_cli_catalog_and_manifest_keys():
     from chronicler.livelihoods_state import LIVELIHOODS_SWITCHES
     order = LIVELIHOODS_SWITCHES
     assert order.index("titled_trade") == order.index("workshop_economics") + 1
-    # Before C2's carers (booked after every other work consumer), D2's observer and the ledger.
-    assert order[order.index("titled_trade") + 1:order.index("epidemic_care")] == ("infrastructure_condition",)
-    # Acting packages precede X1, then D2.
-    assert order.index("epidemic_care") == order.index("guild_leagues") - 1
-    assert order.index("guild_leagues") == order.index("residence_ledger") - 1
+    # Infrastructure and canopy records close before C2. The late care/guard
+    # consumers share the final retail factor after all reservations.
+    assert order[order.index("titled_trade") + 1:order.index("epidemic_care")] == ("infrastructure_condition", "harvest_cover")
+    # Every acting consumer (including A6's own prior-row observations) runs
+    # before the sole X1 writer, then D2 and the closing wealth observer.
+    assert order[order.index("epidemic_care") + 1:order.index("residence_ledger")] == (
+        "guild_leagues", "war_requisition", "war_consequences", "adaptive_livelihoods", "public_health", "movement_branches")
     assert order.index("residence_ledger") == order.index("attribution_records") - 1
     assert order[-1] == "wealth_accounting"
     assert order.index("household_retail") < order.index("titled_trade")
