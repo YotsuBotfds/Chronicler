@@ -198,8 +198,13 @@ Q   -> I of the destination | to_sea | to_sink (a closed basin loses it) | to_la
 
 - **Flood event** (B2): it starts on a settled turn whose arrivals `P + I` exceed the region's
   channel capacity after a settled turn at or below it, while no event is open there; the opening
-  turn (storage opens from the world-generation index, often near capacity) starts none, and stays open while arrivals exceed `FLOOD_RECESSION` (0.75) of the channel
-  (hysteresis); so an onset always crosses the channel from below. Arrivals are channel flow, as in
+  turn (storage opens from the world-generation index, often near capacity) starts none. It stays
+  open until arrivals return to the region's **normal arrivals**: its own normal precipitation and
+  seasonal melt plus the normal net outflow of every region upstream (their normal precipitation and
+  melt less potential evaporation at phase factor 1 and the irrigation demand), from the same
+  declared quantities, with no constant of its own (re-check minor 1: a fixed 0.75 of the channel lay
+  below normal flow, 0.74-0.94 of the channel, so events stayed open until the drought phase and a
+  second exceedance inside one got no consequence). An onset always crosses the channel from below. Arrivals are channel flow, as in
   AUDIT-B 7.2 (`flood = max(0, I + P − channel)`): an external inflow (a coastal flood's surge)
   enters storage but is not counted (B1 counted it). The onset record keeps the turn, excess,
   arrivals by source, the channel, opening storage and capacity, every tributary with the outflow it
@@ -210,9 +215,18 @@ Q   -> I of the destination | to_sea | to_sink (a closed basin loses it) | to_la
 - **Channel** (B2): `CHANNEL_RATIO` (1.0) x the region's drainage basin's **normal inflow** in this
   phase: the normal precipitation (phase factor 1, no shock) of the region and every region upstream,
   plus the seasonal melt the account adds for their terrain in this phase (`TUNDRA_MELT`, tundra,
-  warming). Only anomalous rain or melt crosses it (lead decision: the first refit's channel left the
+  warming), so normal rain and melt never cross it (lead decision: the first refit's channel left the
   melt out, so 105 of 112 flood events were the expected tundra melt). B1 used a fixed channel
   (`CHANNEL_CAPACITY`, x `RIVER_CHANNEL_FACTOR` on a named river region).
+- **Model limitation: floods come only from storage released by forest loss.** Precipitation has no
+  weather variability in this model: phase factors are at most 1 and a harvest shock only reduces it,
+  so rain and melt never exceed their normal. A flood therefore needs stored water to be released:
+  when an upstream region's forest cover drops (wildfire or clearing), its storage capacity falls and
+  the water above the new capacity spills downstream. Every flood onset of the development `flow`
+  runs (5) coincides with such an upstream capacity drop of 0.15-0.16 wu, as do all 63 exceedances the
+  re-check found in replays at 32x10, 48x12 and 64x16. This matches AUDIT-B's intent that
+  deforestation gives flashier floods, but there are no rain-driven floods; the onset record does not
+  name the cause (its upstream cover and tributary outflows show it).
 - **Drought**: a run of at least `DROUGHT_TURNS` settled turns with `S'/C < DROUGHT_FRACTION`. Its
   record keeps the start, declaration and end turns, the lowest fill, and over the run the
   precipitation against the normal precipitation (the forcing deficit), inflow, evaporation, the
@@ -408,7 +422,7 @@ the table says why.
 | `TERRAIN_EVAPORATION` | desert 1.6, steppe 1.25, tundra 0.5, others 1.0 | the same | the same | declared |
 | `IRRIGATION_DEMAND`, `IRRIGATION_WETTING` | 0.02 wu/turn, 1.0 | the same | the same | declared |
 | Channel | `CHANNEL_CAPACITY` 0.25 wu/turn, x2 on a river region | 0.35, x2 | `CHANNEL_RATIO` 1.0 | declared, not fitted: a channel carries its drainage basin's normal inflow (the region's and every region's upstream: precipitation at phase factor 1 and no shock, plus their terrain's seasonal melt in this phase) |
-| `FLOOD_RECESSION` | (none) | (none) | 0.75 | declared: a flood event stays open while arrivals exceed 75% of the channel |
+| Flood event end | (none) | (none; the review draft used 0.75 of the channel) | the region's normal arrivals | no constant: normal rain and melt plus the normal net outflow upstream |
 | `DROUGHT_FRACTION`, `DROUGHT_TURNS` | 0.2, 3 | the same | the same | declared drought definition |
 | `FLOOD_CAPACITY_MODIFIER`, `FLOOD_SILT`, `FLOOD_LONG_EXCESS` | (none) | 0.85, 0.15, 0.1 wu | the same | `flow` flood effects (the old river flood's modifier and silt) |
 | `INDEX_FLOOR`, `CLOSURE_TOLERANCE` | 0.10, 1e-9 | the same | the same | the ecology's floor; relative |
@@ -473,6 +487,19 @@ bound and the same constants in every fold.
 | Ratio to train | 1 | 1.11 (held worse in 17 of 28 folds) | 1.32 |
 | Fitted constants across folds | precipitation 0.315-0.398 (median 0.339), baseflow 0.052-0.074 (0.066), cooling precipitation −0.50 to −0.27 (−0.37); none at a bound | | |
 
+**Independent check** (the reviewer's folds, run with this tool on captures verified bit-identical to
+independent ones, and a size no fit or model choice saw):
+
+| Check | Train | Held, 32x10 | Held, 64x16 | Constants (precipitation, baseflow, cooling) |
+| --- | --- | --- | --- | --- |
+| Held pair {7, 31} | 0.323 | 0.391 (1.21x) | 0.645 (2.0x, the worst fold) | 0.3345, 0.0614, −0.379 |
+| Held pair {11, 302} | 0.313 | 0.456 (1.46x) | 0.392 | 0.3178, 0.0629, −0.271; none at a bound |
+| Unseen size 48x12 (seeds 7, 11, 13, 17; constants in force) | 0.340 (the 32x10 train score) | score 0.417 (1.23x); level with upstream +0.079 (max +0.138), all +0.024; drought 0.119 (old rule 0.134); drift −0.9% (cycle 2 → 5), +2.5% late; corr 0.71, amplitude 0.97 | | first B2 fit 0.499, B1 2.95 |
+
+So the remaining overfit, precisely: held-out error is 1.1-1.5x the training error at the fitted size
+(up to 2.0x in one fold at 64x16), 1.23x at the unseen 48x12, and the downstream wet bias (+0.05 to
++0.08, up to +0.15) is what grows out of sample.
+
 Per held seed (mean over its 7 folds): score at 32x10 / 64x16 — procedural 7 0.50 / 0.70, 11 0.53 /
 0.44, 13 0.38 / 0.51, 17 0.35 / 0.37, 21 0.21 / 0.19, 31 0.33 / 0.63, 302 0.36 / 0.37, 303 0.31 /
 0.32. The held-out error is 11% above the training error at the fitted size and 32% above it at
@@ -490,7 +517,7 @@ over 400 turns:
 | Drought share (old rule) | 0.122 (0.111) | 0.123 (0.152) | 0.153 (0.111); 0.168 (0.152) |
 | Storage drift, cycle 2 → 5 (old index) | +0.7%, worst 6.8% (+12.3%) | −2.2%, worst 6.1% (+13.6%) | −2.6%, worst 17.1%; −10.4%, worst 16.2% |
 | Storage drift over 200-399, cycle 4 → 5 (old index) | −1.2% (+3.4%) | −1.4% (+1.7%) | +0.1%; −0.2% |
-| Flood events per world, 400 turns | 0.9 (none in five of eight worlds; longest 31 turns) | 4.3 (1-7 in every world; longest 43) | (fixed channel) |
+| Flood events per world, 400 turns | 1.1 (none in five of eight worlds; longest 6 turns) | 4.6 (in every world; longest 13) | (fixed channel) |
 
 Per world, 32x10 (fitted) and 64x16 (transfer):
 
@@ -523,12 +550,14 @@ Per world, 32x10 (fitted) and 64x16 (transfer):
   index itself moves −1% to +34% over the same cycles; within cycles 4 → 5 storage follows the old
   index's own movement (−20% in procedural 302 where the old index falls 13%; +11% in procedural 11
   where it rises 10%), which comes from the forcing, not from a loss in the account.
-- **Floods are rare anomalies.** The channel carries the basin's normal inflow, seasonal melt
-  included (section 3), so only anomalous rain or melt floods: about 0.9 flood events per world per
-  400 turns at 32x10 (none in five of eight worlds) and 4.3 at 64x16. With the first refit's channel
-  (normal precipitation without melt) 105 of 112 events in the development `flow` runs were the
-  expected tundra melt in the warming phase. No constant was tuned toward a flood count; the channel
-  does not touch storage or the derived index, so the calibration above is unchanged by it.
+- **Floods are rare and come from forest loss.** The channel carries the basin's normal inflow,
+  seasonal melt included (section 3), and rain never exceeds its normal in this model, so floods
+  arise only from storage released when upstream forest cover drops (section 3's model limitation):
+  about 1.1 flood events per world per 400 turns at 32x10 (none in five of eight worlds) and 4.6 at
+  64x16, each one exceedance long or a few turns. With the first refit's channel (normal
+  precipitation without melt) 105 of 112 events in the development `flow` runs were the expected
+  tundra melt in the warming phase. No constant was tuned toward a flood count; the channel and the
+  event rule do not touch storage or the derived index, so the calibration above is unchanged.
 - **Identifiability.** The old index identifies three constants (the precipitation/evaporation
   ratio, baseflow and the cooling-phase cut); everything else is fixed by declaration. The fitted
   three are stable across folds. The fit is still to the old index's behaviour on eight development
@@ -592,8 +621,8 @@ refuses any other seed; no held screen was run (CW3 is preregistered after revie
 
 Means over the 200 snapshots, `flow` / `record_only` (capacity and population: the final state; the
 water factor is the capacity term `min(1, water / 0.5)`; food is the mean sufficiency and the share of
-region-turns below 1). Runs of source `cbccee74` (the channel with seasonal melt, no onset on the
-opening turn; extension `e724072d…`, main's Rust after PR #87):
+region-turns below 1). Runs of source `538ad09e` (the channel with seasonal melt, no onset on the
+opening turn, events ending at normal arrivals; extension `e724072d…`, main's Rust after PR #87):
 
 | World | Index, all | Headwater | With upstream | Water factor | Food sufficiency | Shortfall share | Effective capacity, end | Population, end | Famine events |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -601,7 +630,7 @@ opening turn; extension `e724072d…`, main's Rust after PR #87):
 | procedural 11 | 0.621 / 0.586 | 0.612 / 0.625 | 0.640 / 0.511 | 0.900 / 0.849 | 1.47 / 1.33 | 0.258 / 0.351 | 956 / 961 | 389 / 677 | 39 / 60 |
 | procedural 13 | 0.613 / 0.595 | 0.591 / 0.605 | 0.654 / 0.574 | 0.883 / 0.857 | 1.42 / 1.33 | 0.306 / 0.351 | 1090 / 1195 | 607 / 606 | 81 / 94 |
 | procedural 17 | 0.624 / 0.636 | 0.606 / 0.638 | 0.656 / 0.631 | 0.897 / 0.916 | 1.24 / 1.20 | 0.387 / 0.409 | 935 / 970 | 618 / 597 | 112 / 98 |
-| procedural 21 | 0.630 / 0.606 | 0.606 / 0.589 | 0.665 / 0.631 | 0.891 / 0.867 | 1.22 / 1.09 | 0.424 / 0.475 | 948 / 1157 | 439 / 487 | 134 / 132 |
+| procedural 21 | 0.630 / 0.606 | 0.606 / 0.589 | 0.665 / 0.631 | 0.890 / 0.867 | 1.26 / 1.09 | 0.394 / 0.475 | 941 / 1157 | 473 / 487 | 126 / 132 |
 | procedural 31 | 0.616 / 0.584 | 0.597 / 0.565 | 0.644 / 0.612 | 0.892 / 0.856 | 1.09 / 1.19 | 0.491 / 0.415 | 986 / 1041 | 811 / 732 | 147 / 112 |
 | procedural 302 | 0.609 / 0.607 | 0.575 / 0.577 | 0.652 / 0.645 | 0.869 / 0.868 | 1.16 / 1.18 | 0.431 / 0.431 | 915 / 1075 | 606 / 464 | 121 / 101 |
 | procedural 303 | 0.630 / 0.604 | 0.620 / 0.622 | 0.649 / 0.569 | 0.900 / 0.863 | 1.10 / 0.94 | 0.494 / 0.614 | 849 / 938 | 348 / 367 | 111 / 146 |
@@ -612,30 +641,43 @@ opening turn; extension `e724072d…`, main's Rust after PR #87):
 | procedural 11 | 48 / 45 | 0 | 0 | 0 | 22 / 22 | 0.643 / 0.633 |
 | procedural 13 | 54 / 53 | 1 | 7 | 1 | 22 / 22 | 0.659 / 0.640 |
 | procedural 17 | 48 / 50 | 1 | 0 | 0 | 32 / 32 | 0.732 / 0.597 |
-| procedural 21 | 47 / 42 | 2 | 0 | 0 | 25 / 25 | 0.688 / 0.628 |
+| procedural 21 | 47 / 42 | 3 | 0 | 0 | 25 / 25 | 0.682 / 0.638 |
 | procedural 31 | 47 / 51 | 0 | 0 | 0 | 36 / 36 | 0.695 / 0.609 |
 | procedural 302 | 51 / 53 | 0 | 0 | 0 | 34 / 34 | 0.649 / 0.655 |
 | procedural 303 | 46 / 50 | 0 | 12 | 1 | 17 / 17 | 0.647 / 0.651 |
 
-**Flood events by cause** (`flow`, 8 worlds x 200 turns; `flood_causes`: an account flood event is
-*melt* when the seasonal melt of its basin alone accounts for its excess, else *rain*; *coastal* are
-the coastal floods, a separate authority): with the channel = normal precipitation; with the channel
-= normal inflow, melt included; and with that channel and no onset on the opening turn (in force):
+**Flood events by cause** (`flow`, 8 worlds x 200 turns; an account flood event is *melt* when the
+seasonal melt of its basin alone accounts for its excess, else *release*: stored water released after
+an upstream forest loss, since rain never exceeds its normal (section 3); every release onset in force
+coincides with an upstream capacity drop of 0.15-0.16 wu. *Coastal* are the coastal floods, a separate
+authority): with the channel = normal precipitation; with the channel = normal inflow, melt included;
+and in force (that channel, no onset on the opening turn, events ending at normal arrivals):
 
-| World | Normal precipitation: rain / melt / coastal | Normal inflow: rain / melt / coastal | In force: rain / melt / coastal |
+| World | Normal precipitation: release / melt / coastal | Normal inflow: release / melt / coastal | In force: release / melt / coastal |
 | --- | --- | --- | --- |
 | procedural 7 | 0 / 13 / 4 | 0 / 0 / 4 | 0 / 0 / 4 |
 | procedural 11 | 1 / 15 / 22 | 1 / 0 / 22 | 0 / 0 / 22 |
 | procedural 13 | 1 / 13 / 22 | 1 / 0 / 22 | 1 / 0 / 22 |
 | procedural 17 | 1 / 16 / 32 | 1 / 0 / 32 | 1 / 0 / 32 |
-| procedural 21 | 2 / 9 / 25 | 2 / 0 / 25 | 2 / 0 / 25 |
+| procedural 21 | 2 / 9 / 25 | 2 / 0 / 25 | 3 / 0 / 25 |
 | procedural 31 | 0 / 14 / 36 | 0 / 0 / 36 | 0 / 0 / 36 |
 | procedural 302 | 1 / 8 / 34 | 1 / 0 / 34 | 0 / 0 / 34 |
 | procedural 303 | 1 / 17 / 17 | 1 / 0 / 17 | 0 / 0 / 17 |
-| **Total** | **7 / 105 / 192** | **7 / 0 / 192** | **4 / 0 / 192** |
+| **Total** | **7 / 105 / 192** | **7 / 0 / 192** | **5 / 0 / 192** |
 
-The three events the opening rule removes all started on turn 0 (procedural 11, 302 and 303), when
-every storage opens near capacity from the world-generation index. An equilibrium opening was
+The opening rule removed three events, all on turn 0 (procedural 11, 302 and 303), when every storage
+opens near capacity from the world-generation index; the end rule added one (procedural 21's second
+exceedance, at turn 42, fell inside the first event's 31 open turns and had no consequence).
+
+**Events against exceedances** (an exceedance: a turn crossing the channel from below, never the
+opening turn), before and after the end rule:
+
+| | Exceedances | Events (per exceedance) | Consequences | Median / longest event, turns |
+| --- | --- | --- | --- | --- |
+| Development `flow` runs, 200 turns: end at 0.75 of the channel | 5 | 4 (0.80) | 4 | 31 / 31 |
+| The same, end at normal arrivals (in force) | 5 | 5 (1.00) | 5 | 1 / 6 |
+| Replays 32x10, 400 turns: 0.75 of the channel / normal arrivals | 9 | 7 (0.78) / 9 (1.00) | — | 15 / 31; 1 / 6 |
+| Replays 64x16, 400 turns: 0.75 of the channel / normal arrivals | 37 | 34 (0.92) / 37 (1.00) | — | 10 / 43; 1 / 13 | An equilibrium opening was
 considered instead and not taken: it would make the index `flow` uses jump at turn 0 (the derived
 index is continuous with the old index at enable by design); the onset rule needs no constant.
 
@@ -647,9 +689,9 @@ rule acted once per event; the melt-aware channel leaves only the anomalous even
 | --- | --- | --- | --- |
 | procedural 7 | 2, 27, 31 | 13, 15 / 15, 13 | 0, —, 0 |
 | procedural 11 | 0, 0, 0 | 16, 15 / 45, 16 | 0, —, 0 |
-| procedural 13 | 0, 0, 0 | 14, 15 / 15, 14 | 1, 15, 1 |
-| procedural 17 | 0, 0, 0 | 17, 15 / 15, 17 | 1, 7, 1 |
-| procedural 21 | 5, 15, 44 | 11, 15 / 31, 11 | 2, 31 / 31, 2 |
+| procedural 13 | 0, 0, 0 | 14, 15 / 15, 14 | 1, 6, 1 |
+| procedural 17 | 0, 0, 0 | 17, 15 / 15, 17 | 1, 1, 1 |
+| procedural 21 | 5, 15, 44 | 11, 15 / 31, 11 | 3, 1 / 3, 3 |
 | procedural 31 | 5, 42, 94 | 14, 15 / 15, 14 | 0, —, 0 |
 | procedural 302 | 0, 0, 0 | 9, 15 / 45, 9 | 0, —, 0 |
 | procedural 303 | 1, 15, 15 | 18, 15 / 45, 18 | 0, —, 0 |
@@ -666,10 +708,11 @@ Observations (development only):
   six worlds and lower in two, the shortfall share follows; final effective capacity is lower in seven
   (a single end-of-run snapshot); final population is higher in five and lower in three. Eight single
   runs cannot separate these from trajectory divergence.
-- **Floods are rare anomalies.** 0-2 account flood events per world in 200 turns (4 in all), each
-  acting once at its onset; all are rain events at confluences (one a tundra confluence in the
-  temperate phase). The expected melt no longer floods (105 events before, 0 after), nor does the
-  opening turn (3 before). Coastal floods (192) are unchanged.
+- **Floods are rare and follow forest loss.** 0-3 account flood events per world in 200 turns (5 in
+  all), each lasting 1-6 turns and acting once at its onset; every one follows an upstream forest
+  loss that released stored water (an upstream capacity drop of 0.15-0.16 wu). There are no
+  rain-driven floods in this model (section 3). The expected melt no longer floods (105 events
+  before, 0 after), nor does the opening turn (3 before). Coastal floods (192) are unchanged.
 - **Droughts** are as frequent as the record-only account finds in the world without it (46-81
   against 42-84 declared per world), now acting through the index.
 - **Superseded river floods.** The old check, reading the derived index, draws a river flood more
@@ -767,16 +810,15 @@ Viewer (types in `viewer/src/watershedTypes.ts`; `types.ts` is pinned and unchan
 
 ## 11. Verification (2026-11-06, extension `101a4cd5…`)
 
-### B2 after review (source `cbccee74`: the review fixes, the melt-aware channel, no onset on the opening turn, and the merge of `main` `ae94bca6`)
+### B2 after review and re-check (source `538ad09e`: the review fixes, the melt-aware channel, no onset on the opening turn, events ending at normal arrivals, and the merge of `main` `ae94bca6`)
 
 Native runs used the shared extension built from `main` `ae94bca6` (SHA-256 `e724072d…`; this branch's
 Rust equals main's, no Rust change) with `PYTHONPATH` set to this worktree's `src`; the identity runs
 used a `git archive` of the committed tree and a copy of that extension.
 
-- Offline: `tests/test_watershed.py`, 60 cases, in the oracle chunk `connected-world-b`. Bounded
+- Offline: `tests/test_watershed.py`, 62 cases, in the oracle chunk `connected-world-b`. Bounded
   offline lane (`cwb2` last: `..., "cws1", "cwc1b", "cwb2"`, rebuilt against main's
-  `agent_bridge.py`): PASS, 69 chunks in 337.8 s, slowest `systems-2` 39.5 s of 110 s. Witness tests
-  of the playbook: 509 passed.
+  `agent_bridge.py`): PASS, 69 chunks in 310.3 s, slowest `systems-2` 37.4 s of 110 s. Witness tests of the playbook: 509 passed.
 - Native: `tests/test_watershed_native.py` (shard 0; 417 modules), 3 passed: in `--agents hybrid` and
   `--agents off` over 80 turns (every climate phase) the observed index equals the derived one within
   the native rounding, or the derived one capped at a recorded cap change, with irrigated regions in
@@ -787,17 +829,18 @@ used a `git archive` of the committed tree and a copy of that extension.
   removing only the watershed record: 16 files each, 0 differences.
 - `flow` exact resume, `checkpoint_identity.py run --case proc32_hybrid_s11` with
   `--watershed --watershed-mode=flow`: PASS, 39 resume points, 0 differences; checkpointing changes
-  nothing (40 files). Procedural 13, hybrid, resumed at turn 35 with a flood event open (since turn
+  nothing (40 files). Procedural 13, hybrid, resumed at turn 33 with a flood event open (since turn
   30) to turn 60: 16 files, 0 differences.
-- Calibration replay: `simulate` equals `account_step` exactly on all 16 captures (max difference 0).
+- Calibration replay: `simulate` equals `account_step` exactly on all 16 captures, normal arrivals
+  included (max difference 0).
 - Viewer: every snapshot of the 16 development runs (8 `flow`, 8 `record_only`, 200 turns each) reads
-  ok with the real reader (3200 snapshots; the review had found 5 refused in two first-draft runs);
-  1587 tests passed, 2 skipped (157 files), lint and production build; desktop 1440x900 and phone
-  390x844 browser check of the procedural-13 `flow` run (a superseded river flood at snapshot 2, a
-  flood event that acted at 31, a terrain cap change at 73, the last snapshot, and the region
-  history labelled for `flow`): 62/62 checks, no console errors, no page overflow on the phone.
-- The same checks passed on `b87e9aa2` (the melt-aware channel, before the merge, extension
-  `101a4cd5…`): lane 69 chunks in 242.6 s, feature-off 0 differences, resume PASS.
+  ok with the real reader (3200 snapshots); 1587 tests passed, 2 skipped (157 files), lint and production build; desktop 1440x900 and phone 390x844
+  browser check of the procedural-13 `flow` run (a superseded river flood at snapshot 2, a flood
+  event that acted at 31, a terrain cap change at 73, the last snapshot, and the region history
+  labelled for `flow`): 62/62 checks, no console errors, no page overflow on the phone.
+- The same checks passed on `cbccee74` (the opening rule, events ending at 0.75 of the channel): lane
+  69 chunks in 337.8 s, feature-off 0 differences, resume PASS, viewer 1587 tests, 62/62 browser
+  checks; and on `b87e9aa2` before the merge (extension `101a4cd5…`).
 
 ### B2 first draft (superseded constants and flood rule; source `c25a4113`)
 
@@ -846,7 +889,8 @@ First pass (source `0779587`) and, after the independent review's findings, agai
 | Template worlds have no watershed | intentional boundary | refused at startup and on a state-file resume (tested) |
 | A live start cannot be checked against its requested world by the catalog (static surface; `live.py` is pinned) | intentional boundary of the catalog surface | on a live lobby the run checks it: a start naming the switch on a template world is refused and the lobby reopens; a lobby whose command line holds `--watershed` is refused at startup (tested) |
 | Three constants fitted to the old index on the eight development worlds; the rest fixed by declaration | evidence gap (review M3) | calibration (section 8): leave-two-out CV and a 64x16 transfer check; remaining mismatch stated there (downstream wet bias +0.05 at 32x10, +0.08 at 64x16; drought frequency more uniform than the old index's; drought phase at its physical limits). No held world used; the activation report uses the same worlds |
-| Flood events are rare: about 0.9 per world per 400 turns at 32x10 (none in five of eight worlds), 4.3 at 64x16 | declared (channel = the basin's normal inflow, seasonal melt included; lead decision), not fitted toward any count | section 8; consequences act once per event (section 4) |
+| Flood events are rare: about 1.1 per world per 400 turns at 32x10 (none in five of eight worlds), 4.6 at 64x16, each 1-13 turns | declared (channel = the basin's normal inflow, seasonal melt included; events end at normal arrivals), not fitted toward any count | section 8; consequences act once per event (section 4) |
+| Floods come only from storage released by upstream forest loss; no rain-driven floods | model limitation (re-check minor 2): precipitation has no weather variability (phase factors at most 1, shocks only reduce it) | section 3; a weather term would be a later slice |
 | `flow`'s effects on food, carrying capacity and population | evidence gap | development activation report (section 9): no consistent direction over eight single runs; CW3, preregistered after review, is the test |
 | `record_only` floods and droughts have no consequence | intentional (record only) | `flow` applies them through the existing fields and the index (section 4) |
 | `flow` requires the native ecology | intentional boundary | the pure-Python fallback cannot switch native terms off: refused at startup, on a state-file resume and at planning (tested) |
