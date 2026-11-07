@@ -1187,7 +1187,7 @@ def test_exact_resume_with_an_outstanding_timber_order_matches_the_straight_run(
         pl1_turn(a, sim_a)
         if any(e.home == 2 and e.stage == "cutting" for e in a.livelihoods.timber_supply.expeditions):
             break
-    (exp,) = [e for e in a.livelihoods.timber_supply.expeditions if e.home == 2]
+    (_exp,) = [e for e in a.livelihoods.timber_supply.expeditions if e.home == 2]
     assert [r.reason for r in _state(a).timber_needs] in (["forest_busy"], [None])
     assert _state(a).counters["timber_refused_forest_busy"] >= 1 and _state(a).works
     b, sim_b = pickle.loads(pickle.dumps(a)), copy.deepcopy(sim_a)

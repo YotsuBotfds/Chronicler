@@ -31,6 +31,18 @@ region launches one, or records why not (``REFUSALS``, first failing check):
 * ``no_coins``: the controller's projected treasury cannot pay the whole
   expedition's wages and its other live expeditions' remaining wages.
 
+B3's works (``--infrastructure-condition`` in ``repair`` or ``cost_only``)
+are served after every RS2 need row of the turn, by the same planner
+(``_plan_works``): per region with open works that can use timber next Phase
+2 (``infrastructure_condition.timber_wants``: only works already opened, one
+turn at their per-turn cap), the works' want against what the free timber and
+the cargo on its way leave after RS2's want there; a region with a live
+expedition gets no second one, and a gap of at least ``MIN_GAP`` launches one
+under the same checks, crew rule, wages and work reservation (no other labour
+authority), or records the refusal. The rows go to B3's record; this
+package's need rows and their counters stay RS2's. Off, and in B3's
+``record_only``/``wear_only``, nothing here changes.
+
 Who goes. At most ``CREW_CAP`` living adults resident in the home region,
 of any occupation but Soldier, not on an army roster, not away on a merchant
 trip and not on another crew; eligible RS3 veterans first
@@ -70,8 +82,9 @@ Cargo and store. Cut timber is carried home and loses the economy's timber
 transit decay per hop (``TRANSIT_DECAY``). On arrival (Phase 10) it is
 credited to an RS2-earmarked store of the home region. RS2 reads the store as
 free timber ahead of the stockpile, and its holds take from the store first
-(the PL1 seam in ``repair_projects``); nothing else can take it (it is not in
-the native stockpile). Timber left in a region without an open RS2 project
+(the PL1 seam in ``repair_projects``; B3's works hold through RS2's holds);
+nothing else can take it (it is not in the native stockpile). Timber left in
+a region without an open RS2 project (or, with B3's works on, an open work)
 is released to the region's stockpile, and the release is recorded.
 
 A turn the controller cannot pay recalls the expedition: the crew stops

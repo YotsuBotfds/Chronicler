@@ -74,7 +74,13 @@ RS2 planned its own projects:
 * Timber: ``TIMBER_PER_WORK`` (irrigation 0.25, roads 0.5) from RS2's free
   timber after RS2's holds (stockpile minus merchant commitments, plus the
   PL1 store), held in RS2's per-region holds (so a failed tick returns it with
-  RS2's) and the unused part returned after the tick.
+  RS2's) and the unused part returned after the tick. With PL1
+  (``--timber-supply``) the open works' timber need enters PL1's planner
+  after every RS2 need row of the turn (:func:`timber_wants`; PL1's
+  ``_plan_works``): the same forests, crew rule, wages and work reservation,
+  no other labour authority; the cargo reaches the home store, which RS2's
+  holds (the works' included) take first, and PL1 keeps the store where works
+  are open. The rows are recorded here (``timber_needs``).
 * Coins: ``COIN_MILLI_PER_WORK`` per delivered unit (a whole repair from 0
   costs at most the BUILD cost of a new record: irrigation 12, roads 10), one
   whole-unit charge per civ and turn with the sub-unit remainder prepaid
