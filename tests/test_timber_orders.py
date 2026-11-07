@@ -279,3 +279,84 @@ def test_order_requires_current_cross_civilization_seller_and_payer(lane):
     world.regions[1].controller="C0"
     assert buy(lane) is None
     assert not state.orders and world.regions[0].stockpile.goods["timber"]==10
+
+
+def _road_stake_world():
+    from tests.test_infrastructure_condition import _pl1_world, ROADS
+    from chronicler.local_budgets_state import LocalBudgetState
+    world = _pl1_world(work_region=0, kind=ROADS)
+    world.livelihoods.local_budgets = LocalBudgetState()
+    world.livelihoods.timber_orders = TimberOrdersState(prices={1: (world.turn - 1, 1000)})
+    return world
+
+
+def test_timber_proposal_values_bounded_road_worker_time_never_timber_as_food(monkeypatch):
+    from chronicler import infrastructure_condition as I
+    world = _road_stake_world()
+    monkeypatch.setattr(T, "_needs", lambda _: [(0, 0, 2.0)])
+    (proposal,) = T.BUDGET_PROVIDER.proposals(world, 0, NS(turn=world.turn))
+    assert proposal["expected"] == 2.0 and proposal["unit"] == "timber dispatched"
+    assert proposal["relief"] == {"patricians": 4.0}
+    assert "commons" not in proposal["relief"]
+    assert proposal["detail"]["potential_repair_work"] <= I.road_work_burden(world, 0)
+    assert "repair and service restoration unproved" in proposal["detail"]["promise"]
+    road = next(w for w in world.livelihoods.infrastructure_condition.works if w.kind == "roads")
+    road.scope = road.delivered + .1
+    assert T.BUDGET_PROVIDER.proposals(world, 0, NS(turn=world.turn))[0]["relief"]["patricians"] == pytest.approx(.1)
+    assert T.BUDGET_PROVIDER.proposals(world, 0, NS(turn=world.turn - 1)) == []
+    assert T.BUDGET_PROVIDER.proposals(world, 1, NS(turn=world.turn)) == []
+
+
+def test_irrigation_input_claims_precede_road_stake_without_becoming_food_relief(monkeypatch):
+    from chronicler import infrastructure_condition as I
+    from chronicler.models import Infrastructure, InfrastructureType
+    world = _road_stake_world()
+    world.regions[0].infrastructure.append(Infrastructure(type=InfrastructureType.IRRIGATION,
+        built_turn=0, builder_civ=world.civilizations[0].name))
+    I.reconcile(world)
+    irrigation = next(a for a in world.livelihoods.infrastructure_condition.assets if a.kind == "irrigation")
+    irrigation.condition = .2
+    I.phase10_before_reserves(world, None, None, None)
+    # The first timber unit serves irrigation. Only the next unit can support
+    # two road worker-turns. No speculative irrigation food benefit is added.
+    assert T.potential_repair_work(world, 0, [(0, 1.0)], NS(turn=world.turn)) == {}
+    assert T.potential_repair_work(world, 0, [(0, 2.0)], NS(turn=world.turn)) == {0: 2.0}
+    world.livelihoods.infrastructure_condition.mode = "record_only"
+    assert T.potential_repair_work(world, 0, [(0, 2.0)], NS(turn=world.turn)) == {}
+
+
+def test_workshop_stake_uses_current_idle_work_and_existing_condition_conversion(monkeypatch):
+    from tests.test_repair_projects import _world
+    from chronicler import repair_projects as R
+    world = _world(granary=1.0, site=.1, policy="neglect")
+    R.phase10_before_reserves(world, None, None, None)
+    workshops = world.livelihoods.workshops
+    workshops.frame_turn, workshops.frame = world.turn, [NS(site=0, region=1, work_available=.6, allocated=0.0)]
+    project = next(p for p in world.livelihoods.repair_projects.projects if p.kind == "workshop")
+    value = T.potential_repair_work(world, 0, [(1, 20.0)], NS(turn=world.turn))[1]
+    assert 0 < value <= min(.6, project.scope - project.delivered)
+    workshops.frame_turn -= 1
+    assert T.potential_repair_work(world, 0, [(1, 20.0)], NS(turn=world.turn)) == {}
+
+
+def test_granary_only_gap_has_no_invented_food_or_idle_work_value():
+    from tests.test_repair_projects import _world
+    from chronicler import repair_projects as R
+    world = _world(granary=.2, policy="neglect")
+    R.phase10_before_reserves(world, None, None, None)
+    assert any(p.kind == "granary" for p in world.livelihoods.repair_projects.projects)
+    assert T.potential_repair_work(world, 0, [(0, 10.0)], NS(turn=world.turn)) == {}
+
+
+def test_unpromised_destination_cannot_use_another_regions_timber_envelope(lane, monkeypatch):
+    import chronicler.local_budgets as LB
+    world, state, sim, _ = lane
+    monkeypatch.setattr(T, "_needs", lambda _: [(1, 1, 2.0)])
+    calls = []
+    def authority(world, civ, service, **kwargs):
+        calls.append((civ, service, kwargs))
+        return 0 if kwargs.get("region") == 1 else 10
+    monkeypatch.setattr(LB, "envelope", authority)
+    T.phase10_before_reserves(world, None, None, NS(_sim=sim))
+    assert calls == [(1, T.SERVICE, {"region": 1})]
+    assert not state.orders and not state.book.settled and world.regions[0].stockpile.goods["timber"] == 10.0

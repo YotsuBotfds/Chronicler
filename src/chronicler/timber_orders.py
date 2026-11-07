@@ -394,7 +394,7 @@ def phase10_before_reserves(world, acc, economy_result, agent_bridge):
     from chronicler.adaptive_livelihoods import trade_destinations
     known_markets = trade_destinations(world, sim, people)
     for dest, payer, gap in _needs(world):
-        allowance = max(0, (envelope(world, payer, SERVICE) or 0) - t.spent.get(payer, 0))
+        allowance = max(0, (envelope(world, payer, SERVICE, region=dest) or 0) - t.spent.get(payer, 0))
         if not allowance:
             continue
         candidates = []
@@ -451,6 +451,69 @@ def snapshot_summary(world):
             "parameters": {"freight": FREIGHT, "max_age": MAX_AGE, "max_orders": MAX_ORDERS, "max_events": MAX_EVENTS}}
 
 
+def potential_repair_work(world, civ, gaps, obs):
+    """Conservative patrician work stake; timber is never nutrition.
+
+    Conservatively reserve granary input needs before valuing workshop
+    repairs; B3 follows RS2, then irrigation before roads. The real planners
+    still decide actual delivery and may use a different RS2 mix. Only current workshop idle work
+    and outstanding road work can be valued. Inputs promise no future repair:
+    labor, later budgets and actual delivery may still fail.
+    """
+    from chronicler import repair_projects as R, infrastructure_condition as I
+    from chronicler.workshops import OPERATE_CONDITION
+    turn = getattr(obs, "turn", None)
+    if turn != world.turn:
+        return {}
+    repair = R._state(world)
+    projects = repair.projects if repair is not None and R.repair_projects_active(world) else []
+    workshops = getattr(world.livelihoods, "workshops", None)
+    frame = ({r.site: r for r in workshops.frame} if workshops is not None
+             and workshops.frame_turn == turn else {})
+    sites = R._sites(world) if projects else {}
+    infrastructure = I._state(world)
+    works = I._asking_works(world, infrastructure)
+    result = {}
+    for region, gap in gaps:
+        if _controller(world, region) != civ:
+            continue
+        available, relief = max(0.0, float(gap)), 0.0
+        for project in sorted(projects, key=lambda p: (p.kind != "granary", p.pid)):
+            if project.region != region:
+                continue
+            remaining = max(0.0, project.scope - project.delivered)
+            condition = R._condition(world, project.kind, project.asset)
+            if condition is None or remaining <= R.DONE:
+                continue
+            if project.kind == "granary":
+                _per_condition, per_turn, rate, _coins = R._storage_rules()
+                # No established granary-to-food benefit is inferred here.
+                available = max(0.0, available - min(per_turn, remaining) * rate)
+                continue
+            site, receipt = sites.get(project.asset), frame.get(project.asset)
+            if site is None:
+                continue
+            per_turn = R.MAX_CREW * R._diverted(world, site) * R.UNQUALIFIED_RATE
+            amount = min(remaining, per_turn, available / R.WORKSHOP_TIMBER_PER_WORK)
+            available = max(0.0, available - amount * R.WORKSHOP_TIMBER_PER_WORK)
+            if receipt is not None and condition < OPERATE_CONDITION:
+                idle = max(0.0, float(receipt.work_available) - float(receipt.allocated))
+                service_gain = (amount / R.WORKSHOP_WORK_PER_CONDITION) / max(R.EPS, OPERATE_CONDITION - condition)
+                relief += min(idle, remaining, amount, idle * min(1.0, service_gain))
+        for work in works:                     # B3's fixed irrigation -> roads order
+            if work.region != region:
+                continue
+            remaining = max(0.0, work.scope - work.delivered)
+            rate = I.TIMBER_PER_WORK[work.kind]
+            amount = min(I.WORK_PER_TURN, remaining, available / rate)
+            available = max(0.0, available - amount * rate)
+            if work.kind == "roads":
+                relief += amount              # bounded outstanding road worker-turns
+        if relief > 1e-9:
+            result[region] = relief
+    return result
+
+
 from chronicler.local_budgets import Provider
 class _TimberOrders(Provider):
     services = (SERVICE,)
@@ -461,6 +524,8 @@ class _TimberOrders(Provider):
         if not self.active(world):
             return []
         gaps = [(region, gap) for region, payer, gap in _needs(world) if payer == civ]
+        work = potential_repair_work(world, civ, gaps, obs)
+        gaps = [(region, gap) for region, gap in gaps if region in work]
         if not gaps:
             return []
         prices = [price for turn, price in _state(world).prices.values() if turn < world.turn]
@@ -470,7 +535,10 @@ class _TimberOrders(Provider):
         cost = max(1, math.ceil(expected * max(prices) * (1 + FREIGHT * TT.MAX_HOPS) / 0.99 ** TT.MAX_HOPS / MILLI))
         return [dict(service=SERVICE, recipients=[r for r, _ in gaps], claims=[f"timber_orders:{civ}"],
                      cost=cost, divisible=True, unit="timber dispatched", expected=expected,
-                     relief={"commons": expected}, detail={"gap": expected})]
+                     relief={"patricians": math.fsum(work.values())},
+                     detail={"gap": expected, "potential_repair_work": math.fsum(work.values()),
+                             "relief_unit": "bounded workshop idle/road repair worker-turns",
+                             "promise": "timber dispatch only; repair and service restoration unproved"})]
     def settle(self, world, commitment, obs):
         state = _state(world)
         t = state._turn if state is not None else None
