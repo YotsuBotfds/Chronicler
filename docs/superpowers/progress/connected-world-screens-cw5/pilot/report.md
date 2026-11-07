@@ -1,9 +1,9 @@
 # CW5: S4 titled trade (A4-1)
 
-Cohort pilot. Runs: 4; failed: 0 (missing outcomes: 0); simulation and extraction seconds 91 (0.025 core-hours)
-Projected held run time from this pilot: 0.151 core-hours (x1.5 = 0.227) for 24 runs
+Cohort pilot. Runs: 4; failed: 0 (missing outcomes: 0); simulation and extraction seconds 68 (0.019 core-hours)
+Projected held run time from this pilot: 0.113 core-hours (x1.5 = 0.170) for 24 runs
 
-Identity digests: 3732071a8aab8360ef8e753be14ccc84b971a2b1d0837c776cfc1492ae5a3a00 (source.txt holds the lines)
+Identity digests: ff2e2deb24f70ec70e73f1da173e91df2ce90af0a8cc2bac71d0a8b41100e657 (source.txt holds the lines)
 Schema versions read: {"bundle": 6, "livelihoods": [1], "packages": {"food_allocation": [1], "household_retail": [1], "titled_trade": [1], "wealth_accounting": [1]}, "records": {"food_accounting": [1], "regional_population": [1]}}; {"bundle": 6, "livelihoods": [1], "packages": {"food_allocation": [1], "household_retail": [1], "wealth_accounting": [1]}, "records": {"food_accounting": [1], "regional_population": [1]}}
 
 ## Activation per world (before any effect)
@@ -143,7 +143,7 @@ Schema versions read: {"bundle": 6, "livelihoods": [1], "packages": {"food_alloc
 
 | Arm | t | p |
 | --- | --- | --- |
-| R | 9.0 [9.0, 9.0] | 33.3 [33.3, 33.3] |
-| T | 10.1 [10.1, 10.1] | 38.4 [38.4, 38.4] |
+| R | 8.7 [8.7, 8.7] | 21.7 [21.7, 21.7] |
+| T | 9.7 [9.7, 9.7] | 27.8 [27.8, 27.8] |
 
 Descriptive only: the sign-flip column counts the 2^n sign assignments whose mean is at least as far from zero as the observed mean, with the range of those means; it is not a significance test.

@@ -262,23 +262,24 @@ identical in R and T on both worlds; an independent recomputation matched.
 
 ## Timing pilot (the shared pilot)
 
-`run PILOT --screen CW5 --cohort pilot --jobs 2` on `55748ec7` (revision 2 with the paired
-readings; clean tree; `source.txt`: dirty 0, dirty-code 0; extension `43cbd22a…`): 4 runs, 0
-failed, every outcome extracted; 91 s of simulation and extraction (load average about 5 on 4
-cores from other lanes). Seconds per run: R template 9.0, procedural 33.3; T template 10.1,
-procedural 38.4. T activated on both worlds; both windows valid (template 5: f = 18, 18 turns;
-procedural 19: f = 7, 7 turns). **Projected held run: 0.151 core-hours for 24 runs** (x1.5 =
-0.227). An earlier revision-2 pilot (`99d48901`, the same simulations, the report-hook version of
-the pairing) ran under a load average of about 10 and projected 0.323. The pilot's
-`metrics.jsonl`, `source.txt` and `report.md` are retained in `connected-world-screens-cw5/pilot/`
-(the held run's `--pilot`). The report prints the pilot's outcomes; they were not used to choose
-any definition.
+`run PILOT --screen CW5 --cohort pilot --jobs 2` on `60edc6c9` (the code frozen below; clean tree;
+`source.txt`: dirty 0, dirty-code 0; extension `43cbd22a…`; runner `deb4eb57…`, screens
+`5abac387…`): 4 runs, 0 failed, every outcome extracted; 68 s of simulation and extraction.
+Seconds per run: R template 8.7, procedural 21.7; T template 9.7, procedural 27.8. T activated on
+both worlds; both windows valid (template 5: f = 18, 18 turns; procedural 19: f = 7, 7 turns).
+**Projected held run: 0.113 core-hours for 24 runs** (x1.5 = 0.170). `check --metrics ... --cohort
+pilot` passes and the runner's `load_pilot` accepts the pilot for this code (no refusal). Earlier
+revision-2 pilots (the same simulations) projected 0.151 at `55748ec7` (load average about 5) and
+0.323 at `99d48901` (load average about 10). The pilot's `metrics.jsonl`, `source.txt` and
+`report.md` are retained in `connected-world-screens-cw5/pilot/` (the held run's `--pilot`). The
+report prints the pilot's outcomes; they were not used to choose any definition.
 
 ## Budget and stopping rules
 
-- **Compute ceiling 0.45 core-hours** (the line above, read by the runner: about 3 times the
-  pilot's projection 0.151, covering the 0.323 the same runs took under a load average of about
-  10, since held runs will see similar shared load; 0.30 at revision 1, 0.25 before). Run with
+- **Compute ceiling 0.45 core-hours** (the line above, read by the runner; the documented basis
+  is kept: it covers the 0.323 core-hours the same runs projected under a load average of about
+  10, since held runs see similar shared load; it is about 4 times the frozen pilot's 0.113, whose
+  x1.5 = 0.170 passes the runner's check; 0.30 at revision 1, 0.25 before). Run with
   `--jobs 2` (other lanes share the 4 cores). The runner refuses a held run whose pilot
   projection x 1.5 exceeds the ceiling and starts no run that would pass it; runs not started are
   reported as `not run` (exit code 4), never as zeros. Raising the ceiling needs the lead's

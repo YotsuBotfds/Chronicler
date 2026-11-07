@@ -1,9 +1,9 @@
 # CW2: S2 workshop economics and the owned-output rule (A3-1, A3-2)
 
-Cohort pilot. Runs: 10; failed: 0 (missing outcomes: 0); simulation and extraction seconds 307 (0.085 core-hours)
-Projected held run time from this pilot: 0.512 core-hours (x1.5 = 0.768) for 60 runs
+Cohort pilot. Runs: 10; failed: 0 (missing outcomes: 0); simulation and extraction seconds 136 (0.038 core-hours)
+Projected held run time from this pilot: 0.226 core-hours (x1.5 = 0.339) for 60 runs
 
-Identity digests: f0d08bbcb6a5272750db5bfa8a06079314f4e49f652bfe3d62035958fb592ceb (source.txt holds the lines)
+Identity digests: ff2e2deb24f70ec70e73f1da173e91df2ce90af0a8cc2bac71d0a8b41100e657 (source.txt holds the lines)
 Schema versions read: {"bundle": 6, "livelihoods": [1], "packages": {"wealth_accounting": [1], "workshop_economics": [1], "workshop_payroll": [1], "workshops": [1]}, "records": {"food_accounting": [1], "regional_population": [1]}}; {"bundle": 6, "livelihoods": [1], "packages": {"wealth_accounting": [1], "workshop_payroll": [1], "workshops": [1]}, "records": {"food_accounting": [1], "regional_population": [1]}}
 
 ## Activation per world (before any effect)
@@ -242,10 +242,10 @@ Schema versions read: {"bundle": 6, "livelihoods": [1], "packages": {"wealth_acc
 
 | Arm | t | p |
 | --- | --- | --- |
-| P | 7.5 [7.5, 7.5] | 58.5 [58.5, 58.5] |
-| E1 | 15.8 [15.8, 15.8] | 61.4 [61.4, 61.4] |
-| E2 | 11.7 [11.7, 11.7] | 50.6 [50.6, 50.6] |
-| E2f | 12.2 [12.2, 12.2] | 49.1 [49.1, 49.1] |
-| E2a | 10.2 [10.2, 10.2] | 30.4 [30.4, 30.4] |
+| P | 6.5 [6.5, 6.5] | 18.3 [18.3, 18.3] |
+| E1 | 7.3 [7.3, 7.3] | 20.8 [20.8, 20.8] |
+| E2 | 7.0 [7.0, 7.0] | 20.9 [20.9, 20.9] |
+| E2f | 7.4 [7.4, 7.4] | 21.6 [21.6, 21.6] |
+| E2a | 7.2 [7.2, 7.2] | 18.7 [18.7, 18.7] |
 
 Descriptive only: the sign-flip column counts the 2^n sign assignments whose mean is at least as far from zero as the observed mean, with the range of those means; it is not a significance test.

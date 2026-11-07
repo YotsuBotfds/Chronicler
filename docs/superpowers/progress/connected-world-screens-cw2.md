@@ -217,24 +217,23 @@ Before revision 1:
 
 ## Timing pilot (the shared pilot)
 
-`run PILOT --screen CW2 --cohort pilot --jobs 2` on `a1b61760` (revision 1; clean tree;
-`source.txt`: dirty 0, dirty-code 0; extension `43cbd22a…`): 10 runs, 0 failed, every outcome
-extracted; 307 s of simulation and extraction **on a loaded machine** (load average about 7 on 4
-cores from other lanes). Seconds per run (template, procedural): P 7.5, 58.5; E1 15.8, 61.4; E2
-11.7, 50.6; E2f 12.2, 49.1; E2a 10.2, 30.4. E1, E2, E2f and E2a activated on both worlds.
-**Projected held run: 0.512 core-hours for 60 runs** (x1.5 = 0.768). The earlier pilot on
-`21aa48cb`, on a quieter machine, ran the same arms in 139 s and projected 0.232 core-hours. The
-revision-1 pilot's `metrics.jsonl`, `source.txt` and `report.md` are retained in
-`connected-world-screens-cw2/pilot/` (the held run's `--pilot`). The report prints the pilot's
-outcomes; they were not used to choose any definition.
+`run PILOT --screen CW2 --cohort pilot --jobs 2` on `60edc6c9` (the code frozen below; clean tree;
+`source.txt`: dirty 0, dirty-code 0; extension `43cbd22a…`; runner `deb4eb57…`, screens
+`5abac387…`): 10 runs, 0 failed, every outcome extracted; 136 s of simulation and extraction.
+Seconds per run (template, procedural): P 6.5, 18.3; E1 7.3, 20.8; E2 7.0, 20.9; E2f 7.4, 21.6;
+E2a 7.2, 18.7. E1, E2, E2f and E2a activated on both worlds. **Projected held run: 0.226
+core-hours for 60 runs** (x1.5 = 0.339). `check --metrics ... --cohort pilot` passes and the
+runner's `load_pilot` accepts the pilot for this code. The revision-1 pilot (`a1b61760`) ran under
+a load average of about 7 and projected 0.512. The pilot's `metrics.jsonl`, `source.txt` and
+`report.md` are retained in `connected-world-screens-cw2/pilot/` (the held run's `--pilot`). The
+report prints the pilot's outcomes; they were not used to choose any definition.
 
 ## Budget and stopping rules
 
-- **Compute ceiling 1.05 core-hours** (the line above, read by the runner: the loaded
-  revision-1 pilot's projection 0.512 x 2.05, so that the retained pilot passes the runner's x1.5
-  check; 0.50 before revision 1, from the quieter pilot's 0.232). A pilot re-run on a quieter
-  machine before the freeze may replace it, with the ceiling set again at about twice its
-  projection. Run with
+- **Compute ceiling 1.05 core-hours** (the line above, read by the runner; the documented basis,
+  accepted by the lead, is kept: about twice the 0.512 core-hours the same runs projected under a
+  load average of about 7, since held runs see similar shared load; the frozen pilot projects
+  0.226, whose x1.5 = 0.339 passes the runner's check; 0.50 before revision 1). Run with
   `--jobs 2`. The runner refuses a held run whose pilot projection x 1.5 exceeds the ceiling and
   starts no run that would pass it; runs not started are reported as `not run` (exit code 4).
   Raising the ceiling needs the lead's amendment before any held outcome is read.
