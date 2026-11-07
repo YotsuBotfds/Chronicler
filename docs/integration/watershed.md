@@ -838,6 +838,11 @@ used a `git archive` of the committed tree and a copy of that extension.
   browser check of the procedural-13 `flow` run (a superseded river flood at snapshot 2, a flood
   event that acted at 31, a terrain cap change at 73, the last snapshot, and the region history
   labelled for `flow`): 62/62 checks, no console errors, no page overflow on the phone.
+- After the CW3 held run, `main` `8401aa74` (PR #88, A3's Rust) was merged (`0dca6752`; `cwb2`
+  rebuilt last, after `cwa3`) and native runs switched to the A3 build of main's Rust (SHA-256
+  `20e77f99…`): witness tests 509 passed, the offline lane PASS (69 chunks in 322.1 s), feature-off
+  identity 9 cases / 399 files / 0 differences, `record_only` against off 0 differences (procedural
+  11 and 31), `tests/test_watershed_native.py` 3 passed.
 - The same checks passed on `cbccee74` (the opening rule, events ending at 0.75 of the channel): lane
   69 chunks in 337.8 s, feature-off 0 differences, resume PASS, viewer 1587 tests, 62/62 browser
   checks; and on `b87e9aa2` before the merge (extension `101a4cd5…`).
