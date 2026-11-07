@@ -28,13 +28,21 @@ movements grieve, and whether pooled guild purses change member cities' purses a
 at what cost. It is a bounded screen on experimental source, not qualification: the 200-seed and
 procedural qualification gates stay unrun; nothing is promoted or tuned on these worlds.
 
-**Expected low activation (development worlds, 200 turns, retail `market` boundary).** Reliefs: 1-3
-per world, 45-71 relief-turns; purchases 0-2 per world (food bought 0-1.2 units; delivered at most
-0-2.3 rations); most relief money is held to the fund's cap and returned when the relief ends. Leagues
-(procedural 13): 10 founded, 12 joins, 107 levy claims paid 4.7 units, dues 73 units (49 returned at
-dissolution), dissolutions by war 4, dormancy 2, too few members 1; template worlds have few guilds. The
-arms below therefore use the retail boundary `all` (every controlled region is a pilot, so a relief can
-buy wherever its realm records hunger) and the activation rules decide what is reported.
+**Expected low activation** (development worlds template 7, 42 and procedural 13, 21; 200 turns;
+retail `market` boundary; merged head with `main` `4ecfb54d`, native `43cbd22a`). Reliefs: 1-3 per world,
+45-71 relief-turns. Purchases (`RS`): 0, 2, 2, 2 per world; food bought 0, 1.17, 0.20, 0.21 units;
+delivered at most 0, 2.33, 0.40, 0.42 rations (at least 0, 2.26, 0.35, 0.33); most relief money is held to
+the fund's cap (9-24 units paid in) and returned when the relief ends; the rest of each upkeep (90-160
+units) is sunk as before. Where need was recorded, owners often held no food (`need_without_owned_food`
+0-3 region-turns). Leagues (`GM`): template 7 two leagues, no levy or sack, dues 12 units (returned at
+dissolution); template 42 one league, one levy claim (loss 0.087, paid 0.044: the fund was short);
+procedural 13 ten leagues, 12 joins, 107 levy claims paid 4.70 units, dues 73.3 units, dissolutions by
+war 4, guild dissolved 4 departures, dormancy 2, too few members 1; procedural 21 eight leagues, 107 levy
+claims paid 7.31 units and one sack claim (loss 4.07, paid 0.05), dues 51.3 units. Living guild purses
+end lower with leagues (procedural 13: 4.15 off, 3.34 `GD`, 3.18 `GM`; procedural 21: 4.02, 3.44, 3.22);
+levies, threats, guild movements, revolts and sacks were the same in all three arms on these worlds. The
+arms below therefore use the retail boundary `all` (every controlled region is a pilot, so a relief can buy
+wherever its realm records hunger) and the activation rules decide what is reported.
 
 ## Arms (all hybrid, 200 turns; template 8 x 4 and procedural 32 x 10 strata)
 
