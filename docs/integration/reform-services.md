@@ -98,7 +98,7 @@ split the two, and is left for the owner (recorded boundary).
 Relief food is pooled with the commons, so what reached people is bounded per region, never attributed
 to persons. At the next provisioning: at most `min(rations bought, free rations given)`; when that
 turn's commons fell short of demand (commons sufficiency below 1: the economy ate all of it) and the
-opening cut no owned stock above the storage cap, the bought food that survived the opening's storage
+native food ledger reports zero total cap overflow (commons and owned food), the bought food that survived the opening's storage
 decay (full per-good decay, no salt preservation) was in the free pool, so at least
 `min(that, free pool, at most) - free unallocated` reached people; otherwise no lower bound is claimed
 (null). A region not provisioned the next turn reads as unobserved, not zero.
@@ -138,3 +138,11 @@ chunk `connected-world-d1`; `tests/test_money.py::test_a_relief_fund_is_its_trea
 `tests/test_reform_services_native.py` (template 7: identity before the first relief; template 42:
 service vs cost-only with resource checks, exact resume with an open purchase and a holding fund); viewer
 `reformServices.test.ts`, `ReformServices.test.tsx`.
+
+## Recovery review (2026-11-07)
+
+The D1 recovery review added a runtime check of each realm's relief fund closure,
+strict nested-frame validation in both D1 readers, and a conservative delivery
+lower bound: the native total cap-overflow observation must be present and zero.
+Checking owned overflow alone missed a commons-only cut when owners held no grain.
+Unknown or positive cap loss now leaves the lower bound unknown; the viewer says so.

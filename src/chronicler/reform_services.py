@@ -351,7 +351,7 @@ def _ration_milli(world) -> Fraction:
     return Fraction(_ration(world)) * MILLI
 
 
-def _deliveries(world, state: ReformServicesState, frame: ReliefFrame, prov: dict | None, turn: int) -> None:
+def _deliveries(world, state: ReformServicesState, frame: ReliefFrame, prov: dict | None, turn: int, economy_result=None) -> None:
     if not state.pending:
         return
     from chronicler.economy import STORAGE_DECAY
@@ -373,7 +373,9 @@ def _deliveries(world, state: ReformServicesState, frame: ReliefFrame, prov: dic
         at_most = min(bought, given)
         at_least = None
         short = row.get("commons_sufficiency")
-        if short is not None and short < 1.0 - 1e-9 and row.get("owned_overflow") == 0.0:
+        ledger = (getattr(economy_result, "food_ledger", None) or {}).get(p.region)
+        no_cap_loss = ledger is not None and len(ledger) > 8 and ledger[8] == 0.0
+        if short is not None and short < 1.0 - 1e-9 and no_cap_loss:
             kept = sum(Fraction(v) * (1 - Fraction(STORAGE_DECAY.get(good, 0.0)))
                        for good, v in zip(RETAIL_GOODS, p.goods_milli))
             in_pool = min(float(kept / rm), pool)
@@ -485,7 +487,7 @@ def phase10(world, acc, economy_result, agent_bridge):
     if service:
         from chronicler.household_retail import household_retail_active, settled_provisioning
         prov = settled_provisioning(world) if household_retail_active(world) else None
-    _deliveries(world, state, frame, prov, turn)
+    _deliveries(world, state, frame, prov, turn, economy_result)
     state.pending, state.pending_turn = [], None
     in_force = _in_force(world)
     for civ in sorted(state.funds):
@@ -500,6 +502,9 @@ def phase10(world, acc, economy_result, agent_bridge):
         row.fund_close_milli = state.funds.get(civ, 0)
         if row.cap_milli == 0 and civ in in_force:
             row.cap_milli = _cap_milli(world, civ)
+        if (row.fund_open_milli + row.to_fund_milli - row.spent_milli - row.refunded_milli
+                != row.fund_close_milli):
+            raise money.MoneyError(f"relief fund {civ} does not close")
         frame.civs.append(row)
     money.check_book(state.book)
     state.frame, state.frame_turn = frame, turn
@@ -551,6 +556,11 @@ def record_status(snapshot) -> tuple[str, dict | None]:
         return "unobserved", None
     if (not isinstance(frame, dict) or any(k not in frame for k in FRAME_KEYS) or frame["turn"] != source
             or not all(isinstance(frame[k], list) for k in FRAME_KEYS[1:])):
+        return "malformed", None
+    from pydantic import ValidationError
+    try:
+        ReliefFrame.model_validate(frame, strict=True)
+    except ValidationError:
         return "malformed", None
     moved = any(c.get("to_fund_milli") or c.get("spent_milli") or c.get("refunded_milli") or c.get("sunk_units")
                 for c in frame["civs"])

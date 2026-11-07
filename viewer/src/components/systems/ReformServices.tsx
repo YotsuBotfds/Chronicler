@@ -84,7 +84,7 @@ function Frame({ frame, source, civName, regionName }: {
           <td>{regionName(d.region)}</td><td>{d.bought_turn}</td><td>{show(d.rations_bought)}</td>
           <td>{d.observed ? `${show(d.free_given)} / ${show(d.free_unallocated)}` : "unobserved (no provisioning): unknown, not zero"}</td>
           <td>{!d.observed ? "Unknown" : d.delivered_at_least === null
-            ? `at most ${show(d.delivered_at_most)} (no lower bound: the commons covered demand)`
+            ? `at most ${show(d.delivered_at_most)} (no lower bound: survival in the commons is not established)`
             : `${show(d.delivered_at_least)} to ${show(d.delivered_at_most)}`}</td>
           <td>{show(d.priced_out_persons, 0)}</td>
         </tr>)}</tbody>

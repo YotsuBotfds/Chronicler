@@ -566,5 +566,10 @@ def record_status(snapshot) -> tuple[str, dict | None]:
     if (not isinstance(frame, dict) or any(k not in frame for k in FRAME_KEYS) or frame["turn"] != source
             or not all(isinstance(frame[k], list) for k in ("leagues", "dues", "payouts", "changes"))):
         return "malformed", None
+    from pydantic import ValidationError
+    try:
+        LeagueFrame.model_validate(frame, strict=True)
+    except ValidationError:
+        return "malformed", None
     empty = not frame["leagues"] and not frame["dues"] and not frame["payouts"] and not frame["changes"]
     return ("recorded_zero" if empty else "recorded"), frame

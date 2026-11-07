@@ -73,7 +73,7 @@ def test_switch_registry_cli_catalog_and_manifest():
     from chronicler.batch_manifest import SIMULATION_ARG_KEYS, simulation_config
     from chronicler.feature_catalog import REQUIREMENTS, SETTINGS
     from chronicler.main import _build_parser
-    assert LIVELIHOODS_SWITCHES.index("guild_leagues") == LIVELIHOODS_SWITCHES.index("attribution_records") - 1
+    assert LIVELIHOODS_SWITCHES.index("guild_leagues") == LIVELIHOODS_SWITCHES.index("residence_ledger") - 1
     assert LV.LIVELIHOODS_CHOICES["guild_league_mode"] == ("mutual", "dues_only")
     keys = LV.LIVELIHOODS_ARG_KEYS
     assert keys[keys.index("guild_leagues") + 1] == "guild_league_mode"
@@ -311,3 +311,10 @@ def test_notes_come_from_the_cities_seams_for_members_only():
     GL.note_city_sack(world, city, 4.5678, "ev")
     notes = GL._state(world)._turn.notes
     assert notes == {100: {"levy": 300, "sack": (4567, "ev")}}
+
+
+def test_nested_malformed_record_is_rejected():
+    record = {"schema_version": 1, "stage": "D1b", "mode": "mutual", "source_turn": 1,
+              "frame": {"turn": 1, "leagues": [None], "dues": [], "payouts": [], "changes": [],
+                        "links": 0, "candidates": 0}}
+    assert GL.record_status({"livelihoods": {"guild_leagues": record}}) == ("malformed", None)

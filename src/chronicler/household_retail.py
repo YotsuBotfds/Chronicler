@@ -2300,7 +2300,7 @@ def relief_shares(world, rid: int, milli: int) -> dict[int, int]:
     return _pro_rata(int(milli), reg.claims)
 
 
-def take_relief(world, rid: int, milli: int) -> dict[int, int]:
+def take_relief(world, rid: int, milli: int) -> tuple[dict[int, int], list[int]]:
     """D1a: a poor-relief fund has paid the owners of pilot region ``rid`` for
     ``milli`` milli-food: debit their claims pro rata (the ``relief_bought``
     flow, drawn from the pooled mix of goods) and move the food into the

@@ -78,8 +78,9 @@ def _sim(world, owners=(101, 102)):
     return FakeSim({aid: 1.0 for aid in owners})
 
 
-def _phase10(world, sim):
-    return RS.phase10(world, None, None, argparse.Namespace(_sim=sim))
+def _phase10(world, sim, cap_overflow=0.0):
+    ledger = {r: [0.0] * 8 + [cap_overflow] for r in range(len(world.regions))}
+    return RS.phase10(world, None, argparse.Namespace(food_ledger=ledger), argparse.Namespace(_sim=sim))
 
 
 def _deposit(world, civ, k, due=2):
@@ -461,3 +462,71 @@ def test_every_ledger_channel_a_reader_can_emit_has_its_lifetime_totals():
         if package in excluded:
             continue
         assert {f"{name}_in_milli", f"{name}_out_milli"} <= set(LIFETIME), name
+
+
+def test_relief_delivery_lower_bound_requires_observed_absence_of_all_cap_loss():
+    world, civ = _world()
+    k = _relief(world, civ)
+    _deposit(world, civ, k)
+    _provision(world, VERDANT)
+    _phase10(world, _sim(world))
+    state = RS._state(world)
+    purchase = state.pending[0]
+    world.turn += 1
+    world.livelihoods.household_retail._turn = None
+    _provision(world, VERDANT, commons_sufficiency=0.8, overflow=0.0)
+    _phase10(world, _sim(world), cap_overflow=2.0)
+    assert state.frame.deliveries[0].delivered_at_least is None
+    world.turn += 1
+    world.livelihoods.household_retail._turn = None
+    state.pending, state.pending_turn = [purchase], world.turn - 1
+    _provision(world, VERDANT, commons_sufficiency=0.8)
+    RS.phase10(world, None, None, argparse.Namespace(_sim=_sim(world)))
+    assert state.frame.deliveries[0].delivered_at_least is None
+
+
+def test_relief_fund_closure_rejects_an_unbooked_balance_mutation():
+    world, civ = _world()
+    k = _relief(world, civ)
+    _deposit(world, civ, k)
+    RS._state(world).funds[civ] += 1
+    with pytest.raises(M.MoneyError, match="does not close"):
+        _phase10(world, _sim(world))
+
+
+def test_nested_malformed_record_is_rejected_without_crashing():
+    world, civ = _world()
+    _phase10(world, _sim(world))
+    world.turn += 1
+    record = RS.snapshot_summary(world)
+    record["frame"]["civs"] = [None]
+    assert RS.record_status({"livelihoods": {"reform_services": record}}) == ("malformed", None)
+
+
+def test_screen_extracts_relief_need_and_uses_recorded_population_denominator():
+    from scripts.cw_d1_screen import extract
+    world, civ = _world()
+    k = _relief(world, civ)
+    _deposit(world, civ, k)
+    _provision(world, VERDANT, persons=10.0, rations=8.0)
+    _phase10(world, _sim(world))
+    world.turn += 1
+    snapshot = {
+        "turn": world.turn,
+        "agent_movements": {"reforms": [{"kind": "relief", "civ": civ}],
+                            "living": [{"creed": "commons", "target": civ, "members": 2}]},
+        "civ_stats": {world.civilizations[civ].name: {"population": 20}},
+        "region_control": {world.regions[VERDANT].name: world.civilizations[civ].name},
+        "livelihoods": {"reform_services": RS.snapshot_summary(world),
+                        "household_retail": {"regions": [{"region": VERDANT,
+                            "provisioning": {"priced_out_persons": 2, "offer_short_persons": 1}}]}},
+    }
+    bundle = {"world_state": {"civilizations": [{"name": c.name} for c in world.civilizations],
+                               "regions": [{"name": r.name} for r in world.regions]}, "history": [snapshot]}
+    metrics, problems = extract(bundle, ["--reform-services"])
+    assert not problems
+    assert metrics["priced_out"] == 3
+    assert metrics["commons_members_per_1000_residents"] == 100
+    assert metrics["purchases"] == 1 and not metrics["relief_active"]
+    snapshot["livelihoods"]["reform_services"]["frame"]["civs"][0]["fund_close_milli"] += 1
+    assert any("does not close" in problem for problem in extract(bundle, ["--reform-services"])[1])

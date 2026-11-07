@@ -68,7 +68,7 @@ Common flags: `--agents hybrid --food-allocation --household-retail --household-
    the turns its relief is in force, divided by those region-turns). Read in each arm on its own relief
    turns (the arms grant reliefs at different turns once they diverge: a total effect).
 2. **`cw6d1_commons_grievance` (D1a label and service), `RS - R0`, with `RC - R0` reported beside it.**
-   Commons-movement member-turns per 1,000 adult-turns of the relief realms during their relief turns
+   Commons-movement member-turns per 1,000 resident-turns of the relief realms during their relief turns
    (the movements snapshot's members by creed; `RC - R0` isolates removing the label, `RS - RC` what the
    food adds back).
 3. **`cw6d1_member_purse` (D1b claims), `GM - GD`.** The civic purse (`city.wealth`) of cities while
@@ -103,6 +103,30 @@ league dissolutions by reason, unclaimed league funds, population and migration.
   and at least one claim is paid.
 - A primary is reported per stratum only over its activated worlds; with fewer than 3 activated worlds in
   a stratum the primary is reported as "not activated" (counts given), not tested.
+
+## Recovery amendment 1 (before the freeze or held outcomes)
+
+The fresh cohort is template 3701-3706 and procedural 3801-3806, reserved by the
+lead after reconciling the full main and recovered-branch registry. CW5c already
+used 3301-3306 and 3401-3406; those seeds are not reused.
+
+The primary commons-members denominator is the recorded population of relief
+realms. Exact adult counts per realm are absent from snapshots, so the proposed
+adult denominator cannot be recovered honestly. This measures members per 1,000
+residents, not an individual grievance rate; members abroad can contribute to a
+targeted movement's recorded membership. The civic-purse primary uses the snapshot's
+recorded purse rounded to 0.1, not unrecorded higher precision. No causal claims
+are made from tiny activated cohorts. Sign-flip probabilities remain descriptive;
+fewer than three activated worlds are reported as insufficient activation.
+
+The standalone extractor/runner is `scripts/cw_d1_screen.py`, avoiding changes to
+historical extractors. It checks both D1 record schemas, per-realm and per-league
+fund closure, purchase residual closure and delivery upper bounds. The generic
+fixed harm panel retains unknown values as unknown. Owner wealth by relief region,
+exact wall help, and exact adult counts are not in snapshots and remain unmeasured,
+not zero. The state machine verifies claim event ids against city history before
+payout; bundle metrics retain those ids but cannot independently recover absent
+city-history tuples.
 
 ## Extractor requirements (before the freeze)
 
