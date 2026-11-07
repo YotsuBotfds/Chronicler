@@ -1,10 +1,10 @@
 # Connected World rework: runtime performance diagnosis and admission
 
-This packet diagnoses the retained implementation before optimization. It does
-not claim a speedup, corrected-model efficacy, qualification or default
+This packet diagnoses the retained implementation and evaluates a conservative
+optimization against a frozen corrected **unoptimized** source. It does not
+claim a uniform speedup, corrected-model efficacy, qualification or default
 promotion. The physical attribution/crowding correction belongs to the lead's
-separate correctness work. A corrected **unoptimized** source must be frozen
-before admitting any optimization using the matched plan below.
+separate correctness work.
 
 ## Reproduced diagnostic and identities
 
@@ -171,6 +171,67 @@ Timber must preserve raw file sizes and every observation; archival wire size
 has a separate lossless-format evaluation. The historical five-world OFF+FULL
 CPU sum is 469.22 seconds, correcting an initial approximate 444-second sum;
 the frozen 1,350-second per-source process ceiling is unchanged.
+
+## First candidate: complete matched matrix
+
+[The complete matrix](matrix-c1/summary.json) compares corrected unoptimized
+`09403c15` with timber-only `a1fcb482`. Both source pins are pushed as
+`codex/cwr-perf-c1-before` and `codex/cwr-perf-c1-after`. All **20 runs pass**
+their exact source/native and strict FULL CWR guards. [Admission](matrix-c1/comparison.json)
+passes all ten pairs: **760** non-bundle simulation output pairs are
+byte-identical, every complete decoded bundle agrees after `generated_at`
+only, and **36** checkpoint pairs agree in native bytes, world/history, flags
+and every persisted livelihood component. These are 72 actual same-source
+readbacks; checkpoints are never restored across mismatched builds.
+
+The packet retains complete per-turn/stage CSVs and profiles, checkpoint
+semantic exports, full producer plans and every original file's bytes/SHA256.
+Large raw model bundles, Arrow files and checkpoints remain external and can be
+regenerated from the pinned refs and plans. Complete-child CPU is
+523.36/505.82 seconds, below each source's frozen 1,350-second ceiling.
+
+| Fixed FULL case | Model CPU before → after, seconds | Observed change | After FULL/OFF CPU | After run RSS, MiB |
+| --- | ---: | ---: | ---: | ---: |
+| Template 5 / 200 | 21.499 → 21.714 | +1.0% | 2.00× | 823.2 |
+| Procedural32 19 / 200 | 79.064 → 66.099 | −16.4% | 2.09× | 1,983.3 |
+| 18,801-initial-agent 42 / 30 | 105.444 → 101.813 | −3.4% | 6.39× | 653.2 |
+| 43,700-initial-agent 7 / 20 | 60.837 → 62.193 | +2.2% | 2.65× | 659.2 |
+| Procedural48 42 / 150 | 51.438 → 49.724 | −3.3% | 2.11× | 1,617.4 |
+
+These are single serial observations, with identical lightweight helper counts
+and outer timers. OFF model CPU varies from −5.3% to +2.6%; small mixed changes
+remain inconclusive. The procedural32 case shows a substantial measured
+reduction with fewer operations, but it does not establish a universal gain.
+All operational CPU/RSS envelopes pass; substantial opt-in overhead remains.
+Raw bundles are unchanged: FULL/OFF byte ratios still span **2.37–4.12×**.
+RSS changes are small and mixed; no general memory/storage gain is claimed.
+
+| FULL case | Timber CPU before → after | Assembly after | Write after (including encoding) | Encoding after (nested) | Other run CPU after |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Template5 | 0.822 → 0.292 | 1.644 | 4.097 | 3.620 | 15.682 |
+| Procedural32 | 14.010 → 2.096 | 3.952 | 12.003 | 10.531 | 48.049 |
+| 18,801 initial | 3.923 → 4.432 | 0.512 | 1.698 | 1.431 | 95.170 |
+| 43,700 initial | 3.407 → 3.883 | 0.167 | 1.004 | 0.768 | 57.138 |
+| Procedural48 | 3.187 → 0.867 | 2.124 | 8.927 | 7.787 | 37.806 |
+
+"Other" subtracts the three disjoint outer scopes timber planning, assembly
+and write from whole-run CPU. Encoding is nested inside write and must not be
+subtracted or added again. Checkpoint writes and all remaining simulation work
+are in Other. Run RSS covers `execute_run`; the separately retained
+`process_peak_rss_with_read_kib` also includes exact readbacks and complete
+decoded-bundle loading, sampled before strict CWR extraction. Final extraction
+peak is unmeasured.
+
+The largest relative cost remains the 18,801-agent case: about 95.2 CPU seconds
+are outside these outer scopes. Neither stress case dispatches a timber order
+in this horizon; dispatch/price call counts are zero and native population/path
+read counts agree. The first candidate nevertheless eagerly creates a physical
+projection, and its timber stage is slower in both stress cases. This adverse
+finding is retained. A lazy first-dispatch follow-up has an old-code failing
+cost regression and focused tests; it needs independent review and final
+whole-output admission. A separate bounded same-scale diagnostic investigates
+the much larger residual. Neither change tunes physical parameters or removes
+observations.
 
 ```sh
 TOOL=docs/superpowers/progress/connected-world-rework/performance/profile-rework.py

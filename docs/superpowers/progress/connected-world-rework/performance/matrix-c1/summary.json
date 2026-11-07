@@ -1,0 +1,20 @@
+{
+  "kind": "compact full-measurement evidence; raw model bundles/Arrow/checkpoints remain external",
+  "source_before": "09403c15070ddab4977ae8b2e65c336238468447",
+  "source_after": "a1fcb482f4d971e1c20e99075f2e256f9838a359",
+  "durable_before_branch": "codex/cwr-perf-c1-before",
+  "durable_after_branch": "codex/cwr-perf-c1-after",
+  "native_sha256": "b1d3ea5ac858681960b2cb880c534164905501f6ab4f6f3c94f7c9b5f66196cd",
+  "paired_cases": 10,
+  "same_source_checkpoint_readbacks": 72,
+  "paired_checkpoints_semantically_identical": 36,
+  "nonbundle_output_pairs_byte_identical": 760,
+  "all_decoded_bundles_identical_after_generated_at_only": true,
+  "all_private_checkpoint_components_identical": true,
+  "child_cpu_seconds_before": 523.364053,
+  "child_cpu_seconds_after": 505.824965,
+  "wrapper_sha256": "6aa2a4471193cb911e31a5b38d5e8e7965eec38182abf7a8e9e487878c829fca",
+  "evidence_scope": "Whole turn/stage CSVs, complete profile metrics and exact checkpoint semantic exports are retained here; runs.json binds every original file byte count/SHA256, including Arrow/model bundles/native checkpoint artifacts. This packet excludes the bulky model artifacts themselves. Regenerate them from frozen refs and original producer plans to rerun whole-artifact comparisons.",
+  "rss_scope": "run_peak_rss_kib: execute_run peak. process_peak_rss_with_read_kib: through exact readbacks and full decoded bundle load, before strict CWR extraction. Final extraction-only peak is unmeasured.",
+  "timing_scope": "Single serial matched observations with identical lightweight outer timers/helper counters, Rayon1/hashseed0. Absolute model CPU includes checkpoint/sidecar generation; whole-child CPU includes verification/evidence overhead. No held seeds or qualification."
+}
