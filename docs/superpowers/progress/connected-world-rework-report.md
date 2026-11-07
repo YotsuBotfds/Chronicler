@@ -150,8 +150,8 @@ receipts, rates, nulls and the six rendered primary rows. Raw first-world
 readback passes all 24 retained cases / 2,880 snapshots, including Arrow,
 outcome/person-turn arithmetic, prior PH/X1 clocks and food observations.
 Bounded component samples leave 784 procedural merge-turns unverified; AD-p4201
-has only 6/120 complete-component turns. All 1,440 template merge-turns are
-reconstructible. This is distinct from complete per-person movement or housing
+has only 6/120 complete-component turns. All 1,440 retained first-template-world
+merge-turns are reconstructible. This is distinct from complete per-person movement or housing
 history, which the exported data do not provide.
 
 | Primary, arm minus control | Template mean; paired bootstrap 95% | Procedural mean; paired bootstrap 95% |

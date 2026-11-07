@@ -78,7 +78,7 @@ causes are not zero. No tuning or favorable-world selection occurred.
 - Final performance admission matches ten corrected-source pairs: 760 raw
   output pairs, complete timestamp-normalized typed bundles, 36 checkpoint pairs
   and all 37 private livelihood components. FULL CPU 318.28→265.89 seconds in
-  the declared workload; largest case 105.44→69.55. Small/null/adverse results
+  the declared workload; most expensive baseline CPU case 105.44→69.55. Small/null/adverse results
   and residual FULL/OFF overhead remain. No evidence or world size is removed.
 - Final default identity: nine cases / 399 files, zero differences against both
   original `8abc1acb` and preceding integrated main `125a6906` (verified retained
