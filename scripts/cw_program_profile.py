@@ -60,7 +60,8 @@ def native_identity():
     path = Path(native.__file__).resolve()
     return {"python_source": str(Path(chronicler.__file__).resolve()), "interpreter": sys.executable,
             "python_version": sys.version, "extension": str(path), "native_sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
-            "agent_schema": native.AgentSimulator.checkpoint_schema()[:2]}
+            "agent_schema": native.AgentSimulator.checkpoint_schema()[:2],
+            "environment": {key: os.environ.get(key) for key in ("RAYON_NUM_THREADS", "PYTHONHASHSEED", "OMP_NUM_THREADS", "OPENBLAS_NUM_THREADS")}}
 
 
 def verify(source, expected, native_sha):
@@ -245,6 +246,11 @@ def run(args):
         if set(args.case) != {case["name"] for case in cases}:
             raise ValueError("unknown profile case")
     out.mkdir(parents=True)
+    machine = {"logical_cpus": os.cpu_count(), "affinity_cpus": sorted(os.sched_getaffinity(0)),
+               "cpu_max": Path("/sys/fs/cgroup/cpu.max").read_text().strip(),
+               "memory_max": Path("/sys/fs/cgroup/memory.max").read_text().strip(),
+               "note": "shared host; serial profiler may overlap two separately scheduled one-job pilots"}
+    (out / "machine.json").write_text(json.dumps(machine, indent=2) + "\n")
     env = {**os.environ, "PYTHONPATH": str(source / "src"), "RAYON_NUM_THREADS": str(args.rayon_threads),
            "PYTHONHASHSEED": "0", "CHRONICLER_QUIET": "1"}
     result = []
