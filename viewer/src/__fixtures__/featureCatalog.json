@@ -1053,7 +1053,7 @@
       "key": "quarantine_mode",
       "flag": "--quarantine-mode",
       "label": "Quarantine mode",
-      "help": "Quarantine rules (connected-world C1): legacy (default, the same as omitting it, needs nothing): the abstract import multiplier and a flat charge; none: no quarantine; cost_only: the same decisions and enforcement cost as closure, nothing restricted; closure: trade routes and agent merchant edges between a closing polity and each polity with a reported outbreak it is in contact with are closed while the outbreak is reported, at a declared enforcement cost, with no import multiplier (relief grain, armies, hostages and migrants stay open); none, cost_only and closure require epidemiology and the contact ledger; saved on the world (docs/integration/quarantine-rules.md)",
+      "help": "Quarantine rules (connected-world C1): legacy (default, the same as omitting it, needs nothing): the abstract import multiplier and a flat charge; none: no quarantine; cost_only: the same decisions and enforcement cost as closure, nothing restricted; closure: trade routes and agent merchant edges between a closing polity and each polity with a reported outbreak it is in contact with are closed while the outbreak is reported, at a declared enforcement cost, with no import multiplier (relief grain, armies and hostages stay open; migrants too unless --quarantine-channels trade,migration); none, cost_only and closure require epidemiology and the contact ledger; saved on the world (docs/integration/quarantine-rules.md)",
       "kind": "choice",
       "choices": [
         "legacy",
@@ -1079,6 +1079,61 @@
             }
           ],
           "reason": "requires one of: epidemiology with the contact ledger (on by default for new worlds; off with --no-epidemiology or --no-contact-ledger); --quarantine-mode legacy"
+        }
+      ],
+      "group": "Public health",
+      "experimental": true
+    },
+    {
+      "key": "quarantine_channels",
+      "flag": "--quarantine-channels",
+      "label": "Quarantine channels",
+      "help": "Journeys --quarantine-mode closure restricts (connected-world C1b): trade (default, the same as omitting it): trade routes and agent merchant edges; trade,migration: also refuses native migrations between the two polities of each closed pair, either way, while the closure lasts (refugees included, counted apart; moves already made stay); trade,migration requires --quarantine-mode closure and an agent mode in which the native pool owns the population (hybrid or demographics-only; not shadow, whose Python population still migrates); saved on the world (docs/integration/quarantine-rules.md)",
+      "kind": "choice",
+      "choices": [
+        "trade",
+        "trade,migration"
+      ],
+      "default": null,
+      "parent": null,
+      "requires": [
+        {
+          "any": [
+            {
+              "choice": "quarantine_channels",
+              "values": [
+                "trade"
+              ],
+              "reason": "requires --quarantine-channels trade"
+            },
+            {
+              "choice": "quarantine_mode",
+              "values": [
+                "closure"
+              ],
+              "reason": "requires --quarantine-mode closure"
+            }
+          ],
+          "reason": "requires one of: --quarantine-channels trade; --quarantine-mode closure"
+        },
+        {
+          "any": [
+            {
+              "choice": "quarantine_channels",
+              "values": [
+                "trade"
+              ],
+              "reason": "requires --quarantine-channels trade"
+            },
+            {
+              "agents": [
+                "hybrid",
+                "demographics-only"
+              ],
+              "reason": "requires --agents hybrid or demographics-only"
+            }
+          ],
+          "reason": "requires one of: --quarantine-channels trade; --agents hybrid or demographics-only"
         }
       ],
       "group": "Public health",

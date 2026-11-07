@@ -39,7 +39,8 @@
   unwinds, more food shortfall after relief (procedural 5 of 6), more migration. A trade-only closure
   does not cut arrivals in hybrid worlds, where migrants carry most cross-polity contact; migration
   closure (C1b) is the next public-health slice.
-- **S1 PR** (`claude/cw-s1-accounting`): A5 retail rules v2 (war reaches owned stock once per event;
+- **PR #86 merged** at `5108f8b9` (tree `8a478032` = reviewed head `6ec7a826`; premerge Tests
+  42309801686 and main Tests 42311590554 green), S1: A5 retail rules v2 (war reaches owned stock once per event;
   RL1–RL3), A2R (interval schedule boundary replayed exactly, persistent opening intervals,
   household-group cohorts RL5, storage-cap cut RL4 pro rata), A1 `--wealth-accounting` (observation-
   only ledger; RL7), one layer `cws1`; and the **CW1 held screen** (template 731–736, procedural
@@ -47,6 +48,13 @@
   credited to households in every activated world; wider `paid_work` enrollment alone **lowered**
   it in every activated world (mostly replaced farm income, partly lower remittances); the wage's
   effect on the priced-out rate was null.
+- **C1b PR** (`claude/cw-c1b-migration`): `--quarantine-channels trade|trade,migration` — closures
+  also refuse migration between closed polities through a transient native input (no checkpoint
+  layout change; default `trade` byte-identical to C1); refused, not diverted; refused in modes where
+  Python moves people (off, shadow). **CW4b** (template 3101–3106, procedural 3201–3206; 36 runs, 0
+  failed): against cost-only the primaries lean lower but are not consistent; as a secondary, adding
+  the migration channel to a trade closure lowered arrivals and deaths in all 6 template worlds;
+  food shortfall after relief rose in 10 of 12 worlds.
 - **Lanes in flight** (each on its own branch, provisional witness layers regenerated at
   integration): A5 retail rules v2, war reaches owned stock once per event (RL1–RL3; review
   merge-ready); A1 `--wealth-accounting` observation ledger (RL7; review fixes); B1 `--watershed

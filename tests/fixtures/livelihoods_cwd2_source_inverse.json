@@ -1,29 +1,29 @@
 {
   "schema_version": 1,
   "layer": "cwd2",
-  "parent": "5108f8b98120e93e669201c711286519bd9f8ea6",
+  "parent": "ae94bca677af5b39277eae26fda5a52db3b56f7e",
   "files": {
     "src/chronicler/batch_manifest.py": {
-      "sha256": "6aa97ac9f35d53123b7b26623f8b81419c85b49fd80f99f5969de5bb09dd637c",
-      "current_sha256": "a5efc97a2e76e5bb0223b8bbfb279f587ab3cd9054a811f54930a2cdfef3d7f7",
+      "sha256": "ce79600db0995587ec522d617e06805ac4245276d0537dbcc19cfe611144a680",
+      "current_sha256": "1c6f32d205bb6617f6ff64b18c13a5c51d67926bc987620641af8babac599aeb",
       "patches": [
         {
-          "old": "    \"watershed\",\n    \"watershed_mode\",\n    \"quarantine_mode\",\n    \"wealth_accounting\",\n    \"tuning\",\n    \"preset\",\n",
-          "new": "    \"watershed\",\n    \"watershed_mode\",\n    \"quarantine_mode\",\n    \"attribution_records\",\n    \"wealth_accounting\",\n    \"tuning\",\n    \"preset\",\n"
+          "old": "    \"watershed\",\n    \"watershed_mode\",\n    \"quarantine_mode\",\n    \"wealth_accounting\",\n    \"quarantine_channels\",\n    \"tuning\",\n",
+          "new": "    \"watershed\",\n    \"watershed_mode\",\n    \"quarantine_mode\",\n    \"attribution_records\",\n    \"wealth_accounting\",\n    \"quarantine_channels\",\n    \"tuning\",\n"
         },
         {
-          "old": "                             \"maintenance_obligation_mode\", \"apprenticeship_rules\",\n                             \"household_retail\", \"household_retail_mode\", \"household_retail_boundary\",\n                             \"household_retail_rules\", \"household_retail_schedule\", \"watershed\", \"watershed_mode\",\n                             \"quarantine_mode\", \"wealth_accounting\")\n              or getattr(args, key, None) is not None}\n    overrides = tuning_overrides if tuning_overrides is not None else getattr(args, \"tuning_overrides\", None)\n    config[\"tuning_overrides\"] = _json_value(overrides or {})\n",
-          "new": "                             \"maintenance_obligation_mode\", \"apprenticeship_rules\",\n                             \"household_retail\", \"household_retail_mode\", \"household_retail_boundary\",\n                             \"household_retail_rules\", \"household_retail_schedule\", \"watershed\", \"watershed_mode\",\n                             \"quarantine_mode\", \"attribution_records\", \"wealth_accounting\")\n              or getattr(args, key, None) is not None}\n    overrides = tuning_overrides if tuning_overrides is not None else getattr(args, \"tuning_overrides\", None)\n    config[\"tuning_overrides\"] = _json_value(overrides or {})\n"
+          "old": "                             \"maintenance_obligation_mode\", \"apprenticeship_rules\",\n                             \"household_retail\", \"household_retail_mode\", \"household_retail_boundary\",\n                             \"household_retail_rules\", \"household_retail_schedule\", \"watershed\", \"watershed_mode\",\n                             \"quarantine_mode\", \"wealth_accounting\", \"quarantine_channels\")\n              or getattr(args, key, None) is not None}\n    overrides = tuning_overrides if tuning_overrides is not None else getattr(args, \"tuning_overrides\", None)\n    config[\"tuning_overrides\"] = _json_value(overrides or {})\n",
+          "new": "                             \"maintenance_obligation_mode\", \"apprenticeship_rules\",\n                             \"household_retail\", \"household_retail_mode\", \"household_retail_boundary\",\n                             \"household_retail_rules\", \"household_retail_schedule\", \"watershed\", \"watershed_mode\",\n                             \"quarantine_mode\", \"attribution_records\", \"wealth_accounting\",\n                             \"quarantine_channels\")\n              or getattr(args, key, None) is not None}\n    overrides = tuning_overrides if tuning_overrides is not None else getattr(args, \"tuning_overrides\", None)\n    config[\"tuning_overrides\"] = _json_value(overrides or {})\n"
         }
       ]
     },
     "tests/test_batch_manifest.py": {
-      "sha256": "eec65be55963b0d328aeaa75707b9cb4b471bd62067a460ff7bdc7e4183ecf98",
-      "current_sha256": "fbe13850fe505b2bdc21cfa83921fb13fdba7d07ff71f9ba1aa173661919d1d4",
+      "sha256": "fb42ad13892607bd500d4780aeaaa6764929ae897e05f2dfe6748fddfb3e9b0b",
+      "current_sha256": "e318bf2a6fff692cc4c432a04da76d4f98d1a8f833859fef33ada1436bf760a4",
       "patches": [
         {
-          "old": "                                                           \"household_retail\", \"household_retail_mode\", \"household_retail_boundary\",\n                                                           \"household_retail_rules\", \"household_retail_schedule\",\n                                                           \"watershed\", \"watershed_mode\",\n                                                           \"quarantine_mode\", \"wealth_accounting\"}) | {\"tuning_overrides\"}\n    assert (simulation[\"civs\"], simulation[\"regions\"], simulation[\"agents\"], simulation[\"cities\"]) == (2, 4, \"off\", None)\n    assert manifest[\"outputs\"][\"simulate_only\"] is True\n    environment = manifest[\"environment\"]\n",
-          "new": "                                                           \"household_retail\", \"household_retail_mode\", \"household_retail_boundary\",\n                                                           \"household_retail_rules\", \"household_retail_schedule\",\n                                                           \"watershed\", \"watershed_mode\",\n                                                           \"quarantine_mode\", \"attribution_records\",\n                                                           \"wealth_accounting\"}) | {\"tuning_overrides\"}\n    assert (simulation[\"civs\"], simulation[\"regions\"], simulation[\"agents\"], simulation[\"cities\"]) == (2, 4, \"off\", None)\n    assert manifest[\"outputs\"][\"simulate_only\"] is True\n    environment = manifest[\"environment\"]\n"
+          "old": "                                                           \"household_retail\", \"household_retail_mode\", \"household_retail_boundary\",\n                                                           \"household_retail_rules\", \"household_retail_schedule\",\n                                                           \"watershed\", \"watershed_mode\",\n                                                           \"quarantine_mode\", \"wealth_accounting\", \"quarantine_channels\"}) | {\"tuning_overrides\"}\n    assert (simulation[\"civs\"], simulation[\"regions\"], simulation[\"agents\"], simulation[\"cities\"]) == (2, 4, \"off\", None)\n    assert manifest[\"outputs\"][\"simulate_only\"] is True\n    environment = manifest[\"environment\"]\n",
+          "new": "                                                           \"household_retail\", \"household_retail_mode\", \"household_retail_boundary\",\n                                                           \"household_retail_rules\", \"household_retail_schedule\",\n                                                           \"watershed\", \"watershed_mode\",\n                                                           \"quarantine_mode\", \"attribution_records\",\n                                                           \"wealth_accounting\", \"quarantine_channels\"}) | {\"tuning_overrides\"}\n    assert (simulation[\"civs\"], simulation[\"regions\"], simulation[\"agents\"], simulation[\"cities\"]) == (2, 4, \"off\", None)\n    assert manifest[\"outputs\"][\"simulate_only\"] is True\n    environment = manifest[\"environment\"]\n"
         }
       ]
     }

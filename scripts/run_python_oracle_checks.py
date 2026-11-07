@@ -460,6 +460,7 @@ CHUNKS = {
     "connected-world-c": [
         "tests/test_quarantine_rules.py",
         "tests/test_cw4_screen.py",
+        "tests/test_quarantine_migration.py",
     ],
     "connected-world-d": [
         "tests/test_attribution_records.py",
