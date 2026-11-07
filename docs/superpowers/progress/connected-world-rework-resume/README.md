@@ -1,4 +1,4 @@
-# CWR1 exact-resume evidence adapter: prepared, execution pending
+# CWR1 exact-resume evidence adapter: planning, execution pending
 
 This is an evidence-only adapter for the final **AD**, rules 3, all personal
 channels, active health and explicit `density_only` timing pilots: template 5
@@ -94,3 +94,38 @@ NaN/infinity budget refusal before any execution. Both are corrected; the
 retained preparation checks exercise those exact refusals and a positive
 compiled-artifact hash fixture. Constructed bytes are never imported as native
 code. Earlier preparation remains in Git history; no simulation result changed.
+
+## Actual procedural pilot selection
+
+The final corrected procedural-19 AD pilot passed the real strict extractor
+and the source/import/native/pilot-byte guards. Its [exact plan](plan-p19.json)
+is bound to clean runtime `8792be88dd36ba4d7c22e480de6a19dd64ea1300`, compiled
+native artifact `b1d3ea5a…`, official CWR1 pilot identity `96f1efad…` and
+adapter SHA256 `f68f71f7…`. Raw JSON SHA256 is `b9d42be3…`; Arrow is
+`db300e20…`. Full values, input hashes and exact AD CLI are retained in the plan.
+
+Selected completed checkpoints are **1, 2, 3, 18, 19, 67**. Every declared
+lifecycle category is observed and covered, including complete recent-arrival
+coverage, actual positive epidemic care, individual health episodes, paid
+works, moving escrow, actual seizure and restitution. D3 wound/release first
+occur at source turn zero; checkpoint zero cannot be resumed and those two
+before boundaries remain explicitly unavailable. Actual evacuation has
+before/after checkpoints 2/3 and return 18/19. This is a saved-state selection,
+**not an executed exact-resume pass**. Template selection and all simulation
+execution still await their separate gates.
+
+This parse-only command exited zero, with no source, registry, pilot or
+simulation changes:
+
+```sh
+PYTHONPATH=/workspace/cwr-final-runtime/src RAYON_NUM_THREADS=1 \
+OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1 \
+/workspace/cwr-native/bin/python /workspace/evidence/cwr-resume/driver.py plan \
+  --source-root /workspace/cwr-final-runtime \
+  --expected-source 8792be88dd36ba4d7c22e480de6a19dd64ea1300 \
+  --expected-native-sha256 b1d3ea5ac858681960b2cb880c534164905501f6ab4f6f3c94f7c9b5f66196cd \
+  --pilot-source /workspace/evidence/cwr-evaluation/pilot-8792be88-v1/source.txt \
+  --bundle /workspace/evidence/cwr-evaluation/pilot-8792be88-v1/runs/AD-p19/chronicle_bundle.json \
+  --stratum procedural --seed 19 \
+  --output /workspace/evidence/cwr-resume/plan-p19-8792-f68f.json
+```
