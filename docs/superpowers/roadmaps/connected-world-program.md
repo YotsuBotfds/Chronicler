@@ -293,6 +293,12 @@ open questions follow each summary.
   army rations are minted on top. There are two war-death authorities (campaign casualties and the
   native ×2 Soldier mortality at war). An inexact resume can keep a roster whose ids now name
   strangers (code path, not reproduced).
+- **Correction from the integrated native audit (2026-11-07):** the historical
+  claim above that soldiers never move natively was false. Native enlisted
+  people can migrate; army attachment is distinct from residence. D4 freezes
+  service food/work at Phase2 without teleportation; D3 records wounds and
+  remembered-home return through existing health/migration authorities. The
+  old default double-mortality behavior is changed only under active D3.
 - No person pays tax; at least six channels already turn grievance into influence; a restored civ
   reuses the dead civ's index and name.
 - **Decisions:** owned stock follows the commons once per war event (retail rules version 2,
