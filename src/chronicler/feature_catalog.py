@@ -47,8 +47,8 @@ Requirement conditions (JSON objects, each with a human ``reason``):
 * ``{"not": condition}``: the condition does not hold. Two mutually exclusive
   switches each declare ``_excludes(other)`` (``{"not": {"feature": other}}``,
   reason "requires --other off"); a one-sided exclusion is a declaration error
-  (``exclusion_problems``). No switch declares one yet, so the served catalog
-  is unchanged.
+  (``exclusion_problems``). The first pair: ``epidemic_care`` (C2) and
+  ``wealth_accounting`` (A1, which does not itemize care wages).
 """
 from __future__ import annotations
 
@@ -170,8 +170,11 @@ REQUIREMENTS: dict[str, tuple[dict, ...]] = {
     # cost_only) repair through RS2.
     "infrastructure_condition": (_HYBRID, _any(_choice("infrastructure_condition_mode", "record_only", "wear_only"),
                                               _feature("repair_projects"))),
+    # C2: L9 funds the carers; the epidemic model and its ledger are the effect's
+    # authority; the A1 ledger does not itemize care wages (mutual exclusion).
+    "epidemic_care": (_HYBRID, _feature("local_budgets"), _setting("epidemiology"), _excludes("wealth_accounting")),
     "attribution_records": (_HYBRID,),
-    "wealth_accounting": (_HYBRID,),
+    "wealth_accounting": (_HYBRID, _excludes("epidemic_care")),
     # An explicit legacy is the option omitted: it needs nothing (lead decision m4).
     "quarantine_mode": (_any(_setting("epidemiology"), _choice("quarantine_mode", "legacy")),),
     # C1b: an explicit trade is the option omitted; trade,migration closes native

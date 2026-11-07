@@ -1265,3 +1265,32 @@ def test_exact_resume_with_an_outstanding_timber_order_matches_the_straight_run(
     assert a.model_dump(mode="json") == b.model_dump(mode="json")
     assert any(w.timber_used > 0 for w in _state(a).works + _state(a).closed)
     json.dumps(IC.snapshot_summary(a))
+
+
+def test_the_works_woodcutters_are_visible_to_the_one_labour_reservation():
+    """C2's shared query (``labour_reservations.booked``) sees the crew PL1 sent for
+    the works' timber: they are reserved in the native work registry (``repair``)
+    in Phase 2, before C2 names carers, so no carer can be booked twice with them.
+    The works' own labour is the anonymous storage column and names nobody."""
+    from chronicler import labour_reservations as LR
+    from chronicler import livelihoods as LV
+    from tests.test_timber_supply import _Sim, _batch, _phase10
+    world = _pl1_world(work_region=2)
+    sim = _Sim(_pl1_people())
+    _phase10(world, sim)
+    world.turn += 1
+    (exp,) = world.livelihoods.timber_supply.expeditions
+    assert exp.home == 2 and world.livelihoods.timber_supply.counters["launched_works"] == 1
+    world.regions[2].stockpile.goods["timber"] = 5.0      # the works plan labour this turn
+    bridge = SimpleNamespace(_sim=sim, get_snapshot=sim.snapshot)
+    plan = S.prepare_storage_work(world, [10.0] * len(world.regions), commitments={})
+    try:
+        LV.prepare_phase2(world, _batch(world, plan), bridge, sim.snapshot(), acc=None)
+        booked = LR.booked(world, sim, world.turn)
+        assert {a: booked[a] for a in exp.crew} == {a: "registry_repair" for a in exp.crew}
+        assert _state(world)._turn.region_request[2] > 0.0
+        assert set(booked) == set(exp.crew)        # the works' column labour books no named person
+    finally:
+        if plan.status == "pending":
+            S.rollback_storage_work(world, plan)
+        LV.rollback_phase2(world)

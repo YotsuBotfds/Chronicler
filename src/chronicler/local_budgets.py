@@ -38,6 +38,11 @@ Services (built-in providers; each reuses an existing public API)
     (``repair_projects`` reads :func:`envelope`); a granary under a repair
     project takes no ``granary_*`` envelope (its storage request is
     suspended).
+    ``epidemic_care`` (registered by ``--epidemic-care``, group ``relief``): C2's
+    carers in a region with a reported outbreak are named and paid only within
+    the envelope for ``epidemic_care:<region>`` (``epidemic_care.prepare_phase2``
+    reads the open commitments); the commons' stake is the deaths care would
+    avert, valued in food units.
     ``infrastructure_works`` (registered by ``--infrastructure-condition``, group
     ``repairs``): B3's irrigation works spend only within their own
     ``infrastructure:<civ>`` envelope, a proposal of their own (never pooled
@@ -128,6 +133,7 @@ PROVIDERS: tuple[str, ...] = (
     "chronicler.clearing_protection:BUDGET_PROVIDER",
     "chronicler.local_budgets:REPAIRS",
     "chronicler.maintenance_obligation:BUDGET_PROVIDER",
+    "chronicler.epidemic_care:BUDGET_PROVIDER",
     "chronicler.infrastructure_condition:BUDGET_PROVIDER",
 )
 

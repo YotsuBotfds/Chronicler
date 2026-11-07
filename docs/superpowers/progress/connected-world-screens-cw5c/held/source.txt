@@ -1,0 +1,15 @@
+source ca2e1c8474b9504c44f793ba6b3ca2214904bbcb
+dirty 0 tracked files
+dirty-code 0 tracked code files
+chronicler /home/user/wt/c2-care/src/chronicler/__init__.py
+native /root/.venvs/native-a3/lib/python3.13/site-packages/chronicler_agents/chronicler_agents.cpython-313-x86_64-linux-gnu.so 20e77f9945efa71d597c142e99069337586cc865ddee7a17c6d20948a2c0c1ca
+interpreter /root/.venvs/native-a3/bin/python
+runner 55b7e2c5e12c01f36e143dc90d251eb62dc2722f569fc61e13e8e78ef2ce7b72 scripts/screen_runner.py
+screens 9ce196bfd12194ba6f02bd76cab0051df41f67f31ead63b536326814574a34b1 scripts/connected_world_screens.py
+registry 97bff813662c524d2b7fbf59dc8588a35c4a9fa2917c97c50ade6ca4a0b0ff5b scripts/seed_registry.json
+registry-content fa4731ea0d40d3dc7b6c29521f51df4199c68454fcb04196b8e9b054033a3b59 (cohorts and seeds)
+preregistration 5533559aa73d5ae0891f6e19bfcdc8053b512cb3590ea72e7bfac7cfd496e026 docs/superpowers/progress/connected-world-screens-cw5c.md
+run: screen CW5c; cohort held; seeds all; arms E0,EC,EF; jobs 2; worlds -; turns -; rows already written 0
+pilot docs/superpowers/progress/connected-world-screens-cw5c/pilot/metrics.jsonl sha256 ded666dcb026a23388d5f45212e330541b758892aaf821615d3676ae240dfd05; projected 0.195 core-hours; ceiling 0.5 core-hours; expected seconds per run: max of the pilot mean per arm and stratum (E0 p 25.5, E0 t 10.5, EC p 25.5, EC t 11.6, EF p 31.7, EF t 12.1) and the finished runs' mean per stratum
+started 2026-11-07T05:59:48Z
+finished 2026-11-07T06:04:22Z: 36 runs, 0 failed, 546 s of simulation and extraction (0.152 core-hours in all), 274.4 s wall
