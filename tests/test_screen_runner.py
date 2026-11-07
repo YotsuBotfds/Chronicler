@@ -90,6 +90,9 @@ def test_registry_union_covers_the_audit_union(SR, registry):
 
 #: Screens whose held run ``mark-run`` recorded in the registry (complete).
 RECORDED = {"CW4", "CW1"}
+#: CW3's held run, recorded incomplete (one run failed: the disk was full), procedural only;
+#: its template reservation is recorded as unused by design (never_run).
+RECORDED_INCOMPLETE = {"CW3"}
 
 
 def _unrun(SR, registry=None):
@@ -110,8 +113,14 @@ def test_program_reservations(SR, registry, CW, screen):
     t0, p0 = PROGRAM[screen]
     own = [e for e in registry["entries"] if e.get("screen") == screen]
     status = "run" if screen in RECORDED else "reserved"
-    assert {(e["stratum"], e["status"], e["cohort"], e["program"]) for e in own} == {
-        ("template", status, "held", "connected-world"), ("procedural", status, "held", "connected-world")}
+    if screen in RECORDED_INCOMPLETE:
+        assert {(e["stratum"], e["status"], e["cohort"], e["program"]) for e in own} == {
+            ("template", "never_run", "held", "connected-world"), ("procedural", "run", "held", "connected-world")}
+        assert [e["held_run"]["complete"] for e in own if e["stratum"] == "procedural"] == [False]
+        assert all("unused by design" in e["use"] and "held_run" not in e for e in own if e["stratum"] == "template")
+    else:
+        assert {(e["stratum"], e["status"], e["cohort"], e["program"]) for e in own} == {
+            ("template", status, "held", "connected-world"), ("procedural", status, "held", "connected-world")}
     if screen in RECORDED:
         assert all(e["held_run"]["complete"] for e in own)
     got = {e["stratum"]: SR.expand(e["seeds"]) for e in own}
@@ -178,12 +187,14 @@ def test_validate_registry_refuses(SR, registry, change):
 
 @pytest.mark.parametrize("name", ["CW1", "CW2", "CW3", "CW4", "CW5", "CW6", "DEV"])
 def test_program_cohorts_pass(SR, registry, CW, name):
-    problems, notes = SR.check_seeds(CW.SCREENS[name], registry, reuse="recorded" if name in RECORDED else "refuse")
+    recorded = name in RECORDED | RECORDED_INCOMPLETE
+    problems, notes = SR.check_seeds(CW.SCREENS[name], registry, reuse="recorded" if recorded else "refuse")
     assert problems == []
-    if name in RECORDED:
+    if recorded:
         # A recorded held cohort refuses a new held run of it, and is noted as recorded.
         assert any("already run" in p for p in SR.check_seeds(CW.SCREENS[name], registry)[0])
-        assert sum("was recorded as run (complete" in n for n in notes) == len(CW.SCREENS[name].held)
+        state = "incomplete" if name in RECORDED_INCOMPLETE else "complete"
+        assert sum(f"was recorded as run ({state}" in n for n in notes) == len(CW.SCREENS[name].held)
         notes = [n for n in notes if "was recorded as run" not in n]
     if name == "CW3":
         # CW3 declares no template cohort (the watershed refuses template worlds): its template

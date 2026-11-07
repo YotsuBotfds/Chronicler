@@ -289,6 +289,116 @@ downstream water index about as much as protection did (F_CPc - F −0.0014, 7 o
 F_CP - F_CPc −0.0008, 4 of 8), so the primary F_CP - F mixes protection with the trajectory its
 warden charges set off; the F_CP - F_CPc secondaries separate them.
 
-## Results
+## Results (held run, 2026-11-07)
 
-No held run (awaiting the lead's review and go-ahead).
+Procedural 851-856, 200 turns, five arms, `run HELD --screen CW3 --cohort held --pilot
+connected-world-screens-cw3/pilot/metrics.jsonl --jobs 2` on `b9170bef` (the frozen source plus
+this page's Amendment 1 commit; clean tree). The template cohort 751-756 was never run: `mark-run`
+recorded it as `never_run`, unused by design (CW3 declares no template cohort), and the procedural
+cohort as `run` (incomplete, below). Retained in `connected-world-screens-cw3/held/`:
+`metrics.jsonl`, `source.txt`, `held-run.json`, `report.md`, `check.txt`.
+
+**Identity.** Source `b9170bef9729c81a0063a9395c6e9085c61ed0fe`, dirty 0, dirty-code 0; native
+extension SHA-256 `e724072d7888888ede86acccb8db745c219c445fd47644ec9abe8ed5493e865b` (the shared
+build of `main` `ae94bca6`'s Rust); runner `bd443414…`, screen module `ca65e38d…`, registry
+content `a703a850…`, preregistration `f834f8ef…`; run identity digest `4b61577c…`. The pilot's
+identity matches (its source `a83af3f3` differs only in this page).
+
+**Runs and failures.** 30 runs, **1 failed: F_CP on procedural 851**, rc 1, before its bundle was
+written: `ArtifactIOError ... [Errno 28] No space left on device` (the shared machine's disk filled
+during the run; 7.9 GB free when checked after it). The failure is environmental, not a model
+failure. Per the stopping rules it is reported, not replaced: the runner counts a failed row as
+done, so `--resume` does not rerun it, and no row was edited. Every comparison that needs F_CP on
+851 is `failed` there and computed on the 5 other worlds; everything else uses 6. `check --metrics
+... --cohort held` reports this one failure (exit 1) and nothing else; missing outcomes 0.
+
+**Compute.** 1148 s of simulation and extraction, 0.319 core-hours, under the 0.40 ceiling (no run
+stopped by it); runs averaged 35-42 s against the pilot's 21-29 s (a loaded machine).
+
+### Activation and validity (before any effect)
+
+- Activation: F 6 of 6, R_CP 6 of 6, F_CPc 6 of 6, F_CP 5 of 6 (851 failed). R is the root.
+- Validity, every completed run of every arm (a breach would have been a problem, rc 3; there were
+  none): the water account closes in every snapshot (worst relative residual in F_CP 7.7e-16 to
+  2.0e-15), the flow arms' index used equals the derived index, capped at recorded cap changes,
+  within 5.2e-5 (worst 5.0e-5, the native rounding), every record is in its arm's mode and dated,
+  and the cost-only arm kept no cover (it would have kept 4.5-6.9). No water was created.
+
+### Primary outcomes (F_CP - F; procedural; 851 failed)
+
+| Outcome | 852 | 853 | 854 | 855 | 856 | Mean [min, max] | > 0 / < 0 | Sign-flip (of 32) |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| `cw3_ds_water_flow`: downstream water index | +0.00077 | −0.00748 | −0.00642 | −0.00368 | +0.00139 | −0.00309 [−0.00748, +0.00139] | 2 / 3 | 8 as extreme; means ±0.00395 |
+| `cw3_ds_food_flow`: downstream food shortfall share | +0.0239 | +0.0031 | −0.0114 | +0.0060 | +0.0140 | +0.0071 [−0.0114, +0.0239] | 4 / 1 | 10 as extreme; means ±0.0117 |
+| `cw3_ds_water_interaction`: (F_CP - F) - (R_CP - R), downstream water | +0.0427 | −0.0191 | −0.0029 | −0.0141 | +0.0051 | +0.0024 [−0.0191, +0.0427] | 2 / 3 | 28 as extreme; means ±0.0168 |
+
+Reading (descriptive only; not significance tests): on five worlds, protection under flow left the
+downstream water index slightly lower on average with mixed signs (2 up, 3 down; a quarter of the
+sign assignments are as extreme), and downstream food shortfall slightly higher (4 of 5; 10 of 32
+assignments as extreme); the interaction is near zero with mixed signs (28 of 32 as extreme): no
+downstream effect specific to flow is visible. None of the three is distinguishable from the
+sign-flip spread on these worlds.
+
+### Secondary outcomes (means [min, max], sign counts, sign-flip as extreme)
+
+| Outcome | Mean [min, max] | > 0 / < 0 / = 0 | Sign-flip |
+| --- | --- | --- | --- |
+| Downstream water, R_CP - R (old index; 6 worlds) | −0.0025 [−0.0419, +0.0124] | 3 / 3 / 0 | 58/64 |
+| Downstream food shortfall share, R_CP - R | −0.0103 [−0.0239, +0.0028] | 2 / 4 / 0 | 8/64 |
+| Downstream food shortfall share, interaction | +0.0157 [−0.0129, +0.0406] | 4 / 1 / 0 | 8/32 |
+| Downstream water, F - R (flow itself; 6) | +0.051 [−0.009, +0.098] | 5 / 1 / 0 | 4/64 |
+| Downstream food shortfall share, F - R | −0.026 [−0.043, −0.009] | 0 / 6 / 0 | 2/64 |
+| Upstream food shortfall share, F_CP - F | +0.0053 [−0.0188, +0.0299] | 3 / 2 / 0 | 18/32 |
+| Upstream water, F_CP - F | −0.0009 [−0.0064, +0.0014] | 3 / 2 / 0 | 28/32 |
+| All regions' food shortfall share, F_CP - F | +0.0075 [−0.0009, +0.0188] | 4 / 1 / 0 | 4/32 |
+| Account flood events (and those that acted), F_CP - F | +0.6 [0, +2] | 2 / 0 / 3 | 16/32 |
+| Droughts declared, F_CP - F (downstream) | +1.2 [−5, +10] (+0.4 [−3, +4]) | 3 / 2 / 0 (2 / 1 / 2) | 24/32 (24/32) |
+| Coastal floods, F_CP - F | 0 | 0 / 0 / 5 | 32/32 |
+| Upstream mean cover at the end, F_CP - F | +0.014 [−0.020, +0.045] | 4 / 1 / 0 | 8/32 |
+| **Protection apart from its cost** (Amendment 1): downstream water, F_CP - F_CPc | −0.0018 [−0.0045, +0.0020] | 1 / 4 / 0 | 6/32 |
+| Downstream food shortfall share, F_CP - F_CPc | −0.0156 [−0.0674, +0.0061] | 2 / 3 / 0 | 12/32 |
+| Water below the turn-0 candidates, F_CP - F_CPc | −0.0029 [−0.0126, +0.0070] | 2 / 3 / 0 | 14/32 |
+| Food shortfall share below the candidates, F_CP - F_CPc | +0.0025 [−0.0601, +0.1289] | 1 / 4 / 0 | 32/32 |
+| Upstream water, F_CP - F_CPc | −0.0012 [−0.0041, +0.0005] | 1 / 4 / 0 | 6/32 |
+| Upstream cover at the end, F_CP - F_CPc | +0.032 [−0.085, +0.142] | 3 / 2 / 0 | 16/32 |
+| Droughts declared, F_CP - F_CPc | +0.4 [−1, +2] | 2 / 1 / 2 | 24/32 |
+| **The cost alone**: downstream food shortfall share, F_CPc - F (6) | +0.0209 [+0.0064, +0.0560] | 6 / 0 / 0 | 2/64 |
+| Downstream water, F_CPc - F | −0.0013 [−0.0057, +0.0053] | 1 / 5 / 0 | 26/64 |
+| Treasury at the end, F_CPc - F | +57 [−3618, +3512] | 3 / 3 / 0 | 62/64 |
+
+F_CP alone: river floods superseded 0-8 (mean 2.6); cover kept 10.6-25.6 (mean 18.7); warden pay
+charged 1057-2561 (mean 1869); 6-10 regions below a protected region; selection (below F_CP's own
+protections, no counterpart): food shortfall share 0.041-0.119, water index 0.606-0.723.
+
+Reading: flow itself (F - R) raised the downstream water index (5 of 6, the known wet bias) and
+lowered downstream food shortfall on all 6 worlds. Protection's warden charges alone (F_CPc - F)
+raised downstream food shortfall on all 6 worlds (2 of 64 assignments as extreme), while the cover
+it keeps, cost held equal (F_CP - F_CPc), moved downstream water slightly down (4 of 5) and food
+shortfall down on average with mixed signs: the primary F_CP - F mixes the two, and its food
+shortfall increase is mostly the cost.
+
+### Harm panel (each arm against its declared control, and F_CP - F)
+
+| Comparison | Population at the end | Treasury at the end | Food shortfall after relief (world) | Epidemic deaths | Agents migrating | Wealth Gini at the end |
+| --- | --- | --- | --- | --- | --- | --- |
+| F - R (6) | −36 [−258, +161], 3/3 | −582 [−3789, +552], 2/4 | −1461 [−2527, +117], 1/5 | +108 [−149, +247], 5/1 | −651 [−1983, +737], 1/5 | +0.025, 4/2 |
+| R_CP - R (6) | −2 [−90, +218], 2/4 | +253 [−5106, +3428], 4/2 | −235 [−1904, +1601], 2/4 | −18 [−194, +101], 4/2 | −553 [−1794, +352], 2/4 | +0.017, 3/3 |
+| F_CPc - F (6) | +39 [−173, +310], 2/4 | +57 [−3618, +3512], 3/3 | +1697 [+115, +6385], 6/0 | −66 [−354, +90], 3/3 | +1172 [−1605, +3802], 5/1 | +0.018, 4/2 |
+| F_CP - F_CPc (5) | +2 [−282, +238], 3/2 | −58 [−1932, +1315], 3/2 | −1159 [−7088, +829], 3/2 | +4 [−203, +231], 3/2 | −1090 [−5578, +1122], 1/4 | −0.078, 1/4 |
+| F_CP - F (5) | +80 [−11, +196], 4/1 | +734 [−1066, +2706], 3/2 | +774 [−703, +2039], 4/1 | −77 [−194, +19], 2/3 | +91 [−1776, +2236], 2/3 | −0.024, 1/4 |
+
+Nulls as nulls: priced-out persons and children and the timber stand are `not recorded` in every arm
+(household retail and the timber stock are off); deaths by famine and by war `require a slice
+extractor`. Values are mean [min, max] and > 0 / < 0 counts; the full rows, per world, with the
+sign-flip distributions, are in `held/report.md`.
+
+### What CW3 shows (and does not)
+
+On these six procedural worlds, funded upstream forest protection did not produce a clear
+downstream effect under flow: the downstream water index moved down by a few thousandths on
+average with mixed signs, the downstream food shortfall rose slightly, and nothing in the
+interaction marks the effect as specific to flow. The water account created no water. The cost
+arm attributes most of the food change to the warden charges rather than to the cover kept. One
+F_CP run failed for lack of disk; the primaries rest on five worlds. A bounded screen, not
+qualification; the watershed's known wet bias and its forest-loss-only floods (watershed.md) apply.
+No held seed will be rerun.
