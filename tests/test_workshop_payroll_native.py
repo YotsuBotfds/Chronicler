@@ -180,7 +180,7 @@ def test_wealth_transfer_contract_on_a_live_pool():
         with pytest.raises(ValueError):
             sim.transfer_wealth(6, 0, 1, bad)
     with pytest.raises(ValueError, match="purpose"):
-        sim.transfer_wealth(6, 10, 1, [(a, 1)])     # 7-9 appended by A3 and A4
+        sim.transfer_wealth(6, len(sim.wealth_transfer_purposes()), 1, [(a, 1)])  # first unregistered code
     with pytest.raises(ValueError, match="already applied"):
         sim.transfer_wealth(5, 0, 1, [(a, 1)])
     debit = sim.transfer_wealth(6, 0, 1, [(a, -10**9)])
