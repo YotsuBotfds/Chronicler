@@ -197,6 +197,15 @@ pub fn plan_crews(pool: &AgentPool, sites: &[SiteRequest], enlisted: &HashSet<u3
 pub fn plan_crews_with_priority(pool: &AgentPool, sites: &[SiteRequest], enlisted: &HashSet<u32>,
                                 turn: Option<u32>, priority: &[u32])
     -> Result<Vec<SiteCrew>, &'static str> {
+    plan_crews_with_choice(pool, sites, enlisted, turn, priority, &HashSet::new())
+}
+
+/// A6 personal willingness filters physical eligibility without reclassifying
+/// a declined offer as military or other assigned labor. Default empty set
+/// preserves the historical planner and its 11-column receipt.
+pub fn plan_crews_with_choice(pool: &AgentPool, sites: &[SiteRequest], enlisted: &HashSet<u32>,
+                              turn: Option<u32>, priority: &[u32], declined: &HashSet<u32>)
+    -> Result<Vec<SiteCrew>, &'static str> {
     validate(sites)?;
     let mut rank: HashMap<u32, usize> = HashMap::with_capacity(priority.len());
     for (i, &id) in priority.iter().enumerate() {
@@ -250,7 +259,7 @@ pub fn plan_crews_with_priority(pool: &AgentPool, sites: &[SiteRequest], enliste
         }
         let row = &mut rows[i];
         row.eligible = list.len() as u32;
-        for (id, age) in list.into_iter().take(site.max_workers as usize) {
+        for (id, age) in list.into_iter().filter(|(id, _)| !declined.contains(id)).take(site.max_workers as usize) {
             // Distinct settlements make a second claim impossible; keep the
             // shared authority explicit anyway.
             if assigned.insert(id) {
@@ -280,6 +289,16 @@ mod tests {
 
     fn site(site: u16, region: u16, settlement: u16) -> SiteRequest {
         SiteRequest { site, region, settlement_id: settlement, diverted_fraction: 0.2, max_workers: 8 }
+    }
+
+    #[test]
+    fn personal_decline_preserves_physical_eligibility_and_never_counts_as_army() {
+        let pool = pool_with(&[(0, 5, Occupation::Farmer, 30), (0, 5, Occupation::Farmer, 30)]);
+        let declined = HashSet::from([pool.ids[0]]);
+        let rows = plan_crews_with_choice(&pool, &[site(0,0,5)], &HashSet::new(), None, &[], &declined).unwrap();
+        assert_eq!(rows[0].eligible, 2);
+        assert_eq!(rows[0].excluded_army, 0);
+        assert_eq!(rows[0].crew, vec![pool.ids[1]]);
     }
 
     #[test]

@@ -43,9 +43,8 @@ CHANNELS: tuple[tuple[str, str | None, str], ...] = (
     ("relocation_fare", "relocation_costs", "movers -> travel sink (L7)"),
     ("domestic_credit", None, "treasury <-> merchants, net applied (domestic credit)"),
     ("wares_purchase", "workshop_economics", "households -> workshop firm cash, wares bought by id (A3)"),
-    # C2 (epidemic care): registered for the payment seam; the ledger does not
-    # itemize it (``--epidemic-care`` and ``--wealth-accounting`` exclude each other).
-    ("care_wage", "epidemic_care", "treasury -> epidemic carers by id (C2; not itemized: excluded with A1)"),
+    # C2 wages and withheld income are itemized when A1 observation is active.
+    ("care_wage", "epidemic_care", "treasury -> epidemic carers by id (C2)"),
     ("cargo_purchase", "titled_trade", "merchant -> owners of surplus food, titled cargo bought by id (A4)"),
 )
 CHANNEL_NAMES: tuple[str, ...] = tuple(c[0] for c in CHANNELS)
@@ -59,7 +58,7 @@ WITHHELD_PACKAGES: tuple[str, ...] = (
     "workshop_payroll", "apprenticeship", "recovery_crews_granary", "recovery_crews_workshop",
     "repair_projects", "timber_supply",
     # A4: a titled shipment's carrier (its whole ordinary income; row only while A4 is active).
-    "titled_trade",
+    "titled_trade", "epidemic_care",
 )
 
 #: Withheld channels that are not paid work (no money moves). ``withheld_retail``:
@@ -143,7 +142,7 @@ WEALTH_WRITERS: dict[tuple[str, str, str, str], tuple[int, tuple[str, ...]]] = {
     ("money", "_native_transfer", "transfer_wealth", "purpose=code,batch=batch"): (1, ("wares_purchase", "care_wage")),
     ("money", "pay", "_native_transfer", "purpose=bill.purpose"): (2, ("wares_purchase", "care_wage")),
     # C2 (epidemic care): carers' ordinary income withheld for their care time.
-    ("epidemic_care", "finish_phase2", "extend_paid_work", ""): (1, ("withheld_care",)),
+    ("epidemic_care", "finish_phase2", "extend_paid_work", ""): (1, ("withheld_care", "epidemic_care")),
     # A4 (titled trade): the pairwise router's one native call and its caller in
     # ``money.pay``; the carriers' paid share (their whole ordinary income).
     ("money", "_native_pairs", "settle_pairs", "purpose=code,batch=batch"): (1, ("cargo_purchase",)),
@@ -235,7 +234,13 @@ LIFETIME: tuple[str, ...] = (
     "firm_inputs_to_treasury_milli", "asset_subsidy_units",
     # A4 (titled trade), appended: its typed channel and its carriers' withheld income.
     "cargo_purchase_in_milli", "cargo_purchase_out_milli", "withheld_titled_trade",
+    "care_wage_in_milli", "care_wage_out_milli", "withheld_epidemic_care", "withheld_care",
 )
+
+# Future registered channels append their counters without changing historical
+# declaration order or duplicating explicitly recorded channel counters.
+LIFETIME += tuple(f"{name}_{side}_milli" for name in CHANNEL_NAMES for side in ("in", "out")
+                  if f"{name}_{side}_milli" not in LIFETIME)
 
 #: Lifetime counters (declaration order; append only).
 COUNTERS: tuple[str, ...] = (

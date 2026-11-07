@@ -120,8 +120,8 @@ def test_switch_is_appended_last_with_cli_catalog_and_manifest_keys():
     assert "observation-only" in LV._HELP["wealth_accounting"] and "hybrid" in LV._HELP["wealth_accounting"]
     for fn in ("set_wealth_accounting_enabled", "wealth_accounting_active", "snapshot_summary"):
         assert callable(getattr(WA, fn))
-    # No agent-tick hook: the post-tick snapshot hand-over is unchanged.
-    assert not hasattr(WA, "before_agent_tick") and not hasattr(WA, "after_agent_tick")
+    # A1-2 arms and takes a transient read-only native observation.
+    assert callable(WA.before_agent_tick)
 
 
 @pytest.mark.parametrize("mode", ["off", "shadow", "demographics-only"])
@@ -501,7 +501,7 @@ def test_every_paid_work_row_is_attributed_once_and_pl3_splits_granary_from_work
     wh = frame["withheld"]
     by = {r["package"]: r for r in wh["packages"]}
     # A4's carriers have a row only while titled trade is active (not here).
-    assert [r["package"] for r in wh["packages"]] == [p for p in WITHHELD_PACKAGES if p != "titled_trade"]
+    assert [r["package"] for r in wh["packages"]] == [p for p in WITHHELD_PACKAGES if p not in ("titled_trade", "epidemic_care")]
     assert {k: r["rows"] for k, r in by.items()} == {
         "workshop_payroll": 2, "apprenticeship": 1, "recovery_crews_granary": 1, "recovery_crews_workshop": 2,
         "repair_projects": 0, "timber_supply": 2}
@@ -650,9 +650,9 @@ def test_record_shape_and_reader_states_are_distinct():
     assert record["schema_version"] == 1 and record["stage"] == "A1" and record["source_turn"] == 0
     assert set(record) == {"schema_version", "stage", "source_turn", "units", "frame", "lifetime", "counters", "log",
                            "log_dropped", "labels", "parameters"}
-    assert set(record["frame"]) == set(WA.FRAME_KEYS)
+    assert set(record["frame"]) == set(WA.FRAME_KEYS) | {"native"}
     assert set(record["lifetime"]) <= set(LIFETIME) and set(record["counters"]) <= set(COUNTERS)
-    assert "native model flows" in record["labels"]["native_model"]
+    assert "native separately itemizes actual income" in record["labels"]["native_model"]
     observed = {"livelihoods": {"wealth_accounting": record}}
     status, frame = WA.record_status(observed)
     assert status == "observed" and frame["world"]["typed_in_milli"] == 0       # a recorded zero

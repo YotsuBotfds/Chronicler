@@ -62,9 +62,9 @@ pub const MILLI: i64 = 1000;
 /// (A4) for pairwise payments between people ([`settle_pairs`]): a merchant
 /// buying owners' food (`cargo_purchase`) and, from later slices, a buyer
 /// paying a cargo's holder (`cargo_sale`).
-pub const PURPOSES: [&str; 10] = ["workshop_wage", "relocation_fare", "apprentice_stipend", "repair_wage", "remittance",
+pub const PURPOSES: [&str; 11] = ["workshop_wage", "relocation_fare", "apprentice_stipend", "repair_wage", "remittance",
                                   "food_purchase", "food_procurement", "wares_purchase", "cargo_purchase",
-                                  "cargo_sale"];
+                                  "cargo_sale", "restitution"];
 pub const PURPOSE_WORKSHOP_WAGE: u8 = 0;
 pub const PURPOSE_RELOCATION_FARE: u8 = 1;
 pub const PURPOSE_APPRENTICE_STIPEND: u8 = 2;
@@ -75,6 +75,7 @@ pub const PURPOSE_FOOD_PROCUREMENT: u8 = 6;
 pub const PURPOSE_WARES_PURCHASE: u8 = 7;
 pub const PURPOSE_CARGO_PURCHASE: u8 = 8;
 pub const PURPOSE_CARGO_SALE: u8 = 9;
+pub const PURPOSE_RESTITUTION: u8 = 10;
 /// Purposes [`settle_pairs`] accepts (pairwise payments between people).
 pub const PAIRWISE_PURPOSES: [u8; 2] = [PURPOSE_CARGO_PURCHASE, PURPOSE_CARGO_SALE];
 /// Largest magnitude accepted for one row (10^12 milli-units).
@@ -179,6 +180,7 @@ pub fn transfer(pool: &mut AgentPool, turn: u32, purpose: u8, batch: u32, rows: 
         if applied != 0 {
             let next = (wealth as f64 + applied as f64 / MILLI as f64) as f32;
             pool.wealth[slot] = next.clamp(0.0, MAX_WEALTH);
+            pool.observe_transfer(slot, wealth as f64, applied as f64 / MILLI as f64);
         }
         let status = if applied == requested { STATUS_APPLIED } else { STATUS_LIMITED };
         out.push(TransferRow { agent_id, requested, applied, residual: requested - applied, status });
@@ -260,12 +262,16 @@ pub fn remit(pool: &mut AgentPool, turn: u32, batch: u32, rows: &[(u32, u32, i64
         let refunded = carried - credited;
         let net = sent - refunded;
         if net != 0 {
+            let before = pool.wealth[from] as f64;
             let next = (pool.wealth[from] as f64 - net as f64 / MILLI as f64) as f32;
             pool.wealth[from] = next.clamp(0.0, MAX_WEALTH);
+            pool.observe_transfer(from, before, -(net as f64) / MILLI as f64);
         }
         if credited != 0 {
+            let before = pool.wealth[to] as f64;
             let next = (pool.wealth[to] as f64 + credited as f64 / MILLI as f64) as f32;
             pool.wealth[to] = next.clamp(0.0, MAX_WEALTH);
+            pool.observe_transfer(to, before, credited as f64 / MILLI as f64);
         }
         let status = if sent == asked && refunded == 0 { STATUS_APPLIED } else { STATUS_LIMITED };
         out.push(RemitRow { sender, recipient, sent, fee: fee_paid, credited, refunded, status });
@@ -362,8 +368,10 @@ pub fn settle_pairs(pool: &mut AgentPool, turn: u32, purpose: u8, batch: u32, ro
     }
     for (_, (slot, change)) in net {
         if change != 0 {
+            let before = pool.wealth[slot] as f64;
             let next = (pool.wealth[slot] as f64 + change as f64 / MILLI as f64) as f32;
             pool.wealth[slot] = next.clamp(0.0, MAX_WEALTH);
+            pool.observe_transfer(slot, before, change as f64 / MILLI as f64);
         }
     }
     pool.wealth_transfer_log.retain(|&(t, _, _)| t >= turn);
@@ -488,8 +496,10 @@ pub fn settle_food_purchases(pool: &mut AgentPool, turn: u32, regions: &[FoodPur
         })
         .collect();
     for (slot, net) in updates {
+        let before = pool.wealth[slot] as f64;
         let next = (pool.wealth[slot] as f64 + net as f64 / MILLI as f64) as f32;
         pool.wealth[slot] = next.clamp(0.0, MAX_WEALTH);
+        pool.observe_transfer(slot, before, net as f64 / MILLI as f64);
     }
     pool.wealth_transfer_log.retain(|&(t, _, _)| t >= turn);
     pool.wealth_transfer_log.push((turn, PURPOSE_FOOD_PURCHASE, 0));
@@ -688,7 +698,7 @@ mod tests {
     fn each_key_applies_once_and_bad_rows_change_nothing() {
         let mut pool = pool_with(&[1.0, 1.0]);
         let (a, b) = (pool.ids[0], pool.ids[1]);
-        assert!(transfer(&mut pool, 5, 10, 0, &[(a, 1)]).is_err());
+        assert!(transfer(&mut pool, 5, 11, 0, &[(a, 1)]).is_err());
         assert!(transfer(&mut pool, 5, 0, 0, &[(a, 1), (a, 2)]).is_err());
         assert!(transfer(&mut pool, 5, 0, 0, &[(a, MAX_ROW_MILLIS + 1)]).is_err());
         assert_eq!((pool.wealth[0], pool.wealth[1]), (1.0, 1.0));
@@ -737,7 +747,7 @@ mod tests {
     #[test]
     fn appended_purposes_keep_the_old_codes() {
         assert_eq!(PURPOSES, ["workshop_wage", "relocation_fare", "apprentice_stipend", "repair_wage", "remittance",
-                              "food_purchase", "food_procurement", "wares_purchase", "cargo_purchase", "cargo_sale"]);
+                              "food_purchase", "food_procurement", "wares_purchase", "cargo_purchase", "cargo_sale", "restitution"]);
         assert_eq!((PURPOSE_APPRENTICE_STIPEND, PURPOSE_REPAIR_WAGE, PURPOSE_REMITTANCE), (2, 3, 4));
         assert_eq!((PURPOSE_FOOD_PURCHASE, PURPOSE_FOOD_PROCUREMENT, PURPOSE_WARES_PURCHASE), (5, 6, 7));
         assert_eq!((PURPOSE_CARGO_PURCHASE, PURPOSE_CARGO_SALE), (8, 9));
@@ -749,7 +759,7 @@ mod tests {
         }
         // The pairwise purposes are refused by the one-sided transfer (only
         // settle_pairs pays them), as is any unknown code.
-        for purpose in [PURPOSE_CARGO_PURCHASE, PURPOSE_CARGO_SALE, 10] {
+        for purpose in [PURPOSE_CARGO_PURCHASE, PURPOSE_CARGO_SALE, 11] {
             assert!(transfer(&mut pool, 2, purpose, 0, &[(a, 100)]).is_err());
             assert!(transfer(&mut pool, 2, purpose, 0, &[(a, -100)]).is_err());
         }

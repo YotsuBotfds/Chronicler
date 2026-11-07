@@ -150,6 +150,7 @@ pub fn validate(cfg: &ProvisionConfig, num_regions: usize) -> Result<(), &'stati
 /// exactly as without the allocation.
 #[inline]
 pub fn food_for(pool: &AgentPool, slot: usize, regional: f32) -> f32 {
+    if let Some(food) = pool.army_food(slot) { return food; }
     match (pool.food_access.get(slot), pool.food_access_ids.get(slot), pool.food_access_regions.get(slot)) {
         (Some(&v), Some(&id), Some(&region))
             if !v.is_nan() && id == pool.ids[slot] && region == pool.regions[slot] => v,
@@ -202,12 +203,12 @@ fn people_by_region(pool: &AgentPool, n_regions: usize) -> Vec<Vec<Person>> {
     let n_slots = pool.ids.len();
     let id_slots = pool.build_id_slots();
     let alive_in = |id: u32, region: u16| -> Option<usize> {
-        id_slots.get(id).filter(|&s| pool.is_alive(s) && pool.regions[s] == region)
+        id_slots.get(id).filter(|&s| pool.is_alive(s) && !pool.enlisted(s) && pool.regions[s] == region)
     };
     // Adults' household keys first (spouse pairing), then children.
     let mut key = vec![u32::MAX; n_slots];
     for slot in 0..n_slots {
-        if !pool.is_alive(slot) || pool.ages[slot] < AGE_ADULT {
+        if !pool.is_alive(slot) || pool.enlisted(slot) || pool.ages[slot] < AGE_ADULT {
             continue;
         }
         let id = pool.ids[slot];
@@ -219,7 +220,7 @@ fn people_by_region(pool: &AgentPool, n_regions: usize) -> Vec<Vec<Person>> {
     }
     let mut by_region: Vec<Vec<Person>> = (0..n_regions).map(|_| Vec::new()).collect();
     for slot in 0..n_slots {
-        if !pool.is_alive(slot) {
+        if !pool.is_alive(slot) || pool.enlisted(slot) {
             continue;
         }
         let r = pool.regions[slot];

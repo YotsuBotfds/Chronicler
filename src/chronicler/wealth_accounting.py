@@ -15,43 +15,20 @@ flows, and writes the identity
 
     close - open = (typed_in - typed_out) / 1000 + native_model
 
-per region (with the balances of people who moved carried across regions as
-``migration``) and for the world, where ``native_model`` is the explicitly
-labelled residual of the native model flows it does not itemize in slice 1:
-occupational income net of withheld shares, decay, the wealth ceiling, birth
-endowments, estates without heirs and inheritance overflow.
+per region (with migration balances carried across regions) and globally.
+The optional transient native observer separately copies actual balance changes
+for income, decay, the ceiling/floor, births, estates, inheritance and typed
+transfers, including their f32 rounding. ``native.balance_closure`` checks
+``delta = modeled_net + transfer_actual``; a missing component remains visible
+instead of being renamed model income. It never writes a balance or draws RNG.
 
-It never writes wealth, a treasury or any package's state, draws no random
-number and registers no agent-tick hook (so the post-tick snapshot hand-over
-is unchanged): with the switch on, every output except this package's record
-equals the switch off.
-
-Seams (Python only; no edit to any payer):
-
-1. ``prepare_phase2`` (the Phase 2 agent snapshot, before any Phase 2 writer):
-   the opening, checked bit for bit against the previous closing (a SHA-256
-   of each person's f32 wealth bits and region, in id order) - the
-   no-hidden-writer check. Counter baselines for the packages whose per-turn
-   totals are read as counter deltas are taken here.
-2. ``phase10`` (the last livelihoods hook, after every payer, granary
-   procurement included): typed flows from the packages' committed receipts
-   and ledgers (L6a wages and RS1 stipends from the firm receipts, RS2 and PL1
-   wages and charges, PL3 granary wages and sinks, L6b purchases and
-   procurement credits, RS4 remittances, L7 fares and assistance, domestic
-   credit), each with its own closure re-checked; the shared paid-work
-   receipt (``livelihoods.paid_work_receipt``) attributed row by row to the
-   package that installed it, which splits PL3's withheld income into granary
-   and workshop crews (recorded limit RL7); the treasury side (wages paid from
-   treasuries and firm cash beside the treasury tax created this turn, and the
-   clergy tithe's potential and its approximate collected part); then the
-   closing. Every payer path (module, function, writer or routing helper,
-   purpose and batch, with its number of call sites) must be in
-   ``WEALTH_WRITERS``, and every other reference to a writer's name in
-   ``WEALTH_WRITER_REFERENCES`` (a test walks ``src/`` and fails closed), so
-   ``typed_complete`` means "every known channel of an active package had
-   this turn's record".
-3. ``on_pool_reset``: a rebuilt pool drops the closing with a dated record;
-   the next opening is unchecked (balances are never carried across pools).
+``prepare_phase2`` captures the opening and arms the native observer before
+any payer. ``before_agent_tick`` validates it and retains uncapped care-holder
+identities for withheld-income attribution. ``phase10`` takes the observer
+after every payer, rechecks each typed package's committed receipts and ledger,
+and captures the closing. ``on_pool_reset`` dates and invalidates continuity.
+Every payer path is registered in ``WEALTH_WRITERS`` and tested fail closed;
+``typed_complete`` means each known active channel supplied its dated record.
 
 Records (``snapshot.livelihoods.wealth_accounting``, stage ``A1``, dated by
 ``source_turn``): the completed turn's ``frame`` (None when that turn was not
@@ -79,13 +56,10 @@ REL_TOL = 1e-9
 #: What each derived quantity means (copied into every record).
 LABELS: dict[str, str] = {
     "native_model": (
-        "native model flows, not itemized in slice 1: occupational income net of withheld shares, decay, "
-        "the wealth ceiling, birth endowments, estates without heirs and inheritance overflow, plus the "
-        "f32 rounding of typed transfers; per region it ALSO holds every unlocated typed flow (the frame's "
-        "unlocated_in_milli/unlocated_out_milli: granary procurement, L7 fares beyond the kept sample, "
-        "domestic credit, wages of PL3 receipts dropped by its row cap) and typed flows a package recorded "
-        "in another region than the payee's opening region, so a region's residual is not model-only "
-        "while unlocated flows are non-zero"),
+        "legacy delta minus typed receipts; native separately itemizes actual income, decay, ceiling/floor, "
+        "births, estates, inheritance and transfer rounding. Per-region legacy residual also includes "
+        "unlocated typed flows and differing payment/residence regions; consult native.rows for actual "
+        "stage location and native.balance_closure for missing balance writers"),
     "typed": "conserved or declared transfers through keyed native wealth transfers (payer debited)",
     "typed_complete": ("every known channel of an active package had this turn's record (WEALTH_WRITERS "
                        "registers every payer path - module, function, writer or router, purpose and batch - "
@@ -93,7 +67,7 @@ LABELS: dict[str, str] = {
     "migration": "closing balances of people whose region changed during the turn (they carry them)",
     "withheld": ("ordinary income the native wealth phase withheld for paid work, and farm income L6b "
                  "replaced by sales (no money moves); L5 learning attendance, academy teaching and rural "
-                 "health work also withhold income: registered, not itemized in slice 1 (in native_model)"),
+                 "health work also withhold income; native stage rows itemize all withholding"),
     "treasury_tax": "the 5% treasury tax on merchant wealth: credited to the treasury, debited from nobody",
     "tithe": ("potential: TITHE_RATE x the economy's tithe base per civilization with regions, an upper "
               "bound, NOT created money; at_threshold_after_tick: the part of civilizations whose clergy "
@@ -111,13 +85,14 @@ _BASELINES: tuple[tuple[str, str], ...] = (
     ("repair_projects", "income_replaced"), ("recovery_crews", "income_replaced"),
     ("recovery_crews", "rows_dropped"), ("timber_supply", "income_withheld"),
     ("workshop_economics", "asset_subsidy_idle_units"),
+    ("epidemic_care", "income_withheld"),
 )
 
 
 class _Turn:
     """One observed turn, Phase 2 opening to Phase 10 (never checkpointed)."""
 
-    __slots__ = ("turn", "opening", "continuity", "baselines", "carry", "credit")
+    __slots__ = ("turn", "opening", "continuity", "baselines", "carry", "credit", "native", "care_ids", "sim")
 
     def __init__(self, turn: int):
         self.turn = turn
@@ -126,6 +101,9 @@ class _Turn:
         self.baselines: dict[tuple[str, str], float] = {}
         self.carry: dict[int, float] = {}
         self.credit: tuple[float, float] | None = None
+        self.native: dict | None = None
+        self.care_ids: set[int] = set()
+        self.sim = None
 
 
 # ---------------------------------------------------------------------------
@@ -297,16 +275,39 @@ def prepare_phase2(world, region_input, agent_bridge, snapshot, acc):
     if credit is not None:
         t.credit = (float(credit.merchant_sent), float(credit.merchant_applied))
     state._turn = t
+    sim = getattr(agent_bridge, "_sim", None)
+    if sim is not None and hasattr(sim, "set_wealth_observation"):
+        sim.set_wealth_observation(turn)
+        t.sim = sim
     return region_input
 
 
 def rollback_phase2(world) -> None:
     state = _state(world)
     if state is not None and state._turn is not None and state._turn.turn == getattr(world, "turn", None):
+        if state._turn.sim is not None:
+            state._turn.sim.cancel_wealth_observation()
         state._turn = None
 
 
+def before_agent_tick(world, agent_bridge, economy_result):
+    sim = getattr(agent_bridge, "_sim", None)
+    if sim is None:
+        return
+    if not hasattr(sim, "set_wealth_observation"):
+        raise ValueError("--wealth-accounting requires the A1-2 native wealth observer")
+    state = _state(world)
+    care = _active(world, "epidemic_care")
+    pending = getattr(care, "_turn", None) if care is not None else None
+    if state._turn is not None and pending is not None:
+        state._turn.care_ids = {int(c.agent_id) for r in pending.receipts for c in r.carers}
+
+
+
 def rollback_agent_tick(world, agent_bridge) -> None:
+    sim = getattr(agent_bridge, "_sim", None)
+    if sim is not None and hasattr(sim, "cancel_wealth_observation"):
+        sim.cancel_wealth_observation()
     rollback_phase2(world)
 
 
@@ -628,6 +629,27 @@ def _woodcut(world, book: _Book, turn: int) -> None:
     book.closure("woodcut_wage", "ledger wages applied = receipt wages credited", applied, wages)
 
 
+def _care(world, book: _Book, turn: int) -> None:
+    st = _active(world, "epidemic_care")
+    if st is None:
+        return
+    from chronicler.money import totals_for_turn
+    fresh = st.frame_turn == turn and st.frame is not None and st.ledger is not None
+    totals = [x for x in (totals_for_turn(world, turn) or []) if x.purpose == "care_wage"] if fresh else []
+    moved = _money_channels(book, totals, "epidemic_care", fresh)
+    if fresh:
+        paid = moved.get("care_wage", (0, 0))[0]
+        book.treasury["to_households_milli"]["care_wage"] = paid
+        book.closure("care_wage", "treasury units x 1000 + carry before = paid + carry after",
+                     sum(int(r.treasury_units) * MILLI + int(r.carry_before) for r in st.ledger),
+                     sum(int(r.paid_milli) + int(r.carry_after) for r in st.ledger))
+        book.closure("care_wage", "money book credited = wage ledger paid", paid,
+                     sum(int(r.paid_milli) for r in st.ledger))
+        for r in st.ledger:
+            book.civ_add(r.civ, "charged", int(r.treasury_units))
+            book.civ_add(r.civ, "to_households_milli", int(r.paid_milli))
+
+
 def _retail(world, book: _Book, turn: int) -> None:
     st = _active(world, "household_retail")
     if st is None:
@@ -793,6 +815,12 @@ def _installed(world, turn: int) -> dict[str, set[int]] | None:
         seen = True
         if st.frame_turn == turn and st.frame is not None:
             sets["titled_trade"] = {int(r["carrier"]) for r in st.frame.get("withheld", ())}
+    st = _active(world, "epidemic_care")
+    if st is not None:
+        seen = True
+        if st.frame_turn == turn and st.frame is not None:
+            sets["epidemic_care"] = {int(c.agent_id) for r in st.frame for c in r.carers}
+
     return sets if seen else None
 
 
@@ -803,6 +831,8 @@ def _withheld(world, t: _Turn, turn: int) -> dict | None:
     fields are None when no paid-work package is active (not zero) and
     ``retail_income_replaced`` is None when retail is off or not observed."""
     sets = _installed(world, turn)
+    if sets is not None:
+        sets["epidemic_care"] |= t.care_ids
     retail_state = _active(world, "household_retail")
     if sets is None and retail_state is None:
         return None
@@ -861,9 +891,14 @@ def _withheld(world, t: _Turn, turn: int) -> dict | None:
         # A4 records its carriers' withheld income in its own frame (exact rows).
         own["titled_trade"] = (float(a4.frame.get("withheld_total", 0.0))
                                if a4.frame_turn == turn and a4.frame is not None else 0.0)
+    care = _active(world, "epidemic_care")
+    if care is not None:
+        own["epidemic_care"] = delta("epidemic_care", "income_withheld")
     pl3 = delta("recovery_crews", "income_replaced")
     packages = []
     for name in WITHHELD_PACKAGES:
+        if name == "epidemic_care" and care is None:
+            continue
         if name == "titled_trade" and a4 is None:
             continue                                  # a row only while A4 is active
         total = own.get(name)
@@ -916,6 +951,7 @@ def _frame(world, t: _Turn, closing, economy_result, acc) -> dict:
     _repairs(world, book, turn)
     _granary_crews(world, book, turn)
     _woodcut(world, book, turn)
+    _care(world, book, turn)
     _retail(world, book, turn)
     _titled_trade(world, book, turn)
     _remittances(world, book, turn)
@@ -957,12 +993,29 @@ def _frame(world, t: _Turn, closing, economy_result, acc) -> dict:
         "native_model": delta - (typed_in - typed_out) / MILLI,
         "unplaced_agents": (int(len(ids_o)) - placed_o) + (int(len(ids_c)) - placed_c),
     }
+    native = copy.deepcopy(t.native)
+    if native is not None:
+        components = {}
+        for row in native["rows"]:
+            components.setdefault(row["component"], []).append(row["amount"])
+        native["totals"] = {key: math.fsum(values) for key, values in sorted(components.items())}
+        # Diagnostic gross/withheld amounts are not added again. These are
+        # the actual balance changes, including f32 addition/decay/clamp.
+        net_keys = ("income_applied", "decay", "ceiling_floor", "birth_endowment", "estate_out", "inheritance_in")
+        native["modeled_net"] = math.fsum(native["totals"].get(k, 0.0) for k in net_keys)
+        native["transfer_actual"] = native["totals"].get("transfer_actual", 0.0)
+        native["balance_closure"] = delta - native["modeled_net"] - native["transfer_actual"]
+        native["typed_receipt_difference"] = native["transfer_actual"] - (typed_in - typed_out) / MILLI
+        native["typed_rounding_or_unobserved"] = native["typed_receipt_difference"]
+        native["observed_complete"] = abs(native["balance_closure"]) <= 1e-8
+
+        native["coverage"] = "native stages and exact transfer deltas observed; receipt rounding reported separately"
     treasury = {"created": created, "tithe": tithe, **book.treasury,
                 "by_civ": [{"civ": c, **{k: v for k, v in sorted(book.civ[c].items())}} for c in sorted(book.civ)]}
     return {
         "turn": turn, "continuity": t.continuity, "typed_complete": book.complete, "world": world_row,
         "regions": regions, "typed": book.rows, "closures": book.closures, "withheld": _withheld(world, t, turn),
-        "treasury": treasury,
+        "treasury": treasury, "native": native,
     }
 
 
@@ -977,6 +1030,14 @@ def phase10(world, acc, economy_result, agent_bridge):
         t = None
     sim = getattr(agent_bridge, "_sim", None) if agent_bridge is not None else None
     closing = _balances(sim.get_snapshot()) if sim is not None else None
+    if t is not None and sim is not None and hasattr(sim, "take_wealth_observation"):
+        got = sim.take_wealth_observation()
+        if got is None or int(got[0]) != turn:
+            raise RuntimeError("native wealth observation missing or misdated")
+        rows = [{"region": int(r), "component": str(k), "amount": float(v)} for r, k, v in got[1]]
+        if any(not 0 <= r["region"] < len(world.regions) or not math.isfinite(r["amount"]) for r in rows):
+            raise RuntimeError("invalid native wealth observation")
+        t.native = {"source_turn": turn, "rows": rows}
     frame = None
     if t is not None and t.opening is not None and closing is not None:
         frame = _frame(world, t, closing, economy_result, acc)
@@ -1019,6 +1080,9 @@ def _commit(state: WealthAccountingState, frame: dict, turn: int) -> None:
     _total(state, "delta", frame["world"]["delta"])
     _total(state, "native_model", frame["world"]["native_model"])
     withheld = frame["withheld"]
+    if withheld is not None and withheld.get("packages"):
+        _total(state, "withheld_care", math.fsum(r["deducted"] for r in withheld["packages"]
+                                                if r["package"] == "epidemic_care"))
     if withheld is not None and withheld["retail_income_replaced"] is not None:
         _total(state, "withheld_retail", withheld["retail_income_replaced"])
     if withheld is not None and withheld["paid_work_active"]:
