@@ -1,0 +1,52 @@
+"""Final V6 evidence only: immutable declared FULL pilot plus real D3 boundary states.
+Run from /workspace/cw-resume-final; this does not edit any production source.
+"""
+from pathlib import Path
+import hashlib,json,sys,time,subprocess
+sys.path.insert(0,str(Path.cwd()/'scripts'))
+import cw_integrated_resume as R
+EXPECTED_SOURCE='eaa4a5d3e1cb5c958b5e32719601c28986c9f6ac'
+EXPECTED_NATIVE='59f536b8f4a6c2bc82c51eeaec55f3aff6b0a1c5c8f1a324049ad15b42c51617'
+OUT=Path('/workspace/evidence/cw6/resume-final')
+if OUT.exists(): raise ValueError('output exists; preserve it')
+if subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip()!=EXPECTED_SOURCE: raise ValueError('wrong runtime source')
+if subprocess.check_output(['git','status','--porcelain'],text=True).strip(): raise ValueError('dirty runtime source')
+identity=R.CW.SR.source_identity(R.CW.SCREEN)
+if not any(x.startswith('native ') and x.endswith(EXPECTED_NATIVE) for x in identity): raise ValueError('wrong native artifact')
+OUT.mkdir()
+(OUT/'source.txt').write_text('\n'.join(identity)+'\n')
+script=Path(__file__).resolve()
+(OUT/'orchestrator-receipt.json').write_text(json.dumps({'script':str(script),'sha256':hashlib.sha256(script.read_bytes()).hexdigest(),'source':EXPECTED_SOURCE,'native':EXPECTED_NATIVE,'jobs':1,'comparator':'checkpoint_identity.run_case / cities_identity.compare','extra_boundaries':'first actual wounded/released/evacuated/returned event saved checkpoint, and its immediately preceding nonzero checkpoint; no held selection'},indent=2)+'\n')
+reports=[]
+started=time.monotonic()
+for stratum,seed,tag in [('procedural',19,'p'),('template',5,'t')]:
+ path=Path(f'/workspace/evidence/cw6/resume-final-{tag}{seed}-plan.json')
+ plan=json.loads(path.read_text())
+ if R.CW.SR.identity_key(plan['source_identity'])!=R.CW.SR.identity_key(identity): raise ValueError('plan source differs')
+ bundle_path=Path(plan['bundle'])
+ if hashlib.sha256(bundle_path.read_bytes()).hexdigest()!=plan['bundle_sha256']: raise ValueError('changed bundle')
+ bundle=R.CW.load_bundle_file(bundle_path)
+ R.validate_plan_configuration(plan,bundle)
+ first={}
+ for snap in bundle['history']:
+  frame=((snap.get('livelihoods')or{}).get('war_consequences')or{}).get('frame')or{}
+  for event in frame.get('events')or[]:
+   if event['kind'] in ('wounded','released','evacuated','returned') and event['kind'] not in first:
+    first[event['kind']]={'completed_turn':snap['turn'],'event':event}
+ ks=set(plan['transitions']['ks'])
+ for boundary in first.values():
+  k=boundary['completed_turn']
+  ks.update(x for x in (k-1,k) if 0<x<plan['turns'])
+ selection={'public_plan':plan,'d3_first_events':first,'selected_ks':sorted(ks),'missing_d3_events':[x for x in ('wounded','released','evacuated','returned') if x not in first]}
+ (OUT/f'selection-{tag}{seed}.json').write_text(json.dumps(selection,indent=2)+'\n')
+ name=f'cw6_full_{stratum}{seed}'
+ R.CI.CASES[name]=(plan['cli'],plan['turns'],0,'spread')
+ report=R.CI.run_case(OUT,name,ks=sorted(ks),jobs=1,extra=[],keep=False,resume_hash_seed='0')
+ report.update(selection=selection,bundle_sha256=plan['bundle_sha256'],event_sidecar=plan['event_sidecar'])
+ if R.CW.SR.source_identity(R.CW.SCREEN)!=identity: raise ValueError('runtime identity changed during V6')
+ (OUT/f'report-{tag}{seed}.json').write_text(json.dumps(report,indent=2)+'\n')
+ reports.append(report)
+ if not report.get('pass'):
+  (OUT/'summary.json').write_text(json.dumps({'pass':False,'seconds':time.monotonic()-started,'reports':reports},indent=2)+'\n')
+  raise SystemExit(1)
+(OUT/'summary.json').write_text(json.dumps({'pass':all(x['pass'] for x in reports),'seconds':time.monotonic()-started,'reports':reports},indent=2)+'\n')

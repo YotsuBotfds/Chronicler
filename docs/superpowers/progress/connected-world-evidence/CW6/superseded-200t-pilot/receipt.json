@@ -1,0 +1,20 @@
+{
+  "purpose": "preserved development diagnostic, superseded before held; not final runtime evidence",
+  "source": "43f02ccaf66489f31529b27cf5bea8d5705db044",
+  "turns": 200,
+  "rows": 10,
+  "failed": 0,
+  "simulation_s": 532.8,
+  "extraction_s": 63.8,
+  "total_s": 596.6,
+  "held_60_margin_core_hours": 1.4915,
+  "superseded_because": [
+    "timber L9 used dimensionally invalid food benefit for timber; corrected before final eaa pilot",
+    "D3 return score could lose remembered home when X1 unknown move rehomed; anchored home fixed before eaa pilot",
+    "held one-core-hour cap exceeded at200T; preheld horizon amended120T"
+  ],
+  "files": {
+    "metrics.jsonl": "89d37d6f3de07d882e282b68c223aa39472045e7c9c28cd1fb6597310ef59a9c",
+    "source.txt": "e0b905e855a59f0939cc8d7622b7a3a61419ad94bcb1800af7179d87bca060b8"
+  }
+}

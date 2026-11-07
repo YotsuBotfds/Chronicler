@@ -1,0 +1,110 @@
+{
+  "cw6_full_procedural19": {
+    "agent_events.arrow": {
+      "bytes": 911770,
+      "sha256": "51f5a18411c681a4a464d17025be099e0a17b451efaa94cfc5db80b4981ebb31"
+    },
+    "chronicle.md": {
+      "bytes": 1722,
+      "sha256": "c78fd94e274d1b024dc88830075e8682fcd0daa8e286545bf6f953b4749a0a42"
+    },
+    "chronicle_bundle.json": {
+      "bytes": 37962968,
+      "sha256": "447f17d62f5f33527cf5a1c4682df3e738f491a1347a6bc385d393503c61e7a5"
+    },
+    "memories_commonwealth_of_rawylion.json": {
+      "bytes": 150624,
+      "sha256": "41bdb76a084ded79eca2bf2923e2e2f9b8dd1684f811fc072422e55ac4c93d24"
+    },
+    "memories_gruthiheimi_league.json": {
+      "bytes": 183403,
+      "sha256": "f5800cbed0b612d8308dead63ca506d39f3d4a1da2c9c6fc29f9104533c89a33"
+    },
+    "memories_kingdom_of_vebuheim.json": {
+      "bytes": 60446,
+      "sha256": "775e1285d1ef4d1dce1028301a833ebcf3ba915fbd93a540f7a9c91079bed325"
+    },
+    "memories_lalioni_tribes.json": {
+      "bytes": 133066,
+      "sha256": "42479f162f2eced091eb0d6963c17e244de428f54a98cf1c3a191033d6bac379"
+    },
+    "memories_meselenen_republic.json": {
+      "bytes": 103055,
+      "sha256": "cce617f0855d2d4ab236a7393bf482a34c7fc95447fce7b69649d4dac185763d"
+    },
+    "memories_mutoyan_kingdom.json": {
+      "bytes": 106387,
+      "sha256": "254f38c63efe06a43ca2527c9e1762e9279d311557b95f38d6b7970551030dc8"
+    },
+    "memories_siverieli_tribes.json": {
+      "bytes": 162742,
+      "sha256": "8217016e672d4e28d1aaedfcd83185f1cf713207fe7f6a425ec31474830e1e5a"
+    },
+    "memories_sobekhani_empire.json": {
+      "bytes": 113883,
+      "sha256": "cdf5a55aced6da1ad8997e7dbe316db1ff6e1343ac0974ef03f5b35fc52473e3"
+    },
+    "memories_tamiguri_empire.json": {
+      "bytes": 116356,
+      "sha256": "0c1a8093d7302bef35b19b1f1c41212d6ab2dae4c1c7a1051cf8f405f7f7b40d"
+    },
+    "memories_vilasi_tribes.json": {
+      "bytes": 116696,
+      "sha256": "baf6af894c033fc1085d8c01fd719364e510156df550e39f6078b80f84eb2a29"
+    },
+    "state.historiography.json": {
+      "bytes": 577357,
+      "sha256": "e30c663237da766f19c5a776cb76bac1b1a7cb04b71704c0a1606f3f985f4e97"
+    },
+    "state.json": {
+      "bytes": 6716706,
+      "sha256": "fbc529284e369cdb0956c662fe4cdfc4f81b99fd1b6f12c68fdb6bea82318163"
+    },
+    "state.languages.json": {
+      "bytes": 350018,
+      "sha256": "7785ce6cbcb4a366a378c6fb80df5606974b7506ae70a64eaf6d273b71eb76ae"
+    }
+  },
+  "cw6_full_template5": {
+    "agent_events.arrow": {
+      "bytes": 329314,
+      "sha256": "3f90bc28548f8d6e4328cefc330bf65ed07b9cc834323453d2b6f4b838cc161b"
+    },
+    "chronicle.md": {
+      "bytes": 1074,
+      "sha256": "8e488651f60032e1b1dfd989bda1906da5985183afacb4845b6efa8aeddf1ec9"
+    },
+    "chronicle_bundle.json": {
+      "bytes": 11779567,
+      "sha256": "fcb3b53f4d5eeba1cc451980d6cc02cf69a1b3f57d557d8fed3270cc9b50df0e"
+    },
+    "memories_ashkari_nomads.json": {
+      "bytes": 120772,
+      "sha256": "17879480fc74905fea4231c195685917ab77f735ade43bcd4b9384527eaf16c9"
+    },
+    "memories_selurian_republic.json": {
+      "bytes": 88518,
+      "sha256": "b917f570bf8f568d5e4a8a310f8c8aa38f3594070d0ddd9b6c054bc20eaff79d"
+    },
+    "memories_thornwall_confederacy.json": {
+      "bytes": 90733,
+      "sha256": "e4e42eda9de0839addf37e7c91b9d70c31c7a73713a213a3ad37e3abf5e9fcfb"
+    },
+    "memories_vrashni_dominion.json": {
+      "bytes": 122437,
+      "sha256": "c3f42dfa0d9a9134bf9cbc08d37a58f26bbef690060962a3e386152a45e9be46"
+    },
+    "state.historiography.json": {
+      "bytes": 272662,
+      "sha256": "d0e79b5f93377d0a88731cd2b5e73e558600940ac0f685034f878112ae9f4a75"
+    },
+    "state.json": {
+      "bytes": 2366798,
+      "sha256": "acf0445ce7d7b81e93b99782567f022aa32eff157dfee674d6072759bb74dcbe"
+    },
+    "state.languages.json": {
+      "bytes": 120669,
+      "sha256": "847edfcc5c8883844e0d0c533090375594fffe7213108d754d8d4aeccca471f1"
+    }
+  }
+}
