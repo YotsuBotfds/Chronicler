@@ -83,7 +83,7 @@ chronicler --agents hybrid --infrastructure-condition --infrastructure-condition
 | `SERVICE_FULL` | 0.5 | `service = min(1, condition / 0.5)` |
 | `SERVICE_GATE` | 0.5 | least service at which irrigation sets `has_irrigation` and a road extends range |
 | `WAR_DAMAGE` | 0.25 x `repair_projects.war_damage` | per real conquest or sack (RS2's hooks), at most one damage per asset and turn |
-| `FLOOD_DAMAGE_PER_EXCESS`, `FLOOD_DAMAGE_CAP` | 0.5, 0.5 | the flood seam (`flood_damage`), for the watershed's flow mode |
+| `FLOOD_DAMAGE_PER_EXCESS`, `FLOOD_DAMAGE_CAP` | 0.5, 0.5 | condition a watershed `flow` flood takes at its onset per unit of its excess (water units above the channel), capped |
 | `OPEN_BELOW` | 0.75 | a wear work opens below this (RS2's threshold) |
 | `WORK_PER_CONDITION` | 20 (both kinds) | work units restoring a whole unit of condition |
 | `WORK_PER_TURN` | 4 | most work one asset's work asks per turn (the storage batch) |
@@ -95,9 +95,17 @@ chronicler --agents hybrid --infrastructure-condition --infrastructure-condition
   sack (`repair_projects.city_sacked`), each before RS2's own active check, so B3 damage applies in
   every B3 mode even without RS2. Granary seizure is granary-only. The cause is the war's
   `(war_key, war_start_turn)` when found (RS2's `_war_identity`).
-- **Flood damage** (`infrastructure_condition.flood_damage(world, region, excess, ref=...)`) is a
-  clean seam: nothing calls it until the watershed's `flow` mode exists (a test fails if a caller
-  appears unreviewed).
+- **Flood damage** (`infrastructure_condition.flood_damage(world, region, excess, ref=...)`) is
+  called by the watershed's `flow` mode only (`watershed._apply_flow`; a test fails on any other
+  caller), **once, at a flood event's onset**, as the same act as the flood's other consequences
+  (capacity modifier, cooldown, silt): every serving asset of the region takes
+  `min(FLOOD_DAMAGE_CAP, FLOOD_DAMAGE_PER_EXCESS x excess)`, recorded with the flood event's
+  identity `flood:<region>:<start turn>` as its `ref`. Never on a turn of an ongoing flood (no
+  onset), never twice on resume (the onset is read from the saved frame, and one damage per asset
+  per turn). An onset withheld because the region holds a disaster cooldown does nothing, as B2
+  withholds every other effect of that flood. A damaged asset's work opens with cause `flood`.
+  Floods are rare and small in `flow` (B2's channel passes all but anomalous arrivals): procedural
+  13 has one onset in 200 turns, excess 0.018, damage 0.009; procedural 11 none.
 
 ## 4. Consumers
 
@@ -116,9 +124,21 @@ the switch is off, in `record_only`, outside hybrid, or for a record not yet reg
 `service` **fails closed**: a region that is not in `world.regions` (by identity, or by its unique
 name for a copy) raises instead of reading 1.0. The irrigation **technique** (+5% grain, +10%
 ceiling) is a separate practice and unchanged. No road transport discount is added
-(`INFRASTRUCTURE_DISCOUNT` stays the placeholder 1.0). The watershed's `flow` mode (B2, merged at
-main bac45cb5) reads every active irrigation work at service 1.0: feeding the works' condition into
-its withdrawal capacity is a later B2/B3 integration the lead coordinates.
+(`INFRASTRUCTURE_DISCOUNT` stays the placeholder 1.0).
+
+**Watershed `flow` x condition** (both switches opt-in; only the combined mode changes). In
+`--watershed-mode flow` with `--infrastructure-condition` (repair, cost_only or wear_only), an
+irrigation work's withdrawal capacity scales with its service:
+`W = min(available, IRRIGATION_DEMAND x service)` (and the same demand in the flood-ending normal
+arrivals), a declared term of the account, which still closes every turn. **Continuous, not the
+0.5 gate**, because the gate exists only for consumers that read a yes/no flag (the native
+`has_irrigation`, a road's range); withdrawal is a quantity, as the arable ceiling is (`0.10 x s`),
+and `flow` already replaces the native irrigation water bonus and drought multiplier that the flag
+drives, so the account's withdrawal is the only water effect of irrigation there; a partly silted
+canal delivering proportionally less water is the plain reading of "service". A failed work
+withdraws nothing. `flow` without the condition switch (or with it in `record_only`) reads every
+active work at service 1.0, exactly as on main (`demand x 1.0 == demand`); the condition switch
+without `flow` is unchanged (the `record_only` watershed account keeps the >= 0.5 gate).
 
 ## 5. Works (`repair`, `cost_only`)
 
@@ -258,8 +278,12 @@ stalled work as the directly recorded "underfunded public works" story.
   L9 proposal with its audited detail (RS2's proposal never carries them), the works' envelope
   settling from their own ledger, the food-at-risk rule, cost-only, completion of a failed asset,
   the wear-only control, `record_only` equal to off except the record over four turns, an exact
-  pickle resume at an open work, switching off, the flood seam, invalid combinations (including a
-  mode without the switch), and the payment registration.
+  pickle resume at an open work, switching off, invalid combinations (including a mode without the
+  switch), the payment registration, and watershed `flow` x condition: withdrawal scaling with
+  service and account closure (flow alone and condition `record_only` at service 1.0, the
+  `record_only` account's gate), a failed work withdrawing nothing, flood damage once at the onset
+  with the event as cause and never on the ongoing flood, a withheld onset damaging nothing, and a
+  pickle resume inside an open flood with damaged works.
 - `tests/test_infrastructure_condition_native.py` (real extension, about 17 s): procedural seed 31
   60 turns with `CHRONICLER_CHECK_RESOURCES=1` (every receipt and ledger closes; the sink equals the
   charges; conquest damage and scorched records occur); an exact checkpoint resume at turn 37
@@ -390,6 +414,7 @@ qualification gate.
   completion.
 - **D2 attribution** does not yet record B3 war damage as a burden (the actor and the war are on
   each `InfraDamage`); left for the integration of the two.
-- Ports are deferred (no consumer reads the type). The flood seam has no caller until the
-  watershed's `flow` mode lands. Constants are declared and uncalibrated; nothing here was run on
-  held seeds or through the 200-seed gate.
+- Ports are deferred (no consumer reads the type). Flood damage per unit of excess is declared and
+  uncalibrated (floods are rare and small under `flow`). Constants are declared and uncalibrated;
+  nothing here was run on held seeds or through the 200-seed gate (CW3b is preregistered, not run:
+  `docs/superpowers/progress/connected-world-screens-cw3b.md`).

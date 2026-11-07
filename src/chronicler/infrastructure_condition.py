@@ -38,8 +38,8 @@ loses ``WEAR[kind]`` condition (irrigation 0.01, the grain-storage rate;
 roads 0.005). Damage: ``WAR_DAMAGE`` (0.25, times RS2's tuning key
 ``repair_projects.war_damage``) at RS2's two existing war hooks (region
 conquest, city sack; at most one damage per asset per turn); flood damage
-through :func:`flood_damage`, the seam for the watershed's flow mode (no
-caller until that mode exists). Service ``s = min(1, condition / 0.5)``.
+through :func:`flood_damage`, called once at a watershed ``flow`` flood's
+onset. Service ``s = min(1, condition / 0.5)``.
 Condition 0 means ``failed``: the record stays active, so BUILD never
 replaces it; it must be repaired.
 
@@ -502,9 +502,12 @@ def war_damage(world, region, event: str, a: str | None, b: str | None) -> None:
 
 
 def flood_damage(world, region: int, excess: float, *, ref: str | None = None) -> None:
-    """The watershed flow mode's seam (no caller until that mode exists):
+    """Called by the watershed's ``flow`` mode once at a flood event's onset
+    (``watershed._apply_flow``, the same once-only act as the flood's other
+    consequences; an onset withheld by a disaster cooldown damages nothing):
     every serving asset of ``region`` takes ``FLOOD_DAMAGE_PER_EXCESS x
-    excess`` condition, capped at ``FLOOD_DAMAGE_CAP``. No-op unless active."""
+    excess`` condition, capped at ``FLOOD_DAMAGE_CAP``, recorded with ``ref``
+    (``flood:<region>:<start turn>``, the flood event's identity). No-op unless active."""
     state = _state(world)
     if state is None or not infrastructure_condition_active(world):
         return

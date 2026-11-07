@@ -18,6 +18,9 @@ const MODE_NOTE: Record<string, string> = {
   wear_only: "Wear-only control: works wear and take damage and their service reaches irrigation and roads, but nothing repairs them.",
   record_only: "Record only: condition is tracked and recorded, but every consumer reads service 1.0 and no work opens; the run equals one without the switch.",
 };
+const CAUSE: Record<string, string> = {
+  conquest: "Conquest", sack: "Sack", flood: "Flood (watershed flow, at its onset)",
+};
 const STATUS: Record<string, string> = {
   serving: "Serving", failed: "Failed (repair only)", inactive: "Inactive", destroyed: "Destroyed",
 };
@@ -109,6 +112,16 @@ export function InfrastructureCondition({ bundle, snapshot, currentTurn, onSelec
         </tr>)}</tbody>
       </table></div> : null}
     </>}
+    <h4>Damage</h4>
+    {record.damages.length === 0 ? <p className="systems-note">No war or flood damage is recorded (recorded: none).</p>
+      : <div className="systems-table-wrap"><table className="systems-table" aria-label={`Infrastructure damage to snapshot ${at}`}>
+        <thead><tr><th>Turn</th><th>Asset</th><th>Cause</th><th>Condition lost</th></tr></thead>
+        <tbody>{[...record.damages].reverse().map((d) => <tr key={d.did}>
+          <td>{d.turn}</td><td>{KIND[d.kind]} {d.aid} in {region(d.region)}</td>
+          <td>{CAUSE[d.event] ?? words(d.event)}{d.event === "flood" && d.ref ? ` (event ${d.ref})` : d.war_key ? ` (${d.war_key})` : ""}</td>
+          <td>{show(d.amount)} ({show(d.condition_before)} → {show(d.condition_after)})</td>
+        </tr>)}</tbody>
+      </table></div>}
     <h4>Underfunded public works</h4>
     {story === null ? <p className="systems-note">No work has stalled up to this snapshot (recorded).</p>
       : <p className="systems-note">Directly recorded: work {story.work.wid} on {KIND[story.work.kind].toLowerCase()} {story.work.aid} in {region(story.work.region)} opened at turn {story.work.opened_turn} (condition {show(story.work.opened_condition)}, cause {words(story.work.cause)}); by snapshot {story.seen_turn} it had stalled {story.work.stalled_turns} turn{story.work.stalled_turns === 1 ? "" : "s"} ({story.stalls.map(([k, v]) => `${REASON[k] ?? words(k)} ${v}`).join(", ")}) and delivered {show(story.work.delivered)} of {show(story.work.scope)} work for {coins(story.work.coin_cost_milli)} coins{story.work.status !== "open" ? `; it ended ${words(story.work.status)}${story.work.closed_reason ? ` (${words(story.work.closed_reason)})` : ""} at turn ${story.work.closed_turn}` : ""}.{story.failed_turn !== null ? ` The asset failed (condition 0) at turn ${story.failed_turn}.` : ""}{story.asset ? ` Its condition is ${show(story.asset.condition)} now.` : ""}</p>}
@@ -116,6 +129,7 @@ export function InfrastructureCondition({ bundle, snapshot, currentTurn, onSelec
       <tr><th scope="row">Assets opened / failed / restored</th><td>{show(counters.assets_opened ?? 0)} / {show(counters.assets_failed ?? 0)} / {show(counters.assets_restored ?? 0)}</td></tr>
       <tr><th scope="row">Inactive / destroyed</th><td>{show(counters.assets_inactive ?? 0)} / {show(counters.assets_destroyed ?? 0)}</td></tr>
       <tr><th scope="row">Condition lost to wear / damage</th><td>{show(counters.wear ?? 0)} / {show(counters.damage ?? 0)}</td></tr>
+      <tr><th scope="row">Damage events: conquest / sack / flood</th><td>{show(counters.damages_conquest ?? 0)} / {show(counters.damages_sack ?? 0)} / {show(counters.damages_flood ?? 0)}</td></tr>
       {record.works_enabled ? <>
         <tr><th scope="row">Work delivered / credited</th><td>{show(counters.work_delivered ?? 0)} / {show(counters.work_credited ?? 0)}</td></tr>
         <tr><th scope="row">Stalled work-turns by cause</th><td>{["no_timber", "no_coins", "no_labor", "no_envelope", "granary_first"]

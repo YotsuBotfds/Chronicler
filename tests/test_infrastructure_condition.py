@@ -673,17 +673,132 @@ def test_switching_off_abandons_works_and_service_returns_to_one():
     assert IC.service(world, 0, "irrigation") == 1.0 and not IC.infrastructure_condition_active(world)
 
 
-def test_flood_damage_is_a_clean_seam_without_a_caller():
+def test_flood_damage_records_its_cause_and_its_only_caller_is_the_flow_onset():
     world = _world(mode="wear_only", rs2=False)
-    IC.flood_damage(world, 1, 0.4, ref="watershed:5:1")
+    IC.flood_damage(world, 1, 0.4, ref="flood:1:5")
     state = _state(world)
     assert [(d.event, d.ref, round(d.amount, 9)) for d in state.damages] == [
-        ("flood", "watershed:5:1", 0.2), ("flood", "watershed:5:1", 0.2)]
+        ("flood", "flood:1:5", 0.2), ("flood", "flood:1:5", 0.2)]
     IC.flood_damage(world, 1, 0.4)                       # one damage per asset per turn
     assert len(state.damages) == 2
-    callers = [p for p in (ROOT / "src/chronicler").rglob("*.py")
-               if "flood_damage(" in p.read_text(encoding="utf-8") and p.name != "infrastructure_condition.py"]
-    assert callers == []
+    callers = sorted(p.name for p in (ROOT / "src/chronicler").rglob("*.py")
+                     if "flood_damage(" in p.read_text(encoding="utf-8") and p.name != "infrastructure_condition.py")
+    assert callers == ["watershed.py"]
+
+
+# ---------------------------------------------------------------------------
+# Watershed flow x condition (both opt-in: only the combined mode changes)
+# ---------------------------------------------------------------------------
+
+def _flow_condition_world(monkeypatch, *, condition=0.3, mode="wear_only", watershed_mode="flow"):
+    from tests.test_watershed import _flow_world, _headwater_chain
+    from tests.test_watershed import _world as _ws_world
+    world = _flow_world(monkeypatch) if watershed_mode == "flow" else _ws_world(11)
+    state = world.livelihoods.watershed
+    up, down = _headwater_chain(state)
+    world.regions[down].infrastructure.append(Infrastructure(type=IRR, builder_civ="x", built_turn=0))
+    world.regions[down].infrastructure.append(Infrastructure(type=ROADS, builder_civ="x", built_turn=0))
+    world.agent_mode = "hybrid"
+    if mode is not None:
+        world.livelihoods.infrastructure_condition = InfrastructureConditionState(mode=mode)
+        IC.reconcile(world)
+        for a in _state(world).assets:
+            a.condition = condition
+    return world, up, down
+
+
+@pytest.mark.parametrize("watershed_mode,mode,expect", [
+    ("flow", "wear_only", 0.6),          # flow x condition: the withdrawal capacity scales with service
+    ("flow", None, 1.0),                 # flow alone: main's rule
+    ("flow", "record_only", 1.0),        # the condition switch records only
+    ("record_only", "wear_only", 1.0),   # the B1 account keeps the >= 0.5 gate (service 0.6 serves)
+])
+def test_flow_withdrawal_scales_with_service_and_the_account_closes(monkeypatch, watershed_mode, mode, expect):
+    from chronicler import watershed as ws
+    world, _up, down = _flow_condition_world(monkeypatch, mode=mode, watershed_mode=watershed_mode)
+    state = world.livelihoods.watershed
+    turn, key, trend, inputs = ws.region_inputs(world, state)
+    assert inputs[down].irrigated and inputs[down].irrigation_service == pytest.approx(expect)
+    plan = ws.account_step(state.graph, state.storage, state.last_index, turn, key, trend, inputs)  # closure checked
+    full = ws.account_step(state.graph, state.storage, state.last_index, turn, key, trend,
+                           [i._replace(irrigation_service=1.0) for i in inputs])
+    demand = ws.PARAMETERS.irrigation_demand
+    t = plan.columns["withdrawal"][down]
+    assert t == pytest.approx(min(full.columns["withdrawal"][down], demand * expect))
+    assert abs(plan.residual) <= 1e-9 * max(1.0, sum(plan.columns["precipitation"]))
+    if expect == 1.0:
+        assert plan.columns == full.columns           # 1.0 x demand == demand: bit-identical columns
+
+
+def test_a_failed_work_withdraws_nothing_under_flow(monkeypatch):
+    from chronicler import watershed as ws
+    world, _up, down = _flow_condition_world(monkeypatch, condition=0.0)
+    state = world.livelihoods.watershed
+    IC.phase10_before_reserves(world, None, None, None)           # condition 0 -> failed
+    assert _asset(world, down, "irrigation").status == "failed"
+    turn, key, trend, inputs = ws.region_inputs(world, state)
+    plan = ws.account_step(state.graph, state.storage, state.last_index, turn, key, trend, inputs)
+    assert inputs[down].irrigation_service == 0.0 and plan.columns["withdrawal"][down] == 0.0
+
+
+def _onset(world, up, down):
+    from tests.test_watershed import _set_storage, _settle
+    from chronicler.watershed import after_ecology, before_ecology
+    state = world.livelihoods.watershed
+    _settle(world, down)
+    _set_storage(state, up, 10.0)
+    before_ecology(world, acc=None, native=True)
+    return state, before_ecology, after_ecology
+
+
+def test_a_flood_onset_damages_the_works_once_with_its_event_as_cause(monkeypatch):
+    world, up, down = _flow_condition_world(monkeypatch, condition=1.0)
+    state, before_ecology, after_ecology = _onset(world, up, down)
+    assert down in state._plan.consequences
+    b3 = _state(world)
+    onset_turn = world.turn
+    excess = state._plan.columns["flood_excess"][down]
+    damage = [(d.aid, d.event, d.ref, d.turn) for d in b3.damages]
+    expected = min(IC.FLOOD_DAMAGE_CAP, IC.FLOOD_DAMAGE_PER_EXCESS * excess)
+    assert sorted(damage) == sorted((a.aid, "flood", f"flood:{down}:{onset_turn}", onset_turn) for a in b3.assets)
+    assert all(d.amount == pytest.approx(expected) for d in b3.damages)
+    after_ecology(world, acc=None)
+    IC.phase10_before_reserves(world, None, None, None)
+    world.turn += 1
+    assert any(e.region == down and e.end_turn is None for e in state.flood_events)    # the event is still open
+    from tests.test_watershed import _set_storage
+    _set_storage(state, up, 10.0)                                                     # still above the channel
+    before_ecology(world, acc=None, native=True)
+    assert down not in state._plan.consequences and len(b3.damages) == 2             # never on an ongoing flood
+    assert b3.counters["damages_flood"] == 2
+
+
+def test_a_flood_withheld_by_a_disaster_cooldown_damages_nothing(monkeypatch):
+    world, up, down = _flow_condition_world(monkeypatch, condition=1.0)
+    world.regions[down].disaster_cooldowns["earthquake"] = 4
+    state, _b, _a = _onset(world, up, down)
+    assert down in state._plan.withheld and down not in state._plan.consequences
+    assert _state(world).damages == []                 # consistent with B2: a withheld flood does nothing
+
+
+def test_resume_inside_an_open_flood_with_damaged_works_damages_nothing_twice(monkeypatch):
+    world, up, down = _flow_condition_world(monkeypatch, condition=1.0)
+    state, before_ecology, after_ecology = _onset(world, up, down)
+    after_ecology(world, acc=None)
+    IC.phase10_before_reserves(world, None, None, None)
+    IC.phase10(world, None, None, None)
+    world.turn += 1
+    resumed = pickle.loads(pickle.dumps(world))
+    for w in (world, resumed):
+        from tests.test_watershed import _set_storage
+        _set_storage(w.livelihoods.watershed, up, 10.0)
+        before_ecology(w, acc=None, native=True)
+        after_ecology(w, acc=None)
+        IC.phase10_before_reserves(w, None, None, None)
+        IC.phase10(w, None, None, None)
+        w.turn += 1
+    assert world.model_dump(mode="json") == resumed.model_dump(mode="json")
+    assert _state(resumed).counters["damages_flood"] == 2
 
 
 # ---------------------------------------------------------------------------

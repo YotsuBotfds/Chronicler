@@ -97,3 +97,29 @@ def test_record_only_equals_the_switch_off_except_its_record(tmp_path, monkeypat
     assert _without(a["world_state"]) == _without(b["world_state"])
     sa, sb = (json.loads((p / "state.json").read_text(encoding="utf-8")) for p in (off, on))
     assert _without(sa) == _without(sb)
+
+
+FLOW = ("--watershed", "--watershed-mode", "flow")
+
+
+def test_exact_resume_inside_an_open_flood_with_damaged_works(tmp_path, monkeypatch):
+    """Watershed flow x condition (procedural 13, 32x10, 10 civs): a flood starts
+    at turn 30 in region 10 and damages its irrigation work once, at the onset;
+    a checkpoint at turn 33 lies inside the open flood, and the resume is
+    byte-identical with no second flood damage."""
+    straight = tmp_path / "straight"
+    _cli(monkeypatch, straight, "--seed", "13", "--turns", "37", *FLAGS, *PROCEDURAL, *FLOW,
+         "--infrastructure-condition", "--checkpoint-turns", "33")
+    ckpt = straight / "checkpoint_turn_33.ckpt"
+    assert ckpt.exists()
+    resumed = tmp_path / "resumed"
+    _cli(monkeypatch, resumed, "--resume", str(ckpt))
+    a, b = _bundle(straight), _bundle(resumed)
+    snap = next(s for s in a["history"] if s["turn"] == 33)
+    assert any(e["start_turn"] < 33 for e in snap["livelihoods"]["watershed"]["flood_events"]["open"])
+    floods = [d for d in snap["livelihoods"]["infrastructure_condition"]["damages"] if d["event"] == "flood"]
+    assert floods and all(d["ref"] == f"flood:{d['region']}:{d['turn']}" for d in floods)
+    assert a["history"] == b["history"] and a["world_state"] == b["world_state"]
+    assert (straight / "state.json").read_bytes() == (resumed / "state.json").read_bytes()
+    last = a["history"][-1]["livelihoods"]["infrastructure_condition"]["counters"]
+    assert last["damages_flood"] == len(floods)                         # once, at the onset

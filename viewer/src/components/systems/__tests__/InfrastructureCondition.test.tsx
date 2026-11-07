@@ -44,6 +44,19 @@ it("shows the works, this turn's receipts and charges, and the underfunded works
   expect(screen.getByText(/stalled \d+ turns? \(/)).toBeInTheDocument();
 });
 
+it("lists damage with its cause, a flood with its event", () => {
+  const s = structuredClone(last) as unknown as TurnSnapshot;
+  const record = rec(s);
+  const asset = (record.assets as Array<Record<string, unknown>>)[0];
+  (record.damages as unknown[]).push({ did: 99, turn: last.turn - 1, aid: asset.aid, kind: asset.kind, region: asset.region,
+    event: "flood", war_key: null, war_start_turn: null, ref: `flood:${asset.region}:${last.turn - 1}`, amount: 0.1,
+    condition_before: 0.6, condition_after: 0.5, work: null });   // an edited copy: a flow flood's onset
+  render(<InfrastructureCondition {...props(s)} />);
+  const table = within(screen.getByRole("table", { name: `Infrastructure damage to snapshot ${last.turn}` }));
+  expect(table.getByText(/Flood \(watershed flow, at its onset\) \(event flood:/)).toBeInTheDocument();
+  expect(screen.getByRole("row", { name: /Damage events: conquest \/ sack \/ flood/ })).toBeInTheDocument();
+});
+
 it("keeps disabled, absent, unsettled and malformed records distinct", () => {
   const bare = { turn: 4 } as unknown as TurnSnapshot;
   const off = { ...bundle, history: [bare] } as unknown as Bundle;

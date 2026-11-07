@@ -52,8 +52,8 @@ KINDS: tuple[str, ...] = ("irrigation", "roads")
 STATUSES: tuple[str, ...] = ("serving", "failed", "inactive", "destroyed")
 #: Why an asset turned inactive or destroyed (read from dated world state).
 END_CAUSES: tuple[str, ...] = ("scorch", "earthquake", "depopulation", "unknown", "record_removed")
-#: Real events that record damage (``flood``: the seam for the watershed's
-#: flow mode; no caller until it exists).
+#: Real events that record damage (``flood``: a watershed ``flow`` flood's
+#: onset, ``watershed._apply_flow``).
 DAMAGE_EVENTS: tuple[str, ...] = ("conquest", "sack", "flood")
 #: Why a work exists.
 WORK_CAUSES: tuple[str, ...] = ("wear", "war", "flood")
