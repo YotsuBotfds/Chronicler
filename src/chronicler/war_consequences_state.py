@@ -14,6 +14,9 @@ class WarConsequencesState(BaseModel):
     frame: dict | None = None
     separation: dict | None = None
     counters: dict[str, int] = Field(default_factory=dict)
+    threats: dict[int, dict] = Field(default_factory=dict)
+    pending_threats: dict[int, dict] = Field(default_factory=dict)
+    returns: dict[int, dict] = Field(default_factory=dict)
     # Stable per-turn hook keys survive exact restore; the set is a cache.
     noted_turn: int | None = None
     noted_keys: list[tuple] = Field(default_factory=list)

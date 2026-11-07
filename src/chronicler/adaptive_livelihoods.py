@@ -43,6 +43,8 @@ def set_adaptive_livelihoods_enabled(world, value, *, args=None, agent_mode=None
         if not value:
             state.memory.clear()
             state.work.clear()
+            state.known_residences.clear()
+            state.trade_experience.clear()
             state.frame = None
             state._index_turn, state._work_index, state._offer_cache = None, {}, {}
             state._record_turn, state._record_keys, state._work_heap = None, set(), []
@@ -203,6 +205,68 @@ def record_payroll(world, work, receipt, transfers, regions):
                       source="workshop_payroll:untruncated wages + keyed paid-work receipt")
 
 
+def _known_residences(world, ids):
+    """Dispatch one bound OwnRow to each live person's own information choice."""
+    from chronicler.residence_ledger import own_row_accessor
+    state = _state(world)
+    live = set(map(int, ids))
+    state.known_residences = {aid: seen for aid, seen in state.known_residences.items() if aid in live}
+    own = {}
+    for aid in sorted(live):
+        row = own_row_accessor(world, aid, consumer_turn=world.turn).read(aid)
+        own[aid] = row
+        if row is not None:
+            seen = state.known_residences.setdefault(aid, {})
+            for region in (row["home"], row["res"], row["move_from"]):
+                if region is not None:
+                    seen[int(region)] = row["source_turn"]
+    rows = sorted((date, aid, region) for aid, seen in state.known_residences.items()
+                  for region, date in seen.items())
+    if len(rows) > MAX_MEMORY:
+        _bump(state, "known_residences_dropped", len(rows) - MAX_MEMORY)
+        rows = rows[-MAX_MEMORY:]
+        state.known_residences = {}
+        for date, aid, region in rows:
+            state.known_residences.setdefault(aid, {})[region] = date
+    return own, [(aid, region) for date, aid, region in rows if date < world.turn]
+
+
+def note_trade(world, agent_id, destination, outcome, cause, shipment):
+    """A holder's dated closed shipment, not knowledge of another merchant."""
+    if not adaptive_livelihoods_active(world):
+        return
+    state = _state(world)
+    row = {"turn": int(world.turn), "id": int(agent_id), "region": int(destination),
+           "kind": "shipment", "outcome": str(outcome), "cause": cause, "shipment": int(shipment)}
+    state.trade_experience.append(row)
+    _trim(state, "trade_experience", MAX_MEMORY)
+
+
+def trade_destinations(world, sim, agent_ids):
+    """None is the unchanged rules path; otherwise use dated own trade packets."""
+    if not adaptive_livelihoods_active(world):
+        return None
+    state = _state(world)
+    if state.rules != "2" or state.mode == "record_only":
+        return None
+    return {int(aid): set(map(int, destinations))
+            for aid, destinations in sim.usable_trade_destinations(sorted(agent_ids), world.turn)}
+
+
+def accepts_trade_destination(world, aid, destination, known):
+    if known is None:
+        return True
+    state = _state(world)
+    if destination not in known.get(int(aid), set()):
+        _bump(state, "trade_unknown_destination")
+        return False
+    failed = any(r["id"] == aid and r["region"] == destination and 0 < world.turn - r["turn"] <= WORK_WINDOW
+                 and r["outcome"] in ("returned", "released_returned", "seized") for r in state.trade_experience)
+    if failed:
+        _bump(state, "trade_personal_return_refusal")
+    return not failed
+
+
 def before_agent_tick(world, agent_bridge, economy_result=None):
     if not adaptive_livelihoods_active(world):
         return
@@ -210,8 +274,28 @@ def before_agent_tick(world, agent_bridge, economy_result=None):
     if state.last_turn >= 0 and state.last_turn != world.turn - 1:
         state.memory.clear()
         state.work.clear()
+        state.known_residences.clear()
+        state.trade_experience.clear()
         _bump(state, "unobserved_gaps")
     rows = penalty_rows(state, world.turn)
+    information = []
+    if state.rules == "2":
+        snap = agent_bridge._sim.get_snapshot()
+        homes = dict(zip(map(int, snap.column("id").to_pylist()), map(int, snap.column("region").to_pylist())))
+        own, known = _known_residences(world, homes)
+        information = agent_bridge._sim.set_adaptive_information(world.turn, known)
+        if state.mode == "record_only":
+            agent_bridge._sim.cancel_adaptive_information()
+        from chronicler.war_consequences import movement_rows
+        scores = defaultdict(float)
+        for aid, target, value in rows:
+            scores[(aid, target)] += value
+        attached = {int(aid) for army in getattr(getattr(world, "war_state", None), "armies", []) for aid, _ in army.roster}
+        for aid, origin in sorted(homes.items()):
+            for _, target, value in movement_rows(world, aid, origin, own[aid], attached=attached):
+                scores[(aid, target)] += value
+        rows = [(aid, target, max(-P_CAP, min(P_CAP, score)))
+                for (aid, target), score in sorted(scores.items()) if score != 0]
     if state.mode == "shuffled":
         snap = agent_bridge._sim.get_snapshot()
         homes = dict(zip(map(int, snap.column("id").to_pylist()), map(int, snap.column("region").to_pylist())))
@@ -233,13 +317,19 @@ def before_agent_tick(world, agent_bridge, economy_result=None):
         rows = sorted(remapped)
     # Install an empty input in record_only so refusals are still observed.
     agent_bridge._sim.set_adaptive_migration(world.turn, [] if state.mode == "record_only" else rows)
-    state.frame = {"turn": world.turn, "rows": rows, "rows_installed": 0 if state.mode == "record_only" else len(rows),
-                   "refusals": [], "quick_departures": [], "receipt": None}
+    state.frame = {"turn": world.turn, "rows": rows[:256], "rows_total": len(rows),
+                   "rows_dropped": max(0, len(rows) - 256), "rows_installed": 0 if state.mode == "record_only" else len(rows),
+                   "refusals": [], "quick_departures": [], "receipt": None,
+                   "known_destinations": information[:256], "known_destinations_total": len(information),
+                   "known_destinations_dropped": max(0, len(information) - 256),
+                   "information_gate_installed": state.rules == "2" and state.mode != "record_only"}
 
 
 def rollback_agent_tick(world, agent_bridge):
     if adaptive_livelihoods_active(world):
         agent_bridge._sim.cancel_adaptive_migration()
+        if _state(world).rules == "2":
+            agent_bridge._sim.cancel_adaptive_information()
         _state(world).frame = None
 
 
@@ -276,6 +366,8 @@ def phase10(world, acc, economy_result, agent_bridge):
             continue
         aid = int(event.agent_id)
         prior = own_row_accessor(world, aid, consumer_turn=world.turn).read(aid)
+        from chronicler.war_consequences import note_migration
+        note_migration(world, aid, int(event.region), int(event.target_region), prior)
         if prior is not None and prior["res"] == int(event.region) and prior["move_turn"] is not None \
                 and world.turn - prior["res_since"] <= QUICK_LEAVE_TURNS:
             row = {"turn": int(world.turn), "id": aid, "kind": "left_soon", "region": int(event.region)}
@@ -285,6 +377,7 @@ def phase10(world, acc, economy_result, agent_bridge):
                 state.frame["quick_departures"].append(row)
     state.memory = [r for r in state.memory if 0 <= world.turn - r["turn"] < LEFT_WINDOW]
     state.work = [r for r in state.work if 0 <= world.turn - r["turn"] <= WORK_WINDOW]
+    state.trade_experience = [r for r in state.trade_experience if 0 <= world.turn - r["turn"] <= WORK_WINDOW]
     _trim(state, "memory", MAX_MEMORY)
     _trim(state, "work", MAX_WORK)
     state._record_turn, state._record_keys, state._work_heap = None, set(), []
@@ -293,6 +386,8 @@ def phase10(world, acc, economy_result, agent_bridge):
     state.frame["work_dropped"] = max(0, sum(r["turn"] == world.turn for r in state.work) - 256)
     state.frame["offers"] = list(state.offers) if state.offer_turn == world.turn else []
     state.frame["offers_dropped"] = state.offers_dropped if state.offer_turn == world.turn else 0
+    state.frame["trade"] = [dict(r) for r in state.trade_experience if r["turn"] == world.turn][:256]
+    state.frame["trade_dropped"] = max(0, sum(r["turn"] == world.turn for r in state.trade_experience) - 256)
     state.last_turn = world.turn
     return []
 
@@ -302,6 +397,8 @@ def on_pool_reset(world):
     if state is not None:
         state.memory.clear()
         state.work.clear()
+        state.known_residences.clear()
+        state.trade_experience.clear()
         state.frame = None
         state.last_turn = -1
         state.offer_turn, state.offers, state.offers_dropped = None, [], 0

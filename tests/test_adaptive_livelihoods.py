@@ -17,6 +17,13 @@ def world(mode="adapt"):
 class Sim:
     installed = None
 
+    def set_adaptive_information(self, turn, rows):
+        self.information = (turn, rows)
+        return [(aid, region, 1) for aid, region in rows]
+
+    def cancel_adaptive_information(self):
+        self.information = None
+
     def get_snapshot(self):
         return pa.record_batch({"id": [1], "region": [0]})
 
@@ -191,3 +198,59 @@ def test_native_refusal_frame_samples_preserve_total_and_full_bounded_memory():
     assert len(state.frame["refusals"]) == len(state.frame["receipt"][1]) == 256
     assert state.frame["refusals_total"] == 500 and state.frame["refusals_dropped"] == 244
     assert state.frame["receipt"][2:] == (7, 3)
+
+
+def test_information_uses_bound_prior_residence_and_neutral_record_only():
+    from chronicler.residence_ledger_state import ResidenceLedgerState, ResidenceRow
+    w, sim = world(), Sim()
+    w.livelihoods.residence_ledger = ResidenceLedgerState(frame_turn=4, frame={}, rows={
+        1: ResidenceRow(home=0, home_since=1, res=2, res_since=4, first_seen=1, move_from=1)})
+    a6.before_agent_tick(w, NS(_sim=sim))
+    assert sim.information == (5, [(1, 0), (1, 1), (1, 2)])
+    state = w.livelihoods.adaptive_livelihoods
+    assert state.known_residences == {1: {0: 4, 1: 4, 2: 4}}
+    assert state.frame["known_destinations"] == [(1, 0, 1), (1, 1, 1), (1, 2, 1)]
+    a6.rollback_agent_tick(w, NS(_sim=sim))
+    assert sim.information is None
+    state.mode = "record_only"
+    a6.before_agent_tick(w, NS(_sim=sim))
+    assert sim.information is None and not state.frame["information_gate_installed"]
+    a6.on_pool_reset(w)
+    assert state.known_residences == {} and not state.trade_experience
+
+
+def test_trade_requires_own_dated_packet_and_old_personal_failed_shipments():
+    w = world()
+    sim = NS(usable_trade_destinations=lambda ids, turn: [(aid, [1, 2]) for aid in ids])
+    known = a6.trade_destinations(w, sim, [7])
+    assert a6.accepts_trade_destination(w, 7, 1, known)
+    assert not a6.accepts_trade_destination(w, 8, 1, known)
+    a6.note_trade(w, 7, 1, "returned", "quarantine_closure", 3)
+    assert a6.accepts_trade_destination(w, 7, 1, known)  # no same-turn learning
+    w.turn += 1
+    assert not a6.accepts_trade_destination(w, 7, 1, known)
+    assert a6.accepts_trade_destination(w, 7, 2, known)
+    assert a6.accepts_trade_destination(w, 8, 1, {8: {1}})  # another holder
+    w.turn += 10
+    assert a6.accepts_trade_destination(w, 7, 1, known)
+    w.livelihoods.adaptive_livelihoods.mode = "record_only"
+    assert a6.trade_destinations(w, sim, [7]) is None
+
+
+def test_real_titled_dispatch_waits_for_carriers_own_trade_packet():
+    from tests.test_titled_trade import TradeHarness, _market, VERDANT, THORNWOOD
+    h = TradeHarness()
+    _market(h)
+    state = AdaptiveLivelihoodsState()
+    object.__setattr__(h.world.livelihoods, "adaptive_livelihoods", state)
+    known = []
+    h.sim.usable_trade_destinations = lambda ids, turn: [(aid, known) for aid in ids]
+    for _ in range(3):
+        h.turn({VERDANT: {"grain": 30.0}})
+    assert not h.tt.shipments and state.counters["trade_unknown_destination"] > 0
+    known.append(THORNWOOD)
+    h.turn({VERDANT: {"grain": 30.0}})
+    assert h.tt.shipments[0].dest == THORNWOOD
+    h.turn({VERDANT: {"grain": 30.0}})
+    assert state.trade_experience[0]["outcome"] == "delivered"
+    assert state.trade_experience[0]["id"] == 90

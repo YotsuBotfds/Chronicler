@@ -136,3 +136,75 @@ def test_real_casualty_hook_removes_wounds_without_booking_them_as_deaths():
     assert w.regions[0].population == old_pop - killed
     d3.phase10(w, None, None, bridge(wounds))
     assert [e.agent_id for e in w.health_care.episodes] == sorted(wounds)
+
+
+def movement_world():
+    w = world()
+    w.regions = [NS(name="home", adjacencies=["refuge"], controller="A"),
+                 NS(name="refuge", adjacencies=["home"], controller="A")]
+    w.war_state = NS(wars=[], ended_wars=[], armies=[])
+    w.active_wars = []
+    return w
+
+
+def test_evacuation_score_uses_only_prior_local_threat_and_no_python_move():
+    w = movement_world()
+    state = w.livelihoods.war_consequences
+    prior = {"home": 0, "res": 0}
+    state.threats[7] = {"turn": 3, "region": 0, "wars": [["A:B", 1]]}
+    assert d3.movement_rows(w, 7, 0, prior) == []  # T is never a decision input
+    w.turn = 4
+    assert d3.movement_rows(w, 7, 0, prior) == [(7, 1, .20)]
+    assert d3.movement_rows(w, 8, 0, prior) == []  # another person's observation
+    assert d3.movement_rows(w, 7, 1, prior) == []  # witnessed place only
+    state.mode = "record_only"
+    assert d3.movement_rows(w, 7, 0, prior) == []
+
+
+def test_return_requires_exact_war_instance_and_prior_formal_notice_then_decays():
+    w = movement_world()
+    w.turn = 8
+    state = w.livelihoods.war_consequences
+    state.returns[7] = {"turn": 3, "kind": "evacuated", "wars": [["A:B", 1]]}
+    prior = {"home": 0, "res": 1}
+    w.war_state.ended_wars = [NS(war_key="A:B", start_turn=5, ended_turn=7)]
+    assert d3.movement_rows(w, 7, 1, prior) == []  # reused key is another war
+    w.war_state.ended_wars = [NS(war_key="A:B", start_turn=1, ended_turn=8)]
+    assert d3.movement_rows(w, 7, 1, prior) == []  # same-turn notice
+    w.turn = 9
+    assert d3.movement_rows(w, 7, 1, prior) == [(7, 0, .15 * .95)]
+    w.turn = 28
+    assert d3.movement_rows(w, 7, 1, prior) == []
+
+
+def test_actual_evacuation_and_return_are_observations_and_active_war_memory_survives():
+    w = movement_world()
+    state = w.livelihoods.war_consequences
+    state.threats[7] = {"turn": 3, "region": 0, "wars": [["A:B", 1]]}
+    d3.note_migration(w, 7, 0, 1, {"home": 0})
+    assert state.returns[7]["kind"] == "evacuated"
+    w.war_state.wars = [NS(war_key="A:B", start_turn=1)]
+    w.turn = 50
+    d3.phase10(w, None, None, bridge([7]))
+    assert 7 in state.returns  # a long war does not expire return experience
+    d3.note_migration(w, 7, 1, 0, {"home": 0})
+    assert 7 not in state.returns and state.history[-1]["kind"] == "returned"
+
+
+def test_local_threat_is_observed_before_tick_for_residents_not_attached_people(monkeypatch):
+    from chronicler import residence_ledger
+    monkeypatch.setattr(residence_ledger, "separation", lambda *args, **kw: None)
+    w = movement_world()
+    w.active_wars = [("A", "B")]
+    w.war_state.wars = [NS(war_key="A:B", start_turn=1)]
+    w.war_state.armies = [NS(region="home", soldiers=20, civ="B", war_key="A:B", roster=[]),
+                          NS(region="refuge", soldiers=1, civ="A", war_key="A:B", roster=[(8, 0)])]
+    sim = NS(get_snapshot=lambda: pa.record_batch({"id": [7, 8], "region": [0, 0]}))
+    d3.before_agent_tick(w, NS(_sim=sim))
+    state = w.livelihoods.war_consequences
+    assert set(state.pending_threats) == {7} and not state.threats
+    assert d3.movement_rows(w, 7, 0, {"home": 0}) == []
+    d3.phase10(w, None, None, NS(_sim=sim))
+    w.turn += 1
+    assert d3.movement_rows(w, 7, 0, {"home": 0}) == [(7, 1, .20)]
+    assert d3.movement_rows(w, 7, 0, {"home": 0}, attached={7}) == []

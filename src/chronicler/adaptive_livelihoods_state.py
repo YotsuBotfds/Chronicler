@@ -10,6 +10,8 @@ class AdaptiveLivelihoodsState(BaseModel):
     rules: Literal["1", "2"] = "2"
     memory: list[dict] = Field(default_factory=list)
     work: list[dict] = Field(default_factory=list)
+    known_residences: dict[int, dict[int, int]] = Field(default_factory=dict)
+    trade_experience: list[dict] = Field(default_factory=list)
     last_turn: int = -1
     frame: dict | None = None
     counters: dict[str, int] = Field(default_factory=dict)

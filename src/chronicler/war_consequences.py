@@ -13,6 +13,9 @@ from chronicler.war_consequences_state import WarConsequencesState
 
 WOUND_SHARE = 0.30
 MAX_HISTORY = 256
+MAX_EXPERIENCE = 16384
+RETURN_WINDOW = 20
+EVACUATE_PULL, RETURN_PULL = 0.20, 0.15
 
 
 def _state(world):
@@ -36,6 +39,9 @@ def set_war_consequences_enabled(world, value, *, args=None, agent_mode=None):
         if not value:
             state.pending.clear()
             state.separation = state.frame = None
+            state.threats.clear()
+            state.pending_threats.clear()
+            state.returns.clear()
 
 
 def _note(world, kind, **fields):
@@ -74,6 +80,14 @@ def _commit_history(state, rows):
         del state.history[:-MAX_HISTORY]
 
 
+def _remember_return(state, aid, row):
+    state.returns.pop(int(aid), None)
+    if len(state.returns) >= MAX_EXPERIENCE:
+        del state.returns[next(iter(state.returns))]
+        state.counters["returns_dropped"] = state.counters.get("returns_dropped", 0) + 1
+    state.returns[int(aid)] = row
+
+
 
 def split_victims(world, army, victims, cause):
     """Return (dead, wounded) from the campaign's already selected stable ids.
@@ -100,6 +114,63 @@ attrition and other lethal causes keep their existing authority.
 def note_release(world, army, entries, cause):
     for aid, region in entries:
         _note(world, "released", id=int(aid), region=int(region), army=army.army_id, cause=cause)
+        if war_consequences_active(world):
+            wars = getattr(getattr(world, "war_state", None), "wars", []) + getattr(getattr(world, "war_state", None), "ended_wars", [])
+            matching = [w for w in wars if w.war_key == getattr(army, "war_key", None)
+                        and w.start_turn <= getattr(army, "raised_turn", world.turn)]
+            if matching:
+                war = max(matching, key=lambda w: w.start_turn)
+                _remember_return(_state(world), aid, {"turn": int(world.turn), "kind": "released_service",
+                    "wars": [[war.war_key, war.start_turn]]})
+
+
+def movement_rows(world, aid, origin, prior, *, attached=()):
+    """Dated local experience, supplied one's already-bound X1 row by A6.
+
+    These are destination scores for native migration, never movement orders.
+    A formal peace notice is not a claim that the destination is safe.
+    """
+    if not war_consequences_active(world) or prior is None:
+        return []
+    state = _state(world)
+    if state.mode == "record_only":
+        return []
+    if int(aid) in attached:
+        # An attached person's physical service location is not their native
+        # residence. Do not turn a danger at home into a claimed evacuation.
+        return []
+    index = {r.name: i for i, r in enumerate(world.regions)}
+    adjacent = sorted(index[n] for n in world.regions[origin].adjacencies if n in index)
+    rows = []
+    threat = state.threats.get(int(aid))
+    if threat and threat["turn"] == world.turn - 1 and threat["region"] == origin:
+        rows.extend((int(aid), dest, EVACUATE_PULL) for dest in adjacent)
+    experience = state.returns.get(int(aid))
+    home = prior["home"]
+    if experience and home in adjacent and home != origin and experience["turn"] < world.turn:
+        notices = {(w.war_key, w.start_turn): w.ended_turn for w in getattr(world.war_state, "ended_wars", [])
+                   if w.ended_turn is not None and w.ended_turn < world.turn}
+        dates = [notices[tuple(key)] for key in experience["wars"] if tuple(key) in notices]
+        # All personally witnessed conflicts must have a dated formal peace.
+        if dates and len(dates) == len(experience["wars"]):
+            age = world.turn - max(dates)
+            if 0 < age < RETURN_WINDOW:
+                rows.append((int(aid), int(home), RETURN_PULL * (1 - age / RETURN_WINDOW)))
+    return rows
+
+
+def note_migration(world, aid, origin, destination, prior):
+    if not war_consequences_active(world) or prior is None:
+        return
+    state = _state(world)
+    threat = state.threats.get(int(aid))
+    if threat and threat["region"] == origin and 0 <= world.turn - threat["turn"] <= 1:
+        _remember_return(state, aid, {"turn": int(world.turn), "kind": "evacuated", "wars": threat["wars"]})
+        _note(world, "evacuated", id=int(aid), region=int(origin), destination=int(destination),
+              home=prior["home"], cause="personally_witnessed_field_army")
+    if int(destination) == prior["home"] and int(aid) in state.returns:
+        _note(world, "returned", id=int(aid), region=int(destination), cause=state.returns[int(aid)]["kind"])
+        del state.returns[int(aid)]
 
 
 def before_agent_tick(world, agent_bridge, economy_result=None):
@@ -107,7 +178,34 @@ def before_agent_tick(world, agent_bridge, economy_result=None):
         return
     # Read the T-1 frame before either T's native tick or X1's sole writer.
     from chronicler.residence_ledger import separation
-    _state(world).separation = separation(world, agent_bridge, consumer_turn=world.turn)
+    state = _state(world)
+    state.separation = separation(world, agent_bridge, consumer_turn=world.turn)
+    if state.separation is not None:
+        state.separation["separated_total"] = len(state.separation["separated"])
+        state.separation["separated_dropped"] = max(0, len(state.separation["separated"]) - MAX_HISTORY)
+        state.separation["separated"] = state.separation["separated"][:MAX_HISTORY]
+    campaign = getattr(world, "war_state", None)
+    index = {r.name: i for i, r in enumerate(world.regions)}
+    wars = {w.war_key: w for w in getattr(campaign, "wars", [])}
+    dangers = {}
+    from chronicler.utils import at_war
+    for army in getattr(campaign, "armies", []):
+        region = index.get(army.region)
+        if region is None or army.soldiers <= 0:
+            continue
+        controller = world.regions[region].controller
+        if controller is None or not at_war(world, controller, army.civ):
+            continue
+        war = wars.get(army.war_key)
+        dangers.setdefault(region, set())
+        if war is not None:
+            dangers[region].add((war.war_key, war.start_turn))
+    snap = agent_bridge._sim.get_snapshot()
+    attached = {int(aid) for army in getattr(campaign, "armies", []) for aid, _ in army.roster}
+    state.pending_threats = {int(aid): {"turn": int(world.turn), "region": int(region),
+        "wars": [list(key) for key in sorted(dangers[int(region)])]}
+        for aid, region in zip(snap.column("id").to_pylist(), snap.column("region").to_pylist())
+        if int(region) in dangers and int(aid) not in attached}
 
 
 def on_pool_reset(world):
@@ -116,6 +214,9 @@ def on_pool_reset(world):
         return
     state.pending.clear()
     state.separation = state.frame = None
+    state.threats.clear()
+    state.pending_threats.clear()
+    state.returns.clear()
     state.counters["pool_resets"] = state.counters.get("pool_resets", 0) + 1
 
 
@@ -129,6 +230,26 @@ def phase10(world, acc, economy_result, agent_bridge):
     state.pending.clear()
     snap = agent_bridge._sim.get_snapshot()
     live = set(map(int, snap.column("id").to_pylist()))
+    state.threats = {aid: row for aid, row in state.threats.items()
+                     if aid in live and 0 <= world.turn - row["turn"] <= 1}
+    state.threats.update({aid: row for aid, row in state.pending_threats.items()
+                         if aid in live and row["turn"] == world.turn})
+    state.pending_threats.clear()
+    campaign = getattr(world, "war_state", None)
+    active = {(w.war_key, w.start_turn) for w in getattr(campaign, "wars", [])}
+    ended = {(w.war_key, w.start_turn): w.ended_turn for w in getattr(campaign, "ended_wars", [])
+             if w.ended_turn is not None}
+    def remembered(row):
+        keys = list(map(tuple, row["wars"]))
+        return (world.turn - row["turn"] <= RETURN_WINDOW or any(key in active for key in keys)
+                or any(key in ended and world.turn - ended[key] <= RETURN_WINDOW for key in keys))
+    state.returns = {aid: row for aid, row in state.returns.items() if aid in live and remembered(row)}
+    for name in ("threats", "returns"):
+        observations = getattr(state, name)
+        if len(observations) > MAX_EXPERIENCE:
+            keep = sorted(observations, key=lambda aid: (observations[aid]["turn"], aid))[-MAX_EXPERIENCE:]
+            state.counters[name + "_dropped"] = state.counters.get(name + "_dropped", 0) + len(observations) - len(keep)
+            setattr(state, name, {aid: observations[aid] for aid in keep})
     if state.mode == "active":
         from chronicler.health_care_state import InjuryEpisode
         health = world.health_care
@@ -148,6 +269,8 @@ def phase10(world, acc, economy_result, agent_bridge):
                    "events_dropped": max(0, len(rows) - MAX_HISTORY), "separation": state.separation,
                    "separation_source": "T-1; computed before this turn's native tick",
                    "injury_authority": "health_care", "wound_share": WOUND_SHARE}
+    state.frame["local_threats"] = len(state.threats)
+    state.frame["return_experiences"] = len(state.returns)
     state.last_turn = world.turn
     return []
 

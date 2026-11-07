@@ -482,6 +482,8 @@ def _close(world, state, ship: Shipment, turn: int, outcome: str, cause: str | N
         raise RuntimeError(f"shipment {ship.id}: cargo does not close")
     ship.status, ship.outcome, ship.cause = "closed", outcome, cause
     ship.closed_turn, ship.closed_region = int(turn), ship.region()
+    from chronicler.adaptive_livelihoods import note_trade
+    note_trade(world, ship.holder, ship.dest, outcome, cause, ship.id)
     _note(ship, turn, outcome, ship.region())
     state.shipments = [s for s in state.shipments if s is not ship]
     state.closed.append(ship)
@@ -706,6 +708,8 @@ def _dispatch(world, state, t: _Turn, sim, edges, economy_result, acc) -> None:
         _bump(state, "shipments_capped")
         return
     people = _people(sim.get_snapshot())
+    from chronicler.adaptive_livelihoods import trade_destinations, accepts_trade_destination
+    known_markets = trade_destinations(world, sim, people)
     trips = _trips(sim)
     enlisted = _enlisted(world)
     busy = {s.holder for s in state.shipments} | t.closed_carriers
@@ -759,6 +763,8 @@ def _dispatch(world, state, t: _Turn, sim, edges, economy_result, acc) -> None:
             best = None
             for d, path in sorted(reachable.items()):
                 if d == o or d not in pilot_set or residents.get(d, 0) <= 0 or pilot_entry(world, d) is None:
+                    continue
+                if not accepts_trade_destination(world, aid, d, known_markets):
                     continue
                 q_max = min(_capacity(edges, path), sum(offer.values()), q_cash)
                 dest_market = _market(economy_result, world, d, tally)
