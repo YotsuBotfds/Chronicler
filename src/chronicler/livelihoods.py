@@ -701,6 +701,21 @@ def _grain_storage_on(world: Any) -> bool:
 
 
 def _check_prerequisites(world: Any, values: dict, agent_mode: str, args: Any = None) -> None:
+    # These completion options belong to a requested or saved enabled switch.
+    # Check before any setter can mutate the world. The existing resume-field
+    # registry remains the single source of option -> state-field ownership.
+    for key in ("war_requisition_mode", "war_consequences_mode", "adaptive_livelihoods_mode",
+                "adaptive_livelihoods_rules", "wealth_accounting_mode"):
+        given = getattr(args, key, None)
+        if given is None:
+            continue
+        name, field = _CHOICE_FIELDS[key]
+        if not _on(world, values, name):
+            raise ValueError(f"--{key.replace('_', '-')} requires --{name.replace('_', '-')}")
+        saved = getattr(livelihoods_state(world), name, None)
+        if saved is not None and given != getattr(saved, field):
+            raise ValueError(f"--{key.replace('_', '-')} {given!r} conflicts with the saved world "
+                             f"({field}: {getattr(saved, field)!r})")
     if (values["watershed"] is not None or getattr(args, "watershed_mode", None) is not None
             or getattr(livelihoods_state(world), "watershed", None) is not None):
         # Procedural geography; opens with a new world; a resume cannot end it
