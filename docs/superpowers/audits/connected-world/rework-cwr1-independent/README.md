@@ -1,7 +1,9 @@
 # Independent CWR1 arithmetic checker
 
 Prepared against reviewed runtime `8792be88dd36ba4d7c22e480de6a19dd64ea1300`.
-No fresh pilot or held metric artifact has been evaluated yet. This tool runs
+The complete timing pilot subsequently passed the
+[independent readback](pilot-review-2026-11-07.md); no fresh held metric
+artifact has been evaluated. This tool runs
 no simulation, imports no Chronicler/native module, spends no seed and edits
 no registry. It uses only Python's standard library.
 
