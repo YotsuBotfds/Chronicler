@@ -38,8 +38,12 @@ const object = (x: unknown): x is Record<string, unknown> => x !== null && typeo
 export const entityKey = (e: EntityRef) => `${e.kind}:${e.id}${e.epoch !== undefined ? `:since${e.epoch}` : ""}`;
 export const entityLabel = (e: EntityRef) => `${e.kind[0].toUpperCase()}${e.kind.slice(1).replace(/_/g, " ")} #${e.id}${e.epoch !== undefined ? ` (identity segment since turn ${e.epoch})` : ""}`;
 const ref = (kind: EntityKind, id: number | string): EntityRef => ({ kind, id });
-const coins = (n: number) => (n / 1000).toLocaleString(undefined, { maximumFractionDigits: 3 });
-const num = (n: number) => n.toLocaleString(undefined, { maximumFractionDigits: 3 });
+// The document's default locale is stable for its lifetime. Constructing an
+// Intl formatter for every saved number dominates large history indexes; reuse
+// the identical locale/precision rules without changing the observations.
+const numberFormat = new Intl.NumberFormat(undefined, { maximumFractionDigits: 3 });
+const coins = (n: number) => numberFormat.format(n / 1000);
+const num = (n: number) => numberFormat.format(n);
 const futureFirm = (f:{opened_turn:number;closed_turn:number|null;last_operating_turn?:number|null}, source:number) =>
   f.opened_turn>source || f.closed_turn!==null&&f.closed_turn>source || f.last_operating_turn!=null&&f.last_operating_turn>source;
 
