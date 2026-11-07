@@ -10,12 +10,15 @@ import copy
 import io
 import json
 import math
+import gzip
+import hashlib
 from pathlib import Path
 
 import pytest
 
 from chronicler.bundle_codec import (
     BUNDLE_VERSION,
+    BundleDecodeError,
     HISTORY_DELTA_KEY,
     decode_bundle,
     decode_history,
@@ -25,7 +28,172 @@ from chronicler.bundle_codec import (
     is_encoded,
     load_bundle,
     same,
+    archive_bundle,
 )
+
+
+class TestOptionalBundleArchive:
+    @pytest.mark.parametrize("version", [1, 2, 3, 4, 5, 6])
+    def test_old_layouts_and_number_types_survive_byte_exact_transport(self, tmp_path, version):
+        bundle = {"metadata": {"bundle_version": version}, "history": [
+            {"turn": 1, "values": {"integer": 0, "float": 0.0, "negative_zero": -0.0,
+                                    "missing": None, "unicode": "水と木", "ordered": {"z": 1, "a": 2}}},
+            {"turn": 2, "values": {"integer": 1, "float": 0.0, "negative_zero": -0.0,
+                                    "missing": None, "unicode": "水と木", "ordered": {"a": 2, "z": 1}}},
+        ]}
+        raw = dumps_bundle(bundle) if version == 6 else json.dumps(bundle, ensure_ascii=False, indent=2)
+        source, output = tmp_path / "source.json", tmp_path / "arbitrary-name.data"
+        source.write_bytes((raw + "\r\n").encode())
+        before = source.read_bytes()
+        receipt = archive_bundle(source, output)
+        assert source.read_bytes() == before
+        assert gzip.decompress(output.read_bytes()) == before
+        assert receipt["source_sha256"] == hashlib.sha256(before).hexdigest()
+        assert receipt["archive_sha256"] == hashlib.sha256(output.read_bytes()).hexdigest()
+        assert receipt["source_unchanged"] and receipt["byte_exact_round_trip"]
+        assert same(load_bundle(source), load_bundle(output))
+        assert same(load_bundle(output), bundle)
+
+    def test_archive_bytes_do_not_depend_on_destination_name_or_clock(self, tmp_path):
+        source = tmp_path / "source.json"
+        source.write_text('{"metadata":{},"history":[{"turn":0,"v":-0.0}]}')
+        first, second = tmp_path / "first.json.gz", tmp_path / "different-name.gz"
+        archive_bundle(source, first)
+        archive_bundle(source, second)
+        assert first.read_bytes() == second.read_bytes()
+        assert first.read_bytes()[3] & 8 == 0  # no embedded filename
+        assert first.read_bytes()[4:8] == b"\0" * 4
+
+    def test_plain_json_does_not_need_a_json_suffix_and_is_not_reencoded(self, tmp_path):
+        source = tmp_path / "misleading.json.gz"
+        before = b'{ "history": [], "metadata": { "bundle_version": 5 } }\n'
+        source.write_bytes(before)
+        assert load_bundle(source) == {"history": [], "metadata": {"bundle_version": 5}}
+        output = tmp_path / "copy.gz"
+        archive_bundle(source, output)
+        assert gzip.decompress(output.read_bytes()) == before
+
+    @pytest.mark.parametrize("damage", ["truncated", "deflate", "crc"])
+    def test_corrupt_archive_is_an_explicit_error_never_empty_history(self, tmp_path, damage):
+        payload = gzip.compress(b'{"history":[],"metadata":{}}', mtime=0)
+        if damage == "truncated":
+            payload = payload[:-5]
+        elif damage == "deflate":
+            payload = payload[:10] + b"\xff" * 5 + payload[15:]
+        else:
+            payload = payload[:-8] + bytes([payload[-8] ^ 255]) + payload[-7:]
+        source = tmp_path / "damaged.json"
+        source.write_bytes(payload)
+        with pytest.raises(BundleDecodeError, match="Could not decompress bundle"):
+            load_bundle(source)
+
+    def test_transport_preserves_existing_patch_validation_errors(self, tmp_path):
+        source, output = tmp_path / "bad-patch.json", tmp_path / "bad-patch.json.gz"
+        source.write_text('{"metadata":{"bundle_version":6},"history_delta":[{"turn":1},{"~l":[]}]}')
+        archive_bundle(source, output)
+        errors = []
+        for path in (source, output):
+            with pytest.raises(BundleDecodeError) as exc:
+                load_bundle(path)
+            errors.append(str(exc.value))
+        assert errors[0] == errors[1]
+
+    def test_existing_destination_and_original_are_never_overwritten(self, tmp_path):
+        source, output = tmp_path / "source.json", tmp_path / "existing.gz"
+        source.write_text('{"history":[]}')
+        before = source.read_bytes()
+        output.write_bytes(b"existing unrelated data")
+        with pytest.raises(FileExistsError):
+            archive_bundle(source, output)
+        with pytest.raises(ValueError, match="different files"):
+            archive_bundle(source, source)
+        assert output.read_bytes() == b"existing unrelated data" and source.read_bytes() == before
+
+    def test_archive_cli_emits_bound_receipt_and_refuses_existing_output(self, tmp_path, capsys):
+        import importlib.util
+        script = Path(__file__).resolve().parents[1] / "scripts" / "cw_bundle_archive.py"
+        spec = importlib.util.spec_from_file_location("cw_bundle_archive_test", script)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        source, output = tmp_path / "source.json", tmp_path / "output.gz"
+        source.write_text('{"metadata":{},"history":[]}')
+        args = ["--source", str(source), "--output", str(output)]
+        assert module.main(args) == 0
+        receipt = json.loads(capsys.readouterr().out)
+        assert receipt["source_sha256"] == hashlib.sha256(source.read_bytes()).hexdigest()
+        assert receipt["archive_sha256"] == hashlib.sha256(output.read_bytes()).hexdigest()
+        before = output.read_bytes()
+        with pytest.raises(SystemExit) as exc:
+            module.main(args)
+        assert exc.value.code == 2 and "already exists" in capsys.readouterr().err
+        assert output.read_bytes() == before
+
+    def test_concurrent_destination_creation_is_refused_atomically(self, tmp_path, monkeypatch):
+        import os
+        source, output = tmp_path / "source.json", tmp_path / "output.gz"
+        source.write_text('{"history":[]}')
+        link = os.link
+        def racing_link(src, dest, *args, **kwargs):
+            Path(dest).write_bytes(b"concurrent owner")
+            return link(src, dest, *args, **kwargs)
+        monkeypatch.setattr(os, "link", racing_link)
+        with pytest.raises(FileExistsError):
+            archive_bundle(source, output)
+        assert output.read_bytes() == b"concurrent owner"
+        assert sorted(p.name for p in tmp_path.iterdir()) == ["output.gz", "source.json"]
+
+    def test_source_change_is_detected_without_undoing_the_other_writers_change(self, tmp_path, monkeypatch):
+        source, output = tmp_path / "source.json", tmp_path / "output.gz"
+        source.write_text('{"history":[]}')
+        write = gzip.GzipFile.write
+        changed = False
+        def racing_write(self, data):
+            nonlocal changed
+            result = write(self, data)
+            if data and not changed:
+                changed = True
+                source.write_bytes(b'{"history":[],"external_change":true}')
+            return result
+        monkeypatch.setattr(gzip.GzipFile, "write", racing_write)
+        with pytest.raises(ValueError, match="source changed"):
+            archive_bundle(source, output)
+        assert not output.exists()
+        assert source.read_bytes() == b'{"history":[],"external_change":true}'
+        assert len(list(tmp_path.iterdir())) == 1
+
+    def test_write_failure_leaves_no_partial_archive_or_source_change(self, tmp_path, monkeypatch):
+        source, output = tmp_path / "source.json", tmp_path / "output.gz"
+        source.write_text('{"history":[]}')
+        before = source.read_bytes()
+        def fail(*args, **kwargs):
+            raise OSError("disk full")
+        monkeypatch.setattr(gzip.GzipFile, "write", fail)
+        with pytest.raises(OSError, match="disk full"):
+            archive_bundle(source, output)
+        assert source.read_bytes() == before and not output.exists()
+        assert len(list(tmp_path.iterdir())) == 1
+
+    @pytest.mark.parametrize("contents", [b"not JSON", b"[]", b"1"])
+    def test_invalid_source_never_publishes_an_archive(self, tmp_path, contents):
+        source, output = tmp_path / "source.json", tmp_path / "output.gz"
+        source.write_bytes(contents)
+        with pytest.raises(ValueError):
+            archive_bundle(source, output)
+        assert source.read_bytes() == contents and not output.exists()
+
+    @pytest.mark.parametrize("level", [0, 10, True, 1.5])
+    def test_invalid_levels_are_refused(self, tmp_path, level):
+        source, output = tmp_path / "source.json", tmp_path / "output.gz"
+        source.write_text('{}')
+        with pytest.raises(ValueError, match="integer from 1 to 9"):
+            archive_bundle(source, output, compresslevel=level)
+
+    def test_archiving_an_archive_is_refused_without_nested_transport(self, tmp_path):
+        source, output = tmp_path / "source.json.gz", tmp_path / "output.gz"
+        source.write_bytes(gzip.compress(b'{}', mtime=0))
+        with pytest.raises(ValueError, match="already compressed"):
+            archive_bundle(source, output)
+        assert not output.exists()
 from chronicler.snapshot_pruning import restore_bundle
 
 VIEWER_FIXTURES = Path(__file__).resolve().parents[1] / "viewer" / "src" / "__fixtures__"

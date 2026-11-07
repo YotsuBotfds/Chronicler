@@ -334,8 +334,127 @@ def decode_bundle(bundle: Any) -> Any:
 
 
 def load_bundle(path: str | Path) -> Any:
-    """Read a ``chronicle_bundle.json`` of any version, decoded."""
-    return decode_bundle(json.loads(Path(path).read_text(encoding="utf-8")))
+    """Read any supported bundle layout, optionally in a gzip archive.
+
+    Compression is recognized by its bytes, not the filename. The normal JSON
+    writer and its version-6 representation are unchanged. A corrupt archive
+    is an input error, never an empty or partially decoded history.
+    """
+    path = Path(path)
+    with path.open("rb") as stream:
+        compressed = stream.read(2) == b"\x1f\x8b"
+    if compressed:
+        import gzip
+        import zlib
+        try:
+            with gzip.open(path, "rt", encoding="utf-8") as stream:
+                parsed = json.load(stream)
+        except (OSError, EOFError, zlib.error) as exc:
+            raise BundleDecodeError(f"Could not decompress bundle: {exc}") from None
+        return decode_bundle(parsed)
+    return decode_bundle(json.loads(path.read_text(encoding="utf-8")))
+
+
+def archive_bundle(source: str | Path, destination: str | Path, *, compresslevel: int = 1) -> dict[str, Any]:
+    """Publish an optional deterministic, byte-verified gzip copy of saved JSON.
+
+    The original is retained. Existing destinations, including a concurrently
+    created file, are never replaced. JSON-object syntax is checked; this is
+    transport verification, not model or history-patch qualification. Normal
+    readers perform their existing validation after decompression.
+    """
+    import gzip
+    import hashlib
+    import os
+    import tempfile
+    import time
+
+    from chronicler.artifact_io import _fsync_directory
+
+    if type(compresslevel) is not int or not 1 <= compresslevel <= 9:
+        raise ValueError("gzip level must be an integer from 1 to 9")
+    source, destination = Path(source).resolve(), Path(destination).absolute()
+    if source == destination.resolve():
+        raise ValueError("source and archive must be different files")
+    if destination.exists() or destination.is_symlink():
+        raise FileExistsError(f"archive already exists: {destination}")
+
+    started_cpu, started_wall = time.process_time(), time.perf_counter()
+    before = source.stat()
+    signature = (before.st_dev, before.st_ino, before.st_size, before.st_mtime_ns)
+    raw = source.read_bytes()
+    if raw.startswith(b"\x1f\x8b"):
+        raise ValueError("source is already compressed; retain that archive instead")
+    parsed = json.loads(raw.decode("utf-8"))
+    if not isinstance(parsed, dict):
+        raise ValueError("a bundle archive requires a JSON object")
+    source_sha256 = hashlib.sha256(raw).hexdigest()
+    source_bytes = len(raw)
+    metadata = parsed.get("metadata")
+    bundle_version = metadata.get("bundle_version") if isinstance(metadata, dict) else None
+    history = parsed.get("history_delta", parsed.get("history"))
+    snapshots = len(history) if isinstance(history, list) else None
+    del parsed, history, metadata, raw
+    validation_cpu = time.process_time() - started_cpu
+    validation_wall = time.perf_counter() - started_wall
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    temp: Path | None = None
+    chunk_size = 1024 * 1024
+    try:
+        descriptor, name = tempfile.mkstemp(prefix=f".{destination.name}.", suffix=".tmp", dir=destination.parent)
+        temp = Path(name)
+        compression_cpu, compression_wall = time.process_time(), time.perf_counter()
+        copied_hash, copied_bytes = hashlib.sha256(), 0
+        with os.fdopen(descriptor, "wb") as output:
+            with gzip.GzipFile(filename="", mode="wb", fileobj=output, compresslevel=compresslevel, mtime=0) as archive:
+                with source.open("rb") as original:
+                    while chunk := original.read(chunk_size):
+                        archive.write(chunk)
+                        copied_hash.update(chunk)
+                        copied_bytes += len(chunk)
+            output.flush()
+            os.fsync(output.fileno())
+        compression_cpu = time.process_time() - compression_cpu
+        compression_wall = time.perf_counter() - compression_wall
+        verification_cpu, verification_wall = time.process_time(), time.perf_counter()
+        checked_hash, archive_hash, checked_bytes = hashlib.sha256(), hashlib.sha256(), 0
+        with gzip.open(temp, "rb") as archive, source.open("rb") as original:
+            while chunk := archive.read(chunk_size):
+                if chunk != original.read(len(chunk)):
+                    raise ValueError("source changed or archive byte verification failed")
+                checked_hash.update(chunk)
+                checked_bytes += len(chunk)
+            if original.read(1):
+                raise ValueError("source changed while archiving")
+        after = source.stat()
+        if ((after.st_dev, after.st_ino, after.st_size, after.st_mtime_ns) != signature
+                or copied_bytes != source_bytes or checked_bytes != source_bytes
+                or copied_hash.hexdigest() != source_sha256 or checked_hash.hexdigest() != source_sha256):
+            raise ValueError("source changed while archiving")
+        with temp.open("rb") as archive:
+            while chunk := archive.read(chunk_size):
+                archive_hash.update(chunk)
+        archive_bytes = temp.stat().st_size
+        verification_cpu = time.process_time() - verification_cpu
+        verification_wall = time.perf_counter() - verification_wall
+        # Same-directory hard-link publication is atomic and fails if any file
+        # appeared at the destination after the initial check. os.replace would
+        # silently overwrite that file and cannot implement this contract.
+        os.link(temp, destination)
+        _fsync_directory(destination.parent)
+        return {"source": str(source), "archive": str(destination), "compression": "gzip", "level": compresslevel,
+                "source_sha256": source_sha256, "archive_sha256": archive_hash.hexdigest(),
+                "source_bytes": source_bytes, "archive_bytes": archive_bytes,
+                "source_unchanged": True, "byte_exact_round_trip": True,
+                "bundle_version": bundle_version, "snapshots": snapshots,
+                "validation": "JSON-object syntax and exact transport bytes; not model/history qualification",
+                "validation_cpu_s": validation_cpu, "validation_wall_s": validation_wall,
+                "compression_cpu_s": compression_cpu, "compression_wall_s": compression_wall,
+                "verification_cpu_s": verification_cpu, "verification_wall_s": verification_wall,
+                "total_cpu_s": time.process_time() - started_cpu, "total_wall_s": time.perf_counter() - started_wall}
+    finally:
+        if temp is not None:
+            temp.unlink(missing_ok=True)
 
 
 def dumps_bundle(bundle: Mapping[str, Any]) -> str:
