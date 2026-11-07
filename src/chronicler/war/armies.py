@@ -481,8 +481,13 @@ def rebind_rosters(ctx: WarContext) -> None:
         live = set()
     for army in sorted(world.war_state.armies, key=lambda a: a.army_id):
         from chronicler.war_consequences import war_consequences_active
+        from chronicler.war_requisition import war_requisition_active
         consequences = getattr(getattr(world, "livelihoods", None), "war_consequences", None)
-        repair_identity = war_consequences_active(world) and consequences.mode == "active"
+        # A numerically reused id in a new pool is not evidence that its old
+        # army attachment survived. Both opted-in service paths must rebuild
+        # through the ordinary recruit authority, even without active D3.
+        repair_identity = (war_requisition_active(world)
+                           or war_consequences_active(world) and consequences.mode == "active")
         if army.roster and all(aid in live for aid, _ in army.roster) and not repair_identity:
             continue
         civ = world.civ_map.get(army.civ)

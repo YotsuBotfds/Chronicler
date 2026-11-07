@@ -1,6 +1,8 @@
 """Army lifecycle: aggregate and native enlistment, casualties, desertion, reconciliation."""
 from __future__ import annotations
 
+import pytest
+
 from chronicler.models import GreatPerson
 from chronicler.war import params as P
 from chronicler.war.armies import (
@@ -152,3 +154,44 @@ def test_general_assignment_and_death_in_aggregate_mode():
     assert kill_general(ctx, army, "Crag") == "Varro"
     assert not gp.alive and gp.fate == "dead" and gp in world.retired_persons
     assert army.general is None
+
+
+
+@pytest.mark.parametrize("mode", ["transfer", "cost_only"])
+def test_d4_new_pool_rebind_rejects_live_but_reused_roster_identity_without_d3(mode):
+    from chronicler.livelihoods_state import LivelihoodsState
+    from chronicler.war_requisition_state import WarRequisitionState
+    world, bridge = _agent_world()
+    world.livelihoods = LivelihoodsState(war_requisition=WarRequisitionState(mode=mode))
+    ctx, war = start_war(world)
+    ctx.bridge = bridge
+    # Id 6 exists in the replacement pool but belongs to civ B. The old
+    # attachment was to civ A: numeric membership alone must not preserve it.
+    army = place_army(world, "A", "Brook", 1, war.war_key, roster=[(6, 2)])
+    world._war_roster_sim = -1
+    rebind_rosters(ctx)
+    assert army.roster == [(3, 1)] and army.soldiers == 1
+    assert world.livelihoods.war_consequences is None
+    # Rebinding the same pool is still an exact no-op, rather than drafting
+    # afresh on every call. This protects already frozen service identities.
+    bridge.snapshot = FakeSnapshot([(6, 2, 1, 1)])
+    rebind_rosters(ctx)
+    assert army.roster == [(3, 1)] and world._war_roster_sim == id(bridge._sim)
+
+
+@pytest.mark.parametrize("feature", ["off", "d4_disabled", "d3_record_only"])
+def test_old_rebind_path_retains_live_roster_ids_without_opted_in_service_repair(feature):
+    from chronicler.livelihoods_state import LivelihoodsState
+    from chronicler.war_requisition_state import WarRequisitionState
+    from chronicler.war_consequences_state import WarConsequencesState
+    world, bridge = _agent_world()
+    if feature == "d4_disabled":
+        world.livelihoods = LivelihoodsState(war_requisition=WarRequisitionState(enabled=False))
+    elif feature == "d3_record_only":
+        world.livelihoods = LivelihoodsState(war_consequences=WarConsequencesState(mode="record_only"))
+    ctx, war = start_war(world)
+    ctx.bridge = bridge
+    army = place_army(world, "A", "Brook", 1, war.war_key, roster=[(6, 2)])
+    world._war_roster_sim = -1
+    rebind_rosters(ctx)
+    assert army.roster == [(6, 2)] and army.soldiers == 1
