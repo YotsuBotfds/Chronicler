@@ -98,7 +98,8 @@
   [preregistration and results](superpowers/progress/connected-world-screens-cw5c.md). The
   write-up was checked independently (process and every number confirmed; four small
   corrections applied).
-- **A4 PR** (`claude/cw-a4-titled-trade`, main `d8a5277b` merged): A3-2 `--workshop-economics-rules 2`
+- **PR #92 merged** at `4ecfb54d` (tree `27189084` = reviewed head `8271e8f4`; premerge Tests
+  42349732907 and main Tests 42350879411 green; main's native extension now `43cbd22a…`): A3-2 `--workshop-economics-rules 2`
   (firms' titled output column in the native economy; capability-checked) and A4-1 `--titled-trade`
   (merchants buy owners' surplus above their fair-share reserve, pro rata at the local retail price,
   paying owners directly; title and custody per shipment by stable id; the carrier's model income is
@@ -115,7 +116,7 @@
   rules 1 showed no consistent effect on firms' active share, household workshop wages or wares sold;
   population and farm time diverted lower than the status quo payroll on most worlds. Both write-ups
   checked independently.
-- **X1 lane** (`claude/cw-x1-residence`, from `bac45cb5`, main `4ecfb54d` merged in; not merged): `--residence-ledger`, the
+- **X1 lane** (`claude/cw-x1-residence`, from `bac45cb5`, main `4ecfb54d` merged in): `--residence-ledger`, the
   lead-owned displacement contract from audit A6 section 11 — record-only, hybrid only, default
   off; home, residence, attachment and displacement spells (cause flight/hunger, dated
   home-region anchor war/famine/persecution/none, closures returned/resettled/died/pool_reset/
@@ -132,12 +133,10 @@
   bound own-row accessor.
   [Integration page](integration/residence-ledger.md) (verification and development-world
   evidence).
-- **Lanes in flight** (each on its own branch from `bac45cb5`; witness layers rebuilt last at
-  integration): B3
-  `--infrastructure-condition` (irrigation and roads wear, fail and are repaired by paid works through
-  their own L9 proposal; flow × condition; works' timber through PL1) with the CW3b held screen; X1
-  `--residence-ledger` (the lead-owned displacement contract, record-only); D1 `--reform-services`
-  and `--guild-leagues`.
+- **Lanes in flight** (each on its own branch; witness layers rebuilt last at integration): B3
+  `--infrastructure-condition` (CW3b run and checked; merging after X1); D1 `--reform-services` and
+  `--guild-leagues` (review running); D4 `--war-requisition` with A4-2 cargo seizure and restitution
+  (native purpose 10).
 - **A6 audit** ([audit-a6](superpowers/audits/connected-world/audit-a6-adaptive-decisions.md)): no
   livelihood choice reads experience today; failed attempts are recorded but unread; the native
   "displaced" counter means moved-in-the-last-5-turns and the birth region never updates — hence the
