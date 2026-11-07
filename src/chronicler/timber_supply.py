@@ -456,6 +456,25 @@ def store_free(world, region: int) -> float:
     return amount
 
 
+
+def deliver_ordered_store(world, region: int, amount: float) -> None:
+    """A4-3 delivery into the existing repair store, included in PL1's account.
+
+    Called after ``phase10_before_reserves`` and before PL1 closes its frame.
+    No independent store is created and the delivery is not free commons stock.
+    """
+    state = _state(world)
+    if state is None or not timber_supply_active(world):
+        raise RuntimeError("ordered timber delivery requires active timber supply")
+    if not isinstance(region, int) or not 0 <= region < len(world.regions) or not math.isfinite(amount) or amount < 0:
+        raise ValueError("invalid ordered timber delivery")
+    t = state._turn
+    if t is None or t.turn != world.turn:
+        raise RuntimeError("ordered timber delivery outside the PL1 open turn")
+    t.store_open.setdefault(region, state.store.get(region, 0.0))
+    state.store[region] = state.store.get(region, 0.0) + amount
+    t.delivered[region] = t.delivered.get(region, 0.0) + amount
+
 def take_store(world, region: int, amount: float) -> float:
     """RS2 seam (its holds, before the native economy): take up to ``amount``
     from the region's store first; returns what was taken (0.0 without a

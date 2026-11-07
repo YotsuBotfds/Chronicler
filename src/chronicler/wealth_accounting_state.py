@@ -49,6 +49,9 @@ CHANNELS: tuple[tuple[str, str | None, str], ...] = (
     ("cargo_purchase", "titled_trade", "merchant -> owners of surplus food, titled cargo bought by id (A4)"),
     ("restitution", "war_requisition", "liable treasury -> living owners of seized food/cargo (D4)"),
     ("relief_purchase", "reform_services", "relief fund -> owners of food bought for poor relief, by id (D1a)"),
+    ("timber_purchase", "timber_orders", "carriers -> origin treasury for real timber"),
+    ("timber_freight", "timber_orders", "destination escrow -> carriers only for delivered timber"),
+    ("withheld_timber_orders", "timber_orders", "ordinary carrier income replaced by procurement margin"),
 )
 CHANNEL_NAMES: tuple[str, ...] = tuple(c[0] for c in CHANNELS)
 
@@ -91,7 +94,7 @@ WEALTH_ROUTERS: dict[str, tuple[str, ...]] = {
     # The shared payment seam (connected-world A3): ``money.pay`` routes every
     # agent-wealth line of a bill through ``money._native_transfer``; the
     # purposes it may carry are ``MONEY_PURPOSE_CHANNELS``.
-    "_native_transfer": ("wares_purchase", "care_wage", "restitution", "relief_purchase"),
+    "_native_transfer": ("wares_purchase", "care_wage", "restitution", "relief_purchase", "timber_purchase", "timber_freight"),
     # A4: ``money.pay`` routes a pairwise bill (an agent paying agents)
     # through ``money._native_pairs`` (native ``settle_pairs``).
     "_native_pairs": ("cargo_purchase",),
@@ -142,8 +145,8 @@ WEALTH_WRITERS: dict[tuple[str, str, str, str], tuple[int, tuple[str, ...]]] = {
     ("health_care", "prepare_health_care", "prepare_health_work", ""): (2, ("withheld_health",)),
     # A3 (the payment seam): the router's one native call, and its two callers in
     # ``money.pay`` (a payment's agent credits, a collection's agent debits).
-    ("money", "_native_transfer", "transfer_wealth", "purpose=code,batch=batch"): (1, ("wares_purchase", "care_wage", "restitution", "relief_purchase")),
-    ("money", "pay", "_native_transfer", "purpose=bill.purpose"): (2, ("wares_purchase", "care_wage", "restitution", "relief_purchase")),
+    ("money", "_native_transfer", "transfer_wealth", "purpose=code,batch=batch"): (1, ("wares_purchase", "care_wage", "restitution", "relief_purchase", "timber_purchase", "timber_freight")),
+    ("money", "pay", "_native_transfer", "purpose=bill.purpose"): (2, ("wares_purchase", "care_wage", "restitution", "relief_purchase", "timber_purchase", "timber_freight")),
     # C2 (epidemic care): carers' ordinary income withheld for their care time.
     ("epidemic_care", "finish_phase2", "extend_paid_work", ""): (1, ("withheld_care",)),
     # A4 (titled trade): the pairwise router's one native call and its caller in
@@ -151,6 +154,7 @@ WEALTH_WRITERS: dict[tuple[str, str, str, str], tuple[int, tuple[str, ...]]] = {
     ("money", "_native_pairs", "settle_pairs", "purpose=code,batch=batch"): (1, ("cargo_purchase",)),
     ("money", "pay", "_native_pairs", "purpose=bill.purpose"): (1, ("cargo_purchase",)),
     ("titled_trade", "finish_phase2", "extend_paid_work", ""): (1, ("titled_trade",)),
+    ("timber_orders", "finish_phase2", "extend_paid_work", ""): (1, ("withheld_timber_orders",)),
 }
 #: Purposes ``money.pay`` may move agent wealth for, with the ledger channel
 #: each is read as (``money.flows_for_turn``); ``money`` refuses any other
@@ -164,6 +168,8 @@ MONEY_PURPOSE_CHANNELS: dict[str, str] = {
     # D1a: a relief fund pays owners for food (``money.NATIVE_ALIASES``: native
     # ``food_procurement``, batches 1 + region; retail's own credit keeps batch 0).
     "relief_purchase": "relief_purchase",
+    "timber_purchase": "timber_purchase",
+    "timber_freight": "timber_freight",
 }
 #: Every bill built for the payment seam outside ``money`` itself:
 #: ``(module under chronicler, enclosing function) -> purposes`` (a literal
@@ -185,6 +191,9 @@ MONEY_BILLS: dict[tuple[str, str], tuple[str, ...]] = {
     ("reform_services", "_deposit"): ("relief_budget",),
     ("reform_services", "_refund"): ("relief_refund",),
     ("reform_services", "_purchases"): ("relief_purchase",),
+    ("timber_orders", "_refund"): ("timber_escrow",),
+    ("timber_orders", "_close"): ("timber_freight",),
+    ("timber_orders", "dispatch"): ("timber_purchase", "timber_escrow"),
 }
 #: Every reference to a writer or router name that is not a call: the name
 #: strings packages use to check the extension has a method
