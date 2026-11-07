@@ -1,0 +1,34 @@
+{
+  "schema_version": 1,
+  "bundle": "/workspace/evidence/cw6/schema-smoke-t5-v1/chronicle_bundle.json",
+  "bundle_sha256": "cd47373240635f4b4ce0968fe8fb5d48cea9b90675d05e786f4a6694076b38f3",
+  "reader_bundle_sha256": "7e734f50475e744cc8e43131cf0df12811f5166c4184b19c69ae567f1726c7e1",
+  "generated": "2026-11-07T15:12:29.596Z",
+  "validation": "actual production strict readers; only observed packages may supply story facts",
+  "snapshots": {
+    "1": {
+      "timber_orders": "observed",
+      "war_requisition": "observed",
+      "adaptive_livelihoods": "observed",
+      "war_consequences": "observed",
+      "public_health": "observed",
+      "infrastructure_condition": "observed",
+      "reform_services": "observed",
+      "epidemic_care": "observed",
+      "movement_branches": "observed",
+      "guild_leagues": "observed"
+    },
+    "2": {
+      "timber_orders": "observed",
+      "war_requisition": "observed",
+      "adaptive_livelihoods": "observed",
+      "war_consequences": "observed",
+      "public_health": "observed",
+      "infrastructure_condition": "observed",
+      "reform_services": "observed",
+      "epidemic_care": "observed",
+      "movement_branches": "observed",
+      "guild_leagues": "observed"
+    }
+  }
+}

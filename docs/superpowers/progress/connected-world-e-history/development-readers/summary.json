@@ -1,0 +1,72 @@
+[
+  {
+    "name": "A6R-procedural19",
+    "returncode": 0,
+    "snapshots": 2,
+    "malformed": [],
+    "error": ""
+  },
+  {
+    "name": "A6R-template5",
+    "returncode": 0,
+    "snapshots": 2,
+    "malformed": [],
+    "error": ""
+  },
+  {
+    "name": "D3R-procedural19",
+    "returncode": 0,
+    "snapshots": 2,
+    "malformed": [],
+    "error": ""
+  },
+  {
+    "name": "D3R-template5",
+    "returncode": 0,
+    "snapshots": 2,
+    "malformed": [],
+    "error": ""
+  },
+  {
+    "name": "D4C-procedural19",
+    "returncode": 0,
+    "snapshots": 2,
+    "malformed": [],
+    "error": ""
+  },
+  {
+    "name": "D4C-template5",
+    "returncode": 0,
+    "snapshots": 2,
+    "malformed": [],
+    "error": ""
+  },
+  {
+    "name": "FULL-procedural19",
+    "returncode": 0,
+    "snapshots": 2,
+    "malformed": [],
+    "error": ""
+  },
+  {
+    "name": "SUP-procedural19",
+    "returncode": 0,
+    "snapshots": 2,
+    "malformed": [],
+    "error": ""
+  },
+  {
+    "name": "SUP-template5",
+    "returncode": 0,
+    "snapshots": 2,
+    "malformed": [],
+    "error": ""
+  },
+  {
+    "name": "FULL-template5",
+    "returncode": 0,
+    "snapshots": 2,
+    "malformed": [],
+    "error": ""
+  }
+]

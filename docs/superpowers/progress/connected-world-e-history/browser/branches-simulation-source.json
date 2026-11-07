@@ -1,0 +1,7 @@
+{
+  "source": "8fec1a4b2f874ba42ebed434e05111480ce57d54",
+  "native_sha256": "59f536b8f4a6c2bc82c51eeaec55f3aff6b0a1c5c8f1a324049ad15b42c51617",
+  "python": "/workspace/cw-evidence-native/bin/python",
+  "pythonpath": "/workspace/cw-d1c-final/src",
+  "constructed": false
+}

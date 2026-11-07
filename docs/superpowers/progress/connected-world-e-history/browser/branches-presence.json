@@ -1,0 +1,250 @@
+{
+  "generated": "2026-11-07T15:28:13.702Z",
+  "build": "/workspace/evidence/history/integrated-dist-final",
+  "python": "/workspace/cw-evidence-native/bin/python",
+  "journey": "branches",
+  "out": "/workspace/evidence/history/qa-branches-final",
+  "bundle": "/workspace/evidence/d1/branches-presence-development/t23-funded/chronicle_bundle.json",
+  "turns": null,
+  "constructed": null,
+  "build_files_sha256": {
+    "assets/AreaChart-CwPjZOkQ.js": "a0c57254121b6da9ef91bfd062d269aee53cf932e331419dc7122fdb32c5a8b8",
+    "assets/BatchAnalytics-Bw2_JvFV.js": "60e8ec95872a1022b3bb721918256928c6e23e35d5f7dbf76e32cf0fd70c491a",
+    "assets/BatchCompare-CS4vW-yu.css": "35c60ba060a011a452342ccde389ab3c89960ed3492610c41cd3314b261beb80",
+    "assets/BatchCompare-GFn-PAnP.js": "79b7eed6a9573fc020dd98df8d28da421ecacbcfe8c91b75995eb686df7c4e7b",
+    "assets/BatchPanel-B6xz1Wuw.js": "cec29e49ce836df139b65229f18d488082b0eaf2357571e95c4284009d233c80",
+    "assets/bundleDecode.worker-BUpfiHcT.js": "aa45701b940e43cf15cc174b840e50af5ce86a01882f529199bae870aa1a2d62",
+    "assets/CartesianChart-BcJFUYWT.js": "aee1ebe4c62394e1f8a28121b4b2c6856a3049d6e1d15cd42c5e7d3da9fda9bf",
+    "assets/ChronicleSources-BTNieffh.css": "15891ddf7a9dfaf14b79d99777c0a03c8c7f962f0a63b26867d32bc0606ad285",
+    "assets/ChronicleSources-qz64cimq.js": "9cfc4963ee9f094d6b58657a39c8b8df8be638e62c629dc2059ac196dc2b381e",
+    "assets/faiths-Cw5iQFVm.js": "8e7a0d2b48f577e8c58303f8797c0c3fbd3f4b175a0e6d705a34bd78892a0367",
+    "assets/index-CQnzAFm-.css": "d1ac1e8fb3f497a788f6520aaaba403fe54684caf2df04bca495ece62172ebd5",
+    "assets/index-DgPK6UPt.js": "e4e966266dfeb4852fa0eb2c01ae1eeaba83a07ddea5898fbfd362b253328081",
+    "assets/InterventionPanel-BaVtBPcV.css": "af2700d69880d25ce71113aea0882c1f9cfea110e9a356935df372fb6d70628f",
+    "assets/InterventionPanel-yVAQP_iG.js": "2f3fd780052ac000bf9cbd746a5e5b415751529d41335f4583c7d84e710f1bd8",
+    "assets/LanguagesPanel-CXchVTsW.js": "49e170b0abff44ec619bd3369b1c40a400d026a934813be9520104172597383b",
+    "assets/learningServices-DNMQNWeB.js": "3c28ac55c7c38487c246e5133417bc7e4ecfba16d70b340b337651f20f3bc1c0",
+    "assets/LineChart-BRQ7nxeQ.js": "20a73ec750afd428ce8a6c3244e19e8e8c1f825c671f0a6eb1d00aba51da2e39",
+    "assets/RegionHistoryInspector-C0OEWtd0.css": "0c2304e349c6101f77a2f6e69d795c9ecf157c981e29cf7b766e81bef9058a39",
+    "assets/RegionHistoryInspector-nizZL1py.js": "f6e1ae1b124edd95f1459f40053f0aedfea2d25f2c23ed7292080fe54e038df3",
+    "assets/SystemsPanel-DQyzbz6u.js": "6cd9f9dd8906a53f790df91e42d899202766f10ddcd9af3c7864bec5032ad11a",
+    "assets/watershed-DvJh8fZd.js": "6d51b5b3637d2ecd494bff7dc1c4664bf0b04e5aba1aa584559edd2eb0ceaa20",
+    "favicon.svg": "61bc9a161de58248288e6905425d7180f0624c2865007b97d763fdac12043a66",
+    "icons.svg": "b45fa506195cfcdef406ba9f0c77b36ddc1a7c224040926ec70abc2fdea7b93a",
+    "index.html": "f4cc0e5d009d79cc992f28bea93c3d0533b002720c61bd36b80eaf7dc3a89d01"
+  },
+  "bundle_sha256": "ff283b7519f17040ee6bd14fcee7908c45840325b4bcac7a3360a7d53b7de5a7",
+  "build_index_sha256": "f4cc0e5d009d79cc992f28bea93c3d0533b002720c61bd36b80eaf7dc3a89d01",
+  "evidence": "Provided saved bundle; construction metadata retained explicitly; expectations decoded by Python bundle_codec. Browser journeys are bounded UI checks, not qualification.",
+  "viewports": {
+    "desktop": {
+      "checks": [
+        {
+          "label": "desktop snapshot18: panel mounts and has finite text",
+          "ok": true,
+          "detail": "Movement branches abroad · snapshot 18\n\nSimulation turn 17, mode funded. Local members pay the host for meeting and petition facilities from their actual wealth. A funded receipt makes permission available next turn; hostility or closure can block delivery. Recruitment and lapse remain individual na"
+        },
+        {
+          "label": "desktop snapshot18: parent recognizes the recorded branch package",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "label": "desktop snapshot18: natural named branch funding exists",
+          "ok": true,
+          "detail": "[{\"branch\":1,\"movement\":3,\"host\":0,\"target\":1,\"host_name\":\"Selurian Republic\",\"target_name\":\"Kethani Empire\",\"regions\":[3],\"members\":3,\"payers\":[122,131,151],\"dues_milli\":30,\"status\":\"funded\",\"active_from\":18}]"
+        },
+        {
+          "label": "desktop snapshot18: dated next-turn permission is described honestly",
+          "ok": true,
+          "detail": "Movement branches abroad · snapshot 18\n\nSimulation turn 17, mode funded. Local members pay the host for meeting and petition facilities from their actual wealth. A funded receipt makes permission available next turn; hostility or closure can block delivery. Recruitment and lapse remain individual native decisions. No particular member's change is attributed to this fee.\n\nBranch / movement\tHost / home target\tLocal adults\tContribution\tOutcome\tRegions\n1 / movement 2\tSelurian Republic / Kethani Empire\t3\t0.030 from 3 people\nRecorded payer ids\n\tFee paid; permission available next turn (18)\tAmber Val"
+        },
+        {
+          "label": "desktop snapshot18: branch1 actual fee, payers and permission date",
+          "ok": true,
+          "detail": "[\"1 / movement 2\",\"Selurian Republic / Kethani Empire\",\"3\",\"0.030 from 3 peopleRecorded payer ids122, 131, 151\",\"Fee paid; permission available next turn (18)\",\"Amber Valley\"]"
+        },
+        {
+          "label": "desktop snapshot18: branch1 named payers expand",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "label": "desktop snapshot18: branch region opens dated inspector",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "label": "desktop snapshot18: explanatory text stays within section",
+          "ok": true,
+          "detail": "[{\"left\":56,\"right\":1384,\"sectionLeft\":39,\"sectionRight\":1401}]"
+        },
+        {
+          "label": "desktop snapshot18: no horizontal document overflow",
+          "ok": true,
+          "detail": "{\"page\":1440,\"viewport\":1440}"
+        },
+        {
+          "label": "desktop snapshot74: panel mounts and has finite text",
+          "ok": true,
+          "detail": "Movement branches abroad · snapshot 74\n\nSimulation turn 73, mode funded. Local members pay the host for meeting and petition facilities from their actual wealth. A funded receipt makes permission available next turn; hostility or closure can block delivery. Recruitment and lapse remain individual na"
+        },
+        {
+          "label": "desktop snapshot74: parent recognizes the recorded branch package",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "label": "desktop snapshot74: natural named branch funding exists",
+          "ok": true,
+          "detail": "[{\"branch\":9,\"movement\":8,\"host\":0,\"target\":1,\"host_name\":\"Selurian Republic\",\"target_name\":\"Kethani Empire\",\"regions\":[3],\"members\":3,\"payers\":[260,271,288],\"dues_milli\":30,\"status\":\"funded\",\"active_from\":74}]"
+        },
+        {
+          "label": "desktop snapshot74: dated next-turn permission is described honestly",
+          "ok": true,
+          "detail": "Movement branches abroad · snapshot 74\n\nSimulation turn 73, mode funded. Local members pay the host for meeting and petition facilities from their actual wealth. A funded receipt makes permission available next turn; hostility or closure can block delivery. Recruitment and lapse remain individual native decisions. No particular member's change is attributed to this fee.\n\nBranch / movement\tHost / home target\tLocal adults\tContribution\tOutcome\tRegions\n1 / movement 2\tSelurian Republic / Kethani Empire\t0\t0.000 from 0 people\tMovement or polity ended\t\n2 / movement 0\tKethani Empire / Ashkari Nomads\t0\t"
+        },
+        {
+          "label": "desktop snapshot74: branch9 actual fee, payers and permission date",
+          "ok": true,
+          "detail": "[\"9 / movement 7\",\"Selurian Republic / Kethani Empire\",\"3\",\"0.030 from 3 peopleRecorded payer ids260, 271, 288\",\"Fee paid; permission available next turn (74)\",\"Amber Valley\"]"
+        },
+        {
+          "label": "desktop snapshot74: branch9 named payers expand",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "label": "desktop snapshot74: branch region opens dated inspector",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "label": "desktop snapshot74: explanatory text stays within section",
+          "ok": true,
+          "detail": "[{\"left\":56,\"right\":1384,\"sectionLeft\":39,\"sectionRight\":1401}]"
+        },
+        {
+          "label": "desktop snapshot74: no horizontal document overflow",
+          "ok": true,
+          "detail": "{\"page\":1440,\"viewport\":1440}"
+        },
+        {
+          "label": "desktop: no browser console or page errors",
+          "ok": true,
+          "detail": ""
+        }
+      ],
+      "messages": [],
+      "screenshots": [
+        "desktop-snapshot18.png",
+        "desktop-snapshot74.png"
+      ]
+    },
+    "phone": {
+      "checks": [
+        {
+          "label": "phone snapshot18: panel mounts and has finite text",
+          "ok": true,
+          "detail": "Movement branches abroad · snapshot 18\n\nSimulation turn 17, mode funded. Local members pay the host for meeting and petition facilities from their actual wealth. A funded receipt makes permission available next turn; hostility or closure can block delivery. Recruitment and lapse remain individual na"
+        },
+        {
+          "label": "phone snapshot18: parent recognizes the recorded branch package",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "label": "phone snapshot18: natural named branch funding exists",
+          "ok": true,
+          "detail": "[{\"branch\":1,\"movement\":3,\"host\":0,\"target\":1,\"host_name\":\"Selurian Republic\",\"target_name\":\"Kethani Empire\",\"regions\":[3],\"members\":3,\"payers\":[122,131,151],\"dues_milli\":30,\"status\":\"funded\",\"active_from\":18}]"
+        },
+        {
+          "label": "phone snapshot18: dated next-turn permission is described honestly",
+          "ok": true,
+          "detail": "Movement branches abroad · snapshot 18\n\nSimulation turn 17, mode funded. Local members pay the host for meeting and petition facilities from their actual wealth. A funded receipt makes permission available next turn; hostility or closure can block delivery. Recruitment and lapse remain individual native decisions. No particular member's change is attributed to this fee.\n\nBranch / movement\tHost / home target\tLocal adults\tContribution\tOutcome\tRegions\n1 / movement 2\tSelurian Republic / Kethani Empire\t3\t0.030 from 3 people\nRecorded payer ids\n\tFee paid; permission available next turn (18)\tAmber Val"
+        },
+        {
+          "label": "phone snapshot18: branch1 actual fee, payers and permission date",
+          "ok": true,
+          "detail": "[\"1 / movement 2\",\"Selurian Republic / Kethani Empire\",\"3\",\"0.030 from 3 peopleRecorded payer ids122, 131, 151\",\"Fee paid; permission available next turn (18)\",\"Amber Valley\"]"
+        },
+        {
+          "label": "phone snapshot18: branch1 named payers expand",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "label": "phone snapshot18: branch region opens dated inspector",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "label": "phone snapshot18: explanatory text stays within section",
+          "ok": true,
+          "detail": "[{\"left\":42,\"right\":348,\"sectionLeft\":25,\"sectionRight\":365}]"
+        },
+        {
+          "label": "phone snapshot18: no horizontal document overflow",
+          "ok": true,
+          "detail": "{\"page\":390,\"viewport\":390}"
+        },
+        {
+          "label": "phone snapshot74: panel mounts and has finite text",
+          "ok": true,
+          "detail": "Movement branches abroad · snapshot 74\n\nSimulation turn 73, mode funded. Local members pay the host for meeting and petition facilities from their actual wealth. A funded receipt makes permission available next turn; hostility or closure can block delivery. Recruitment and lapse remain individual na"
+        },
+        {
+          "label": "phone snapshot74: parent recognizes the recorded branch package",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "label": "phone snapshot74: natural named branch funding exists",
+          "ok": true,
+          "detail": "[{\"branch\":9,\"movement\":8,\"host\":0,\"target\":1,\"host_name\":\"Selurian Republic\",\"target_name\":\"Kethani Empire\",\"regions\":[3],\"members\":3,\"payers\":[260,271,288],\"dues_milli\":30,\"status\":\"funded\",\"active_from\":74}]"
+        },
+        {
+          "label": "phone snapshot74: dated next-turn permission is described honestly",
+          "ok": true,
+          "detail": "Movement branches abroad · snapshot 74\n\nSimulation turn 73, mode funded. Local members pay the host for meeting and petition facilities from their actual wealth. A funded receipt makes permission available next turn; hostility or closure can block delivery. Recruitment and lapse remain individual native decisions. No particular member's change is attributed to this fee.\n\nBranch / movement\tHost / home target\tLocal adults\tContribution\tOutcome\tRegions\n1 / movement 2\tSelurian Republic / Kethani Empire\t0\t0.000 from 0 people\tMovement or polity ended\t\n2 / movement 0\tKethani Empire / Ashkari Nomads\t0\t"
+        },
+        {
+          "label": "phone snapshot74: branch9 actual fee, payers and permission date",
+          "ok": true,
+          "detail": "[\"9 / movement 7\",\"Selurian Republic / Kethani Empire\",\"3\",\"0.030 from 3 peopleRecorded payer ids260, 271, 288\",\"Fee paid; permission available next turn (74)\",\"Amber Valley\"]"
+        },
+        {
+          "label": "phone snapshot74: branch9 named payers expand",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "label": "phone snapshot74: branch region opens dated inspector",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "label": "phone snapshot74: explanatory text stays within section",
+          "ok": true,
+          "detail": "[{\"left\":42,\"right\":348,\"sectionLeft\":25,\"sectionRight\":365}]"
+        },
+        {
+          "label": "phone snapshot74: no horizontal document overflow",
+          "ok": true,
+          "detail": "{\"page\":390,\"viewport\":390}"
+        },
+        {
+          "label": "phone: no browser console or page errors",
+          "ok": true,
+          "detail": ""
+        }
+      ],
+      "messages": [],
+      "screenshots": [
+        "phone-snapshot18.png",
+        "phone-snapshot74.png"
+      ]
+    }
+  },
+  "failures": 0
+}
