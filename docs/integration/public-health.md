@@ -48,6 +48,26 @@ same-pathogen source regions before delivery, preserving report recipients,
 delays and random streams. When there is one source the shuffle has no contrast.
 Quarantine's existing affordability and stability conditions remain authoritative.
 
+Named border guards replace the anonymous flat enforcement charge while this
+package is on. One guard-equivalent per advised directed civilization pair is
+funded from the same finite L9 care envelope; it can be proposed without an own
+outbreak. The care planner reserves the guard wage share first. Eligible adult
+farmers at own customs regions on ledger edges to that target are selected by
+stable region then stable person ID, excluding every already booked worker,
+patient, army member and traveller. Work removes their actual farm-time share;
+`money.pay` pays `guard_wage` (500 milli per worker-turn), and native paid work
+withholds the matching ordinary income. A team that is partial, unpaid or ceiling
+limited provides no closure capacity. Its lost labour is still recorded.
+
+The route snapshot precedes Phase 2 work planning, so guards of T staff closures
+at T+1 only. Phase 1 consumes only capacity dated T−1. Current delivered advice
+still plans teams before the first closure is possible; there is no bootstrap
+from unstaffed declarations. Quarantine `cost_only` names and pays the same teams
+but its original channel guards close no route. Exact checkpoints retain guard
+IDs, wage books and dated staffing; an inexact pool reset clears id-bound teams
+and their closure capacity. Guard wages, withheld income and patient-ration cash
+are separate A1 ledger channels rather than invented household credits.
+
 `--public-health-mode cost_only` keeps wages, real supplies, reports and
 displacement crowding, suppressing the care CFR and sanitation effects.
 `--epidemic-care-mode cost_only` still suppresses care independently. Existing

@@ -85,7 +85,7 @@ PYTHON_PURPOSES: tuple[str, ...] = ("firm_capital", "firm_input_purchase", "care
 #: is per turn, code and batch); the seam's own book keys it by its own name.
 #: ``care_wage`` (C2): treasury -> epidemic carers, under ``repair_wage`` (as
 #: PL1 woodcut and PL3 granary crew wages are), batches ``epidemic_care.CARE_WAGE_BATCH + civ``.
-NATIVE_ALIASES: dict[str, str] = {"care_wage": "repair_wage"}
+NATIVE_ALIASES: dict[str, str] = {"care_wage": "repair_wage", "guard_wage": "repair_wage"}
 #: Every registered purpose -> its native code (None: Python accounts only).
 PURPOSES: dict[str, int | None] = {
     **{name: code for code, name in enumerate(NATIVE_PURPOSES)},
@@ -97,7 +97,7 @@ PURPOSES: dict[str, int | None] = {
 #: the book's carry for (civ, purpose), spent first by the next bill; what an
 #: agent's wealth ceiling refuses (or an absent id cannot take) returns to that
 #: carry (``return_to_payer``), whole units of it to the treasury.
-TREASURY_AGENT_PURPOSES: tuple[str, ...] = ("care_wage",)
+TREASURY_AGENT_PURPOSES: tuple[str, ...] = ("care_wage", "guard_wage")
 #: Account kinds, in declaration order (append only).
 ACCOUNT_KINDS: tuple[str, ...] = ("civ_treasury", "firm_cash", "agent_wealth", "sink")
 #: Declared sinks a bill may name for its residual or as a payee (append only).

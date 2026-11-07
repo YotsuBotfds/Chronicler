@@ -425,6 +425,8 @@ def prepare_phase2(world, region_input, agent_bridge, snapshot, acc):
     for c in commitments:
         name = civs[c.civ].name if 0 <= c.civ < len(civs) else None
         envelope_left = int(c.amount) * MILLI
+        from chronicler.public_health import guard_reserve
+        envelope_left = max(0, envelope_left - guard_reserve(world, c.civ))
         t.envelopes[c.civ] = t.envelopes.get(c.civ, 0) + int(c.amount)
         order = sorted(set(c.recipients), key=lambda j: (-(infectious[j] if 0 <= j < n else 0.0), j))
         for rid in order:
@@ -723,19 +725,24 @@ class _CareEnvelopes:
         deaths = _expected_deaths(world, rows)
         regions = [rid for rid in reported if world.regions[rid].controller == name
                    and infectious[rid] / PATIENTS_PER_CARER >= MIN_SHARE]
+        from chronicler.public_health import guard_regions, guard_reserve, guard_expected_deaths, GUARD_WAGE_MILLI
+        regions = sorted(set(regions) | set(guard_regions(world, civ)))
+        guards = guard_reserve(world, civ)
         if not regions:
             return []
-        need = math.fsum(infectious[rid] / PATIENTS_PER_CARER for rid in regions)
+        need = math.fsum(infectious[rid] / PATIENTS_PER_CARER for rid in regions) + guards / GUARD_WAGE_MILLI
         wages = sum(_wage_total(infectious[rid] / PATIENTS_PER_CARER) for rid in regions)
         from chronicler.public_health import supply_estimate
         supply = supply_estimate(world, math.fsum(infectious[rid] for rid in regions), regions)
-        cost = max(1, -(-(wages + supply) // MILLI))
-        averted = CARE_CFR_REDUCTION * math.fsum(deaths[rid] for rid in regions)
+        cost = max(1, -(-(wages + supply + guards) // MILLI))
+        averted = CARE_CFR_REDUCTION * math.fsum(deaths[rid] for rid in regions) + guard_expected_deaths(world, civ)
         stake = averted * food_per_death
         return [dict(service=SERVICE, recipients=regions, claims=[f"{SERVICE}:{civ}"], cost=cost,
                      divisible=True, unit="care_time", expected=round(need, 6),
                      relief={"commons": round(stake, 6)} if stake > EPS else {},
-                     detail={"regions": len(regions), "wages_milli": wages, **({"supplies_milli": supply} if supply else {}),
+                     detail={"regions": len(regions), "wages_milli": wages,
+                             **({"supplies_milli": supply} if supply else {}),
+                             **({"guards_milli": guards} if guards else {}),
                              "infectious": round(math.fsum(infectious[rid] for rid in regions), 6),
                              "expected_deaths": round(math.fsum(deaths[rid] for rid in regions), 6),
                              "deaths_averted": round(averted, 6), "food_per_death": round(food_per_death, 6)})]
@@ -753,6 +760,9 @@ class _CareEnvelopes:
             return {"outcome": "deferred", "reason": "service_off", "spent": 0, "delivered": 0.0, "ratio": 0.0}
         paid = sum(r.wages_paid_milli for r in rs)
         delivered = math.fsum(r.care_time for r in rs if r.paid)
+        from chronicler.public_health import guard_work
+        guards = guard_work(world, c.civ)
+        delivered += guards
         limits = [r.limit for r in rs]
         detail = {"regions": len(rs), "carers": sum(len(r.carers) for r in rs), "care_time": round(delivered, 6),
                   "limits": ",".join(sorted(set(limits))), "wages_paid_milli": paid}
@@ -769,7 +779,7 @@ class _CareEnvelopes:
         if any(r.unpaid_reason for r in rs):
             return {"outcome": "deferred", "reason": "treasury_shortfall", "spent": spent, "delivered": delivered,
                     "ratio": 0.0, "detail": detail}
-        if all(limit in ("no_patients", "recipient_lost") for limit in limits):
+        if not guards and all(limit in ("no_patients", "recipient_lost") for limit in limits):
             return {"outcome": "kept", "reason": None, "spent": 0, "delivered": 0.0, "ratio": 1.0, "detail": detail}
         ratio = min(1.0, delivered / c.expected) if c.expected > EPS else 1.0
         from chronicler.local_budgets import KEPT_RATIO

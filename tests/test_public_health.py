@@ -12,6 +12,7 @@ from chronicler import epidemic_care as EC
 from chronicler import money
 from chronicler import public_health as PH
 from chronicler import residence_ledger as RL
+from chronicler import wealth_accounting_state as WA
 from chronicler.epidemic_care_state import CareCapacity
 from chronicler.public_health_state import PublicHealthState
 from chronicler.quarantine_rules import QuarantineClosure, configure_quarantine
@@ -35,6 +36,7 @@ def _enabled(mode="active"):
 def _seams(monkeypatch):
     # Shared root contract; no native code is involved in this purpose.
     monkeypatch.setitem(money.PURPOSES, "care_supply", None)
+    monkeypatch.setitem(WA.MONEY_PURPOSE_CHANNELS, "guard_wage", "guard_wage")
     monkeypatch.setattr("chronicler.mutual_aid.read_stockpile_commitments", lambda w, s: {})
 
 
@@ -220,3 +222,93 @@ def test_feature_off_helpers_leave_capacity_and_decisions_unchanged():
     assert PH.report_targets(w, {}) is None
     assert PH.environment_factors(w) is None
     assert PH.care_allowed(w)
+
+
+def _guard_plan(w, st):
+    st.guard_plan = [{"civ": 0, "target": 1}]
+    w.contact_ledger.edges = [(0, 2, 100.0, 0.0, 0.0, 0.0)]
+    w.contact_ledger.invalidate()
+
+
+def test_named_guard_work_is_reserved_paid_and_only_staffs_next_turn():
+    w, st = _enabled()
+    _guard_plan(w, st)
+    _envelope(w, 0, 2)
+    sim = _Sim(_people())
+    bridge = _Bridge(sim)
+    original = _batch(w, sim)
+    batch = EC.prepare_phase2(w, original, bridge, sim.get_snapshot(), None)
+    batch = PH.prepare_phase2(w, batch, bridge, sim.get_snapshot(), None)
+    team = st.guards[0]
+    assert team["members"][0]["agent_id"] == 1
+    assert sim.work_reservations(w.turn) == [(1, 3, 1.0)]
+    assert not PH.staffed_targets(w, {0: {1: (2, 1)}})[0]
+    EC.finish_phase2(w, SimpleNamespace(market_prices={}), bridge, None)
+    PH.finish_phase2(w, SimpleNamespace(), bridge, None)
+    assert team["staffed"] and team["members"][0]["wage_paid_milli"] == 500
+    assert PH.supply_spent(w, 0) == 500
+    sim.tick(w.turn)
+    EC.after_agent_tick(w, bridge)
+    PH.after_agent_tick(w, bridge)
+    assert team["members"][0]["income_withheld"] == pytest.approx(0.3)
+    w.turn += 1
+    assert PH.staffed_targets(w, {0: {1: (2, 1)}}) == {0: {1: (2, 1)}}
+    w.turn += 1
+    assert not PH.staffed_targets(w, {0: {1: (2, 1)}})[0]
+
+
+def test_guard_and_carer_reservations_do_not_double_book_and_fit_one_envelope():
+    w, st = _enabled()
+    _guard_plan(w, st)
+    _outbreak(w, 0, burden=0.02)
+    _envelope(w, 0, 8)
+    sim = _Sim(_people())
+    bridge = _Bridge(sim)
+    batch = EC.prepare_phase2(w, _batch(w, sim), bridge, sim.get_snapshot(), None)
+    PH.prepare_phase2(w, batch, bridge, sim.get_snapshot(), None)
+    carer_ids = {x.agent_id for r in w.livelihoods.epidemic_care._turn.receipts for x in r.carers}
+    guard_ids = {m["agent_id"] for r in st.guards for m in r["members"]}
+    assert guard_ids and carer_ids and not guard_ids & carer_ids
+    EC.finish_phase2(w, SimpleNamespace(market_prices={}), bridge, None)
+    PH.finish_phase2(w, SimpleNamespace(), bridge, None)
+    spent = sum(r.wages_paid_milli for r in w.livelihoods.epidemic_care.frame)
+    spent += PH.supply_spent(w, 0) + sum(r.internal_milli for r in st.supplies)
+    assert spent <= 8000
+
+
+def test_unfunded_or_partial_guard_work_does_not_close_any_channel():
+    w, st = _enabled()
+    _guard_plan(w, st)
+    sim = _Sim(_people())
+    bridge = _Bridge(sim)
+    PH.prepare_phase2(w, _batch(w, sim), bridge, sim.get_snapshot(), None)
+    PH.finish_phase2(w, SimpleNamespace(), bridge, None)
+    assert st.guards[0]["payment"] == "no_workers"
+    w.turn += 1
+    assert PH.staffed_targets(w, {0: {1: (2, 1)}}) == {0: {}}
+
+
+def test_guard_proposal_exists_without_an_own_outbreak():
+    w, st = _enabled()
+    _guard_plan(w, st)
+    st.decisions = [{"civ": 0, "target": 1, "close": True, "expected_loss_units": 20.0}]
+    proposal = EC.BUDGET_PROVIDER.proposals(w, 0, SimpleNamespace(pcf=0.5))
+    assert proposal and proposal[0]["cost"] == 1
+    assert proposal[0]["expected"] == 1.0
+    assert proposal[0]["relief"]["commons"] > 0
+
+
+def test_guard_capacity_and_stable_members_are_cleared_on_inexact_pool_reset():
+    w, st = _enabled()
+    st.guard_turn, st.guards = w.turn, [{"members": [{"agent_id": 9}]}]
+    st.guard_capacity_turn, st.guard_capacity = w.turn, [(0, 1)]
+    PH.on_pool_reset(w)
+    assert not st.guards and not st.guard_capacity
+    assert st.guard_turn is None and st.guard_capacity_turn is None
+
+
+def test_public_health_guard_wages_replace_flat_charge_only_when_enabled():
+    w, st = _enabled()
+    assert PH.enforcement_cost(w, 2) == 0
+    st.enabled = False
+    assert PH.enforcement_cost(w, 2) == 2
