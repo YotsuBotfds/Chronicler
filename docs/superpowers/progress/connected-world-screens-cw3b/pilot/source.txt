@@ -1,0 +1,13 @@
+source dbfcd84ac802644f3c7ccf7c2bfba3ff9c661c1c
+dirty 0 tracked files
+dirty-code 0 tracked code files
+chronicler /home/user/wt/b3-infra/src/chronicler/__init__.py
+native /root/.venvs/native-a3/lib/python3.13/site-packages/chronicler_agents/chronicler_agents.cpython-313-x86_64-linux-gnu.so 20e77f9945efa71d597c142e99069337586cc865ddee7a17c6d20948a2c0c1ca
+interpreter /root/.venvs/native-a3/bin/python
+runner 3463b5cb7bb46a96634e7cade8e76ca097005740f6f631e1ff852ab5181651b5 scripts/screen_runner.py
+screens 1e96374123dd30c9831cff24bb47dee3d8ca39edf44912b941706ba2adb01922 scripts/connected_world_screens.py
+registry 23bc70046b7d36268a69ff8c1efba4ef1ec0867110268ac1262151106a33906b scripts/seed_registry.json
+registry-content 3b50508764cfea7d70bb9432560bf8d85ecdb5edba7c4cd3ca697955dd733ccf (cohorts and seeds)
+run: screen CW3b; cohort pilot; seeds all; arms B,R,W,C,W_T,C_T; jobs 2; worlds -; turns -; rows already written 0
+started 2026-11-07T06:24:50Z
+finished 2026-11-07T06:26:16Z: 12 runs, 0 failed, 168 s of simulation and extraction (0.047 core-hours in all), 85.3 s wall

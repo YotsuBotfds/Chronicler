@@ -1153,6 +1153,7 @@ def extend_trade_routes(world, routes: set, embargo_set: set, region_map: dict) 
     """Trade range: regions practising celestial navigation trade two hops
     across a coastal region, and those practising road building two hops
     along a road (the navigation and railways focus capabilities, by region)."""
+    from chronicler.infrastructure_condition import serves
     from chronicler.models import InfrastructureType
     from chronicler.resources import _trade_disposition_score
 
@@ -1174,7 +1175,8 @@ def extend_trade_routes(world, routes: set, embargo_set: set, region_map: dict) 
             if mid is None:
                 continue
             ok = (sea and mid.terrain == "coast") or (land and any(
-                inf.type == InfrastructureType.ROADS and inf.active for inf in mid.infrastructure))
+                inf.type == InfrastructureType.ROADS and inf.active for inf in mid.infrastructure)
+                and serves(world, mid, "roads"))       # B3: the road's service (True while off)
             if not ok:
                 continue
             for hop2_name in mid.adjacencies:

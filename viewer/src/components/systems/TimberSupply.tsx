@@ -88,7 +88,7 @@ export function TimberSupply({ bundle, snapshot, currentTurn, onSelectRegion }: 
     <div className="systems-table-wrap"><table className="systems-table" aria-label={`Timber supply accounts to snapshot ${turn}`}>
       <thead><tr><th>Lifetime</th><th>Amount</th></tr></thead>
       <tbody>
-        <tr><td>Expeditions launched (veterans aboard)</td><td>{show(c("launched"))} ({show(c("launched_veterans"))})</td></tr>
+        <tr><td>Expeditions launched (veterans aboard)</td><td>{show(c("launched") + c("launched_works"))} ({show(c("launched_veterans"))}){c("launched_works") > 0 ? `; ${show(c("launched_works"))} of them for infrastructure works' timber, after every repair-project need` : ""}</td></tr>
         <tr><td>Expeditions delivered · came home empty · ended without delivering</td><td>{show(c("delivered_expeditions"))} · {show(c("returned_expeditions"))} · {show(c("ended") - c("delivered_expeditions") - c("returned_expeditions"))}</td></tr>
         <tr><td>Timber cut (debited from forest stocks)</td><td>{show(c("cut"))}</td></tr>
         <tr><td>Delivered to repair stores</td><td>{show(c("delivered"))}</td></tr>

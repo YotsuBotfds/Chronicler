@@ -1,0 +1,5 @@
+CW3b note: template pilot seed 5 was also used by m-af1-t (M-AF1 runtime-correctness baseline and post batches); a timing pilot is never held
+CW3b note: template pilot seed 5 was also used by m58b-t (M58b development run); a timing pilot is never held
+CW3b: seeds OK (pilot {'template': (5,), 'procedural': (19,)}, held {'template': '3501-3506', 'procedural': '3601-3606'})
+CW3b: extractor, packages, 6 arms and 42 outcomes (3 primary): OK
+72 runs: complete, every outcome extracted

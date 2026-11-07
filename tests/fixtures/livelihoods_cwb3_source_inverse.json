@@ -1,0 +1,65 @@
+{
+  "schema_version": 1,
+  "layer": "cwb3",
+  "parent": "e3bce686df1fe2e73a4ee7378c36f2e2647826bb",
+  "files": {
+    "src/chronicler/economy.py": {
+      "sha256": "6d03bd23a3f99a4cc074452aca7f887592982b3113092d10394f1ea03b355313",
+      "current_sha256": "6679dea1a1f267db41e953cbe6d9451bac15df822b4ef114347c32e1214bebbc",
+      "patches": [
+        {
+          "old": "    \"\"\"The land a region's farmers work: potential capacity (carrying capacity\n    x capacity modifier) raised by its farming techniques and irrigation.\"\"\"\n    from chronicler.ecology import potential_capacity\n    from chronicler.models import InfrastructureType\n    from chronicler.techniques import farm_ceiling_multiplier\n\n    mult = farm_ceiling_multiplier(world, region)\n    if any(i.type == InfrastructureType.IRRIGATION and i.active for i in region.infrastructure):\n        mult += FARM_CEILING_IRRIGATION\n    return potential_capacity(region) * mult\n\n\n",
+          "new": "    \"\"\"The land a region's farmers work: potential capacity (carrying capacity\n    x capacity modifier) raised by its farming techniques and irrigation.\"\"\"\n    from chronicler.ecology import potential_capacity\n    from chronicler.infrastructure_condition import service\n    from chronicler.models import InfrastructureType\n    from chronicler.techniques import farm_ceiling_multiplier\n\n    mult = farm_ceiling_multiplier(world, region)\n    if any(i.type == InfrastructureType.IRRIGATION and i.active for i in region.infrastructure):\n        # B3: scaled by the works' service (exactly 1.0 with the switch off).\n        mult += FARM_CEILING_IRRIGATION * service(world, region, \"irrigation\")\n    return potential_capacity(region) * mult\n\n\n"
+        }
+      ]
+    },
+    "src/chronicler/agent_bridge.py": {
+      "sha256": "17cf7afe080ed46a95b402513c5bdcbc314920e2a1bd6a0daf5187bb5e4346a6",
+      "current_sha256": "130c5ff3ff30558362a6b77f04877eae30b3cd4f3d57fdaa11486a5774fd48a9",
+      "patches": [
+        {
+          "old": "    if target is None:\n        return False\n    return any(i.active and i.type == target for i in region.infrastructure)\n\n\ndef _get_active_focus(region, world) -> int:\n",
+          "new": "    if target is None:\n        return False\n    return any(i.active and i.type == target for i in region.infrastructure)\n\n\ndef _serves(world, region, kind: str) -> bool:\n    \"\"\"B3 (``--infrastructure-condition``): the work still serves (service >= 0.5); True while off.\"\"\"\n    from chronicler.infrastructure_condition import serves\n    return serves(world, region, kind)\n\n\ndef _get_active_focus(region, world) -> int:\n"
+        },
+        {
+          "old": "        \"resource_suspension_0\": pa.array([_get_suspension_for_slot(r, 0) for r in world.regions], type=pa.bool_()),\n        \"resource_suspension_1\": pa.array([_get_suspension_for_slot(r, 1) for r in world.regions], type=pa.bool_()),\n        \"resource_suspension_2\": pa.array([_get_suspension_for_slot(r, 2) for r in world.regions], type=pa.bool_()),\n        \"has_irrigation\": pa.array([_has_infra(r, \"IRRIGATION\") for r in world.regions], type=pa.bool_()),\n        \"has_mines\": pa.array([_has_infra(r, \"MINES\") for r in world.regions], type=pa.bool_()),\n        \"active_focus\": pa.array([_get_active_focus(r, world) for r in world.regions], type=pa.uint8()),\n        \"prev_turn_water\": pa.array([r.prev_turn_water for r in world.regions], type=pa.float32()),\n",
+          "new": "        \"resource_suspension_0\": pa.array([_get_suspension_for_slot(r, 0) for r in world.regions], type=pa.bool_()),\n        \"resource_suspension_1\": pa.array([_get_suspension_for_slot(r, 1) for r in world.regions], type=pa.bool_()),\n        \"resource_suspension_2\": pa.array([_get_suspension_for_slot(r, 2) for r in world.regions], type=pa.bool_()),\n        \"has_irrigation\": pa.array([_has_infra(r, \"IRRIGATION\") and _serves(world, r, \"irrigation\")\n                                    for r in world.regions], type=pa.bool_()),\n        \"has_mines\": pa.array([_has_infra(r, \"MINES\") for r in world.regions], type=pa.bool_()),\n        \"active_focus\": pa.array([_get_active_focus(r, world) for r in world.regions], type=pa.uint8()),\n        \"prev_turn_water\": pa.array([r.prev_turn_water for r in world.regions], type=pa.float32()),\n"
+        }
+      ]
+    },
+    "src/chronicler/ecology.py": {
+      "sha256": "2f204f8841d9eabd17f44955bbeb42b84235f79e9e2a433afe3af6091fcdf659",
+      "current_sha256": "9bd82d6f34179fd1cbbae7c9e2df3b33ada8ae9f3301e838e757e2a574e56565",
+      "patches": [
+        {
+          "old": "\n\ndef _tick_water(region: Region, civ, climate_phase: ClimatePhase, world: WorldState) -> None:\n    has_irrigation = any(\n        i.type == InfrastructureType.IRRIGATION and i.active for i in region.infrastructure\n    )\n\n    # Degradation / phase effects (Geography 2.0: scaled by latitude exposure)\n    exposure = climate_exposure(region.latitude_band, climate_phase)\n",
+          "new": "\n\ndef _tick_water(region: Region, civ, climate_phase: ClimatePhase, world: WorldState) -> None:\n    from chronicler.infrastructure_condition import serves\n    has_irrigation = any(\n        i.type == InfrastructureType.IRRIGATION and i.active for i in region.infrastructure\n    ) and serves(world, region, \"irrigation\")      # B3: the work serves (True while off)\n\n    # Degradation / phase effects (Geography 2.0: scaled by latitude exposure)\n    exposure = climate_exposure(region.latitude_band, climate_phase)\n"
+        }
+      ]
+    },
+    "src/chronicler/batch_manifest.py": {
+      "sha256": "790b166f8fdeece330bbacca3305921a6bd43343cc47e591540475c1df26d035",
+      "current_sha256": "e4845bd54aba9f3c7b9086c18f94c1ae91504a351a47c28e9a8416373e3a59d7",
+      "patches": [
+        {
+          "old": "    \"workshop_economics_mode\",\n    \"workshop_economics_rules\",\n    \"titled_trade\",\n    \"epidemic_care\",\n    \"epidemic_care_mode\",\n    \"residence_ledger\",\n",
+          "new": "    \"workshop_economics_mode\",\n    \"workshop_economics_rules\",\n    \"titled_trade\",\n    \"infrastructure_condition\",\n    \"infrastructure_condition_mode\",\n    \"epidemic_care\",\n    \"epidemic_care_mode\",\n    \"residence_ledger\",\n"
+        },
+        {
+          "old": "                             \"household_retail_rules\", \"household_retail_schedule\", \"watershed\", \"watershed_mode\",\n                             \"quarantine_mode\", \"workshop_economics\", \"workshop_economics_mode\",\n                             \"workshop_economics_rules\", \"titled_trade\",\n                             \"epidemic_care\", \"epidemic_care_mode\",\n                             \"residence_ledger\", \"attribution_records\", \"wealth_accounting\", \"quarantine_channels\")\n              or getattr(args, key, None) is not None}\n",
+          "new": "                             \"household_retail_rules\", \"household_retail_schedule\", \"watershed\", \"watershed_mode\",\n                             \"quarantine_mode\", \"workshop_economics\", \"workshop_economics_mode\",\n                             \"workshop_economics_rules\", \"titled_trade\",\n                             \"infrastructure_condition\", \"infrastructure_condition_mode\",\n                             \"epidemic_care\", \"epidemic_care_mode\",\n                             \"residence_ledger\", \"attribution_records\", \"wealth_accounting\", \"quarantine_channels\")\n              or getattr(args, key, None) is not None}\n"
+        }
+      ]
+    },
+    "tests/test_batch_manifest.py": {
+      "sha256": "e723ec6edd92a499e71e5fc6563a064e76b41407565f775868e50e92568381f0",
+      "current_sha256": "29d052c6a0933271d1e5076aa3d30630085473c936b54be33011fd9d9e859f0c",
+      "patches": [
+        {
+          "old": "                                                           \"watershed\", \"watershed_mode\",\n                                                           \"quarantine_mode\", \"workshop_economics\", \"workshop_economics_mode\",\n                                                           \"workshop_economics_rules\", \"titled_trade\",\n                                                           \"epidemic_care\", \"epidemic_care_mode\",\n                                                           \"residence_ledger\", \"attribution_records\",\n                                                           \"wealth_accounting\", \"quarantine_channels\"}) | {\"tuning_overrides\"}\n",
+          "new": "                                                           \"watershed\", \"watershed_mode\",\n                                                           \"quarantine_mode\", \"workshop_economics\", \"workshop_economics_mode\",\n                                                           \"workshop_economics_rules\", \"titled_trade\",\n                                                           \"infrastructure_condition\", \"infrastructure_condition_mode\",\n                                                           \"epidemic_care\", \"epidemic_care_mode\",\n                                                           \"residence_ledger\", \"attribution_records\",\n                                                           \"wealth_accounting\", \"quarantine_channels\"}) | {\"tuning_overrides\"}\n"
+        }
+      ]
+    }
+  }
+}
