@@ -1,0 +1,286 @@
+{
+  "fetched_main": "2726bf449d0e4d581a72034000ee0861a58ee439",
+  "candidates": {
+    "template": [
+      4101,
+      4102,
+      4103,
+      4104,
+      4105,
+      4106
+    ],
+    "procedural": [
+      4201,
+      4202,
+      4203,
+      4204,
+      4205,
+      4206
+    ]
+  },
+  "refs_with_registry": 52,
+  "distinct_registry_versions": 13,
+  "collisions": [],
+  "refs": [
+    {
+      "ref": "refs/heads/codex/cw-army-reset",
+      "source": "c4c5b834511c6d908bc4991b2756d977cedacd6a",
+      "registry_sha256": "59395654add61ddd08cb4291ec99361c565e28c8882756b5d5cecf4152fe832e"
+    },
+    {
+      "ref": "refs/heads/codex/cw-b3",
+      "source": "be524a60a3a94a64c9572f1befd3769583773c62",
+      "registry_sha256": "85d78dda505a42d65c5675a0f674eadb61da54d4676153b998d2e78d4aee6349"
+    },
+    {
+      "ref": "refs/heads/codex/cw-b4",
+      "source": "3f6c9c03f427daba1ac7ce8ae710d3c8dc37aee9",
+      "registry_sha256": "85d78dda505a42d65c5675a0f674eadb61da54d4676153b998d2e78d4aee6349"
+    },
+    {
+      "ref": "refs/heads/codex/cw-completion-ledger",
+      "source": "b616b623ef4c2cc6ae48a2dc83e9b3f97e851e8a",
+      "registry_sha256": "fc6c97535000b95ff1d825c20984dc8cdc22b4cda28fe0264b03876b201e1fcc"
+    },
+    {
+      "ref": "refs/heads/codex/cw-d1",
+      "source": "808726b8c886306229d3e08d76fdee9e6f580dde",
+      "registry_sha256": "e834ce94e815f06f37ee00e2f9a1d20733c6e90a91f2a9a1e20e268ed3a61a74"
+    },
+    {
+      "ref": "refs/heads/codex/cw-d1-branches",
+      "source": "c0e63bf9f352499cc489408db39a5b5b4edd3f0d",
+      "registry_sha256": "e834ce94e815f06f37ee00e2f9a1d20733c6e90a91f2a9a1e20e268ed3a61a74"
+    },
+    {
+      "ref": "refs/heads/codex/cw-d1-integration",
+      "source": "11467a46b957a364b3d4d4ba2ba1a4326adcc6c3",
+      "registry_sha256": "85d78dda505a42d65c5675a0f674eadb61da54d4676153b998d2e78d4aee6349"
+    },
+    {
+      "ref": "refs/heads/codex/cw-d1c-final",
+      "source": "338d8e6f37299344fda4c50546466863a28722f4",
+      "registry_sha256": "59395654add61ddd08cb4291ec99361c565e28c8882756b5d5cecf4152fe832e"
+    },
+    {
+      "ref": "refs/heads/codex/cw-d4",
+      "source": "ad11e293e9187c19bb8a89a7ef9816294b715b78",
+      "registry_sha256": "e834ce94e815f06f37ee00e2f9a1d20733c6e90a91f2a9a1e20e268ed3a61a74"
+    },
+    {
+      "ref": "refs/heads/codex/cw-evidence",
+      "source": "f976bbb1939b4b320b04b7f4d5318ca2b46b4fc6",
+      "registry_sha256": "e834ce94e815f06f37ee00e2f9a1d20733c6e90a91f2a9a1e20e268ed3a61a74"
+    },
+    {
+      "ref": "refs/heads/codex/cw-final-review",
+      "source": "99e4058172dfe0788fab59fa5f48a392bcd35d1b",
+      "registry_sha256": "e67ce34a9045a9d4b2acf72327abe7605a599859cef981cd00e4733fef8c8b8e"
+    },
+    {
+      "ref": "refs/heads/codex/cw-final-screen",
+      "source": "ccc864a997134f0dcd4b05a7419a7bce203bfae7",
+      "registry_sha256": "e67ce34a9045a9d4b2acf72327abe7605a599859cef981cd00e4733fef8c8b8e"
+    },
+    {
+      "ref": "refs/heads/codex/cw-health",
+      "source": "fe82a6e4b6049015a51e40629abe87075a6c1476",
+      "registry_sha256": "e67ce34a9045a9d4b2acf72327abe7605a599859cef981cd00e4733fef8c8b8e"
+    },
+    {
+      "ref": "refs/heads/codex/cw-history",
+      "source": "3c1190d2b1141de17d79ab1c80b4f96f2fc56891",
+      "registry_sha256": "e834ce94e815f06f37ee00e2f9a1d20733c6e90a91f2a9a1e20e268ed3a61a74"
+    },
+    {
+      "ref": "refs/heads/codex/cw-integrated-screen",
+      "source": "7fa077499364985edc499e5b66817d4c1f3c7aeb",
+      "registry_sha256": "59395654add61ddd08cb4291ec99361c565e28c8882756b5d5cecf4152fe832e"
+    },
+    {
+      "ref": "refs/heads/codex/cw-lead",
+      "source": "c32c2bbd742f96401171761ddff44f9ccfb96e67",
+      "registry_sha256": "fc6c97535000b95ff1d825c20984dc8cdc22b4cda28fe0264b03876b201e1fcc"
+    },
+    {
+      "ref": "refs/heads/codex/cw-resume-final",
+      "source": "eaa4a5d3e1cb5c958b5e32719601c28986c9f6ac",
+      "registry_sha256": "54e1926a3452c3eee5890da80cc6cf2f632d7d897d7c7ad39a63ae3b40dc00d0"
+    },
+    {
+      "ref": "refs/heads/codex/cw-rework",
+      "source": "42f77672a09717ea3c23c3ec8b817e7ed62ab610",
+      "registry_sha256": "fc6c97535000b95ff1d825c20984dc8cdc22b4cda28fe0264b03876b201e1fcc"
+    },
+    {
+      "ref": "refs/heads/codex/cw-screen-final",
+      "source": "5ec73003837b5149091593ffa411d33dd32e9491",
+      "registry_sha256": "54e1926a3452c3eee5890da80cc6cf2f632d7d897d7c7ad39a63ae3b40dc00d0"
+    },
+    {
+      "ref": "refs/heads/codex/cw-screen-v2",
+      "source": "43f02ccaf66489f31529b27cf5bea8d5705db044",
+      "registry_sha256": "e67ce34a9045a9d4b2acf72327abe7605a599859cef981cd00e4733fef8c8b8e"
+    },
+    {
+      "ref": "refs/heads/codex/cw-startup-guards",
+      "source": "0037449224144fb704cba94f3f61ad39ab19be31",
+      "registry_sha256": "54e1926a3452c3eee5890da80cc6cf2f632d7d897d7c7ad39a63ae3b40dc00d0"
+    },
+    {
+      "ref": "refs/heads/codex/cw-tail-enrollment",
+      "source": "403b9ea9181421b5be154412c9c28e6efac0fdfc",
+      "registry_sha256": "2d2aa2dd53d407632627919872dc0fe6056f34ae877d99648ec1ebab93c935a8"
+    },
+    {
+      "ref": "refs/heads/codex/cw-timber-stakes",
+      "source": "a6904452a71c3464ac317e73f64182d6a1e80172",
+      "registry_sha256": "e67ce34a9045a9d4b2acf72327abe7605a599859cef981cd00e4733fef8c8b8e"
+    },
+    {
+      "ref": "refs/heads/codex/cw-trade-tests",
+      "source": "bbc0eb57e127c6f98bb3c8f11d6477a90afa4de5",
+      "registry_sha256": "54e1926a3452c3eee5890da80cc6cf2f632d7d897d7c7ad39a63ae3b40dc00d0"
+    },
+    {
+      "ref": "refs/heads/codex/cw-viewer-compat",
+      "source": "e69f823b03e22242e59a3007667e1cabcab8fa9e",
+      "registry_sha256": "54e1926a3452c3eee5890da80cc6cf2f632d7d897d7c7ad39a63ae3b40dc00d0"
+    },
+    {
+      "ref": "refs/heads/codex/cwr-attribution",
+      "source": "3aaa0bc9e9dafa32f4ac007101de48497788bed1",
+      "registry_sha256": "fc6c97535000b95ff1d825c20984dc8cdc22b4cda28fe0264b03876b201e1fcc"
+    },
+    {
+      "ref": "refs/heads/codex/cwr-corrected-baseline",
+      "source": "42f77672a09717ea3c23c3ec8b817e7ed62ab610",
+      "registry_sha256": "fc6c97535000b95ff1d825c20984dc8cdc22b4cda28fe0264b03876b201e1fcc"
+    },
+    {
+      "ref": "refs/heads/codex/cwr-evaluation",
+      "source": "396033ffa10c447e9e0d4385bdf3b24d08b46ede",
+      "registry_sha256": "fc6c97535000b95ff1d825c20984dc8cdc22b4cda28fe0264b03876b201e1fcc"
+    },
+    {
+      "ref": "refs/heads/codex/cwr-historical",
+      "source": "2071527ac5dff4ff3daa953c70186fcb4922cb35",
+      "registry_sha256": "fc6c97535000b95ff1d825c20984dc8cdc22b4cda28fe0264b03876b201e1fcc"
+    },
+    {
+      "ref": "refs/heads/codex/cwr-profile",
+      "source": "7c1496c7b4f895b7ca5c80807c7dbfb0ff0e72ce",
+      "registry_sha256": "fc6c97535000b95ff1d825c20984dc8cdc22b4cda28fe0264b03876b201e1fcc"
+    },
+    {
+      "ref": "refs/heads/codex/cwr-review",
+      "source": "126fc315239878b2e6337f63a5a7551e0d89d2c6",
+      "registry_sha256": "fc6c97535000b95ff1d825c20984dc8cdc22b4cda28fe0264b03876b201e1fcc"
+    },
+    {
+      "ref": "refs/heads/codex/cwr-storage",
+      "source": "6a7e09a0be8d710440f0d5914aabcb2eab687a3a",
+      "registry_sha256": "fc6c97535000b95ff1d825c20984dc8cdc22b4cda28fe0264b03876b201e1fcc"
+    },
+    {
+      "ref": "refs/heads/codex/cwr-viewer",
+      "source": "5e41223b2513b17cfb3350c437cc1a96111001a3",
+      "registry_sha256": "fc6c97535000b95ff1d825c20984dc8cdc22b4cda28fe0264b03876b201e1fcc"
+    },
+    {
+      "ref": "refs/heads/codex/cwr-viewer-perf",
+      "source": "093952ebad3d7b45d4d913e2b5f8f3b1bd4e13ed",
+      "registry_sha256": "fc6c97535000b95ff1d825c20984dc8cdc22b4cda28fe0264b03876b201e1fcc"
+    },
+    {
+      "ref": "refs/heads/work",
+      "source": "e3bce686df1fe2e73a4ee7378c36f2e2647826bb",
+      "registry_sha256": "e834ce94e815f06f37ee00e2f9a1d20733c6e90a91f2a9a1e20e268ed3a61a74"
+    },
+    {
+      "ref": "refs/remotes/origin/HEAD",
+      "source": "2726bf449d0e4d581a72034000ee0861a58ee439",
+      "registry_sha256": "fc6c97535000b95ff1d825c20984dc8cdc22b4cda28fe0264b03876b201e1fcc"
+    },
+    {
+      "ref": "refs/remotes/origin/claude/connected-world",
+      "source": "7faebe7357b71d1a6aa212c72d5c5077c328e809",
+      "registry_sha256": "da7e7deb8695b5712565ceb12c619c1963beee1b9221c9ba175271643e5452a7"
+    },
+    {
+      "ref": "refs/remotes/origin/claude/cw-a3-workshop-economics",
+      "source": "23eed03c532adac03d151f1d6260bfb2c4b9827f",
+      "registry_sha256": "a18c129dc91193960272645b8d2ff12c4444301049b4789c20e59b077aad057a"
+    },
+    {
+      "ref": "refs/remotes/origin/claude/cw-a4-titled-trade",
+      "source": "8271e8f40cf2a41195773fd01d4a06d1f19bd0ee",
+      "registry_sha256": "e834ce94e815f06f37ee00e2f9a1d20733c6e90a91f2a9a1e20e268ed3a61a74"
+    },
+    {
+      "ref": "refs/remotes/origin/claude/cw-b2-flow",
+      "source": "5122b89d7e7cb4a696c52cdac83ac110e1e1d090",
+      "registry_sha256": "51d55d78bc93494e646ecadb9a732b6b7d725d6a6438f1b1666656ba9891ff4e"
+    },
+    {
+      "ref": "refs/remotes/origin/claude/cw-b3-infrastructure",
+      "source": "83abd6668e5db22f24e86ab986567a673f78455b",
+      "registry_sha256": "85d78dda505a42d65c5675a0f674eadb61da54d4676153b998d2e78d4aee6349"
+    },
+    {
+      "ref": "refs/remotes/origin/claude/cw-c1b-migration",
+      "source": "1d5e7d3fa3ae55c99b3e6258177d9ad2060d4a6f",
+      "registry_sha256": "a18c129dc91193960272645b8d2ff12c4444301049b4789c20e59b077aad057a"
+    },
+    {
+      "ref": "refs/remotes/origin/claude/cw-c2-care",
+      "source": "3e126151bc551d4c885f846c20b5203edc85bbf8",
+      "registry_sha256": "7c9a7080f12912e8ef23fea30065974117e22c19e09de82fc9a1eea1a18a40c8"
+    },
+    {
+      "ref": "refs/remotes/origin/claude/cw-cw4-screen",
+      "source": "020b27b7ad01ff01bd8831e02cd3be51085ee88e",
+      "registry_sha256": "1c9632e7fc9b90420a191fe5b5deca4cf5e89940026a3ae1f4dad9c3e81cac50"
+    },
+    {
+      "ref": "refs/remotes/origin/claude/cw-d1-institutions",
+      "source": "e12ba7ec596a57811a3d188102f66a9d083abf18",
+      "registry_sha256": "e834ce94e815f06f37ee00e2f9a1d20733c6e90a91f2a9a1e20e268ed3a61a74"
+    },
+    {
+      "ref": "refs/remotes/origin/claude/cw-d2-attribution",
+      "source": "0b29f60c724c41ffa0ba58542b16bd0dc2b83323",
+      "registry_sha256": "a18c129dc91193960272645b8d2ff12c4444301049b4789c20e59b077aad057a"
+    },
+    {
+      "ref": "refs/remotes/origin/claude/cw-e1-tooling",
+      "source": "80b3ccfbba087e415ebb5988ebcfd8f313973a78",
+      "registry_sha256": "da7e7deb8695b5712565ceb12c619c1963beee1b9221c9ba175271643e5452a7"
+    },
+    {
+      "ref": "refs/remotes/origin/claude/cw-pr1-tooling",
+      "source": "7faebe7357b71d1a6aa212c72d5c5077c328e809",
+      "registry_sha256": "da7e7deb8695b5712565ceb12c619c1963beee1b9221c9ba175271643e5452a7"
+    },
+    {
+      "ref": "refs/remotes/origin/claude/cw-pr2-watershed",
+      "source": "dfdd772a6ec4f8fa0b8e2c05200b752e6b8b3c3f",
+      "registry_sha256": "da7e7deb8695b5712565ceb12c619c1963beee1b9221c9ba175271643e5452a7"
+    },
+    {
+      "ref": "refs/remotes/origin/claude/cw-s1-accounting",
+      "source": "6ec7a826467c68c141638cb2ca03c2c3b9ce34ad",
+      "registry_sha256": "1a7b8e152ecd293b211c89ba072604bae376636597eb497114e5ce0ce11065b6"
+    },
+    {
+      "ref": "refs/remotes/origin/claude/cw-x1-residence",
+      "source": "e39673c00fd08b5f85c1627611b8e018a8defa89",
+      "registry_sha256": "e834ce94e815f06f37ee00e2f9a1d20733c6e90a91f2a9a1e20e268ed3a61a74"
+    },
+    {
+      "ref": "refs/remotes/origin/main",
+      "source": "2726bf449d0e4d581a72034000ee0861a58ee439",
+      "registry_sha256": "fc6c97535000b95ff1d825c20984dc8cdc22b4cda28fe0264b03876b201e1fcc"
+    }
+  ]
+}

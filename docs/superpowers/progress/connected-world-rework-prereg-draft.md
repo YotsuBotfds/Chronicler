@@ -21,12 +21,13 @@ must be appended to this document before its status changes to FROZEN.
 
 ## Cohort, horizon and shared configuration
 
-Candidate fresh cohort: template 4101–4106 (8 regions, four initial
+Reserved fresh cohort: template 4101–4106 (8 regions, four initial
 civilizations) and procedural 4201–4206 (32 regions, ten initial civilizations).
-The candidate audit found no collision across 48 available local/remote
-registries and restricted ranges. It is not a reservation. The lead must
-reconcile the latest registry and commit the actual CWR1 reservation before
-execution. The only timing/schema pilot worlds are the existing shared
+The refreshed live audit found no collision across 52 available local/remote
+registries (13 distinct versions) and restricted ranges. The append-only CWR1
+reservation is recorded in scripts/seed_registry.json and
+connected-world-rework-seed-reservation.json. Reservation spends no held seeds.
+No held world may start while this protocol remains DRAFT. The only timing/schema pilot worlds are the existing shared
 template 5 and procedural 19; they are never held.
 
 All twelve arms use **120 turns**, hybrid simulation, campaigns, personal
