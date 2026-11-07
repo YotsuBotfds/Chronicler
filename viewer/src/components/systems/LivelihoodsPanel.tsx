@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import { hasRecoveryChain, packagesOn } from "../../lib/recoveryChain";
 import { watershedOn } from "../../lib/watershed";
+import { infrastructureOn } from "../../lib/infrastructureCondition";
 import type { SystemPanelProps } from "../../lib/systems";
 import { ClearingProtection } from "./ClearingProtection";
 import { Remittances } from "./Remittances";
@@ -11,6 +12,7 @@ import { CommonsRules } from "./CommonsRules";
 import { FoodAllocation } from "./FoodAllocation";
 import { GrainConvoys } from "./GrainConvoys";
 import { HouseholdRetail } from "./HouseholdRetail";
+import { InfrastructureCondition } from "./InfrastructureCondition";
 import { LearningCohorts } from "./LearningCohorts";
 import { LocalBudgets } from "./LocalBudgets";
 import { MaintenanceObligation } from "./MaintenanceObligation";
@@ -33,7 +35,7 @@ import { Workshops } from "./Workshops";
 const PACKAGES = ["workshops", "workshop_payroll", "food_allocation", "timber_stock", "grain_convoys",
   "commons_rules", "learning_cohorts", "relocation_costs", "local_budgets", "clearing_protection",
   "remittances", "apprenticeship", "veteran_reintegration", "repair_projects", "operating_wear", "timber_supply",
-  "recovery_crews", "maintenance_obligation", "household_retail", "watershed", "workshop_economics", "wealth_accounting"];
+  "recovery_crews", "maintenance_obligation", "household_retail", "watershed", "workshop_economics", "infrastructure_condition", "wealth_accounting"];
 
 export function LivelihoodsPanel(panelProps: SystemPanelProps) {
   const { bundle, snapshot, currentTurn, onSelectRegion } = panelProps;
@@ -44,6 +46,8 @@ export function LivelihoodsPanel(panelProps: SystemPanelProps) {
   const on = useMemo(() => packagesOn(Array.isArray(bundle?.history) ? bundle.history : []), [bundle]);
   // The watershed panel also mounts on the run's records, so a snapshot without one reads as absent.
   const watershed = useMemo(() => watershedOn(bundle.history), [bundle]);
+  // B3 infrastructure condition: mounted on the run's records too (absent reads as unknown).
+  const infrastructure = useMemo(() => infrastructureOn(bundle.history), [bundle]);
   const row = snapshot as unknown as Record<string, unknown> | null;
   const raw = row?.livelihoods ?? null;
   const readable = typeof raw === "object" && raw !== null && !Array.isArray(raw)
@@ -79,6 +83,7 @@ export function LivelihoodsPanel(panelProps: SystemPanelProps) {
     {record?.maintenance_obligation != null ? <MaintenanceObligation {...props} /> : null}
     {mount("remittances") ? <Remittances {...props} /> : null}
     {watershed ? <Watershed {...props} /> : null}
+    {infrastructure ? <InfrastructureCondition {...props} /> : null}
     {record?.wealth_accounting != null ? <WealthAccounting {...props} /> : null}
     {raw === null ? <p className="systems-note">No livelihoods observation is recorded at snapshot {at}.</p> : null}
   </div>;
