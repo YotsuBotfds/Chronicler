@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "board_version": 27,
+  "board_version": 28,
   "title": "Connected-world program (A livelihoods and trade, B watersheds and infrastructure, C public health, D institutions and war, E stories and evidence) operational board",
   "plan": "docs/superpowers/roadmaps/connected-world-program.md",
   "owner_instruction": "2026-11-06 (after #82): own the A-E program end to end with parallel workers, integrating and evaluating each slice and continuing across slice boundaries; merges of this program authorized after independent review, green premerge Tests on the reviewed head and verified main CI; new systems opt-in and off by default; no default promotion; full 200-seed and procedural qualification gates restricted; bounded held screens (procedural included) authorized; no purchases, paid credits, paid narration APIs, deployments, credential or sharing changes. Amendment (same day): tiers sequence work and are not stopping points; failures block the affected merge, not the program; pin 8abc1acb as the original reference; default-path changes behind a switch or rules version.",
@@ -9,11 +9,14 @@
     "original_native_sha256": "101a4cd5b928b14f43539f925fa565036b94e38d91b9698071c80fa3656e0df3",
     "native_build": "maturin develop --release --locked into ~/.venvs/chronicler-native, 3m14s on 4 cores; identical to the checkpoint-2/3 extension",
     "main_native_sha256": "59f536b8f4a6c2bc82c51eeaec55f3aff6b0a1c5c8f1a324049ad15b42c51617 (reviewed isolated release artifact for integrated source; CI builds its own current-source wheel)",
-    "preceding_integrated_main": "f76436ae37c735b2b856caf98033122798ac88d2 (#95; tree equals11467a46)"
+    "preceding_integrated_main": "125a69066ea158a973ac5207f393e4eeb330aee8 (#98); exact main Tests42417310582 all nine verified success",
+    "historical_pre_rework_integrated_main": "f76436ae37c735b2b856caf98033122798ac88d2 (#95; tree equals11467a46)",
+    "rework_candidate_runtime": "8792be88dd36ba4d7c22e480de6a19dd64ea1300 (not yet merged; same production bytes as frozen held b45c1e99)",
+    "rework_candidate_native_sha256": "b1d3ea5ac858681960b2cb880c534164905501f6ab4f6f3c94f7c9b5f66196cd"
   },
   "durable_location": {
     "branch": "main (merged slices) plus the lane and integration branches listed in lanes",
-    "base": "dde9e2f971eca864e90ecdb40cb3af8d1596a5e9 (#96); exact main Tests42393043134 all nine verified success"
+    "base": "125a69066ea158a973ac5207f393e4eeb330aee8 (#98); exact main Tests42417310582 all nine verified success"
   },
   "status_values": [
     "proposed",
@@ -978,6 +981,11 @@
       "head": "b1b324e39162b0283387694cf3118c4535a30034",
       "run": 42421910336,
       "all_nine": "passed; later changes are evidence/docs, final reviewed head must pass separately"
+    },
+    "preclosure_review": {
+      "head": "2fc370565c97ca622be036465fc4b65c0425efcc",
+      "status": "No implementation, contract or accumulated-evidence blockers; final held-result/delta review still required.",
+      "receipt": "docs/superpowers/audits/connected-world/rework-pr99-preclosure-independent-review-2026-11-07.json"
     }
   }
 }
