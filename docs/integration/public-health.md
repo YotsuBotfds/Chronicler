@@ -26,6 +26,13 @@ purchase requires cash remaining after both wage purposes. An unfunded or
 partially credited guard creates no staffed closure capacity. The previous C2
 prepaid rule remains unchanged when public health is off.
 
+The L9 proposal covers the larger of gross value and fresh whole-coin cash
+after purpose-specific carry, with one expected whole-coin patient purchase
+per positive-care region. Foreign supply is reserved conservatively even when
+local stock may suffice. Splitting a region's supply among several sources may
+add rounding cost and reduce delivered care; settlement caps never expand to
+meet the forecast. This possible service shortfall is observed, not free food.
+
 With adaptive livelihoods rules 2 enabled, a new care or border-guard offer
 consults that person's dated work experience after excluding existing labour
 holders and resolving a positive feasible share. Refusing an offer never ends
