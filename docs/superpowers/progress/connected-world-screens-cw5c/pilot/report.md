@@ -1,9 +1,9 @@
 # CW5c: S4 bounded epidemic care capacity (C2)
 
-Cohort pilot. Runs: 6; failed: 0 (missing outcomes: 0); simulation and extraction seconds 78 (0.022 core-hours)
-Projected held run time from this pilot: 0.129 core-hours (x1.5 = 0.194) for 36 runs
+Cohort pilot. Runs: 6; failed: 0 (missing outcomes: 0); simulation and extraction seconds 117 (0.032 core-hours)
+Projected held run time from this pilot: 0.195 core-hours (x1.5 = 0.292) for 36 runs
 
-Identity digests: a8bc22d97f324f5772f7a00f668263d63146444c068f64c1067eebda98a4b130 (source.txt holds the lines)
+Identity digests: ec374e4924c55d3a349baa3722e7f4705a20075f0a6d2fcf1616fa9b151c58a7 (source.txt holds the lines)
 Schema versions read: {"bundle": 6, "livelihoods": [1], "packages": {"epidemic_care": [1], "local_budgets": [1]}, "records": {"food_accounting": [1], "regional_population": [1]}}; {"bundle": 6, "livelihoods": [1], "packages": {"local_budgets": [1]}, "records": {"food_accounting": [1], "regional_population": [1]}}
 
 ## Activation per world (before any effect)
@@ -17,12 +17,26 @@ Schema versions read: {"bundle": 6, "livelihoods": [1], "packages": {"epidemic_c
 
 ## CW5c mechanism check (not evidence that care works: coverage is about 1 by construction)
 
-Fatality per infectious person-turn in each arm's own covered region-turns, the EF/EC ratio, and the mean care factor EF applied there (combined / techniques: 1 - 0.3 x coverage under the floor) with its floored count. The ratio should sit near the factor.
+Fatality per infectious person-turn in each arm's own covered region-turns, the EF/EC ratio, and the mean care factor EF applied there (combined / techniques: 1 - 0.3 x coverage under the floor) with its floored count. Within a pathogen the ratio should sit near the factor; pooled over pathogens it also carries the arms' different pathogen mix after they diverge (see the table by pathogen below).
 
 | World | EC own covered | EF own covered | EF / EC | EF mean applied factor | EF floored | EF mean coverage |
 | --- | --- | --- | --- | --- | --- | --- |
 | t5 | 0.5316 | 0.3153 | 0.5931 | 0.7 | 0 | 1 |
 | p19 | 0.1979 | 0.1182 | 0.5976 | 0.7007 | 0 | 0.9975 |
+
+## CW5c mechanism check by pathogen (EC's covered cells, both arms)
+
+Deaths per infectious person-turn of each pathogen at the cells EC covered, in EC and in EF, and the EF/EC ratio (n/a: no infectious person-turn of that pathogen there in an arm).
+
+| World | Pathogen | EC | EF | EF / EC |
+| --- | --- | --- | --- | --- |
+| t5 | plague | 0.4385 | 0.3349 | 0.7637 |
+| t5 | pox | 0.4031 | 0.2766 | 0.6862 |
+| t5 | flux | 0 | 0.2332 | n/a |
+| t5 | pestilence | 0.8669 | n/a | n/a |
+| p19 | plague | 0.4061 | 0.46 | 1.133 |
+| p19 | pox | 0.2826 | 0.2014 | 0.7128 |
+| p19 | fever | 0.07407 | 0.05965 | 0.8053 |
 
 ## CW5c reach and attenuation
 
@@ -64,6 +78,16 @@ Reach: the share of EC's epidemic deaths in EC's covered region-turns. Implied m
 | cw5c_mech_covered_dpi: Mechanism check: deaths per infectious person-turn in each arm's own covered region-turns (EF - EC; selection; see the ratio table) | p | 19: -0.07963 | -0.07963 [-0.07963, -0.07963] | 0 / 1 / 0 | 2/2 as extreme; means [-0.07963, +0.07963] |
 | cw5c_mech_factor: Mechanism check: mean care factor applied in covered region-turns (EF) | t | 5: +0.7 | +0.7 [+0.7, +0.7] | 1 / 0 / 0 | n/a (no control) |
 | cw5c_mech_factor: Mechanism check: mean care factor applied in covered region-turns (EF) | p | 19: +0.7007 | +0.7007 [+0.7007, +0.7007] | 1 / 0 / 0 | n/a (no control) |
+| cw5c_mech_plague: Mechanism check by pathogen: plague deaths per infectious person-turn at EC's covered cells (EF - EC) | t | 5: -0.1036 | -0.1036 [-0.1036, -0.1036] | 0 / 1 / 0 | 2/2 as extreme; means [-0.1036, +0.1036] |
+| cw5c_mech_plague: Mechanism check by pathogen: plague deaths per infectious person-turn at EC's covered cells (EF - EC) | p | 19: +0.05381 | +0.05381 [+0.05381, +0.05381] | 1 / 0 / 0 | 2/2 as extreme; means [-0.05381, +0.05381] |
+| cw5c_mech_pox: Mechanism check by pathogen: pox deaths per infectious person-turn at EC's covered cells (EF - EC) | t | 5: -0.1265 | -0.1265 [-0.1265, -0.1265] | 0 / 1 / 0 | 2/2 as extreme; means [-0.1265, +0.1265] |
+| cw5c_mech_pox: Mechanism check by pathogen: pox deaths per infectious person-turn at EC's covered cells (EF - EC) | p | 19: -0.08118 | -0.08118 [-0.08118, -0.08118] | 0 / 1 / 0 | 2/2 as extreme; means [-0.08118, +0.08118] |
+| cw5c_mech_fever: Mechanism check by pathogen: fever deaths per infectious person-turn at EC's covered cells (EF - EC) | t | 5: unknown | n/a | 0 / 0 / 0 | n/a |
+| cw5c_mech_fever: Mechanism check by pathogen: fever deaths per infectious person-turn at EC's covered cells (EF - EC) | p | 19: -0.01442 | -0.01442 [-0.01442, -0.01442] | 0 / 1 / 0 | 2/2 as extreme; means [-0.01442, +0.01442] |
+| cw5c_mech_flux: Mechanism check by pathogen: flux deaths per infectious person-turn at EC's covered cells (EF - EC) | t | 5: +0.2332 | +0.2332 [+0.2332, +0.2332] | 1 / 0 / 0 | 2/2 as extreme; means [-0.2332, +0.2332] |
+| cw5c_mech_flux: Mechanism check by pathogen: flux deaths per infectious person-turn at EC's covered cells (EF - EC) | p | 19: unknown | n/a | 0 / 0 / 0 | n/a |
+| cw5c_mech_pestilence: Mechanism check by pathogen: pestilence deaths per infectious person-turn at EC's covered cells (EF - EC) | t | 5: unknown | n/a | 0 / 0 / 0 | n/a |
+| cw5c_mech_pestilence: Mechanism check by pathogen: pestilence deaths per infectious person-turn at EC's covered cells (EF - EC) | p | 19: unknown | n/a | 0 / 0 / 0 | n/a |
 | cw5c_mean_coverage: Mean coverage over region-turns with capacity (EF) | t | 5: +1 | +1 [+1, +1] | 1 / 0 / 0 | n/a (no control) |
 | cw5c_mean_coverage: Mean coverage over region-turns with capacity (EF) | p | 19: +0.9975 | +0.9975 [+0.9975, +0.9975] | 1 / 0 / 0 | n/a (no control) |
 | cw5c_reach: Reach: share of EC's epidemic deaths in its covered region-turns (EC) | t | 5: +0.5952 | +0.5952 [+0.5952, +0.5952] | 1 / 0 / 0 | n/a (no control) |
@@ -208,8 +232,8 @@ Reach: the share of EC's epidemic deaths in EC's covered region-turns. Implied m
 
 | Arm | t | p |
 | --- | --- | --- |
-| E0 | 7.0 [7.0, 7.0] | 19.1 [19.1, 19.1] |
-| EC | 6.6 [6.6, 6.6] | 20.2 [20.2, 20.2] |
-| EF | 6.8 [6.8, 6.8] | 17.8 [17.8, 17.8] |
+| E0 | 10.5 [10.5, 10.5] | 25.5 [25.5, 25.5] |
+| EC | 11.6 [11.6, 11.6] | 25.5 [25.5, 25.5] |
+| EF | 12.1 [12.1, 12.1] | 31.7 [31.7, 31.7] |
 
 Descriptive only: the sign-flip column counts the 2^n sign assignments whose mean is at least as far from zero as the observed mean, with the range of those means; it is not a significance test.

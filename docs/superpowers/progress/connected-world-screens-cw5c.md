@@ -129,9 +129,13 @@ does what it declares (the mechanism check).
   A no-L9 reference is not run: it would measure L9 itself, not care.
 - **Runner:** `scripts/connected_world_screens.py` on `scripts/screen_runner.py` (revision 2 adds
   `Outcome.pair`, a reading of both rows of one world, for primary 2). Command, once the lead
-  freezes this page: `<native python> scripts/connected_world_screens.py run OUT --screen CW5c
-  --cohort held --pilot docs/superpowers/progress/connected-world-screens-cw5c/pilot/metrics.jsonl
-  --jobs 2`, then `report`, `check --metrics ... --cohort held` and `mark-run`.
+  freezes this page: `flock <the program's held-run lock> <native python>
+  scripts/connected_world_screens.py run OUT --screen CW5c --cohort held --pilot
+  docs/superpowers/progress/connected-world-screens-cw5c/pilot/metrics.jsonl --jobs 2
+  --keep-first` (the lock serializes the lanes' held runs on the shared machine; `--keep-first`
+  keeps one world per stratum outside the repository for the independent checker), then
+  `report`, `check --metrics ... --cohort held`, `mark-run` and `cw5c-compact` (the committed
+  metrics; the full file's SHA-256 recorded here).
 - **Identity:** the pilot's `source.txt` (`connected-world-screens-cw5c/pilot/source.txt`, lines
   quoted under "Extractor validation"). A held run needs that screen module, runner and source
   byte for byte; any later change needs a new pilot and an amendment.
@@ -208,9 +212,10 @@ the report's ratio table.
 **EC's covered cells**, in both arms; outcomes `cw5c_mech_plague`, `cw5c_mech_pox`,
 `cw5c_mech_fever`, `cw5c_mech_flux`, `cw5c_mech_pestilence` (EF - EC of deaths per infectious
 person-turn of that pathogen there; a world where neither arm had that pathogen there has no
-value), and the report's table of EC, EF and EF / EC per world and pathogen. Within a pathogen
-the ratio should sit near the factor (integer death draws add noise; few cells for a rare
-pathogen).
+value), and the report's table of EC, EF and EF / EC per world and pathogen. These are read at
+EC's cells, so EF's value there also includes cells EF did not itself staff (no care effect):
+within a pathogen it is a total effect, near the factor where EF also covered the cell and nearer
+1 where it did not (integer death draws add noise; few cells for a rare pathogen).
 
 ## Reach and attenuation (reported per world)
 
@@ -292,27 +297,49 @@ direction only when its sign is the same in at least 5 of 6 activated worlds of 
 
 ## Extractor validation (pilot and development worlds, before any held run)
 
-- **Timing pilot** (template 5, procedural 19; the runner deleted its bundles), source `3938aa69`,
-  clean tree: `connected-world-screens-cw5c/pilot/` (metrics, report, source): 6 runs, 0 failed,
-  every outcome extracted (`check --metrics ... --cohort pilot`: complete); 78 s of simulation and
-  extraction (0.022 core-hours), 41 s wall on 2 jobs. Seconds per run: E0 p 17.6, t 6.6; EC p
-  18.1, t 6.3; EF p 16.7, t 6.5. Projection for the held run (36 runs): 0.129 core-hours, x1.5 =
-  0.194; **ceiling 0.50** (revision 1's pilot under a load average of 7-9 took 0.042 core-hours,
-  about 2 x this one). Identity lines (`pilot/source.txt`): `scripts/connected_world_screens.py`
-  `5c90a4254a03305bad02963313cc08dc152515b2439065897f7ee6b4b7b10b3c`, `scripts/screen_runner.py`
+- **Timing pilot (revision 3, the held run's `--pilot`)**: template 5, procedural 19, `run
+  PILOT --screen CW5c --cohort pilot --jobs 2 --keep-first` on `c854215a` (clean tree; dirty 0,
+  dirty-code 0), 2026-11-07 05:56-05:57Z under a load average of 5-7 (other lanes): 6 runs, 0
+  failed, every outcome extracted (`check --metrics ... --cohort pilot`: complete, on the full and
+  on the compact metrics); 117 s of simulation and extraction (0.032 core-hours), 60 s wall on 2
+  jobs. Seconds per run: E0 t 10.5, p 25.5; EC t 11.6, p 25.5; EF t 12.1, p 31.7. **Projection
+  for the held run (36 runs): 0.195 core-hours, x1.5 = 0.292; ceiling 0.50** (the runner's rule:
+  a held run is refused when the projection x 1.5 exceeds the ceiling; 0.50 leaves room for
+  the shared machine's load). The runner's `load_pilot`, called with this checkout's identity and
+  the preregistration line as a held run builds them, accepts the committed pilot (no problem;
+  runner, screen module, registry content, native extension and dirty-code match). Identity
+  lines (`pilot/source.txt`): `scripts/connected_world_screens.py`
+  `9ce196bfd12194ba6f02bd76cab0051df41f67f31ead63b536326814574a34b1`, `scripts/screen_runner.py`
   `55b7e2c5e12c01f36e143dc90d251eb62dc2722f569fc61e13e8e78ef2ce7b72`, registry content
-  `fa4731ea0d40d3dc7b6c29521f51df4199c68454fcb04196b8e9b054033a3b59`, native `20e77f99...`.
-  The pilot's metrics file holds each care run's cells (192 KB for 6 runs; about 1.2 MB expected
-  for the held run).
-- **Activation and the pilot's mechanism and reach tables** (never evidence): EC and EF activated
-  on both worlds. Mechanism check: the EF/EC ratio of own-covered fatality per infectious
-  person-turn was 0.59 (t5) and 0.60 (p19) against EF's mean applied factor 0.70. Corrected in
-  revision 3 (R1): the gap is the arms' pathogen mix after divergence, not their different
-  covered sets (the reviewer found 0.58 / 0.57 on cells both arms covered, and about 0.7 within a
-  pathogen). Reach 0.60 (t5) and 0.72 (p19).
+  `fa4731ea0d40d3dc7b6c29521f51df4199c68454fcb04196b8e9b054033a3b59`, native `20e77f99...`;
+  rows' identity digest `ec374e4924c55d3a349baa3722e7f4705a20075f0a6d2fcf1616fa9b151c58a7`.
+- **Metrics files (R3).** `pilot/metrics.jsonl` is the compact file (`cw5c-compact`, 18 KB: no
+  per-cell fields; each EF row's `m.pairs`); `pilot/report.md` was written from it and is
+  byte-identical to the report of the full file. The full metrics (427 KB, with `cells`,
+  `cells_by_pathogen` and `covered_cells`) stay outside the repository:
+  `/home/user/evidence/c2/cw5c/pilot-r3/metrics.jsonl`, SHA-256
+  `01fe4c7499dc8c6fbf50022c744aa90fdaf062154562d527e5981347f0949b18`. Every outcome value of
+  the revision-2 pilot (`3938aa69`) is reproduced exactly; revision 3 only adds the per-pathogen
+  outcomes and table (so R4's guard did not fire on these worlds).
+- **Activation and the pilot's mechanism, per-pathogen and reach tables** (never evidence): EC
+  and EF activated on both worlds. Own-covered EF/EC ratio 0.59 (t5) and 0.60 (p19) against EF's
+  mean applied factor 0.70 (0.7007 on p19; nothing floored). In revision 2 this gap was put down
+  to the arms' different covered sets; corrected (R1): it is the arms' pathogen mix after
+  divergence (the reviewer found 0.58 / 0.57 on cells both arms covered, and about 0.7 within a
+  pathogen). At EC's covered cells, by pathogen (EC / EF / ratio): t5 plague 0.4385 / 0.3349 /
+  0.764, pox 0.4031 / 0.2766 / 0.686, flux 0 / 0.2332 / n/a, pestilence 0.8669 / none there in EF;
+  p19 plague 0.4061 / 0.46 / 1.13, pox 0.2826 / 0.2014 / 0.713, fever 0.0741 / 0.0597 / 0.805.
+  Reach 0.60 (t5) and 0.72 (p19).
 - **Independent checker** (outside the repository,
   `/home/user/evidence/c2/cw5c/validate/validate_cw5c.py`, reading the raw bundles, never
-  importing the screen module) on the same pilot with bundles kept and on development worlds
+  importing the screen module). Revision 3, on the official pilot's kept bundles with
+  `--compact pilot/metrics.jsonl` (source `c854215a`): **89,278 checks, 0 failures**, adding to
+  the checks below: each region's pathogen split sums to its deaths and infectious person-turns,
+  with unique, ordered pathogens; per-pathogen deaths equal `epidemics.deaths_by_pathogen` and
+  each reported outbreak's deaths; `cells_by_pathogen` against the extractor; each pathogen's
+  reading at EC's covered cells, both arms, recomputed from the raw bundles; and the compact
+  file's stored pairs (primary 2 and every pathogen) against the raw bundles. Revision 2, on the
+  `3938aa69` pilot with bundles kept and on development worlds
   template 1 and 42, procedural 7 and 13 (all three arms, `--cohort dev --keep-first`, 200 turns,
   source `3938aa69`; 18 runs, 0 failed): **186,141 checks, 0 failures**. It recomputes the world
   death rate (and that per-turn deaths sum to `deaths_total`), L9 coins by service and, in care
@@ -327,12 +354,29 @@ direction only when its sign is the same in at least 5 of 6 activated worlds of 
   extractor; and **primary 2 recomputed from the two raw bundles** (EF and EC at EC's covered
   cells) against the same reading of the metrics rows. Development worlds are inspected freely
   and are never evidence; their outcome values are not reported here.
-- `tests/test_cw5c_screen.py` covers the arms and primaries, the cells, the paired reading (and the
-  runner's subtraction and its refusal without a control), continuing-outbreak region-turns,
-  hunger, stability and unrest, activation, missing or inconsistent records and the report's
-  mechanism and reach tables.
+- `tests/test_cw5c_screen.py` (11 tests) covers the arms and primaries, the cells and cells by
+  pathogen, the paired reading (and the runner's subtraction and its refusal without a control),
+  the per-pathogen reading at EC's cells, the pathogen names against the registry, the compact
+  metrics (every outcome and the report read the same as from the full rows), continuing-outbreak
+  region-turns, hunger, stability and unrest, activation, missing or inconsistent records
+  (including a pathogen split that does not sum) and the report's mechanism, per-pathogen and
+  reach tables.
 
 ## C2 verification (commands and results)
+
+**Revision 3** (`c854215a`: the care tick record's pathogen split, R4's planning guard, the
+screen module; nothing else in `src/`):
+
+- `tests/test_epidemic_care.py` 50 passed (offline and native venv; adds the split's sums and the
+  rounding boundary), `tests/test_epidemic_care_native.py` 5 passed, `tests/test_cw5c_screen.py`
+  11 passed; the screen-runner and other screen tests 171 passed.
+- Offline lane `python scripts/run_python_oracle_checks.py`: **PASS, 71 chunks in 277.7 s**;
+  `connected-world-c2` 61 tests in 1.2 s of 110 s; slowest chunk `systems-2` 33.6 s.
+- Enabled exact resume (`checkpoint_identity.py`, the commit's `git archive` source,
+  `hybrid_s42` with `--grain-reserves --local-budgets --epidemic-care`): **PASS, 59 resume
+  points, 0 differences**; writing checkpoints changes nothing (45 files).
+- Feature-off identity was not rerun: the changed modules run only under `--epidemic-care`, and
+  the revision-3 pilot reproduced every outcome value of the revision-2 pilot exactly.
 
 On the revision-2 head (source `39af589a`, unchanged since `c0111425`; screen `3938aa69`); native
 runs with `~/.venvs/native-a3` (extension `20e77f99...`, `main`'s Rust); the offline lane with the
