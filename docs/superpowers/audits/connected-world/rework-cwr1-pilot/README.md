@@ -47,7 +47,9 @@ control, outcome, timing or budget changed during publication.
 
 Raw output remains at
 `/workspace/evidence/cwr-evaluation/pilot-8792be88-v1/`, including every
-bundle, Arrow sidecar and private checkpoint for all 24 cases. The original
+bundle, Arrow event sidecar and JSON world state for all 24 cases. These
+commands did not request private checkpoints; that evidence belongs to the
+separate profiling and exact-resume gates. The original
 failed eight-turn development check, its incorrect `no_relief` assertion
 and the corrected-readback evidence remain preserved separately. Positive
 free food in `no_relief` is valid; that mode changes the title fraction and
