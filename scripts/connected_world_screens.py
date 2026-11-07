@@ -2144,9 +2144,13 @@ def cw5_world(r: dict, t: dict) -> tuple[str, dict, dict, dict]:
 
 
 def _cw5_pair(key):
-    """``Outcome.pair`` (T row, R row) -> (T value, R value) of a set-based measure."""
+    """``Outcome.pair`` (T row, R row) -> (T value, R value) of a set-based measure, or
+    "excluded by the window" for a world the window excludes (the window sensitivity line
+    ``rr_`` is read on every world)."""
     def pair(t_row: dict, r_row: dict):
-        _status, _info, rm, tm = cw5_world(r_row.get("m") or {}, t_row.get("m") or {})
+        status, _info, rm, tm = cw5_world(r_row.get("m") or {}, t_row.get("m") or {})
+        if status.startswith("excluded") and not key.startswith("rr_"):
+            return "excluded by the window"
         return tm.get(key), rm.get(key)
     return pair
 

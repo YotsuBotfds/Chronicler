@@ -173,10 +173,14 @@ household customers, so nothing is recorded there).
 
 `report` prints activation per world first, then each outcome per stratum: per-world values,
 mean [min, max], sign counts and, for a contrast, the exact sign-flip enumeration over the
-activated worlds (2^6 per stratum). Strata are reported separately. A primary is read as
-consistent when its sign agrees on at least 5 of 6 worlds in a stratum and the sign-flip share is
-at most 4/64; otherwise as no consistent effect. A world where a measure is undefined (no firm)
-is shown as such and left out of that comparison. Secondaries and harms are descriptive.
+activated worlds (2^k per stratum). Strata are reported separately. **Reading rule (pre-freeze
+clarification, the same as CW5's):** a primary is read as consistent in a stratum when its sign
+agrees on at least 5 of the stratum's 6 worlds, a world where the measure is undefined (no firm
+in either arm), not activated or failed counting as not agreeing, and the exact sign-flip share
+over the 2^k assignments of its k valid worlds is at most 4/64 (0.0625); otherwise as no consistent
+effect. So with k <= 4 valid worlds no result can read as consistent, and with k = 5 the smallest
+possible share, 2/32, equals the threshold (all five valid worlds must agree). A world where a
+measure is undefined is shown as such. Secondaries and harms are descriptive.
 
 ## Extractor validation (the shared pilot, before the freeze)
 

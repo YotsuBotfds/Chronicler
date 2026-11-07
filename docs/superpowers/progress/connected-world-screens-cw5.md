@@ -129,7 +129,11 @@ reported as `not activated` and left out of T's comparisons, never read as zero.
   (each live shipment at its own cost) and delivered food still unsold at the end (the last
   record's lots, at the run's mean purchase cost per milli-food). Escheated, deposited and lost
   food carries no value. Returned food sold later at the origin is valued at cost, not at its
-  sale price (retail does not attribute those sales to the shipment).
+  sale price (retail does not attribute those sales to the shipment). **Declared limits:**
+  returned food is valued only from the closed-shipment lists of the snapshots (at most 32 per
+  snapshot; a shipment closing in a turn with more than 32 closures would go unvalued), and
+  delivered food beyond the tracked lots (`MAX_LOTS`; counted in `lots_untracked_milli`) is not
+  valued. It is a secondary.
 - **Shipments by outcome and cause**, owners' receipts (paid for their surplus), food decayed in
   transit, households' food purchases credited to sellers (retail counter), the destination and
   origin regions' shortfall share (T alone; post-treatment selection), the commons at the end
@@ -204,8 +208,13 @@ carry.
 mean [min, max], sign counts and, for a contrast, the exact sign-flip enumeration of the mean
 over the activated worlds whose pre-treatment window is valid (2^6 assignments per stratum; a
 world excluded by the window is listed in the report's window table and shown as unknown in every
-set-based outcome). Strata are reported separately and not pooled. A primary is read as consistent when its sign agrees on at least 5 of 6 worlds in a
-stratum and the sign-flip share is at most 4/64; anything else is read as no consistent effect.
+set-based outcome). Strata are reported separately and not pooled. **Reading rule (pre-freeze
+clarification):** a primary is read as consistent in a stratum when its sign agrees on at least 5
+of the stratum's 6 worlds, a world excluded by the window, not activated or failed counting as not
+agreeing, and the exact sign-flip share over the 2^k assignments of its k valid worlds is at most
+4/64 (0.0625); anything else is read as no consistent effect. So with k <= 4 valid worlds no result
+can read as consistent, and with k = 5 the smallest possible share, 2/32, equals the threshold
+(all five valid worlds must agree). An excluded world's cell reads "excluded by the window".
 Secondaries and harms are descriptive. The procedural and template strata may disagree; both are
 reported.
 

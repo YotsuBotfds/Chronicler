@@ -164,7 +164,7 @@ def test_the_runner_reads_the_paired_outcomes_from_both_rows(CW):
     for row in short:
         row["activation"] = {"activated": True}
     cells, values = SR.paired_values(list(short), screen, "T", "R", primary.read, "t", [5], pair=primary.pair)
-    assert values == [] and cells == ["5: unknown"]
+    assert values == [] and cells == ["5: excluded by the window"]
 
 
 def test_the_window_ends_before_t_s_first_purchase(CW):

@@ -158,7 +158,9 @@ class Outcome:
     ``arm2``). With ``pair`` the two values are read together from the arm's and the
     control's rows of the same world, ``pair(arm_row, control_row) -> (arm value,
     control value)``, for a measure both arms read on cells one of them defines (CW5c:
-    the control's covered region-turns); ``read`` is then unused."""
+    the control's covered region-turns); ``read`` is then unused. ``pair`` may instead
+    return a ``str`` naming why the world has no value (CW5: "excluded by the window"),
+    which the outcome's cell shows."""
     id: str
     label: str
     arm: str
@@ -166,7 +168,7 @@ class Outcome:
     read: Callable[[dict], float | None]
     primary: bool = False
     minus: tuple[str, str] | None = None
-    pair: Callable[[dict, dict], tuple[float | None, float | None]] | None = None
+    pair: Callable[[dict, dict], tuple[float | None, float | None] | str] | None = None
 
 
 @dataclass(frozen=True)
@@ -1909,7 +1911,11 @@ def paired_values(rows, screen: Screen, arm: str, control: str | None, read, tag
         if need_activation and any(act is not True for act in acts):
             cells.append(f"{seed}: {'not activated' if False in acts else 'activation unknown'}")
             continue
-        vals = list(pair(got[0], got[1])) if pair is not None and control else [read(r) for r in got]
+        paired = pair(got[0], got[1]) if pair is not None and control else None
+        if isinstance(paired, str):
+            cells.append(f"{seed}: {paired}")
+            continue
+        vals = list(paired) if paired is not None else [read(r) for r in got]
         if any(v is None for v in vals):
             cells.append(f"{seed}: {why(got[[v is None for v in vals].index(True)])}")
             continue
