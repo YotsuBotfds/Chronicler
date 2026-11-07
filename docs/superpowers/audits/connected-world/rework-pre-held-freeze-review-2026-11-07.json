@@ -1,0 +1,76 @@
+{
+  "scope": "Independent concrete pre-held protocol/pilot freeze review; no held execution or qualification result",
+  "approved_commits": [
+    "d791dc2ece9b918657d3e1752881f2e1e551299c",
+    "20722d5e"
+  ],
+  "protocol_sha256": "51b8a336969f48b4beb6f5b3e543062eda71822b98513b337ceb2d010e6efe7a",
+  "runtime_source": "8792be88dd36ba4d7c22e480de6a19dd64ea1300",
+  "native_sha256": "b1d3ea5ac858681960b2cb880c534164905501f6ab4f6f3c94f7c9b5f66196cd",
+  "pilot_identity": "96f1efadb8e2a73158c0ba1a952b623f8235dd84d07f492c55503543cb9edea3",
+  "pilot_metrics_sha256": "05e9e8d8fe3796604329a9d24eb8b94223f2391f462658d0f5d82cd7ba2e8d1e",
+  "pilot_report_sha256": "a43804e38697f493c87ad56b3bd594d594c9e9119e42397a0a96de2a1b48d08d",
+  "schema_matrix": {
+    "rows": 24,
+    "unique_arm_world_rows": 24,
+    "return_codes": [
+      0
+    ],
+    "turns": 120,
+    "all_twelve_arms_on_t5_p19": true
+  },
+  "independent_recomputation": {
+    "sim_seconds": 484.7,
+    "extract_seconds": 68.5,
+    "sum_seconds": 553.2,
+    "held_projection_core_hours": 0.922,
+    "fixed_margin": 1.5,
+    "projection_with_margin_core_hours": 1.383,
+    "unchanged_cap_core_hours": 2
+  },
+  "stdlib_checker_independently_rerun": {
+    "commits": [
+      "0ef845ad",
+      "b90ecadd",
+      "fe51c334"
+    ],
+    "result": "PASS,24rows,noerrors,in0.56s",
+    "receipt": "/workspace/evidence/rework-review/cwr1-pilot-frozen-arithmetic.json",
+    "no_chronicler_or_native_import": true
+  },
+  "source_and_controls": "Protocol changes only status and concrete exact-source/pilot receipt. Runtime8792 tofreeze production/native/scripts diff empty. Controls, three primaries, all-world enrollment, cohort,horizon,default-off choices and cap/margin unchanged. No pilot-outcome tuning.",
+  "publication": "Original launcher retains report_sha256 null. Successful stdout report.log published byte-identically with separate matching SHA receipt; original receipt untouched.",
+  "finding_resolved": "Original pilot README claimed private checkpoints for all24cases. Independent raw inventory found0ckpt and no checkpoint flags.20722d5e now accurately names bundles/eventArrows/JSONstates and separate profile/resume gates.",
+  "fresh_held_cohort": {
+    "template": [
+      4101,
+      4106
+    ],
+    "procedural": [
+      4201,
+      4206
+    ],
+    "runs": 144,
+    "held_seeds_spent_at_review": 0,
+    "restricted_qualification": false
+  },
+  "viewer_complete_window_followup": {
+    "delegated_reviewer": "/root/rework_review/archive_review",
+    "original_packet": "246bc419",
+    "correction_approved": "1168a2e1",
+    "prior_frame_checks": 3840,
+    "passing_browser_checks": 372,
+    "corrected_same_turn_differences": 2163,
+    "decomposition": [
+      2142,
+      21
+    ],
+    "independent_next_snapshot_checks": 3808,
+    "original_invalid_count": 2392,
+    "overcount": 229,
+    "error": "Complete sparse empty currentregion wasnull while equivalent priorregion was0. Corrected symmetric complete-empty semantics and next-saved-PH check.",
+    "invalid_receipt": "Retained byte-for-byte with hashes; no model/browser change or new simulation.",
+    "initial_six_harness_failures": "Retained; opening earlierhistory exposes current pointer; no UIchange."
+  },
+  "approval": "Protocol/evidence freeze approved at SHA51b8..., after integrating checker/freeze/provenance documents and final live native/source/registry/pilot preflight. Lead schedules actual bounded held execution. Resume execution, held outcomes, final reviewed-head/mainCI remain separate gates. No qualification or default promotion."
+}
