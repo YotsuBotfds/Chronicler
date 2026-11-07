@@ -843,6 +843,11 @@ used a `git archive` of the committed tree and a copy of that extension.
   `20e77f99…`): witness tests 509 passed, the offline lane PASS (69 chunks in 322.1 s), feature-off
   identity 9 cases / 399 files / 0 differences, `record_only` against off 0 differences (procedural
   11 and 31), `tests/test_watershed_native.py` 3 passed.
+- After the CW3 corrections, `main` `66e1ec40` (PR #89, D2 attribution records) was merged
+  (`b412b4b8`; `cwb2` rebuilt last, after `cwd2`; native shard count 424); the same extension
+  (`20e77f99…`, main's Rust unchanged): witness and focused tests 835 passed, the offline lane PASS
+  (70 chunks in 312.2 s), feature-off identity 9 cases / 399 files / 0 differences, `record_only`
+  against off 0 differences (procedural 11 and 31), `tests/test_watershed_native.py` 3 passed.
 - The same checks passed on `cbccee74` (the opening rule, events ending at 0.75 of the channel): lane
   69 chunks in 337.8 s, feature-off 0 differences, resume PASS, viewer 1587 tests, 62/62 browser
   checks; and on `b87e9aa2` before the merge (extension `101a4cd5…`).
@@ -906,7 +911,7 @@ First pass (source `0779587`) and, after the independent review's findings, agai
 | `--agents off` flow when the extension imports but `EcologySimulator` cannot be built | intentional (review n4) | refused at turn 0's planning, not at startup (the native flag is known only then) |
 | The native write-back rounds the index to 4 decimals | intentional (native, unchanged) | observed within 5e-5 of the derived index; never enters storage (the next external flow is measured from the observed index) |
 | A superseded river flood sets no cooldown | intentional | its draws and that turn's control flow are kept; the region's checks run in later turns, as any `flow` change can alter them |
-| `agent_bridge.configure_ecology_runtime` is pinned | reviewed provisional witness layer `cwb2` | the one seam, rebuilt over `cwc1b` (main `ae94bca6`); consolidated by the lead at merge |
+| `agent_bridge.configure_ecology_runtime` is pinned | reviewed provisional witness layer `cwb2` | the one seam, rebuilt last, over `cwd2` (main `66e1ec40`); consolidated by the lead at merge |
 | Irrigation service is 1.0 for every active work | missing capability | infrastructure condition (B3) scales it |
 | The account reads pre-tick terrain for the index cap; a same-turn succession changes the cap only from the next turn | intentional | recorded as a cap change (B2) |
 | Lake shores | corrected (review m8) | a shore on lakes only drains to the lake (`to_lake`), never to the sea; no development world has a lake (a constructed one is tested) |
