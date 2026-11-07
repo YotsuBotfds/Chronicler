@@ -193,7 +193,7 @@ explains historical CW6.
 All successful enrolled worlds remain included. Actual personal inputs,
 independent D3 rows, work declines, supplied-care region-turns and extra
 crowding factors are reported separately. Removing information lowers average
-regional shortfall, but also lowers person-turns and endpoint population;
+regional shortfall, but also lowers person-turns and endpoint civilization population;
 that is not established welfare improvement. Removing work choices has exact
 null primary differences in all six templates. Template RD/AD supplied-care
 coverage is zero and their PH cost-only primary contrasts are exact nulls;
