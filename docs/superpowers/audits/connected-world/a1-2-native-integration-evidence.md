@@ -143,3 +143,33 @@ withheld. D3 suppresses the native soldier war mortality multiplier only in
 active mode; record-only and default-off mortality are unchanged. Final
 integrated D4 service, care/payment, all-features resume, compatibility,
 viewer/browser and held evidence remain lead integration gates.
+
+## Integrated enlisted-service diagnostic
+
+After the lead's all-feature pilot exposed a Python/native farm-title mismatch,
+independent inspection established that `provisioning::people_by_region` is the
+shared L2 and household-retail population authority and already excludes the
+frozen service census. An enlisted title holder remains a real owner and may
+sell an existing title; service supplies no new title, civilian meal or purchase.
+The native economy's food population and farmer count exclude the same stable
+ids; rural health loss divides by this civilian farmer count. No additional
+native production change was needed.
+
+Six direct compiled-extension regressions were added to
+`tests/test_connected_world_native_contracts.py`. Constructed fed-0/fed-1 census
+forks verify civilian food demand/consumption, one excluded farmer plus a half
+turn of actual health impairment, free-food and retail purchase exclusion,
+existing-title sale without own consumption, positive withheld enlisted income,
+continued civilian meal/income for an id outside the frozen census, and transient
+consumption on success. The fixtures explicitly set linear foraging and positive
+farmer yield; they do not claim natural recruiting evidence. The first fixture
+iteration used a 16-year-old health worker (native adulthood is 20) and a dormant
+first yield slot; its expected-positive checks failed until these fixture
+assumptions were corrected. Production source was unchanged.
+
+All 13 tests in the native contract module passed in 4.14 seconds, using root
+Python source at `c3fe2b6c` plus the lead's contemporaneous Python-only integration
+edits and the unchanged reviewed extension SHA256
+`59f536b8f4a6c2bc82c51eeaec55f3aff6b0a1c5c8f1a324049ad15b42c51617`.
+These diagnostics do not replace the complete integrated lifecycle/resume or
+held evaluation gates.
