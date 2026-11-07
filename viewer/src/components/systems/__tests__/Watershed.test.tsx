@@ -85,7 +85,8 @@ it("keeps disabled, absent, malformed and unobserved apart", () => {
   expect(screen.getByRole("table", { name: "Water account since turn 0" })).toBeInTheDocument();
 });
 
-it("mounts in the livelihoods panel whenever the run records the account", () => {
+it("mounts in the livelihoods panel without unrelated polity metadata when the run records only regional accounts", () => {
+  expect(bundle.world_state).not.toHaveProperty("civilizations");
   const none = { turn: 9, livelihoods: { schema_version: 1 } } as unknown as TurnSnapshot;
   const extra = { onSeek: vi.fn(), onSelectEvent: vi.fn(), onSelectCivilization: vi.fn() };
   render(<LivelihoodsPanel bundle={bundle} snapshot={none} currentTurn={9} onSelectRegion={vi.fn()} {...extra} />);

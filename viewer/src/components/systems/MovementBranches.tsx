@@ -14,7 +14,7 @@ export function MovementBranches({ bundle, snapshot, onSelectRegion }: {
   bundle: Bundle; snapshot: TurnSnapshot | null; onSelectRegion: (name: string) => void;
 }) {
   const regions = bundle.world_state.regions;
-  const read = movementBranchesAt(snapshot, regions.length, bundle.world_state.civilizations.length);
+  const read = movementBranchesAt(snapshot, regions.length, bundle.world_state.civilizations?.length ?? 0);
   const title = <h3>Movement branches abroad · snapshot {snapshot?.turn ?? "unknown"}</h3>;
   const message = !movementBranchesOn(bundle.history) ? "Movement branches are off in this run."
     : read.status === "absent" ? "No branch record at this snapshot: unknown, not zero."
