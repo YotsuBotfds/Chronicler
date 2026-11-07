@@ -143,8 +143,9 @@ Created or destroyed, recorded beside the typed flows (`frame.treasury`):
   residuals, the remittance fee, fares and assistance to the travel sink,
   procurement credits refused by a ceiling. `by_civ` repeats them per
   civilization where the package records one.
-- `firm_economics` (only while A3 is active, so records without it are
-  unchanged): owner capital paid into firm cash, input purchases to rulers
+- `firm_economics` (only while A3 is active; with A3 off a record differs
+  from one built before A3 only in the declared channel list,
+  `parameters.channels`, which ends with `wares_purchase`): owner capital paid into firm cash, input purchases to rulers
   (whole units and the carried sub-unit change) or to the `unowned_commons`
   sink, household sales, the firms' cash at open and close and the owner's
   building subsidy (firm sites from the A3 receipts, firm-less sites from the

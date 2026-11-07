@@ -263,14 +263,20 @@ readmits those cities while A3 is active and an opening there is refused
   civilization too, and the drop is recorded as `firm_economics.flows_dropped`); the typed channel
   `wares_purchase` (households -> firm cash, located in the firm's region) keeps
   the agent-wealth identity `close - open = typed net / 1000 + native_model`; the treasury side
-  gains `firm_economics` (present only while A3 is active, so ledger records
-  without A3 are unchanged): capital from treasuries, inputs to treasuries
+  gains `firm_economics` (present only while A3 is active): capital from treasuries, inputs to treasuries
   (whole units and carry change) or to the sink, household sales, firm cash open
   and close, and the owner's asset subsidy (firm sites from the receipts,
   firm-less sites from the counter delta). Closures: households debited = firm
   credited; capital and input flows = the A3 receipts; inputs to treasuries =
   units x 1000 + carry change; the L6a firm-cash closure with capital, household
   sales and inputs.
+  With A3 off and the ledger on, a ledger record differs from one built before
+  A3 in exactly one place: the declared channel list
+  (`parameters.channels`) now ends with `wares_purchase`. No typed row,
+  closure, `firm_economics` section or lifetime key for A3 appears (rows and
+  lifetime keys are written only for active channels; A3's lifetime keys are
+  appended after A1's, so the key order of A1's keys is unchanged). Feature-off
+  identity (no ledger, no A3) is unaffected.
 
 ## Records
 
