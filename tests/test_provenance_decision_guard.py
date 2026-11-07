@@ -42,7 +42,9 @@ function in ``provenance.py`` that is not declared. The D-program record and
 war modules read none.
 
 Limits (not caught): a name computed at run time (``getattr(x, name)`` with a
-non-constant ``name``, ``eval``/``exec``); a value that flows from a
+non-constant ``name``, ``eval``/``exec``); the provenance module rebound to
+another name (``p = prov; p.recall(...)``) or star-imported
+(``from chronicler.provenance import *`` then ``recall(...)``); a value that flows from a
 registered ``cites`` helper into a decision elsewhere (the classification is
 a human review per reading function, so a new ``cites`` row must be read like
 code, callers included); a read hidden behind a non-provenance helper that

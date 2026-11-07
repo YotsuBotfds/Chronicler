@@ -794,3 +794,23 @@ def test_zero_amount_events_are_counted_not_paired_and_a_sack_without_a_sacker_i
     assert zero["occupation_plunder"] == 1 and zero["city_sack"] == 1
     assert not _entries(frame, "occupation_plunder")
     assert [(e["actor"], e["victim"], e["amount"]) for e in _entries(frame, "city_sack_loss")] == [(None, B, 7.5)]
+
+
+def test_no_more_deaths_are_labelled_war_drain_than_the_drains_staged():
+    """Crag staged one death; three of B's soldiers there (two armies) died:
+    one is war_drain, the other two natural and counted beyond the staged."""
+    from chronicler.war.armies import drain_population
+    world = _world()
+    ctx, war = start_war(world)
+    ctx, bridge, army_a, army_b = _armies(world, war)
+    second = place_army(world, "B", "Crag", 10, war.war_key, roster=[(i, CRAG) for i in range(51, 61)])
+    second.raised_turn = world.turn
+    drain_population(ctx, ["Crag"], 1, actor=world.civ_map["A"])
+    dead = {1, 2, 51}
+    alive = [(i, CRAG, 1, B) for i in list(range(1, 31)) + list(range(51, 61)) if i not in dead]
+    alive += [(i, AVALON, 1, A) for i in range(101, 141)]
+    reconcile_rosters(world, FakeSnapshot(alive))
+    frame = _commit(world)
+    rows = {(r["cause"], r["actor"]): r["deaths"] for r in _rows(frame, victim=B)}
+    assert rows == {("war_drain", A): 1, ("natural", None): 2}
+    assert [(d["staged"], d["labelled"], d["beyond_staged"]) for d in frame["casualties"]["war_drains"]] == [(1, 1, 2)]

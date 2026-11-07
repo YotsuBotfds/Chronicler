@@ -77,9 +77,12 @@ LABELS: dict[str, str] = {
                    "partisans are drawn from the population); attrition: terrain, hunger, supply and siege "
                    "disease (no actor; the war's other side is the opponent); war_drain: found dead after the "
                    "tick in a region where a war drain (siege civilians, a battle's garrison, occupation "
-                   "depopulation, a crushed revolt) staged deaths that turn, the drain's actor when the region's "
-                   "drains name one (possibly_enemy: several or none) - possibly killed by it, possibly natural; "
-                   "natural: the other deaths found after the tick, which reconcile_rosters books as army "
+                   "depopulation, a crushed revolt) staged deaths that turn, at most as many per region and turn "
+                   "as were staged there, with the drain's actor when the region's drains name one - possibly "
+                   "killed by it, possibly natural; possibly_enemy: the same where the drains name several "
+                   "actors or none (nomad raids and a roster-less army's own casualties drain without naming "
+                   "one); natural: the other deaths found after the tick (beyond_staged counts those in a "
+                   "drained region beyond its staged deaths), which reconcile_rosters books as army "
                    "casualties (no actor): native mortality including its x2 for soldiers at war, which cannot "
                    "be separated without a native change, plague and other non-war catastrophes. Militia, "
                    "mercenary and civilian deaths are not soldiers of a roster and are not here (battle records "
@@ -112,7 +115,8 @@ LABELS: dict[str, str] = {
 class _Turn:
     """The notes of one turn, first note to the Phase 10 commit (never checkpointed)."""
 
-    __slots__ = ("turn", "casualties", "entries", "seizures", "granary_flows", "retail_seqs", "drains")
+    __slots__ = ("turn", "casualties", "entries", "seizures", "granary_flows", "retail_seqs", "drains",
+                 "drain_used", "beyond_staged")
 
     def __init__(self, turn: int):
         self.turn = turn
@@ -122,6 +126,8 @@ class _Turn:
         self.granary_flows: set[int] = set()
         self.retail_seqs: set[int] = set()
         self.drains: dict[int, list[tuple[int, int | None, str | None]]] = {}
+        self.drain_used: dict[int, int] = {}       # region -> deaths labelled war_drain/possibly_enemy
+        self.beyond_staged: dict[int, int] = {}    # region -> deaths beyond the staged count (natural)
 
 
 # ---------------------------------------------------------------------------
@@ -325,8 +331,10 @@ def note_natural_deaths(world, army, entries) -> None:
     """``war.armies.reconcile_rosters``: the roster entries ``(agent id,
     region)`` of ``army`` found dead after the native tick, booked there as
     casualties. A death in a region where a war drain staged deaths this turn
-    is ``war_drain`` (the drains name one actor) or ``possibly_enemy``;
-    otherwise ``natural``."""
+    is ``war_drain`` (the drains name one actor) or ``possibly_enemy``, at most
+    as many per region and turn (over all armies) as the drains staged there:
+    the rest, and deaths elsewhere, are ``natural`` (``beyond_staged`` counts
+    them per region)."""
     if not entries:
         return
     state = _state(world)
@@ -339,7 +347,12 @@ def note_natural_deaths(world, army, entries) -> None:
         hit = drains.get(region)
         if not hit:
             key = ("natural", None)
+        elif t.drain_used.get(region, 0) >= sum(n for n, _i, _a in hit):
+            # More deaths here than the drains staged: these cannot be theirs.
+            t.beyond_staged[region] = t.beyond_staged.get(region, 0) + 1
+            key = ("natural", None)
         else:
+            t.drain_used[region] = t.drain_used.get(region, 0) + 1
             actors = {(idx, name) for _n, idx, name in hit}
             key = ("war_drain", next(iter(actors))) if len(actors) == 1 and None not in next(iter(actors)) \
                 else ("possibly_enemy", None)
@@ -567,7 +580,8 @@ def _casualties(world, state: AttributionRecordsState, t: _Turn, turn: int) -> d
             _bump(state, "battle_checks_failed")
     war_drains = [{"region": rid, "staged": sum(n for n, _i, _a in hits),
                    "actors": sorted({a for _n, _i, a in hits if a is not None}),
-                   "unnamed": sum(1 for _n, i, _a in hits if i is None)}
+                   "unnamed": sum(1 for _n, i, _a in hits if i is None),
+                   "labelled": t.drain_used.get(rid, 0), "beyond_staged": t.beyond_staged.get(rid, 0)}
                   for rid, hits in sorted(t.drains.items())]
     by_class = {c: 0 for c in CASUALTY_CLASSES}
     by_cause = {c: 0 for c in CASUALTY_CAUSES}

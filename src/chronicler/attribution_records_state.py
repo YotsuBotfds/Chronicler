@@ -34,7 +34,8 @@ from pydantic import BaseModel, Field, PrivateAttr
 #: (``war.armies.drain_population``: siege civilians, a battle's garrison,
 #: occupation depopulation, a crushed revolt) staged deaths that turn:
 #: ``war_drain`` when that region's drains name one actor, ``possibly_enemy``
-#: when they name several or none.
+#: when they name several or none (nomad raids and a roster-less army's own
+#: casualties name none), at most the staged count per region and turn.
 CASUALTY_CAUSES: tuple[str, ...] = ("battle", "trapped", "revolt", "attrition", "natural", "war_drain",
                                     "possibly_enemy")
 #: The class each cause belongs to (the separation D2 records).

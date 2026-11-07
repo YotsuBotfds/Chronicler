@@ -120,12 +120,15 @@ and `deaths`. Classes and causes:
   owner polity, whose partisans are drawn from the population).
 - `attrition`: terrain, hunger, supply, siege disease; no actor.
 - `war_drain`: an enlisted agent found dead after the tick in a region where a war drain
-  (`drain_population`: siege civilians, a battle's garrison, occupation depopulation, a crushed
-  revolt) staged deaths that turn. The native tick kills staged catastrophe deaths among all the
+  (`drain_population`: siege civilians, a battle's garrison, occupation depopulation and a crushed
+  revolt, which name their actor; nomad raids and a roster-less army's own casualties, which name
+  none) staged deaths that turn. The native tick kills staged catastrophe deaths among all the
   region's people, soldiers included, so such a death may be the drain's or natural: cause
   `war_drain` with the drain's actor when the region's drains that turn name one, `possibly_enemy`
-  (no actor) when they name several or none. `war_drains` lists the drains (region, staged deaths,
-  named actors, unnamed drains).
+  (no actor) when they name several or none. At most as many deaths per region and turn (over all
+  armies, in roster order) are labelled so as the drains staged there; further deaths there are
+  `natural`. `war_drains` lists per region the staged deaths, the named actors, the unnamed drains,
+  the deaths `labelled` and those `beyond_staged`.
 - `natural`: the other deaths found after the tick: native mortality, including its x2 for
   Soldier-occupation agents at war (`demographics.rs`; separating it needs a native change, D3),
   plague and other non-war catastrophes. No actor.
@@ -227,7 +230,9 @@ row, a new `decision` row, or an undeclared read function in `provenance.py`. Th
 and war modules read none.
 
 Limits (not caught): a name computed at run time (`getattr(x, name)` with a non-constant name,
-`eval`/`exec`); a value that flows from a registered `cites` helper into a decision elsewhere (the
+`eval`/`exec`); the provenance module rebound to another name (`p = prov; p.recall(...)`) or
+star-imported (`from chronicler.provenance import *`, then `recall(...)`); neither occurs in the
+source today; a value that flows from a registered `cites` helper into a decision elsewhere (the
 classification is a human review per reading function, so a new `cites` row must be read like
 code, callers included); a read hidden behind a non-provenance helper; and the provenance-shaped
 timeline itself: `provenance.observe` folds chronic repeats of some event types, so a decision
@@ -359,7 +364,9 @@ What the records show on these worlds:
 - Army casualty counters merge 400 combat, 55 attrition, 14 war-drain and 76 natural deaths:
   90 of 545 soldiers' deaths (17%) were not campaign casualties, and 14 of those died where a
   siege, garrison fight, occupation or crushed revolt had staged deaths that turn (each region's
-  drains named one actor; no `possibly_enemy` death occurred).
+  drains named one actor; no `possibly_enemy` death occurred). These counts predate the bound on
+  the staged count (final check F2); with it, deaths beyond a region's staged deaths are natural
+  (procedural 7, turn 46: one `war_drain`, two natural where one death was staged).
 - Every recorded cross-polity treasury burden of war but treaties and sacks is minted or
   destroyed: occupation plunder (71) and requisitions (158) are credited to occupiers and taken
   from no one, while owners lose 280 to occupation, spent into nothing. The real cross-polity
@@ -379,6 +386,7 @@ oracle lane and development outputs).
 - No consumer: no grievance, diplomacy or movement reads the record (by design; D1 decides a
   replacement behind its own switch).
 - The native soldier-at-war x2 mortality stays inside `natural` (needs a native change, D3); a
-  `war_drain` death may still be natural (the native tick does not say which).
+  `war_drain` death may still be natural (the native tick does not say which; at most the staged
+  count is labelled).
 - The seven pre-existing decision reads of provenance are recorded, not changed.
 - Diplomacy tribute installments and vassal tribute are not itemized.

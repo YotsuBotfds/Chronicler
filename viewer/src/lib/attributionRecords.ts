@@ -71,7 +71,11 @@ export interface IdentityEvent { turn: number; kind: IdentityKind; civ: number; 
 /** Per battle and side: recorded battle deaths at most the battle record's losses (null: no record). */
 export interface BattleCheck { battle: number; side: string; recorded: number; battle_losses: number | null; holds: boolean }
 /** Deaths a war drain staged in a region this turn, with the actors it named. */
-export interface WarDrain { region: number; staged: number; actors: string[]; unnamed: number }
+export interface WarDrain {
+  region: number; staged: number; actors: string[]; unnamed: number;
+  /** Deaths labelled war_drain or possibly_enemy there (at most `staged`) and those beyond it (natural). */
+  labelled?: number; beyond_staged?: number;
+}
 
 export interface AttributionFrame {
   turn: number;
@@ -135,7 +139,9 @@ function casualtyProblem(c: unknown, civs: number): string | null {
       || !one(CASUALTY_CAUSES, r.cause) || !one(CASUALTY_CLASSES, r.class) || !optionalText(r.kind) || !count(r.deaths))
       return "malformed casualty row";
     if (CLASS_OF[r.cause as CasualtyCause] !== r.class) return "a casualty row in the wrong class";
-    if (r.class !== "combat" && r.actor !== null) return "an actor on a non-combat death";
+    // Combat rows name the other side; war_drain rows the drain's actor. Attrition, natural and
+    // possibly_enemy deaths have no actor.
+    if (r.class !== "combat" && r.cause !== "war_drain" && r.actor !== null) return "an actor on a death without one";
   }
   for (const a of c.armies) {
     if (!object(a) || !text(a.army) || !index(a.civ, civs) || !count(a.recorded)
@@ -146,7 +152,9 @@ function casualtyProblem(c: unknown, civs: number): string | null {
     && count(b.battle) && text(b.side) && count(b.recorded) && (b.battle_losses === null || count(b.battle_losses))
     && typeof b.holds === "boolean"))) return "malformed battle checks";
   if (c.war_drains !== undefined && (!Array.isArray(c.war_drains) || !c.war_drains.every((d) => object(d)
-    && count(d.region) && count(d.staged) && Array.isArray(d.actors) && d.actors.every(text) && count(d.unnamed))))
+    && count(d.region) && count(d.staged) && Array.isArray(d.actors) && d.actors.every(text) && count(d.unnamed)
+    && (d.labelled === undefined || (count(d.labelled) && d.labelled <= d.staged))
+    && (d.beyond_staged === undefined || count(d.beyond_staged)))))
     return "malformed war drains";
   return null;
 }

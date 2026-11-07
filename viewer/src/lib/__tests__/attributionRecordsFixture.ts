@@ -47,3 +47,194 @@ export const empty = {
   burdens: { pairs: [], entries: [], entries_dropped: 0, retail_unattributed: null },
   identity: [],
 };
+
+/** The casualties of a real war-drain turn: procedural 32x10 seed 7, snapshot 47 (simulation turn 46),
+ * `--agents hybrid --grain-reserves --attribution-records` on the D2 review revision (10 civilizations,
+ * 32 regions). Region 7 staged one death: one Quserai soldier is war_drain (actor Yatain Tribes), the
+ * two others there are natural (beyond the staged count). */
+export const p7Turn46Casualties = {
+  "rows": [
+    {
+      "war": "Kingdom of Quserai:Qayaguri Kingdom",
+      "war_start": 44,
+      "victim": 0,
+      "victim_name": "Kingdom of Quserai",
+      "actor": null,
+      "actor_name": null,
+      "opponent": 4,
+      "opponent_name": "Qayaguri Kingdom",
+      "cause": "natural",
+      "class": "natural",
+      "kind": null,
+      "deaths": 2
+    },
+    {
+      "war": "Kingdom of Quserai:Qayaguri Kingdom",
+      "war_start": 44,
+      "victim": 0,
+      "victim_name": "Kingdom of Quserai",
+      "actor": 8,
+      "actor_name": "Yatain Tribes",
+      "opponent": 4,
+      "opponent_name": "Qayaguri Kingdom",
+      "cause": "war_drain",
+      "class": "war_drain",
+      "kind": null,
+      "deaths": 1
+    },
+    {
+      "war": "Kingdom of Quserai:Yatain Tribes",
+      "war_start": 44,
+      "victim": 0,
+      "victim_name": "Kingdom of Quserai",
+      "actor": 8,
+      "actor_name": "Yatain Tribes",
+      "opponent": 8,
+      "opponent_name": "Yatain Tribes",
+      "cause": "battle",
+      "class": "combat",
+      "kind": "field",
+      "deaths": 1
+    },
+    {
+      "war": "Kingdom of Quserai:Yatain Tribes",
+      "war_start": 44,
+      "victim": 8,
+      "victim_name": "Yatain Tribes",
+      "actor": 0,
+      "actor_name": "Kingdom of Quserai",
+      "opponent": 0,
+      "opponent_name": "Kingdom of Quserai",
+      "cause": "battle",
+      "class": "combat",
+      "kind": "field",
+      "deaths": 5
+    },
+    {
+      "war": "Mochumi League:Qayaguri Kingdom",
+      "war_start": 44,
+      "victim": 4,
+      "victim_name": "Qayaguri Kingdom",
+      "actor": null,
+      "actor_name": null,
+      "opponent": 7,
+      "opponent_name": "Mochumi League",
+      "cause": "attrition",
+      "class": "attrition",
+      "kind": null,
+      "deaths": 1
+    },
+    {
+      "war": "Mochumi League:Yatain Tribes",
+      "war_start": 44,
+      "victim": 8,
+      "victim_name": "Yatain Tribes",
+      "actor": 9,
+      "actor_name": "Clans of Domukhan",
+      "opponent": 7,
+      "opponent_name": "Mochumi League",
+      "cause": "war_drain",
+      "class": "war_drain",
+      "kind": null,
+      "deaths": 1
+    }
+  ],
+  "by_class": {
+    "combat": 6,
+    "attrition": 1,
+    "natural": 2,
+    "war_drain": 2
+  },
+  "by_cause": {
+    "battle": 6,
+    "trapped": 0,
+    "revolt": 0,
+    "attrition": 1,
+    "natural": 2,
+    "war_drain": 2,
+    "possibly_enemy": 0
+  },
+  "unresolved": 0,
+  "armies": [
+    {
+      "army": "army-11",
+      "civ": 6,
+      "civ_name": "Samiran Empire",
+      "recorded": 0,
+      "counter_change": 0,
+      "closes": true
+    },
+    {
+      "army": "army-6",
+      "civ": 8,
+      "civ_name": "Yatain Tribes",
+      "recorded": 6,
+      "counter_change": 6,
+      "closes": true
+    },
+    {
+      "army": "army-7",
+      "civ": 4,
+      "civ_name": "Qayaguri Kingdom",
+      "recorded": 1,
+      "counter_change": 1,
+      "closes": true
+    },
+    {
+      "army": "army-8",
+      "civ": 9,
+      "civ_name": "Clans of Domukhan",
+      "recorded": 0,
+      "counter_change": 0,
+      "closes": true
+    },
+    {
+      "army": "army-9",
+      "civ": 0,
+      "civ_name": "Kingdom of Quserai",
+      "recorded": 4,
+      "counter_change": 4,
+      "closes": true
+    }
+  ],
+  "battle_checks": [
+    {
+      "battle": 11,
+      "side": "Kingdom of Quserai",
+      "recorded": 1,
+      "battle_losses": 1,
+      "holds": true
+    },
+    {
+      "battle": 11,
+      "side": "Yatain Tribes",
+      "recorded": 5,
+      "battle_losses": 5,
+      "holds": true
+    }
+  ],
+  "war_drains": [
+    {
+      "region": 7,
+      "staged": 1,
+      "actors": [
+        "Yatain Tribes"
+      ],
+      "unnamed": 0,
+      "labelled": 1,
+      "beyond_staged": 2
+    },
+    {
+      "region": 9,
+      "staged": 1,
+      "actors": [
+        "Clans of Domukhan"
+      ],
+      "unnamed": 0,
+      "labelled": 1,
+      "beyond_staged": 0
+    }
+  ]
+};
+
+export const p7Turn46 = { ...empty, turn: 46, casualties: p7Turn46Casualties };

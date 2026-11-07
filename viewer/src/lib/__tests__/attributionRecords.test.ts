@@ -1,7 +1,7 @@
 import { expect, it } from "vitest";
 import type { TurnSnapshot } from "../../types";
 import { attributionOn, readAttribution } from "../attributionRecords";
-import { empty, frame, record } from "./attributionRecordsFixture";
+import { empty, frame, p7Turn46, record } from "./attributionRecordsFixture";
 
 const at = (livelihoods: unknown, turn = 10) => ({ turn, livelihoods }) as unknown as TurnSnapshot;
 const read = (livelihoods: unknown, on = true, turn = 10) => readAttribution(at(livelihoods, turn), on, 3, 2);
@@ -40,7 +40,11 @@ it("rejects malformed records with a reason", () => {
     [withFrame({ casualties: { ...frame.casualties, rows: [{ ...row, cause: "plague" }] } }), "malformed casualty row"],
     [withFrame({ casualties: { ...frame.casualties, rows: [{ ...row, class: "natural" }] } }), "a casualty row in the wrong class"],
     [withFrame({ casualties: { ...frame.casualties, rows: [{ ...frame.casualties.rows[1], actor: 1 }] } }),
-      "an actor on a non-combat death"],
+      "an actor on a death without one"],
+    [withFrame({ casualties: { ...frame.casualties, rows: [{ ...frame.casualties.rows[1], cause: "possibly_enemy",
+      class: "war_drain", actor: 1 }] } }), "an actor on a death without one"],
+    [withFrame({ casualties: { ...frame.casualties, war_drains: [{ region: 1, staged: 1, actors: [], unnamed: 1,
+      labelled: 2, beyond_staged: 0 }] } }), "malformed war drains"],
     [withFrame({ casualties: { ...frame.casualties, rows: [{ ...row, victim: 5 }] } }), "malformed casualty row"],
     [withFrame({ granary: { active: false, seizures: frame.granary.seizures, unattributed: null } }),
       "inactive granaries with seizures"],
@@ -56,4 +60,18 @@ it("rejects malformed records with a reason", () => {
     [withFrame({ burdens: { ...frame.burdens, zero_events: { city_sack: -1 } } }), "malformed zero events"],
   ];
   for (const [livelihoods, reason] of cases) expect(read(livelihoods)).toEqual({ state: "malformed", reason });
+});
+
+it("reads a real war-drain turn: the drain's actor is accepted, the rest stay natural", () => {
+  const snapshot = { turn: 47, livelihoods: { schema_version: 1, attribution_records: record({ source_turn: 46,
+    frame: p7Turn46 }) } } as unknown as TurnSnapshot;
+  const reading = readAttribution(snapshot, true, 32, 10);
+  expect(reading.state).toBe("recorded");
+  if (reading.state !== "recorded") return;
+  const drain = reading.frame.casualties.rows.filter((r) => r.cause === "war_drain");
+  expect(drain.map((r) => [r.victim_name, r.actor_name, r.deaths])).toEqual([
+    ["Kingdom of Quserai", "Yatain Tribes", 1], ["Yatain Tribes", "Clans of Domukhan", 1]]);
+  expect(reading.frame.casualties.war_drains?.[0]).toEqual({ region: 7, staged: 1, actors: ["Yatain Tribes"],
+    unnamed: 0, labelled: 1, beyond_staged: 2 });
+  expect(reading.frame.casualties.by_class).toEqual({ combat: 6, attrition: 1, natural: 2, war_drain: 2 });
 });
