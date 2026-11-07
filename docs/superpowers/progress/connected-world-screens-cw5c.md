@@ -244,8 +244,9 @@ All on this branch; native runs with `~/.venvs/native-a3` (extension `20e77f99..
 - **Affected suites under the native venv** (catalog, matrix, A1 ledger and native ledger, seam,
   manifest, D2 and native D2, C1 and native C1, screen runner, shards, L9 and native L9,
   epidemiology, A3 and native A3, PL3, health care, sprint witness, retail): 840 passed.
-- **Offline lane** `python scripts/run_python_oracle_checks.py`: PASS, 71 chunks in 316.9 s; the
-  new chunk `connected-world-c2` 1.3 s of 110 s; slowest chunk `systems-2` 37.4 s (shared load).
+- **Offline lane** `python scripts/run_python_oracle_checks.py` on `120d8c46`: PASS, 71 chunks in
+  264.1 s (an earlier run during development: 316.9 s); the new chunk `connected-world-c2` (45 tests)
+  1.3 s of 110 s; slowest chunk `systems-2` 29.3 s.
 - **Witness suites** (sprint with layer `cwc2` last, restoration, scenarios, information x2,
   academy, household mobility, crisis, food accounting, grain release, public grain shipments,
   regional population, health care policy, practice observer x2, native shards, preflight): 574
@@ -272,9 +273,8 @@ All on this branch; native runs with `~/.venvs/native-a3` (extension `20e77f99..
   of a C2 world with `--agents off` exits with one line, `Error: --epidemic-care requires --agents
   hybrid; this world has it on: pass --no-epidemic-care to end it`, rc 1; in hybrid it continues
   (the rebuilt pool drops the frame's ids, the dated capacity stays).
-- **Viewer** (`viewer/`, `npm test -- --maxWorkers=1`): 163 files, 1,612 passed, 2 skipped; `npm
-  run lint` clean; `npm run build` passes (after the type fix at `f6ce8727`; the care and systems
-  panel tests rerun: 83 passed).
+- **Viewer** (`viewer/`, `npm test -- --maxWorkers=1`, on `f28ffabd`): 163 files, 1,612 passed, 2
+  skipped; `npm run lint` clean; `npm run build` passes (after the type fix at `f6ce8727`).
 - **Not run:** the 200-seed and procedural qualification gates (restricted); the CW5c held cohort
   (awaits the freeze); `cargo` builds and Rust tests (no Rust change); browser journeys of the care
   panel.
