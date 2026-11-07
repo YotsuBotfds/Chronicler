@@ -18,6 +18,8 @@ import type { TurnSnapshot } from "../types";
 export const CAUSES = ["flight", "hunger"] as const;
 export const ANCHORS = ["war", "famine", "persecution", "none"] as const;
 export const MOVE_GROUPS = ["flight", "hunger", "voluntary", "other"] as const;
+/** Optional physical-arrival diagnostics added after the original X1 records. */
+export const ARRIVAL_COUNT_KEYS = ["recent_residence_arrivals", "recent_residence_arrivals_unknown_reason"] as const;
 export const CLOSURES = ["returned", "resettled", "died", "pool_reset", "unobserved_gap"] as const;
 /** ``residence_ledger_state.REGION_KEYS`` (declaration order). */
 export const REGION_KEYS = [
@@ -64,14 +66,18 @@ export type Anchor = (typeof ANCHORS)[number];
 export type Closure = (typeof CLOSURES)[number];
 export type RegionKey = (typeof REGION_KEYS)[number];
 export type TotalKey = (typeof TOTAL_KEYS)[number];
-export type ResidenceRegionRow = Record<RegionKey, number>;
-export type ResidenceTotals = Record<TotalKey, number>;
+export type ResidenceRegionRow = Record<RegionKey, number> & Partial<Record<typeof ARRIVAL_COUNT_KEYS[number], number>>;
+export type ResidenceTotals = Record<TotalKey, number> & Partial<Record<typeof ARRIVAL_COUNT_KEYS[number], number>>;
+export interface ArrivalDiagnostics {
+  window_turns: 20; coverage_complete: boolean; window_complete: boolean; complete: boolean;
+}
 
 export interface ResidenceFrame {
   turn: number;
   observed_from: number;
   totals: ResidenceTotals;
   regions: ResidenceRegionRow[];
+  arrival_diagnostics?: ArrivalDiagnostics;
 }
 
 export interface SpellEvent {
@@ -118,6 +124,18 @@ function validFrame(f: unknown, regions: number, source: number): f is Residence
   if (new Set(rows.map((r) => r.region)).size !== rows.length) return false;
   const sum = (key: RegionKey) => rows.reduce((a, r) => a + r[key], 0);
   const totals = t as ResidenceTotals;
+  const arrival = f.arrival_diagnostics;
+  const hasArrivalCounts = ARRIVAL_COUNT_KEYS.some(k => t[k] !== undefined || rows.some(r => r[k] !== undefined));
+  if (arrival !== undefined || hasArrivalCounts) {
+    if (!object(arrival) || arrival.window_turns !== 20
+      || ![arrival.coverage_complete, arrival.window_complete, arrival.complete].every(v => typeof v === "boolean")
+      || arrival.complete !== (arrival.coverage_complete && arrival.window_complete)
+      || !ARRIVAL_COUNT_KEYS.every(k => count(t[k]) && rows.every(r => count(r[k])))) return false;
+    const [arrived, unknown] = ARRIVAL_COUNT_KEYS;
+    if (Number(t[unknown]) > Number(t[arrived]) || Number(t[arrived]) > totals.observed
+      || rows.some(r => Number(r[unknown]) > Number(r[arrived]) || Number(r[arrived]) > r.residents)
+      || !ARRIVAL_COUNT_KEYS.every(k => rows.reduce((n,r) => n + Number(r[k]), 0) === t[k])) return false;
+  }
   // Region rows add up to the world totals they share.
   return sum("residents") === totals.observed && sum("displaced") === totals.displaced
     && sum("displaced_from") === totals.displaced && sum("departures") === totals.moves
@@ -149,7 +167,8 @@ export function residenceLedgerAt(snapshot: TurnSnapshot | null, regions: number
 
 /** Whether an observed frame records nothing: no one displaced or attached, no move, opening, closure or death. */
 export function residenceZero(frame: ResidenceFrame): boolean {
-  return ZERO_KEYS.every((k) => frame.totals[k] === 0);
+  return ZERO_KEYS.every((k) => frame.totals[k] === 0)
+    && !(frame.arrival_diagnostics && Number(frame.totals.recent_residence_arrivals) > 0);
 }
 
 /** Whether any snapshot of the run carries a residence ledger record. */

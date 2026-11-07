@@ -8,14 +8,20 @@ export interface WorkExperience {
 export interface OfferExperience { turn: number; id: number; kind: string; would_decline: boolean; accepted: boolean }
 export interface MoveExperience { turn: number; id: number; kind: "refused" | "left_soon"; region: number; origin?: number; gate?: number }
 export interface TradeExperience { turn: number; id: number; region: number; kind: "shipment"; outcome: string; cause: string | null; shipment: number; package?: "titled_trade" | "timber_orders" }
+export const DECISION_CHANNELS = ["all", "no_migration_experience", "no_information", "no_work", "no_trade"] as const;
+export type DecisionChannels = typeof DECISION_CHANNELS[number];
 export interface AdaptiveRecord {
-  schema_version: 1; stage: "A6"; source_turn: number; mode: "adapt" | "record_only" | "shuffled"; rules: "1" | "2";
+  schema_version: 1; stage: "A6"; source_turn: number; mode: "adapt" | "record_only" | "shuffled"; rules: "1" | "2" | "3";
+  decision_channels?: DecisionChannels;
   frame: null | { turn: number; rows: [number,number,number][]; rows_installed: number; rows_total?: number; rows_dropped?: number;
     refusals: MoveExperience[]; quick_departures: MoveExperience[]; receipt: unknown;
     refusals_total?: number; refusals_dropped?: number; quick_departures_total?: number; quick_departures_dropped?: number;
     work: WorkExperience[]; work_dropped: number; offers: OfferExperience[]; offers_dropped: number;
     known_destinations?: [number,number,number][]; known_destinations_total?: number; known_destinations_dropped?: number;
-    information_gate_installed?: boolean; trade?: TradeExperience[]; trade_dropped?: number };
+    information_gate_installed?: boolean; trade?: TradeExperience[]; trade_dropped?: number;
+    decision_channels?: DecisionChannels; a6_rows?: [number,number,number][]; a6_rows_total?: number;
+    d3_rows?: [number,number,number][]; d3_rows_total?: number;
+    migration_rows_would?: [number,number,number][]; migration_rows_would_total?: number };
   memory_rows: number; work_rows: number; counters: Record<string,number>; parameters: Record<string,number>;
 }
 export interface WarExperience { turn: number; kind: "wounded" | "would_wound" | "released" | "evacuated" | "returned"; id: number; region: number; army?: string; cause: string; destination?: number; home?: number }
@@ -39,8 +45,10 @@ function packageAt(s: TurnSnapshot, key: string, stage: string): Record<string,u
 }
 export function adaptiveAt(snapshot: TurnSnapshot, regions: number): AdaptiveRecord | null {
   const x = packageAt(snapshot,"adaptive_livelihoods","A6"), region = (r: unknown) => count(r) && r < regions;
-  if (!x || !["adapt","record_only","shuffled"].includes(x.mode as string) || !["1","2"].includes(x.rules as string)
+  if (!x || !["adapt","record_only","shuffled"].includes(x.mode as string) || !["1","2","3"].includes(x.rules as string)
     || !count(x.memory_rows) || !count(x.work_rows) || !counters(x.counters) || !counters(x.parameters)) return null;
+  if (x.decision_channels !== undefined && !DECISION_CHANNELS.includes(x.decision_channels as DecisionChannels)
+    || x.rules === "3" && x.decision_channels === undefined) return null;
   if (x.frame === null) return x as unknown as AdaptiveRecord;
   const f = x.frame;
   if (!object(f) || f.turn !== x.source_turn || !Array.isArray(f.rows) || f.rows.length > 256 || !count(f.rows_installed)
@@ -67,6 +75,32 @@ export function adaptiveAt(snapshot: TurnSnapshot, regions: number): AdaptiveRec
     || !f.known_destinations.every((r)=>Array.isArray(r) && r.length===3 && count(r[0]) && region(r[1]) && count(r[2]) && r[2]>=1 && r[2]<=7))) return null;
   if (f.information_gate_installed !== undefined && typeof f.information_gate_installed !== "boolean") return null;
   if (f.trade !== undefined && (!Array.isArray(f.trade) || f.trade.length > 256 || !f.trade.every((r)=>object(r) && dated(r) && r.kind === "shipment" && region(r.region) && count(r.shipment) && typeof r.outcome === "string" && (r.cause === null || typeof r.cause === "string") && (r.package === undefined || r.package === "titled_trade" || r.package === "timber_orders")))) return null;
+  if (x.rules === "3") {
+    if (f.decision_channels !== x.decision_channels || f.rows_total !== f.rows_installed) return null;
+    const components: Record<string, [number,number,number][]> = {};
+    for (const key of ["a6_rows", "d3_rows", "migration_rows_would"]) {
+      const rows = f[key], total = f[key + "_total"];
+      if (!Array.isArray(rows) || !count(total) || rows.length !== Math.min(256,total)
+        || !rows.every(r => Array.isArray(r) && r.length === 3 && count(r[0]) && region(r[1]) && finite(r[2]) && Math.abs(r[2]) <= .300001)) return null;
+      components[key] = rows as [number,number,number][];
+    }
+    if ((x.mode === "record_only" || x.decision_channels === "no_migration_experience") && f.a6_rows_total !== 0
+      || (x.mode === "record_only" || x.decision_channels === "no_information") && f.information_gate_installed !== false
+      || (x.mode === "record_only" || x.decision_channels === "no_work") && f.offers.some(o => object(o) && !o.accepted)) return null;
+    const keys = f.rows.map(r => `${r[0]}:${r[1]}`);
+    if (new Set(keys).size !== keys.length) return null;
+    // Only complete samples can prove that the installed rows equal both
+    // components. A missing bounded component is never silently a zero.
+    if (Number(f.a6_rows_total) <= 256 && Number(f.d3_rows_total) <= 256 && Number(f.rows_total) <= 256) {
+      const combined = new Map<string,number>();
+      for (const [id,target,value] of [...components.a6_rows,...components.d3_rows]) {
+        const key = `${id}:${target}`; combined.set(key,(combined.get(key) ?? 0) + value);
+      }
+      for (const [key,value] of combined) combined.set(key,Math.max(-.3,Math.min(.3,value)));
+      for (const [key,value] of combined) if (value === 0) combined.delete(key);
+      if (combined.size !== f.rows.length || !f.rows.every(r => combined.has(`${r[0]}:${r[1]}`) && Math.abs(combined.get(`${r[0]}:${r[1]}`)!-r[2]) <= 1e-6)) return null;
+    }
+  }
   return x as unknown as AdaptiveRecord;
 }
 export function warConsequencesAt(snapshot: TurnSnapshot, regions: number): WarConsequencesRecord | null {

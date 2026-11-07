@@ -37,7 +37,8 @@ export function ResidenceLedger({ bundle, snapshot, currentTurn, onSelectRegion 
   const frame = record.frame;
   const p = record.parameters as Record<string, number>;
   const intro = <>
-    <p className="systems-note">Simulation turn {record.source_turn}, observed since turn {frame.observed_from} (earlier history is unknown, not zero). Record only: nothing in the simulation reads this panel's numbers. A person is displaced from the move that left home driven by flight (memories of famine, battle, conquest or persecution; persecution; the safety need) or hunger until they return home, resettle ({p.rehome_turns ?? 20} turns at one residence; moving on, for any reason, keeps them displaced) or die. The anchor is the event at home in the {p.anchor_turns ?? 5} turns before leaving: war (a change of ruler between civilizations, an occupation, a conquest, a battle or a siege), famine, persecution, or none. A voluntary migrant takes their new region as home at once; enlistment never changes home.</p>
+    <p className="systems-note">Simulation turn {record.source_turn}, observed since turn {frame.observed_from} (earlier history is unknown, not zero). These are motive-classified ledger spells, not a census of all physical displacement or measured housing pressure. A spell opens for a recorded flight or hunger driver until return, resettlement ({p.rehome_turns ?? 20} turns at one residence; moving on keeps the spell open), death or an observation gap. Its home anchor is a recorded event in the preceding {p.anchor_turns ?? 5} turns: war, famine, persecution, or none. Other or unknown move reasons do not establish a voluntary choice or absence of displacement; the ledger may update home immediately for those moves. Enlistment never changes residence or home.</p>
+    <ArrivalSummary frame={frame} turn={turn} link={link} />
   </>;
   if (reading.state === "recorded_zero") {
     return section(turn, <>{intro}<p className="systems-note">{reading.note}.</p>{recent}</>);
@@ -57,7 +58,7 @@ function Frame({ frame, events, dropped, turn, link }: {
   const closed = (["returned", "resettled", "died", "pool_reset", "unobserved_gap"] as const).filter((k) => t[k] > 0);
   const longest = events.filter((e) => e.kind !== "opened").reduce((m, e) => Math.max(m, e.length), 0);
   return <>
-    <p className="systems-note">{t.displaced} of {t.observed} people observed are displaced ({percent(t.displaced, t.observed)}): {t.displaced_flight} fled, {t.displaced_hunger} left hungry. Anchored at home to war {t.displaced_war}, famine {t.displaced_famine}, persecution {t.displaced_persecution}, no event {t.displaced_none}{t.anchor_partial ? ` (${t.anchor_partial} of them left before the ledger had watched their home for the whole window)` : ""}.{t.deferred ? ` ${t.deferred} merchant(s) first seen on a trip are recorded when it ends.` : ""}</p>
+    <p className="systems-note">{t.displaced} of {t.observed} people observed have motive-classified displacement spells ({percent(t.displaced, t.observed)}): {t.displaced_flight} recorded flight, {t.displaced_hunger} recorded hunger. Anchored at home to war {t.displaced_war}, famine {t.displaced_famine}, persecution {t.displaced_persecution}, no event {t.displaced_none}{t.anchor_partial ? ` (${t.anchor_partial} of them left before the ledger had watched their home for the whole window)` : ""}.{t.deferred ? ` ${t.deferred} merchant(s) first seen on a trip are recorded when it ends.` : ""}</p>
     <p className="systems-note">This turn: {t.moves} moves ({t.moves_flight} flight, {t.moves_hunger} hunger, {t.moves_voluntary} voluntary, {t.moves_other} other); {t.opened} spell(s) opened{t.opened_war ? ` (${t.opened_war} anchored to war)` : ""}; {closed.length ? closed.map((k) => `${t[k]} ${CLOSURE_LABEL[k]}`).join(", ") : "no spell closed"}; {t.rehomed} migrant(s) took a new home; {t.deaths} death(s){longest ? `; the longest spell closed lasted ${longest} turns` : ""}.{t.trip_relocations ? ` ${t.trip_relocations} trip(s) ended away from home (an unclassified relocation).` : ""}</p>
     {stock.length ? <div className="systems-table-wrap"><table className="systems-table" aria-label={`Open displacement spells at snapshot ${turn}`}>
       <thead><tr><th>Region</th><th>Residents</th><th>Displaced here (fled · hungry)</th><th>Anchor: war · famine · persecution · none</th><th>Displaced from here (war-anchored)</th></tr></thead>
@@ -86,6 +87,22 @@ function Frame({ frame, events, dropped, turn, link }: {
     {dropped ? <p className="systems-note">{dropped} spell event(s) of this turn are counted above but not kept by person.</p> : null}
     <p className="systems-note">For comparison only (the measures this record replaces): {percent(t.recent_movers_native, t.alive)} moved in the last five turns (the native displacement counter) and {percent(t.away_from_birth_region, t.alive)} live outside their birth region.</p>
   </>;
+}
+
+function ArrivalSummary({ frame, turn, link }: {
+  frame: ResidenceFrame; turn: number; link: (index: number) => ReactNode;
+}) {
+  const diagnostic = frame.arrival_diagnostics;
+  if (!diagnostic) return <p className="systems-note">Recent residence-arrival diagnostics were not recorded in this older observation; unknown, not zero.</p>;
+  const rows = frame.regions.filter(r => Number(r.recent_residence_arrivals) > 0);
+  return <div>
+    <h4>Recent residence arrivals</h4>
+    <p className="systems-note">{frame.totals.recent_residence_arrivals} retained living residents have a recorded residence arrival within {diagnostic.window_turns} turns; {frame.totals.recent_residence_arrivals_unknown_reason} have an unclassified latest arrival reason. Each person is counted once at their current recorded residence; returns and trips ending elsewhere can count. Arrival does not establish forced displacement or measured crowding. {diagnostic.complete ? "The observation window and population coverage are complete." : `Coverage ${diagnostic.coverage_complete ? "complete" : "incomplete"}; window ${diagnostic.window_complete ? "complete" : "incomplete"}. These are partial observed counts; the population arrival share is unknown, not zero.`}</p>
+    {rows.length ? <div className="systems-table-wrap"><table className="systems-table" aria-label={`Recent residence arrivals at snapshot ${turn}`}>
+      <thead><tr><th>Current residence</th><th>Observed residents</th><th>Recent arrivals</th><th>Latest reason unknown</th></tr></thead>
+      <tbody>{rows.map(r => <tr key={r.region}><td>{link(r.region)}</td><td>{r.residents}</td><td>{r.recent_residence_arrivals}</td><td>{r.recent_residence_arrivals_unknown_reason}</td></tr>)}</tbody>
+    </table></div> : <p className="systems-note">{diagnostic.complete ? "No recent residence arrivals (recorded zero)." : "No retained recent-arrival observations; incomplete coverage cannot establish a population zero."}</p>}
+  </div>;
 }
 
 /** The last few snapshots up to this one, each read on its own (its state named when it has no frame). */

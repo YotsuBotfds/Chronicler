@@ -22,6 +22,32 @@ describe("public health strict reading", () => {
     const u = snapshot(raw);
     expect(readPublicHealth(bundle([u]), u).state).toBe("unobserved");
   });
+  it("preserves legacy mode and distinguishes complete arrivals from unknown diagnostics", () => {
+    const old = publicHealthAt(snapshot(), 2, 2)!;
+    expect(old.crowding).toBe("legacy_displacement");
+    expect(old.crowding_recorded).toBe(false);
+    expect(old.environment[0].recent_arrival_share).toBeNull();
+    expect(old.environment[0].arrival_diagnostics_complete).toBeNull();
+    const e = { ...valid().environment[0], residence_observed: true, displaced_share: .5,
+      crowding_basis: "density_only", crowding_source_turn: 4, recent_arrival_share: .25, arrival_diagnostics_complete: true };
+    const current = snapshot({ ...valid(), crowding: "density_only", environment: [e] });
+    expect(publicHealthAt(current, 2, 2)?.environment[0].crowding_factor).toBe(1);
+    expect(readPublicHealth(bundle([current]), current).state).toBe("recorded");
+    expect(publicHealthAt(snapshot({ ...valid(), crowding: "density_only", environment: [{ ...e,
+      recent_arrival_share: null, arrival_diagnostics_complete: false }] }), 2, 2)).not.toBeNull();
+    for (const change of [{ crowding_factor: 1.125 }, { crowding_basis: "legacy_displacement" },
+      { arrival_diagnostics_complete: false }, { arrival_diagnostics_complete: null },
+      { residence_observed: false }, { recent_arrival_share: 1.1 }, { crowding_source_turn: 3 }, { crowding_source_turn: 5 }]) {
+      expect(publicHealthAt(snapshot({ ...valid(), crowding: "density_only", environment: [{ ...e, ...change }] }), 2, 2)).toBeNull();
+    }
+    expect(publicHealthAt(snapshot({ ...valid(), crowding: "density_only" }), 2, 2)).toBeNull();
+    expect(publicHealthAt(snapshot({ ...valid(), environment: [{ ...e, crowding_basis: "legacy_displacement", crowding_factor: 1.125, crowding_source_turn: 3 }] }), 2, 2)).not.toBeNull();
+    for (const invalid of [null, [], ["density_only"], 1]) {
+      expect(publicHealthAt(snapshot({ ...valid(), crowding: invalid, environment: [] }), 2, 2)).toBeNull();
+    }
+    expect(publicHealthAt(snapshot({ ...valid(), mode: ["active"] }), 2, 2)).toBeNull();
+    expect(publicHealthAt(snapshot({ ...valid(), policy: ["evidence"] }), 2, 2)).toBeNull();
+  });
   it.each(["source_turn", "report_turn", "environment_turn", "supply_turn"])("rejects misdated %s", key => {
     expect(publicHealthAt(snapshot({ ...valid(), [key]: 99 }), 2, 2)).toBeNull();
   });

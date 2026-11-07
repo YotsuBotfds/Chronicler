@@ -146,7 +146,7 @@ export function indexEntityHistory(bundle: Bundle): EntityHistoryIndex {
         if (r.events === null) { unknown(); continue; }
         if (r.events_dropped > 0) Object.assign(frame, { state: "truncated", reason: "Spell events were dropped; absence is not evidence of no event" });
         r.events.forEach((e, j) => add(ref("person", e.id), `/events/${j}`,
-          `Displacement spell ${e.kind}; cause ${e.cause}, home anchor ${e.anchor}; ${e.length} turns. This event does not record every residence`, e.region,[],"recorded","id",frame.sourceTurn,e.kind==="pool_reset"?r.source_turn-1:r.source_turn));
+          `Motive-classified displacement spell ${e.kind}; cause ${e.cause}, home anchor ${e.anchor}; ${e.length} turns. This event does not record every residence or establish all physical displacement`, e.region,[],"recorded","id",frame.sourceTurn,e.kind==="pool_reset"?r.source_turn-1:r.source_turn));
       } else if (key === "timber_orders") {
         const r = timberOrdersAt(snapshot, regions, civs);
         if (r.status === "malformed" || !r.record) { bad(); continue; }
@@ -222,9 +222,17 @@ export function indexEntityHistory(bundle: Bundle): EntityHistoryIndex {
         if (!r) { bad(); continue; }
         if (!r.enabled) { Object.assign(frame,{state:"disabled",reason:"Public health is explicitly disabled"}); continue; }
         if ([r.report_turn,r.environment_turn,r.supply_turn,r.guard_turn].every((t)=>t===null)) { unknown(); continue; }
+        const savedEnvironment=object(lh.public_health)&&Array.isArray(lh.public_health.environment)?lh.public_health.environment:[];
         r.environment.forEach((e,j)=>{
-          for(const [field,label,observed] of [["displaced_share","displaced share",e.residence_observed],["water_service","water service",e.sanitation_observed],["crowding_factor","crowding factor",e.residence_observed]] as const)
+          for(const [field,label,observed] of [["displaced_share","motive-classified spell share",e.residence_observed],["water_service","water service",e.sanitation_observed]] as const)
             add(ref("region",e.region),`/environment/${j}/${field}`,`Prior regional public-health exposure input: ${label} ${observed?num(e[field]):"unobserved, not zero"}. No individual diagnosis or mortality attribution`,e.region,[],observed?"recorded":"unknown","region",e.source_turn);
+          const configured=e.crowding_basis==="density_only",crowdingObserved=configured||e.residence_observed;
+          add(ref("region",e.region),`/environment/${j}/crowding_factor`,`${configured?"Current configured":"Prior motive-derived"} extra susceptibility multiplier: ${crowdingObserved?num(e.crowding_factor):"unobserved, not zero"}; ${e.crowding_basis}. A model input is not a housing-pressure measurement or individual outcome`,e.region,[],crowdingObserved?"recorded":"unknown","region",e.crowding_source_turn);
+          if(object(savedEnvironment[j])&&Object.prototype.hasOwnProperty.call(savedEnvironment[j],"recent_arrival_share"))
+            add(ref("region",e.region),`/environment/${j}/recent_arrival_share`,e.arrival_diagnostics_complete===true
+              ? `Prior recent residence-arrival share ${num(e.recent_arrival_share!)}; complete window and coverage. Arrivals do not establish forced displacement or measured housing pressure`
+              : "Prior recent residence-arrival share unknown, not zero: the diagnostic window or coverage is incomplete or unrecorded",
+            e.region,[],e.arrival_diagnostics_complete!==true?"unknown":e.recent_arrival_share===0?"recorded_zero":"recorded","region",e.source_turn);
           add(ref("region",e.region),`/environment/${j}/flux_factor`,`Current public-health flux multiplier ${num(e.flux_factor)}; mode ${r.mode}. A model input is not an individual outcome`,e.region,[],"recorded","region");
         });
         r.supplies.forEach((p,j)=>add(ref("region",p.region),`/supplies/${j}`,`Regional patient supply: ${num(p.food_milli/1000)} food of ${num(p.need_milli/1000)} needed; ${p.reason}. Patients and recipient households are not identified`,p.region));
