@@ -1,0 +1,249 @@
+{
+  "cause_specific_null_counts": {
+    "deaths_famine": 60,
+    "deaths_war": 60
+  },
+  "extraction_s": 169.4,
+  "horizon": 120,
+  "interpretation": "Historical total-package outcomes, not a pure A6/D3/crowding effect; sign-flip enumeration is descriptive, not qualification.",
+  "row_count": 60,
+  "simulation_and_extraction_s": 1467.4,
+  "simulation_s": 1298.0,
+  "source_identity": "45b176288eaf43018283a542f1531f855e58b8c6e55e0bb55bd0bef5b9624ab9",
+  "source_metrics_sha256": "b8365bf868b7cfdfa88740304a669429be2bff52d1000c9f0cd7b039eb0fba45",
+  "status": "PASS",
+  "strata": {
+    "p": {
+      "FULL_A6R_totals": {
+        "A6R": {
+          "a6_offer_declines": 0.0,
+          "all_migrations": 18702.0,
+          "d3_evacuated": 312.0,
+          "d3_returned": 122.0,
+          "timber_orders": 248.0,
+          "x1_displaced_person_turns": 130553.0
+        },
+        "FULL": {
+          "a6_offer_declines": 20.0,
+          "all_migrations": 22338.0,
+          "d3_evacuated": 521.0,
+          "d3_returned": 215.0,
+          "timber_orders": 140.0,
+          "x1_displaced_person_turns": 4047.0
+        }
+      },
+      "FULL_unknown_pooled": {
+        "migration": 22338,
+        "share": 0.9828990957113439,
+        "unknown": 21956
+      },
+      "FULL_unknown_world_mean": 0.9831524514003667,
+      "deaths_epidemic": {
+        "FULL_minus_A6R": {
+          "881": 16,
+          "882": 220,
+          "883": 280,
+          "884": 59,
+          "885": 76,
+          "886": 257
+        },
+        "extreme_abs_sign_flips": 2,
+        "max": 280,
+        "mean": 151.33333333333334,
+        "min": 16,
+        "negative": 0,
+        "positive": 6,
+        "sign_flips": 64,
+        "zero": 0
+      },
+      "food_shortfall": {
+        "FULL_minus_A6R": {
+          "881": 2210.8347695963457,
+          "882": 2299.555657361634,
+          "883": 1117.7198498222278,
+          "884": 975.21561155159,
+          "885": 475.2584549258463,
+          "886": 449.86399054387584
+        },
+        "extreme_abs_sign_flips": 2,
+        "max": 2299.555657361634,
+        "mean": 1254.7413889669199,
+        "min": 449.86399054387584,
+        "negative": 0,
+        "positive": 6,
+        "sign_flips": 64,
+        "zero": 0
+      },
+      "population": {
+        "FULL_minus_A6R": {
+          "881": 25,
+          "882": 79,
+          "883": -3,
+          "884": 101,
+          "885": -83,
+          "886": 201
+        },
+        "extreme_abs_sign_flips": 16,
+        "max": 201,
+        "mean": 53.333333333333336,
+        "min": -83,
+        "negative": 2,
+        "positive": 4,
+        "sign_flips": 64,
+        "zero": 0
+      },
+      "priced_out_children": {
+        "FULL_minus_A6R": {
+          "881": 8.0,
+          "882": -3.0,
+          "883": 35.0,
+          "884": 34.0,
+          "885": 11.0,
+          "886": 73.0
+        },
+        "extreme_abs_sign_flips": 4,
+        "max": 73.0,
+        "mean": 26.333333333333332,
+        "min": -3.0,
+        "negative": 1,
+        "positive": 5,
+        "sign_flips": 64,
+        "zero": 0
+      },
+      "priced_out_persons": {
+        "FULL_minus_A6R": {
+          "881": -705.0,
+          "882": -114.0,
+          "883": -346.0,
+          "884": 386.0,
+          "885": -809.0,
+          "886": -171.0
+        },
+        "extreme_abs_sign_flips": 12,
+        "max": 386.0,
+        "mean": -293.1666666666667,
+        "min": -809.0,
+        "negative": 5,
+        "positive": 1,
+        "sign_flips": 64,
+        "zero": 0
+      }
+    },
+    "t": {
+      "FULL_A6R_totals": {
+        "A6R": {
+          "a6_offer_declines": 0.0,
+          "all_migrations": 3656.0,
+          "d3_evacuated": 73.0,
+          "d3_returned": 26.0,
+          "timber_orders": 57.0,
+          "x1_displaced_person_turns": 31554.0
+        },
+        "FULL": {
+          "a6_offer_declines": 5.0,
+          "all_migrations": 6195.0,
+          "d3_evacuated": 103.0,
+          "d3_returned": 55.0,
+          "timber_orders": 40.0,
+          "x1_displaced_person_turns": 11696.0
+        }
+      },
+      "FULL_unknown_pooled": {
+        "migration": 6195,
+        "share": 0.8506860371267151,
+        "unknown": 5270
+      },
+      "FULL_unknown_world_mean": 0.8527146416759135,
+      "deaths_epidemic": {
+        "FULL_minus_A6R": {
+          "781": 2,
+          "782": 16,
+          "783": 20,
+          "784": 19,
+          "785": 36,
+          "786": 40
+        },
+        "extreme_abs_sign_flips": 2,
+        "max": 40,
+        "mean": 22.166666666666668,
+        "min": 2,
+        "negative": 0,
+        "positive": 6,
+        "sign_flips": 64,
+        "zero": 0
+      },
+      "food_shortfall": {
+        "FULL_minus_A6R": {
+          "781": 1135.161870304495,
+          "782": 1465.045271968469,
+          "783": 977.392479704693,
+          "784": 672.2797246831469,
+          "785": 1865.9207717633108,
+          "786": 546.3887883718126
+        },
+        "extreme_abs_sign_flips": 2,
+        "max": 1865.9207717633108,
+        "mean": 1110.3648177993211,
+        "min": 546.3887883718126,
+        "negative": 0,
+        "positive": 6,
+        "sign_flips": 64,
+        "zero": 0
+      },
+      "population": {
+        "FULL_minus_A6R": {
+          "781": 17,
+          "782": 0,
+          "783": 65,
+          "784": 105,
+          "785": 62,
+          "786": -25
+        },
+        "extreme_abs_sign_flips": 12,
+        "max": 105,
+        "mean": 37.333333333333336,
+        "min": -25,
+        "negative": 1,
+        "positive": 4,
+        "sign_flips": 64,
+        "zero": 1
+      },
+      "priced_out_children": {
+        "FULL_minus_A6R": {
+          "781": -24.0,
+          "782": 46.0,
+          "783": -53.0,
+          "784": 96.0,
+          "785": 18.0,
+          "786": -61.0
+        },
+        "extreme_abs_sign_flips": 58,
+        "max": 96.0,
+        "mean": 3.6666666666666665,
+        "min": -61.0,
+        "negative": 3,
+        "positive": 3,
+        "sign_flips": 64,
+        "zero": 0
+      },
+      "priced_out_persons": {
+        "FULL_minus_A6R": {
+          "781": -76.0,
+          "782": -229.0,
+          "783": -631.0,
+          "784": 841.0,
+          "785": 17.0,
+          "786": -945.0
+        },
+        "extreme_abs_sign_flips": 28,
+        "max": 841.0,
+        "mean": -170.5,
+        "min": -945.0,
+        "negative": 4,
+        "positive": 2,
+        "sign_flips": 64,
+        "zero": 0
+      }
+    }
+  }
+}

@@ -1,0 +1,27 @@
+{
+  "historical_only": true,
+  "simulation_rerun": false,
+  "fresh_seeds_reserved_or_run": false,
+  "arithmetic_status": "PASS",
+  "metric_rows": 60,
+  "report_rows_checked": {
+    "primary_report_rows_checked": 6,
+    "secondary_report_rows_checked": 256,
+    "harm_report_rows_checked": 88
+  },
+  "raw_bundles_read": 10,
+  "completed_snapshots_read": 1200,
+  "maximum_raw_native_balance_closure": 2.2737367544323206e-13,
+  "cause_specific_null_counts": {
+    "deaths_famine": 60,
+    "deaths_war": 60
+  },
+  "arithmetic_receipt_sha256": "4f2c00a7b4fcd4165ca89ab4ccf4d754bcbed17c747af4c49fc60fc448217edf",
+  "raw_receipt_sha256": "9179bb8e6d722e60a3b24fac1f1f5b70305d2a681a771ee332a8872901864e1d",
+  "independent_contrasts_equal_parent_receipt": true,
+  "checker_sources": {
+    "docs/superpowers/audits/connected-world/review-cw6-held-independent/check-arithmetic.py": "c16bbea6f611fb4639a48e2d74ad2dba1e0b6be4c93152ca41528d3a18c9486f",
+    "docs/superpowers/audits/connected-world/review-cw6-held-independent/check-raw.py": "78edc92f84c2bbe1005cb7c350cbd9e4f6802816ebf711663068a906b85ad0a2"
+  },
+  "native_artifact_sha256": "59f536b8f4a6c2bc82c51eeaec55f3aff6b0a1c5c8f1a324049ad15b42c51617"
+}

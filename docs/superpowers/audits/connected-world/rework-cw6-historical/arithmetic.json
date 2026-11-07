@@ -1,0 +1,1478 @@
+{
+  "FULL_measurement_and_sample_observations": {
+    "p": {
+      "a6_work_unknown": 9593,
+      "all_migrations": 22338,
+      "dropped_a6_rows": 205136,
+      "dropped_war_events": 0,
+      "dropped_work_rows": 0,
+      "pooled_unknown_share": 0.9828990957113439,
+      "unknown_migration_drivers": 21956,
+      "unknown_share_range": [
+        0.9663013698630137,
+        0.9910071942446043
+      ],
+      "x1_displaced_person_turns": 4047,
+      "x1_opened_spells": 256,
+      "x1_other_moves": 21986
+    },
+    "t": {
+      "a6_work_unknown": 2535,
+      "all_migrations": 6195,
+      "dropped_a6_rows": 776,
+      "dropped_war_events": 0,
+      "dropped_work_rows": 0,
+      "pooled_unknown_share": 0.8506860371267151,
+      "unknown_migration_drivers": 5270,
+      "unknown_share_range": [
+        0.7609841827768014,
+        0.8837209302325582
+      ],
+      "x1_displaced_person_turns": 11696,
+      "x1_opened_spells": 665,
+      "x1_other_moves": 5369
+    }
+  },
+  "actual_core_hours": 0.40761111111111115,
+  "actual_extraction_s": 169.4,
+  "actual_simulation_s": 1298.0,
+  "actual_total_s": 1467.4,
+  "all_rc_zero": true,
+  "audit": "Independent final CW6 held arithmetic; no simulation/source imports or source edits",
+  "bounded_sample_state_by_arm_stratum": {
+    "A6R": {
+      "p": {
+        "a6_work_observed": 1651,
+        "a6_work_unknown": 9921,
+        "dropped_a6_rows": 102131,
+        "dropped_war_events": 0,
+        "dropped_work_rows": 0
+      },
+      "t": {
+        "a6_work_observed": 230,
+        "a6_work_unknown": 2086,
+        "dropped_a6_rows": 31,
+        "dropped_war_events": 0,
+        "dropped_work_rows": 0
+      }
+    },
+    "D3R": {
+      "p": {
+        "a6_work_observed": 1489,
+        "a6_work_unknown": 9097,
+        "dropped_a6_rows": 188106,
+        "dropped_war_events": 0,
+        "dropped_work_rows": 0
+      },
+      "t": {
+        "a6_work_observed": 229,
+        "a6_work_unknown": 2565,
+        "dropped_a6_rows": 229,
+        "dropped_war_events": 0,
+        "dropped_work_rows": 0
+      }
+    },
+    "D4C": {
+      "p": {
+        "a6_work_observed": 1541,
+        "a6_work_unknown": 9711,
+        "dropped_a6_rows": 244762,
+        "dropped_war_events": 0,
+        "dropped_work_rows": 0
+      },
+      "t": {
+        "a6_work_observed": 287,
+        "a6_work_unknown": 2419,
+        "dropped_a6_rows": 404,
+        "dropped_war_events": 0,
+        "dropped_work_rows": 0
+      }
+    },
+    "FULL": {
+      "p": {
+        "a6_work_observed": 1450,
+        "a6_work_unknown": 9593,
+        "dropped_a6_rows": 205136,
+        "dropped_war_events": 0,
+        "dropped_work_rows": 0
+      },
+      "t": {
+        "a6_work_observed": 374,
+        "a6_work_unknown": 2535,
+        "dropped_a6_rows": 776,
+        "dropped_war_events": 0,
+        "dropped_work_rows": 0
+      }
+    },
+    "SUP": {
+      "p": {
+        "a6_work_observed": 1501,
+        "a6_work_unknown": 10410,
+        "dropped_a6_rows": 205704,
+        "dropped_war_events": 0,
+        "dropped_work_rows": 0
+      },
+      "t": {
+        "a6_work_observed": 320,
+        "a6_work_unknown": 2739,
+        "dropped_a6_rows": 776,
+        "dropped_war_events": 0,
+        "dropped_work_rows": 0
+      }
+    }
+  },
+  "control_activation_unconditioned": true,
+  "fixed_harms_control_minus_FULL": {
+    "A6R": {
+      "deaths_epidemic": {
+        "p": {
+          "assignments": 64,
+          "extreme": 2,
+          "flip_max": 151.33333333333334,
+          "flip_min": -151.33333333333334,
+          "max": -16,
+          "mean": -151.33333333333334,
+          "min": -280,
+          "missing": {},
+          "n": 6,
+          "negative": 6,
+          "positive": 0,
+          "zero": 0
+        },
+        "t": {
+          "assignments": 64,
+          "extreme": 2,
+          "flip_max": 22.166666666666668,
+          "flip_min": -22.166666666666668,
+          "max": -2,
+          "mean": -22.166666666666668,
+          "min": -40,
+          "missing": {},
+          "n": 6,
+          "negative": 6,
+          "positive": 0,
+          "zero": 0
+        }
+      },
+      "deaths_famine": {
+        "p": null,
+        "t": null
+      },
+      "deaths_war": {
+        "p": null,
+        "t": null
+      },
+      "food_shortfall": {
+        "p": {
+          "assignments": 64,
+          "extreme": 2,
+          "flip_max": 1254.7413889669199,
+          "flip_min": -1254.7413889669199,
+          "max": -449.86399054387584,
+          "mean": -1254.7413889669199,
+          "min": -2299.555657361634,
+          "missing": {},
+          "n": 6,
+          "negative": 6,
+          "positive": 0,
+          "zero": 0
+        },
+        "t": {
+          "assignments": 64,
+          "extreme": 2,
+          "flip_max": 1110.3648177993211,
+          "flip_min": -1110.3648177993211,
+          "max": -546.3887883718126,
+          "mean": -1110.3648177993211,
+          "min": -1865.9207717633108,
+          "missing": {},
+          "n": 6,
+          "negative": 6,
+          "positive": 0,
+          "zero": 0
+        }
+      },
+      "forest_stand": {
+        "p": {
+          "assignments": 64,
+          "extreme": 6,
+          "flip_max": 0.04747764826496409,
+          "flip_min": -0.04747764826496409,
+          "max": 0.11293507124593893,
+          "mean": 0.039969122836956285,
+          "min": -0.022525576284023408,
+          "missing": {},
+          "n": 6,
+          "negative": 1,
+          "positive": 5,
+          "zero": 0
+        },
+        "t": {
+          "assignments": 32,
+          "extreme": 10,
+          "flip_max": 0.09111826827165634,
+          "flip_min": -0.09111826827165634,
+          "max": 0.029836502282748478,
+          "mean": -0.07918366735855695,
+          "min": -0.2774668863664227,
+          "missing": {
+            "786": [
+              {
+                "note": "no timber capacity at the end (no slot)",
+                "state": "not_recorded",
+                "value": null
+              },
+              {
+                "note": "no timber capacity at the end (no slot)",
+                "state": "not_recorded",
+                "value": null
+              }
+            ]
+          },
+          "n": 5,
+          "negative": 4,
+          "positive": 1,
+          "zero": 0
+        }
+      },
+      "out_migration": {
+        "p": {
+          "assignments": 64,
+          "extreme": 2,
+          "flip_max": 606.0,
+          "flip_min": -606.0,
+          "max": -281,
+          "mean": -606,
+          "min": -1366,
+          "missing": {},
+          "n": 6,
+          "negative": 6,
+          "positive": 0,
+          "zero": 0
+        },
+        "t": {
+          "assignments": 64,
+          "extreme": 2,
+          "flip_max": 423.1666666666667,
+          "flip_min": -423.1666666666667,
+          "max": -300,
+          "mean": -423.1666666666667,
+          "min": -581,
+          "missing": {},
+          "n": 6,
+          "negative": 6,
+          "positive": 0,
+          "zero": 0
+        }
+      },
+      "population": {
+        "p": {
+          "assignments": 64,
+          "extreme": 16,
+          "flip_max": 82.0,
+          "flip_min": -82.0,
+          "max": 83,
+          "mean": -53.333333333333336,
+          "min": -201,
+          "missing": {},
+          "n": 6,
+          "negative": 4,
+          "positive": 2,
+          "zero": 0
+        },
+        "t": {
+          "assignments": 64,
+          "extreme": 12,
+          "flip_max": 45.666666666666664,
+          "flip_min": -45.666666666666664,
+          "max": 25,
+          "mean": -37.333333333333336,
+          "min": -105,
+          "missing": {},
+          "n": 6,
+          "negative": 4,
+          "positive": 1,
+          "zero": 1
+        }
+      },
+      "priced_out_children": {
+        "p": {
+          "assignments": 64,
+          "extreme": 4,
+          "flip_max": 27.333333333333332,
+          "flip_min": -27.333333333333332,
+          "max": 3.0,
+          "mean": -26.333333333333332,
+          "min": -73.0,
+          "missing": {},
+          "n": 6,
+          "negative": 5,
+          "positive": 1,
+          "zero": 0
+        },
+        "t": {
+          "assignments": 64,
+          "extreme": 58,
+          "flip_max": 49.666666666666664,
+          "flip_min": -49.666666666666664,
+          "max": 61.0,
+          "mean": -3.6666666666666665,
+          "min": -96.0,
+          "missing": {},
+          "n": 6,
+          "negative": 3,
+          "positive": 3,
+          "zero": 0
+        }
+      },
+      "priced_out_persons": {
+        "p": {
+          "assignments": 64,
+          "extreme": 12,
+          "flip_max": 421.8333333333333,
+          "flip_min": -421.8333333333333,
+          "max": 809.0,
+          "mean": 293.1666666666667,
+          "min": -386.0,
+          "missing": {},
+          "n": 6,
+          "negative": 1,
+          "positive": 5,
+          "zero": 0
+        },
+        "t": {
+          "assignments": 64,
+          "extreme": 28,
+          "flip_max": 456.5,
+          "flip_min": -456.5,
+          "max": 945.0,
+          "mean": 170.5,
+          "min": -841.0,
+          "missing": {},
+          "n": 6,
+          "negative": 2,
+          "positive": 4,
+          "zero": 0
+        }
+      },
+      "treasury": {
+        "p": {
+          "assignments": 64,
+          "extreme": 36,
+          "flip_max": 972.6666666666666,
+          "flip_min": -972.6666666666666,
+          "max": 1625,
+          "mean": -357.3333333333333,
+          "min": -2239,
+          "missing": {},
+          "n": 6,
+          "negative": 3,
+          "positive": 3,
+          "zero": 0
+        },
+        "t": {
+          "assignments": 64,
+          "extreme": 62,
+          "flip_max": 400.3333333333333,
+          "flip_min": -400.3333333333333,
+          "max": 563,
+          "mean": 17.666666666666668,
+          "min": -903,
+          "missing": {},
+          "n": 6,
+          "negative": 2,
+          "positive": 4,
+          "zero": 0
+        }
+      },
+      "wealth_gini": {
+        "p": {
+          "assignments": 64,
+          "extreme": 44,
+          "flip_max": 0.0536899345530407,
+          "flip_min": -0.0536899345530407,
+          "max": 0.04204650296349921,
+          "mean": -0.017450449745587238,
+          "min": -0.14836605137804104,
+          "missing": {},
+          "n": 6,
+          "negative": 2,
+          "positive": 4,
+          "zero": 0
+        },
+        "t": {
+          "assignments": 64,
+          "extreme": 28,
+          "flip_max": 0.11666206933647748,
+          "flip_min": -0.11666206933647748,
+          "max": 0.10966520875575947,
+          "mean": -0.05215729962767015,
+          "min": -0.2789874447158042,
+          "missing": {},
+          "n": 6,
+          "negative": 4,
+          "positive": 2,
+          "zero": 0
+        }
+      }
+    },
+    "D3R": {
+      "deaths_epidemic": {
+        "p": {
+          "assignments": 64,
+          "extreme": 16,
+          "flip_max": 89.66666666666667,
+          "flip_min": -89.66666666666667,
+          "max": 43,
+          "mean": -71,
+          "min": -307,
+          "missing": {},
+          "n": 6,
+          "negative": 3,
+          "positive": 3,
+          "zero": 0
+        },
+        "t": {
+          "assignments": 64,
+          "extreme": 20,
+          "flip_max": 8.5,
+          "flip_min": -8.5,
+          "max": 21,
+          "mean": 5.833333333333333,
+          "min": -8,
+          "missing": {},
+          "n": 6,
+          "negative": 1,
+          "positive": 4,
+          "zero": 1
+        }
+      },
+      "deaths_famine": {
+        "p": null,
+        "t": null
+      },
+      "deaths_war": {
+        "p": null,
+        "t": null
+      },
+      "food_shortfall": {
+        "p": {
+          "assignments": 64,
+          "extreme": 34,
+          "flip_max": 771.0108955753276,
+          "flip_min": -771.0108955753276,
+          "max": 2255.7544788527302,
+          "mean": 362.2879728348841,
+          "min": -877.0751935529333,
+          "missing": {},
+          "n": 6,
+          "negative": 2,
+          "positive": 4,
+          "zero": 0
+        },
+        "t": {
+          "assignments": 64,
+          "extreme": 12,
+          "flip_max": 233.7560290438123,
+          "flip_min": -233.7560290438123,
+          "max": 109.27066498808563,
+          "mean": -197.33247404778376,
+          "min": -729.2607066780329,
+          "missing": {},
+          "n": 6,
+          "negative": 4,
+          "positive": 1,
+          "zero": 1
+        }
+      },
+      "forest_stand": {
+        "p": {
+          "assignments": 64,
+          "extreme": 32,
+          "flip_max": 0.025919533164684278,
+          "flip_min": -0.025919533164684278,
+          "max": 0.06685846922576666,
+          "mean": 0.014008687097572636,
+          "min": -0.01708940967320194,
+          "missing": {},
+          "n": 6,
+          "negative": 4,
+          "positive": 2,
+          "zero": 0
+        },
+        "t": {
+          "assignments": 32,
+          "extreme": 32,
+          "flip_max": 0.034361631386023765,
+          "flip_min": -0.034361631386023765,
+          "max": 0.11292112060268811,
+          "mean": 0.010806816855051474,
+          "min": -0.05381483970541767,
+          "missing": {
+            "786": [
+              {
+                "note": "no timber capacity at the end (no slot)",
+                "state": "not_recorded",
+                "value": null
+              },
+              {
+                "note": "no timber capacity at the end (no slot)",
+                "state": "not_recorded",
+                "value": null
+              }
+            ]
+          },
+          "n": 5,
+          "negative": 3,
+          "positive": 1,
+          "zero": 1
+        }
+      },
+      "out_migration": {
+        "p": {
+          "assignments": 64,
+          "extreme": 8,
+          "flip_max": 168.83333333333334,
+          "flip_min": -168.83333333333334,
+          "max": 327,
+          "mean": 133.83333333333334,
+          "min": -105,
+          "missing": {},
+          "n": 6,
+          "negative": 1,
+          "positive": 5,
+          "zero": 0
+        },
+        "t": {
+          "assignments": 64,
+          "extreme": 8,
+          "flip_max": 75.83333333333333,
+          "flip_min": -75.83333333333333,
+          "max": 34,
+          "mean": -64.5,
+          "min": -130,
+          "missing": {},
+          "n": 6,
+          "negative": 4,
+          "positive": 1,
+          "zero": 1
+        }
+      },
+      "population": {
+        "p": {
+          "assignments": 64,
+          "extreme": 24,
+          "flip_max": 54.666666666666664,
+          "flip_min": -54.666666666666664,
+          "max": 162,
+          "mean": 33.666666666666664,
+          "min": -38,
+          "missing": {},
+          "n": 6,
+          "negative": 2,
+          "positive": 4,
+          "zero": 0
+        },
+        "t": {
+          "assignments": 64,
+          "extreme": 48,
+          "flip_max": 10.833333333333334,
+          "flip_min": -10.833333333333334,
+          "max": 26,
+          "mean": 3.1666666666666665,
+          "min": -20,
+          "missing": {},
+          "n": 6,
+          "negative": 3,
+          "positive": 2,
+          "zero": 1
+        }
+      },
+      "priced_out_children": {
+        "p": {
+          "assignments": 64,
+          "extreme": 38,
+          "flip_max": 41.833333333333336,
+          "flip_min": -41.833333333333336,
+          "max": 71.0,
+          "mean": -10.5,
+          "min": -75.0,
+          "missing": {},
+          "n": 6,
+          "negative": 4,
+          "positive": 2,
+          "zero": 0
+        },
+        "t": {
+          "assignments": 64,
+          "extreme": 44,
+          "flip_max": 19.166666666666668,
+          "flip_min": -19.166666666666668,
+          "max": 48.0,
+          "mean": 4.833333333333333,
+          "min": -30.0,
+          "missing": {},
+          "n": 6,
+          "negative": 2,
+          "positive": 3,
+          "zero": 1
+        }
+      },
+      "priced_out_persons": {
+        "p": {
+          "assignments": 64,
+          "extreme": 46,
+          "flip_max": 500.3333333333333,
+          "flip_min": -500.3333333333333,
+          "max": 776.0,
+          "mean": 80.33333333333333,
+          "min": -916.0,
+          "missing": {},
+          "n": 6,
+          "negative": 2,
+          "positive": 4,
+          "zero": 0
+        },
+        "t": {
+          "assignments": 64,
+          "extreme": 64,
+          "flip_max": 125.83333333333333,
+          "flip_min": -125.83333333333333,
+          "max": 204.0,
+          "mean": 3.8333333333333335,
+          "min": -212.0,
+          "missing": {},
+          "n": 6,
+          "negative": 3,
+          "positive": 2,
+          "zero": 1
+        }
+      },
+      "treasury": {
+        "p": {
+          "assignments": 64,
+          "extreme": 56,
+          "flip_max": 1061.3333333333333,
+          "flip_min": -1061.3333333333333,
+          "max": 959,
+          "mean": -110,
+          "min": -1811,
+          "missing": {},
+          "n": 6,
+          "negative": 3,
+          "positive": 3,
+          "zero": 0
+        },
+        "t": {
+          "assignments": 64,
+          "extreme": 24,
+          "flip_max": 250.5,
+          "flip_min": -250.5,
+          "max": 620,
+          "mean": 183.16666666666666,
+          "min": -191,
+          "missing": {},
+          "n": 6,
+          "negative": 2,
+          "positive": 3,
+          "zero": 1
+        }
+      },
+      "wealth_gini": {
+        "p": {
+          "assignments": 64,
+          "extreme": 10,
+          "flip_max": 0.03889779297124892,
+          "flip_min": -0.03889779297124892,
+          "max": 0.059953272311722094,
+          "mean": 0.024790345909574036,
+          "min": -0.04232234118502465,
+          "missing": {},
+          "n": 6,
+          "negative": 1,
+          "positive": 5,
+          "zero": 0
+        },
+        "t": {
+          "assignments": 64,
+          "extreme": 24,
+          "flip_max": 0.03079936121023093,
+          "flip_min": -0.03079936121023093,
+          "max": 0.05368744221782795,
+          "mean": 0.015144106481083774,
+          "min": -0.039007794474835156,
+          "missing": {},
+          "n": 6,
+          "negative": 2,
+          "positive": 3,
+          "zero": 1
+        }
+      }
+    },
+    "D4C": {
+      "deaths_epidemic": {
+        "p": {
+          "assignments": 64,
+          "extreme": 12,
+          "flip_max": 117.5,
+          "flip_min": -117.5,
+          "max": 61,
+          "mean": -88.16666666666667,
+          "min": -248,
+          "missing": {},
+          "n": 6,
+          "negative": 4,
+          "positive": 2,
+          "zero": 0
+        },
+        "t": {
+          "assignments": 64,
+          "extreme": 44,
+          "flip_max": 15.0,
+          "flip_min": -15.0,
+          "max": 26,
+          "mean": -3.6666666666666665,
+          "min": -26,
+          "missing": {},
+          "n": 6,
+          "negative": 3,
+          "positive": 2,
+          "zero": 1
+        }
+      },
+      "deaths_famine": {
+        "p": null,
+        "t": null
+      },
+      "deaths_war": {
+        "p": null,
+        "t": null
+      },
+      "food_shortfall": {
+        "p": {
+          "assignments": 64,
+          "extreme": 18,
+          "flip_max": 692.7357110063786,
+          "flip_min": -692.7357110063786,
+          "max": 1666.75850389665,
+          "mean": 408.88964326186033,
+          "min": -437.88701361976564,
+          "missing": {},
+          "n": 6,
+          "negative": 2,
+          "positive": 4,
+          "zero": 0
+        },
+        "t": {
+          "assignments": 64,
+          "extreme": 56,
+          "flip_max": 290.0102257335093,
+          "flip_min": -290.0102257335093,
+          "max": 512.0060192830861,
+          "mean": -17.89195447267654,
+          "min": -587.4402140108868,
+          "missing": {},
+          "n": 6,
+          "negative": 3,
+          "positive": 3,
+          "zero": 0
+        }
+      },
+      "forest_stand": {
+        "p": {
+          "assignments": 64,
+          "extreme": 64,
+          "flip_max": 0.051099601915275794,
+          "flip_min": -0.051099601915275794,
+          "max": 0.06638606854594231,
+          "mean": -0.0016567989202969275,
+          "min": -0.07986718071503351,
+          "missing": {},
+          "n": 6,
+          "negative": 3,
+          "positive": 3,
+          "zero": 0
+        },
+        "t": {
+          "assignments": 32,
+          "extreme": 32,
+          "flip_max": 0.36575635779965543,
+          "flip_min": -0.36575635779965543,
+          "max": 0.7136415012895866,
+          "mean": -0.07083643146991771,
+          "min": -0.6742185946702628,
+          "missing": {
+            "786": [
+              {
+                "note": "no timber capacity at the end (no slot)",
+                "state": "not_recorded",
+                "value": null
+              },
+              {
+                "note": "no timber capacity at the end (no slot)",
+                "state": "not_recorded",
+                "value": null
+              }
+            ]
+          },
+          "n": 5,
+          "negative": 2,
+          "positive": 3,
+          "zero": 0
+        }
+      },
+      "out_migration": {
+        "p": {
+          "assignments": 64,
+          "extreme": 4,
+          "flip_max": 355.0,
+          "flip_min": -355.0,
+          "max": 873,
+          "mean": 345.6666666666667,
+          "min": -28,
+          "missing": {},
+          "n": 6,
+          "negative": 1,
+          "positive": 5,
+          "zero": 0
+        },
+        "t": {
+          "assignments": 64,
+          "extreme": 42,
+          "flip_max": 87.83333333333333,
+          "flip_min": -87.83333333333333,
+          "max": 151,
+          "mean": 21.166666666666668,
+          "min": -136,
+          "missing": {},
+          "n": 6,
+          "negative": 2,
+          "positive": 4,
+          "zero": 0
+        }
+      },
+      "population": {
+        "p": {
+          "assignments": 64,
+          "extreme": 6,
+          "flip_max": 66.83333333333333,
+          "flip_min": -66.83333333333333,
+          "max": 170,
+          "mean": 65.83333333333333,
+          "min": -3,
+          "missing": {},
+          "n": 6,
+          "negative": 1,
+          "positive": 5,
+          "zero": 0
+        },
+        "t": {
+          "assignments": 64,
+          "extreme": 62,
+          "flip_max": 15.333333333333334,
+          "flip_min": -15.333333333333334,
+          "max": 25,
+          "mean": -0.3333333333333333,
+          "min": -32,
+          "missing": {},
+          "n": 6,
+          "negative": 3,
+          "positive": 3,
+          "zero": 0
+        }
+      },
+      "priced_out_children": {
+        "p": {
+          "assignments": 64,
+          "extreme": 48,
+          "flip_max": 42.0,
+          "flip_min": -42.0,
+          "max": 85.0,
+          "mean": -8.333333333333334,
+          "min": -60.0,
+          "missing": {},
+          "n": 6,
+          "negative": 3,
+          "positive": 3,
+          "zero": 0
+        },
+        "t": {
+          "assignments": 64,
+          "extreme": 46,
+          "flip_max": 21.166666666666668,
+          "flip_min": -21.166666666666668,
+          "max": 43.0,
+          "mean": -4.166666666666667,
+          "min": -41.0,
+          "missing": {},
+          "n": 6,
+          "negative": 4,
+          "positive": 2,
+          "zero": 0
+        }
+      },
+      "priced_out_persons": {
+        "p": {
+          "assignments": 64,
+          "extreme": 18,
+          "flip_max": 762.5,
+          "flip_min": -762.5,
+          "max": 1923.0,
+          "mean": 465.8333333333333,
+          "min": -417.0,
+          "missing": {},
+          "n": 6,
+          "negative": 3,
+          "positive": 3,
+          "zero": 0
+        },
+        "t": {
+          "assignments": 64,
+          "extreme": 56,
+          "flip_max": 237.33333333333334,
+          "flip_min": -237.33333333333334,
+          "max": 412.0,
+          "mean": 16.333333333333332,
+          "min": -346.0,
+          "missing": {},
+          "n": 6,
+          "negative": 3,
+          "positive": 3,
+          "zero": 0
+        }
+      },
+      "treasury": {
+        "p": {
+          "assignments": 64,
+          "extreme": 62,
+          "flip_max": 1310.5,
+          "flip_min": -1310.5,
+          "max": 2071,
+          "mean": -43.166666666666664,
+          "min": -1712,
+          "missing": {},
+          "n": 6,
+          "negative": 3,
+          "positive": 3,
+          "zero": 0
+        },
+        "t": {
+          "assignments": 64,
+          "extreme": 40,
+          "flip_max": 396.3333333333333,
+          "flip_min": -396.3333333333333,
+          "max": 489,
+          "mean": -136,
+          "min": -909,
+          "missing": {},
+          "n": 6,
+          "negative": 2,
+          "positive": 4,
+          "zero": 0
+        }
+      },
+      "wealth_gini": {
+        "p": {
+          "assignments": 64,
+          "extreme": 30,
+          "flip_max": 0.039143948691492375,
+          "flip_min": -0.039143948691492375,
+          "max": 0.06064394458834221,
+          "mean": 0.015072753739501224,
+          "min": -0.07221358485597346,
+          "missing": {},
+          "n": 6,
+          "negative": 1,
+          "positive": 5,
+          "zero": 0
+        },
+        "t": {
+          "assignments": 64,
+          "extreme": 8,
+          "flip_max": 0.04204681227126009,
+          "flip_min": -0.04204681227126009,
+          "max": 0.03431057301103069,
+          "mean": -0.030609954600916523,
+          "min": -0.08316107510117243,
+          "missing": {},
+          "n": 6,
+          "negative": 5,
+          "positive": 1,
+          "zero": 0
+        }
+      }
+    },
+    "SUP": {
+      "deaths_epidemic": {
+        "p": {
+          "assignments": 64,
+          "extreme": 58,
+          "flip_max": 15.666666666666666,
+          "flip_min": -15.666666666666666,
+          "max": 33,
+          "mean": 0.6666666666666666,
+          "min": -24,
+          "missing": {},
+          "n": 6,
+          "negative": 3,
+          "positive": 3,
+          "zero": 0
+        },
+        "t": {
+          "assignments": 64,
+          "extreme": 24,
+          "flip_max": 7.0,
+          "flip_min": -7.0,
+          "max": 25,
+          "mean": 5.666666666666667,
+          "min": -3,
+          "missing": {},
+          "n": 6,
+          "negative": 2,
+          "positive": 3,
+          "zero": 1
+        }
+      },
+      "deaths_famine": {
+        "p": null,
+        "t": null
+      },
+      "deaths_war": {
+        "p": null,
+        "t": null
+      },
+      "food_shortfall": {
+        "p": {
+          "assignments": 64,
+          "extreme": 50,
+          "flip_max": 100.29213632181806,
+          "flip_min": -100.29213632181806,
+          "max": 160.35741047468036,
+          "mean": 15.985837059509018,
+          "min": -176.44888742424519,
+          "missing": {},
+          "n": 6,
+          "negative": 2,
+          "positive": 4,
+          "zero": 0
+        },
+        "t": {
+          "assignments": 64,
+          "extreme": 20,
+          "flip_max": 110.37981811732364,
+          "flip_min": -110.37981811732364,
+          "max": 159.02983723767102,
+          "mean": 50.58711298267978,
+          "min": -104.65400350792333,
+          "missing": {},
+          "n": 6,
+          "negative": 2,
+          "positive": 4,
+          "zero": 0
+        }
+      },
+      "forest_stand": {
+        "p": {
+          "assignments": 64,
+          "extreme": 6,
+          "flip_max": 0.08382497639561902,
+          "flip_min": -0.08382497639561902,
+          "max": 0.023333337550061617,
+          "mean": -0.07604719721226515,
+          "min": -0.2650195044274648,
+          "missing": {},
+          "n": 6,
+          "negative": 5,
+          "positive": 1,
+          "zero": 0
+        },
+        "t": {
+          "assignments": 32,
+          "extreme": 32,
+          "flip_max": 0.10456545025915223,
+          "flip_min": -0.10456545025915223,
+          "max": 0.21856828332040365,
+          "mean": 0.00039980763159808694,
+          "min": -0.18194728769340118,
+          "missing": {
+            "786": [
+              {
+                "note": "no timber capacity at the end (no slot)",
+                "state": "not_recorded",
+                "value": null
+              },
+              {
+                "note": "no timber capacity at the end (no slot)",
+                "state": "not_recorded",
+                "value": null
+              }
+            ]
+          },
+          "n": 5,
+          "negative": 3,
+          "positive": 2,
+          "zero": 0
+        }
+      },
+      "out_migration": {
+        "p": {
+          "assignments": 64,
+          "extreme": 6,
+          "flip_max": 37.833333333333336,
+          "flip_min": -37.833333333333336,
+          "max": 86,
+          "mean": 34.166666666666664,
+          "min": -11,
+          "missing": {},
+          "n": 6,
+          "negative": 1,
+          "positive": 5,
+          "zero": 0
+        },
+        "t": {
+          "assignments": 64,
+          "extreme": 26,
+          "flip_max": 40.166666666666664,
+          "flip_min": -40.166666666666664,
+          "max": 72,
+          "mean": -16.166666666666668,
+          "min": -77,
+          "missing": {},
+          "n": 6,
+          "negative": 5,
+          "positive": 1,
+          "zero": 0
+        }
+      },
+      "population": {
+        "p": {
+          "assignments": 64,
+          "extreme": 48,
+          "flip_max": 46.0,
+          "flip_min": -46.0,
+          "max": 91,
+          "mean": -9,
+          "min": -69,
+          "missing": {},
+          "n": 6,
+          "negative": 3,
+          "positive": 3,
+          "zero": 0
+        },
+        "t": {
+          "assignments": 64,
+          "extreme": 36,
+          "flip_max": 13.666666666666666,
+          "flip_min": -13.666666666666666,
+          "max": 23,
+          "mean": 5,
+          "min": -18,
+          "missing": {},
+          "n": 6,
+          "negative": 3,
+          "positive": 3,
+          "zero": 0
+        }
+      },
+      "priced_out_children": {
+        "p": {
+          "assignments": 64,
+          "extreme": 46,
+          "flip_max": 29.0,
+          "flip_min": -29.0,
+          "max": 71.0,
+          "mean": 7.333333333333333,
+          "min": -45.0,
+          "missing": {},
+          "n": 6,
+          "negative": 3,
+          "positive": 3,
+          "zero": 0
+        },
+        "t": {
+          "assignments": 64,
+          "extreme": 24,
+          "flip_max": 9.833333333333334,
+          "flip_min": -9.833333333333334,
+          "max": 18.0,
+          "mean": 4.5,
+          "min": -11.0,
+          "missing": {},
+          "n": 6,
+          "negative": 2,
+          "positive": 3,
+          "zero": 1
+        }
+      },
+      "priced_out_persons": {
+        "p": {
+          "assignments": 64,
+          "extreme": 52,
+          "flip_max": 154.16666666666666,
+          "flip_min": -154.16666666666666,
+          "max": 305.0,
+          "mean": 27.5,
+          "min": -237.0,
+          "missing": {},
+          "n": 6,
+          "negative": 3,
+          "positive": 2,
+          "zero": 1
+        },
+        "t": {
+          "assignments": 64,
+          "extreme": 62,
+          "flip_max": 102.16666666666667,
+          "flip_min": -102.16666666666667,
+          "max": 136.0,
+          "mean": -0.5,
+          "min": -182.0,
+          "missing": {},
+          "n": 6,
+          "negative": 3,
+          "positive": 3,
+          "zero": 0
+        }
+      },
+      "treasury": {
+        "p": {
+          "assignments": 64,
+          "extreme": 52,
+          "flip_max": 418.3333333333333,
+          "flip_min": -418.3333333333333,
+          "max": 511,
+          "mean": -59,
+          "min": -886,
+          "missing": {},
+          "n": 6,
+          "negative": 2,
+          "positive": 4,
+          "zero": 0
+        },
+        "t": {
+          "assignments": 64,
+          "extreme": 12,
+          "flip_max": 307.5,
+          "flip_min": -307.5,
+          "max": 170,
+          "mean": -199.16666666666666,
+          "min": -620,
+          "missing": {},
+          "n": 6,
+          "negative": 4,
+          "positive": 2,
+          "zero": 0
+        }
+      },
+      "wealth_gini": {
+        "p": {
+          "assignments": 64,
+          "extreme": 34,
+          "flip_max": 0.02418010586202592,
+          "flip_min": -0.02418010586202592,
+          "max": 0.05957259119814262,
+          "mean": 0.00839918244332899,
+          "min": -0.025828819787293122,
+          "missing": {},
+          "n": 6,
+          "negative": 2,
+          "positive": 4,
+          "zero": 0
+        },
+        "t": {
+          "assignments": 64,
+          "extreme": 58,
+          "flip_max": 0.042395308469798026,
+          "flip_min": -0.042395308469798026,
+          "max": 0.07860899430554513,
+          "mean": 0.008181900741825168,
+          "min": -0.09229941454606744,
+          "missing": {},
+          "n": 6,
+          "negative": 3,
+          "positive": 3,
+          "zero": 0
+        }
+      }
+    }
+  },
+  "harm_report_rows_checked": 88,
+  "identity": "45b176288eaf43018283a542f1531f855e58b8c6e55e0bb55bd0bef5b9624ab9",
+  "interpretation": [
+    "Primary comparisons include all six worlds per stratum regardless of mechanism activation.",
+    "Actual service denominators use 8 template regions or 32 procedural regions, each for 120 turns.",
+    "Forest stand is unrecorded for all t786 arms because no timber capacity remains; its template harm uses five pairs/32 assignments.",
+    "Unknown migration drivers are measurement harm; lower classified X1 displacement cannot show a physical displacement benefit.",
+    "T-1 X1 displaced share also changes C2 exposure via 1 + 0.25 * displaced_share; FULL-A6R includes this exposure-proxy feedback.",
+    "Unknown personal work costs remain unknown; bounded dropped samples cannot replace world totals.",
+    "Sign-flip enumeration is descriptive; these 12 worlds do not establish qualification or a universal effect."
+  ],
+  "matrix": "5 arms x 12 registered worlds, exactly once each",
+  "metrics_sha256": "b8365bf868b7cfdfa88740304a669429be2bff52d1000c9f0cd7b039eb0fba45",
+  "null_cause_fields": [
+    "deaths_famine",
+    "deaths_war"
+  ],
+  "null_harm_counts": {
+    "deaths_famine": 60,
+    "deaths_war": 60,
+    "forest_stand": 5
+  },
+  "primary": {
+    "cw6_balance": {
+      "metric": "balance_change_per_1000_pt",
+      "sign": "FULL - A6R",
+      "strata": {
+        "p": {
+          "assignments": 64,
+          "extreme": 30,
+          "flip_max": 2.4809326548893376,
+          "flip_min": -2.4809326548893376,
+          "max": 3.975577561524112,
+          "mean": -1.0327139691890865,
+          "min": -4.72644153683834,
+          "n": 6,
+          "negative": 4,
+          "positive": 2,
+          "values": {
+            "881": -0.005535587995204594,
+            "882": -4.72644153683834,
+            "883": -2.054393147228893,
+            "884": 3.975577561524112,
+            "885": -3.754569600172834,
+            "886": 0.3690784955766411
+          },
+          "zero": 0
+        },
+        "t": {
+          "assignments": 64,
+          "extreme": 12,
+          "flip_max": 5.447092576290704,
+          "flip_min": -5.447092576290704,
+          "max": 6.086508086241256,
+          "mean": -3.418256547543618,
+          "min": -9.863968706111821,
+          "n": 6,
+          "negative": 5,
+          "positive": 1,
+          "values": {
+            "781": -3.284635623793257,
+            "782": -6.578073839047187,
+            "783": 6.086508086241256,
+            "784": -1.8122295268298103,
+            "785": -9.863968706111821,
+            "786": -5.057139675720888
+          },
+          "zero": 0
+        }
+      }
+    },
+    "cw6_deaths": {
+      "metric": "deaths_per_1000_pt",
+      "sign": "FULL - D3R",
+      "strata": {
+        "p": {
+          "assignments": 64,
+          "extreme": 40,
+          "flip_max": 1.0455352111167693,
+          "flip_min": -1.0455352111167693,
+          "max": 2.368725308187555,
+          "mean": 0.2822195829150684,
+          "min": -1.0052145603035,
+          "n": 6,
+          "negative": 3,
+          "positive": 3,
+          "values": {
+            "881": -0.4819170271937292,
+            "882": 0.20880346461506072,
+            "883": -0.8028152971078732,
+            "884": -1.0052145603035,
+            "885": 2.368725308187555,
+            "886": 1.405735609292897
+          },
+          "zero": 0
+        },
+        "t": {
+          "assignments": 64,
+          "extreme": 8,
+          "flip_max": 0.443006107210155,
+          "flip_min": -0.443006107210155,
+          "max": 0.09806281928076643,
+          "mean": -0.41031850078323284,
+          "min": -1.358905291933807,
+          "n": 6,
+          "negative": 4,
+          "positive": 1,
+          "values": {
+            "781": -1.358905291933807,
+            "782": 0.09806281928076643,
+            "783": -0.22491776362116056,
+            "784": -0.8267408236515088,
+            "785": 0.0,
+            "786": -0.1494099447736872
+          },
+          "zero": 1
+        }
+      }
+    },
+    "cw6_service": {
+      "metric": "service_per_region_turn",
+      "sign": "FULL - SUP",
+      "strata": {
+        "p": {
+          "assignments": 64,
+          "extreme": 28,
+          "flip_max": 0.01667943102892505,
+          "flip_min": -0.01667943102892505,
+          "max": 0.020070089953424297,
+          "mean": -0.007239566829981374,
+          "min": -0.03889322912227389,
+          "n": 6,
+          "negative": 4,
+          "positive": 2,
+          "values": {
+            "881": 0.008249502643406736,
+            "882": -0.0008092018560947878,
+            "883": -0.03889322912227389,
+            "884": 0.020070089953424297,
+            "885": -0.012336145845551982,
+            "886": -0.019718416752798618
+          },
+          "zero": 0
+        },
+        "t": {
+          "assignments": 64,
+          "extreme": 16,
+          "flip_max": 0.005010629005264426,
+          "flip_min": -0.005010629005264426,
+          "max": 0.013667110653905024,
+          "mean": 0.004454796748390999,
+          "min": -0.0016674967706202803,
+          "n": 6,
+          "negative": 1,
+          "positive": 3,
+          "values": {
+            "781": 0.011145833333332744,
+            "782": -0.0016674967706202803,
+            "783": 0.013667110653905024,
+            "784": 0.0,
+            "785": 0.003583333273728506,
+            "786": 0.0
+          },
+          "zero": 2
+        }
+      }
+    }
+  },
+  "primary_report_rows_checked": 6,
+  "problems": [],
+  "regions_by_stratum": {
+    "p": 32,
+    "t": 8
+  },
+  "report_sha256": "c6be63fb3e73288c48f3a1c7955777996ed4845cc2266781762394c7b91ef50b",
+  "rows": 60,
+  "secondary_report_rows_checked": 256,
+  "status": "PASS",
+  "turns": 120
+}
