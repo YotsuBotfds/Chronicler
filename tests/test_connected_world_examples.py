@@ -44,3 +44,15 @@ def test_mechanical_story_preserves_explicit_prior_separation_date():
     assert example["found"] and example["source_turn"]==1
     assert example["story_entry"]["provenance"]["facts"]==[[example["fact_id"],1]]
     assert report["story_audit"]["flags"]==[]
+
+
+def test_zero_demand_army_is_not_promoted_to_a_ration_failure():
+    events=[{"kind":"consumption","army":"empty","consumed_rations":0,"demanded_rations":0,"adequacy":0},
+            {"kind":"consumption","army":"hungry","consumed_rations":1,"demanded_rations":3,"adequacy":1/3}]
+    bundle={"world_state":{},"history":[{"turn":3,"livelihoods":{"schema_version":1,"war_requisition":{
+        "schema_version":1,"source_turn":2,"frame":{"events":events}}}}]}
+    report=collect(bundle,{"snapshots":{"3":{"war_requisition":"observed"}}})
+    example=report["examples"]["war_requisition:failure"]
+    assert example["found"] and example["values"]["army"]=="hungry"
+    assert example["pointer"].endswith("/events/1")
+    assert report["story_audit"]["flags"]==[]
