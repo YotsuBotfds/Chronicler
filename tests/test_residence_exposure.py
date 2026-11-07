@@ -44,7 +44,10 @@ def _environment(world, crowding="density_only"):
 
 
 def _physical(frame):
-    return [(r["region"], r["residents"], r[ARRIVALS]) for r in frame["regions"]]
+    # Sparse X1 region rows may exist solely for legacy motive/anchor metadata.
+    # Missing physical zero rows and explicit physical zero rows are equivalent.
+    return [(r["region"], r["residents"], r[ARRIVALS]) for r in frame["regions"]
+            if r["residents"] or r[ARRIVALS]]
 
 
 @pytest.mark.parametrize("known", ["material_need", "battle_memory", "wage"])

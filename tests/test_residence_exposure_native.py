@@ -69,8 +69,10 @@ def test_actual_native_unknown_moves_have_label_invariant_arrival_facts_and_dens
             assert a["totals"][key] == b["totals"][key]
         assert a["totals"]["recent_residence_arrivals"] > 0
         assert a["totals"]["recent_residence_arrivals_unknown_reason"] > 0
-        assert [(r["region"], r["residents"], r["recent_residence_arrivals"]) for r in a["regions"]] == [
-            (r["region"], r["residents"], r["recent_residence_arrivals"]) for r in b["regions"]]
+        def physical(frame):
+            return [(r["region"], r["residents"], r["recent_residence_arrivals"]) for r in frame["regions"]
+                    if r["residents"] or r["recent_residence_arrivals"]]
+        assert physical(a) == physical(b)
         world.turn += 1
         known.turn += 1
         ea, eb = _environment(world, "density_only"), _environment(known, "density_only")
