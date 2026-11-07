@@ -287,6 +287,12 @@ open questions follow each summary.
   it in every activated world (0/5, 0/6), mostly through replaced farm income (59% template, 86%
   procedural) and partly lower remittances; the wage's effect on the priced-out rate was null.
   Checkpoint 3's fall in household money came from enrollment, not the wage.
+- **CW4b** (C1b migration closure): against cost-only, closing trade and migration leaned toward fewer
+  cross-polity arrivals and lower epidemic death rates but not consistently (procedural death rate a
+  null); as a secondary, adding the migration channel to a trade closure lowered arrivals and deaths
+  in all 6 template worlds and most procedural ones. Harms: food shortfall after relief rose in 10 of
+  12 worlds; merchant unwinds rose in every world; refused migrants were mostly fleeing war, famine or
+  persecution.
 
 ## 6. Turn-order table
 

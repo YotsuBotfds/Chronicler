@@ -412,6 +412,16 @@ def _quarantine_route_graph(world: WorldState, batch):
     return merchant_route_graph(world, batch)
 
 
+def _quarantine_migration_tick(world: WorldState, sim, tick):
+    """``--quarantine-channels trade,migration``: run the native agent tick
+    inside this turn's migration closure, released even if the tick raises
+    (``quarantine_rules.migration_closure_tick``); otherwise only ``tick()``."""
+    if getattr(getattr(world, "epidemics", None), "quarantine_rules", None) is None:
+        return tick()
+    from chronicler.quarantine_rules import migration_closure_tick
+    return migration_closure_tick(world, sim, tick)
+
+
 _MARKET_CATEGORIES: tuple[str, ...] = ("food", "raw_material", "luxury", "craft")
 
 
@@ -1519,7 +1529,8 @@ class AgentBridge:
             capture_transaction_receipts, prepare_transaction_receipts,
         )
         prepare_transaction_receipts(world, self)
-        agent_events, mobility = self._tick_with_household_mobility(world, signals, requirement)
+        agent_events, mobility = _quarantine_migration_tick(
+            world, self._sim, lambda: self._tick_with_household_mobility(world, signals, requirement))
         capture_transaction_receipts(world, self)
         result = self._process_tick_results(agent_events, world, death_output=death_output)
         self._capture_decision_delivery(delivery, agent_events)
@@ -1557,7 +1568,8 @@ class AgentBridge:
             capture_transaction_receipts, prepare_transaction_receipts,
         )
         prepare_transaction_receipts(world, self)
-        agent_events, mobility = self._tick_with_household_mobility(world, signals, requirement)
+        agent_events, mobility = _quarantine_migration_tick(
+            world, self._sim, lambda: self._tick_with_household_mobility(world, signals, requirement))
         capture_transaction_receipts(world, self)
         result = self._process_tick_results(agent_events, world, death_output=death_output)
         self._capture_decision_delivery(delivery, agent_events)

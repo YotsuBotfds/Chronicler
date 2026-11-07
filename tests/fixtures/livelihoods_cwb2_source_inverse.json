@@ -1,11 +1,11 @@
 {
   "schema_version": 1,
   "layer": "cwb2",
-  "parent": "8286804cba473ccb8cd278b95e34faf3b4759ee8",
+  "parent": "ae94bca677af5b39277eae26fda5a52db3b56f7e",
   "files": {
     "src/chronicler/agent_bridge.py": {
-      "sha256": "45cd70981603735aa2c6b4c052afb136990cbe2e4d391e4c2c6b8bd05ddf8285",
-      "current_sha256": "874f81c682478594585e7f1cc3744778478459e31784cf3fe88ef5427aaaadc9",
+      "sha256": "7ef273b84fb5f4daed2423fbff176682b1644272682681173d720bb56cff8307",
+      "current_sha256": "17cf7afe080ed46a95b402513c5bdcbc314920e2a1bd6a0daf5187bb5e4346a6",
       "patches": [
         {
           "old": "\n    # --- Ecology config (tuning YAML → Rust EcologyConfig) ---\n    # Each field falls back to the same default as Rust EcologyConfig::default().\n    simulator.set_ecology_config(\n        soil_degradation=get_override(world, \"ecology.soil_degradation_rate\", 0.005),\n        soil_recovery=get_override(world, \"ecology.soil_recovery_rate\", 0.05),\n        mine_soil_degradation=get_override(world, \"ecology.mine_soil_degradation_rate\", 0.03),\n",
