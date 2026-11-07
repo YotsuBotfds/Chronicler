@@ -63,3 +63,17 @@ No default promotion, paid narration, deployment, purchase, credential/sharing
 change or restricted full 200-seed/procedural qualification was performed by
 this review. Bounded screens and constructed transition checks must keep their
 actual labels. Main red blocks feature merges, not independent repair work.
+
+## Road L9 follow-on after this checkpoint
+
+The lead resolved the B3/L9 functional gap identified above: both kinds must share
+one finite works envelope, with road relief in explicit remaining repair
+worker-turns for patricians, never food. The implementation now scopes stable work
+IDs, preserves proportional per-kind expectations and reports actual delivery
+and credited work by kind. A mixed partial grant cannot keep its road promise
+by spending only on irrigation. Named crews use the canonical whole-service
+finite envelope; absent per-person post-tick income rows remain unknown, matching
+PL3's lifecycle semantics. The historical matrix and earlier CW3/CW3b evidence
+above remain dated records. This follow-on's source review, 248 focused tests and
+native activation/resume evidence are recorded in the current B3 integration
+contract; landing and final integrated evidence are still lead gates.

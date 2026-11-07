@@ -609,3 +609,16 @@ What these runs show:
 - The political response reaches only cities: a civ without a city has no venue.
 - Nothing here is a welfare or policy-efficacy claim. No 200-seed or procedural
   qualification gate has been run.
+
+
+### Connected World road-maintenance stake (opt-in B3 follow-on)
+
+With infrastructure condition in a work mode, patrician burden also includes outstanding owned
+road repair worker-turns, in the same unit as idle workshop work. B3's one `infrastructure_works`
+proposal can include irrigation and roads: commons relief remains irrigation food at risk;
+patrician relief is feasible road worker-turns bounded by that remaining work. It never values
+roads as nutrition. Exact work-id claims scope the finite envelope. B3 preserves the per-kind
+promise in commitment details and reports delivered/credited work by kind; a partial grant's
+proportional expected mix is approximate and spending only on irrigation cannot keep a road
+promise. See [the B3 contract](infrastructure-condition.md). Other providers' commitment output
+and all runs with B3 off retain their earlier behavior.

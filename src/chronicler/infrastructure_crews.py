@@ -89,7 +89,11 @@ def settle(world, state, t, sim, acc):
                      regions=tuple(row["regions"][aid] for aid, _ in ordered)) if ordered else None
         materials = I._bill(civ, material_units) if material_units else None
         _quote_bills(world, state, civ, wages, materials, sim=sim, acc=acc)
-        env = next((p.envelope for p in t.plans if p.payer == civ), None)
+        # All promised work shares one finite service envelope. A screened or
+        # newly opened first plan may have a zero per-work allowance while a
+        # later promised road is funded; its zero is not the civ's envelope.
+        from chronicler.local_budgets import envelope
+        env = envelope(world, civ, I.BUDGET_SERVICE)
         wage_before = state.book.carry.get(f"{civ}:{PURPOSE}", 0)
         max_wage_units = max(0, -(-(requested-wage_before)//1000))
         if env is not None and material_units + max_wage_units > env:

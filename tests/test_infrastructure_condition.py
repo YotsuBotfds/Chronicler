@@ -607,12 +607,13 @@ def test_the_works_are_their_own_screened_l9_proposal_with_audited_detail():
     obs = SimpleNamespace(economy=SimpleNamespace(food_ledger={0: (0.0, 40.0), 1: (0.0, 40.0), 2: (0.0, 40.0)}),
                           held={}, turn=world.turn)
     (row,) = IC.works_proposal(world, 0, obs)
-    assert row["service"] == IC.BUDGET_SERVICE and row["claims"] == ["infrastructure:0"] and row["recipients"] == [2]
-    assert row["cost"] == 3 and row["expected"] == pytest.approx(4.0)             # 2.4 coins, its own rounding
+    assert row["service"] == IC.BUDGET_SERVICE and row["claims"] == ["infrastructure:0", "infrastructure_work:2", "infrastructure_work:3"] and row["recipients"] == [2]
+    assert row["cost"] == 5 and row["expected"] == pytest.approx(8.0)             # 4.4 coins, one shared rounding
     d = row["detail"]
-    assert (d["works"], d["cost_milli"], d["screened_no_labor"], d["screened_granary_first"], d["screened_roads"]) \
-        == (1, 2400, 1, 1, 1)
+    assert (d["works"], d["cost_milli"], d["screened_no_labor"], d["screened_granary_first"]) \
+        == (2, 4400, 1, 1)
     assert row["relief"]["commons"] == pytest.approx(d["food_at_risk_relieved"]) and d["food_at_risk_relieved"] > 0
+    assert row["relief"]["patricians"] == d["expected_roads_work"] == 4.0
     # RS2's own proposal never carries the works.
     assert RP._repairs_proposal(world, 0, obs) == []
     # Far from the gate there is no food at risk within the horizon.
@@ -1163,18 +1164,18 @@ def test_the_works_ask_only_for_open_works_that_can_use_timber_next_phase2(monke
     roads = _pl1_world(work_region=0, kind=ROADS)
     S.set_storage_policy(world, 0, "expand", 4.0)
     assert IC.timber_wants(world) == [(0, 1.0, [0])] and IC.timber_wants(roads) == [(0, 2.0, [0])]
-    # With L9 a work asks only when its own proposal could name it: irrigation,
-    # not predicted granary_first (the proposal's screen); a road never.
+    # With L9 either kind can be named; predicted granary_first still screens it.
+    # Procurement may precede a future envelope, relieving the no-timber screen.
     import chronicler.local_budgets as LB
     monkeypatch.setattr(LB, "envelope", lambda *a, **k: 0)
-    assert IC.timber_wants(world) == [] and IC.timber_wants(roads) == []
+    assert IC.timber_wants(world) == [] and IC.timber_wants(roads) == [(0, 2.0, [0])]
     S.set_storage_policy(world, 0, "maintain", 4.0)
     assert IC.timber_wants(world) == [(0, 1.0, [0])]
     monkeypatch.undo()
     # The store is kept exactly where the works ask (the same screen).
     assert IC.timber_regions(world) == frozenset({0})
     monkeypatch.setattr(LB, "envelope", lambda *a, **k: 0)
-    assert IC.timber_regions(roads) == frozenset()
+    assert IC.timber_regions(roads) == frozenset({0})
     monkeypatch.undo()
     world.livelihoods.repair_projects._labour = (world.turn, [0, 2, 6])
     assert IC.timber_regions(world) == frozenset()
@@ -1224,12 +1225,9 @@ def test_rs2_and_its_woodcutters_are_unchanged_when_the_works_ask_for_nothing(ca
         assert "timber_needs" not in IC.snapshot_summary(on)
 
 
-def test_rs2_and_pl1_are_unchanged_by_a_non_asking_work_in_rs2s_own_region(monkeypatch):
-    """RS2's granary project and, in the same region, a road work under L9 that
-    asks nothing (never awarded an envelope: the works' L9 envelope is 0, every
-    other service keeps its legacy rule). PL1 neither plans for it nor keeps
-    RS2's leftover store for it: RS2 and PL1 equal the switch off (review of
-    0187bfb5: the store was kept for every open work)."""
+def test_rs2_and_pl1_are_unchanged_when_the_unfunded_roads_need_is_already_supplied(monkeypatch):
+    """The road's need is covered by existing supply, but no envelope funds
+    its work. No second expedition, RS2 hold or treasury authority is created."""
     import chronicler.local_budgets as LB
     monkeypatch.setattr(LB, "envelope", lambda world, civ, service, **k: 0 if service == IC.BUDGET_SERVICE else None)
 
@@ -1245,7 +1243,8 @@ def test_rs2_and_pl1_are_unchanged_by_a_non_asking_work_in_rs2s_own_region(monke
     assert [p.model_dump() for p in rp_on.projects + rp_on.closed] == \
         [p.model_dump() for p in rp_off.projects + rp_off.closed]
     state = _state(on)
-    assert state.works and state.works[0].stalls.get("no_envelope", 0) > 0 and state.timber_needs == []
+    assert state.works and state.works[0].stalls.get("no_envelope", 0) > 0
+    assert state.timber_needs and all(r.status == "supplied" and r.gap == 0 for r in state.timber_needs)
 
 
 def test_the_works_timber_comes_only_from_the_woodcutters_store_exactly_once():
@@ -1408,3 +1407,161 @@ def test_new_infrastructure_offer_honors_personal_decline_without_filling_anonym
     _turn(world,sim)
     assert all(row.requested == 0 and row.delivered == 0 and row.members == [] for row in _state(world).receipts)
     assert not sim.transfers
+
+
+def _works_obs(world):
+    from chronicler.economy import EconomyResult
+    from chronicler.local_budgets import _Obs
+    economy = EconomyResult()
+    for rid, region in enumerate(world.regions):
+        economy.food_sufficiency[region.name] = 1.0
+        economy.market_demand[region.name] = (10.0, 0.0, 0.0, 0.0)
+        economy.market_supply[region.name] = (10.0, 0.0, 0.0, 0.0)
+        economy.food_ledger[rid] = (0.0, 30.0)
+    return _Obs(world, economy, None)
+
+
+def _install_works_promise(world, proposal, *, amount=None):
+    amount = proposal["cost"] if amount is None else amount
+    row = Commitment(cid=0, civ=0, service=IC.BUDGET_SERVICE, pid=0,
+                     decided_turn=world.turn - 1, for_turn=world.turn,
+                     recipients=proposal["recipients"], claims=proposal["claims"], amount=amount,
+                     unit="work", expected=proposal["expected"] * amount / proposal["cost"],
+                     detail={"cost": proposal["cost"], **proposal["detail"]})
+    world.livelihoods.local_budgets = LocalBudgetState(open=[row])
+    return row
+
+
+def test_l9_road_service_stake_is_bounded_worker_time_and_survives_actual_decision():
+    import chronicler.local_budgets as LB
+    world = _world(infrastructure=((0, ROADS),))
+    _worn(world)
+    state = world.livelihoods.local_budgets = LocalBudgetState()
+    obs = _works_obs(world)
+    assert LB._burdens(world, 0, obs) == {"commons": 0.0, "patricians": 10.1}
+    (proposal,) = IC.works_proposal(world, 0, obs)
+    assert proposal["relief"] == {"patricians": 4.0}
+    assert proposal["detail"]["food_at_risk_relieved"] == 0.0
+    assert proposal["detail"]["road_work_relief"] <= IC.road_work_burden(world, 0)
+    LB._decide(world, state, obs, [IC.BUDGET_PROVIDER], None)
+    (promise,) = state.open
+    assert promise.detail["expected_roads_work"] == 4.0
+    assert "infrastructure_work:0" in promise.claims
+    assert state.decisions[0].burdens["patricians"] == 10.1
+    world.livelihoods.infrastructure_condition.enabled = False
+    assert LB._burdens(world, 0, obs) == {"commons": 0.0, "patricians": 0.0}
+
+
+@pytest.mark.parametrize("mode", ["repair", "cost_only"])
+def test_l9_road_envelope_pays_named_repair_once_and_separates_delivered_service(named_works, mode):
+    world, sim = named_works
+    state = _state(world)
+    # Keep only the road: one envelope is not secretly an irrigation allocation.
+    original = list(state.works)
+    road = next(w for w in state.works if w.kind == "roads")
+    state.works = [road]
+    state.mode = mode
+    (proposal,) = IC.works_proposal(world, 0, _works_obs(world))
+    assert proposal["cost"] == 3                    # two coins + separate-bill rounding reserve
+    promise = _install_works_promise(world, proposal)
+    state.works = original                 # first irrigation work has no promised authority
+    before = world.civilizations[0].treasury
+    econ, _ = _turn(world, sim, stop_after_phase2=True)
+    irrigation, receipt = state._turn.receipts
+    assert irrigation.delivered == 0 and irrigation.envelope == 0
+    (ledger,) = state._turn.ledger
+    assert receipt.kind == "roads" and receipt.delivered == pytest.approx(4.0)
+    assert receipt.members and sum(m.wages_milli for m in receipt.members) == 2000
+    assert ledger.charged == before - world.civilizations[0].treasury <= promise.amount
+    IC.check_ledger(ledger)
+    result = IC.works_settlement(world, promise, SimpleNamespace(economy=econ))
+    assert result["outcome"] == "kept" and result["spent"] == ledger.charged
+    assert result["detail"]["delivered_roads_work"] == 4.0
+    assert result["detail"]["delivered_irrigation_work"] == 0.0
+    assert result["detail"]["credited_roads_work"] == (4.0 if mode == "repair" else 0.0)
+
+
+def test_l9_partial_mixed_bundle_cannot_call_irrigation_delivery_a_kept_road_promise():
+    world = _world(infrastructure=((0, IRR), (0, ROADS)))
+    _worn(world)
+    (proposal,) = IC.works_proposal(world, 0, _works_obs(world))
+    promise = _install_works_promise(world, proposal, amount=2)
+    econ, _ = _turn(world, _Sim(), stop_after_phase2=True)
+    result = IC.works_settlement(world, promise, SimpleNamespace(economy=econ))
+    assert result["spent"] == promise.amount
+    assert result["delivered"] > promise.expected
+    assert result["outcome"] == "deferred" and result["ratio"] == 0.0
+    assert result["detail"]["delivered_roads_work"] == 0.0
+    assert result["detail"]["promised_roads_work"] > 0
+    assert result["detail"]["delivered_irrigation_work"] > 0
+
+
+def test_new_l9_promise_never_funds_an_unpromised_work_in_the_same_region():
+    world = _world(infrastructure=((0, ROADS),))
+    _worn(world)
+    (proposal,) = IC.works_proposal(world, 0, _works_obs(world))
+    _install_works_promise(world, proposal)
+    # A second asset/work appears after the decision. Region membership is insufficient.
+    world.regions[0].infrastructure.append(Infrastructure(type=ROADS, builder_civ=world.civilizations[0].name,
+                                                         built_turn=world.turn))
+    IC.reconcile(world)
+    second = _state(world).assets[-1]
+    second.condition = 0.5
+    IC.phase10_before_reserves(world, None, None, None)
+    _turn(world, _Sim(), stop_after_phase2=True)
+    rows = _state(world)._turn.receipts
+    assert rows[0].delivered > 0
+    assert rows[1].delivered == 0 and rows[1].reasons == ["no_envelope"]
+
+
+def test_l9_road_without_supply_waits_until_pl1_delivers_then_pays_the_named_crew(monkeypatch):
+    from chronicler import local_budgets as LB, money, recovery_crews as RC
+    from chronicler.wealth_accounting_state import MONEY_PURPOSE_CHANNELS
+    from tests.test_timber_supply import _Sim, _phase10, _turn as pl1_turn
+    world = _pl1_world(work_region=2, kind=ROADS)
+    RC.set_recovery_crews_enabled(world, True)
+    world.livelihoods.local_budgets = LocalBudgetState()
+    monkeypatch.setattr(LB, "_providers", lambda: (IC.BUDGET_PROVIDER,))
+    monkeypatch.setattr("chronicler.mutual_aid.read_stockpile_commitments", lambda world, sim: {})
+    monkeypatch.setitem(MONEY_PURPOSE_CHANNELS, "infrastructure_wage", "infrastructure_wage")
+    sim = _Sim(_pl1_people())
+    sim.wealth_transfer_purposes = lambda: money.NATIVE_PURPOSES
+    assert IC.works_proposal(world, 0, _works_obs(world)) == []   # no manufactured timber or award
+    _phase10(world, sim)
+    assert world.livelihoods.timber_supply.expeditions
+    world.turn += 1
+    paid = []
+    promised = []
+
+    def economy_fields(economy):
+        observed = _works_obs(world).economy
+        for name in ("food_sufficiency", "market_demand", "market_supply", "food_ledger"):
+            setattr(economy, name, getattr(observed, name))
+
+    for _ in range(16):
+        pl1_turn(world, sim, econ_hook=economy_fields)
+        paid.extend(r for r in _state(world).receipts if r.kind == "roads" and r.delivered > 0)
+        promised.extend(c for c in world.livelihoods.local_budgets.open if c.service == IC.BUDGET_SERVICE)
+    assert promised and paid
+    assert sum(m.wages_milli for r in paid for m in r.members) > 0
+    assert sum(r.timber_used for r in paid) == pytest.approx(sum(r.delivered for r in paid) * IC.TIMBER_PER_WORK["roads"])
+    assert all(r.envelope is not None for r in paid)
+    assert any(e.status == "delivered" and e.home == 2 for e in world.livelihoods.timber_supply.closed)
+    assert all(r.stockpile.goods.get("timber", 0.0) == 0 for rid, r in enumerate(world.regions) if rid == 2)
+
+
+
+def test_named_work_with_no_individual_income_row_keeps_withholding_unknown(named_works, monkeypatch):
+    world, sim = named_works
+    _turn(world, sim, stop_after_phase2=True)
+    members = [m for r in _state(world)._turn.receipts for m in r.members if m.worked > 0]
+    assert members and any(m.wages_milli > 0 for m in members)
+    monkeypatch.setattr("chronicler.livelihoods.paid_work_receipt", lambda world, sim: {})
+    notes = []
+    monkeypatch.setattr("chronicler.work_experience.record", lambda *a, **kw: notes.append((a, kw)))
+    IC.after_agent_tick(world, SimpleNamespace(_sim=sim))
+    assert all(m.income_replaced is None for m in members)
+    assert len(notes) == len(members) and all(row[1]["receipt"] == {} for row in notes)
+    monkeypatch.setattr("chronicler.livelihoods.paid_work_receipt", lambda world, sim: None)
+    with pytest.raises(RuntimeError, match="this turn's income receipt"):
+        IC.after_agent_tick(world, SimpleNamespace(_sim=sim))
