@@ -62,4 +62,43 @@ Independent source/specification review found two substantive E issues: mixed-cl
 
 A constructed real-native contract independently exercises actual carrier debit, origin credit, destination escrow, physical transit decay, PL1 store delivery, freight credit and payer refund. It verifies duplicate dispatch rejection and money, escrow and store closures. This is a native payment/custody regression, not a natural activation claim.
 
-The post-dimension-fix whole-program raw bundle, final linked-history browser journey and exact-source examples will be added after the lead's frozen pilot is available. Active lifecycle resume, declared-scale simulation profiling, held screens and final CI remain separate lead gates. No qualification or default-promotion claim is made here.
+The accepted post-correction evidence is below. Active lifecycle resume, declared-scale simulation profiling, held screens and final CI remain separate lead gates. No qualification or default-promotion claim is made here.
+
+## Accepted final whole-program development evidence
+
+The frozen CW6 pilot's natural procedural-19 FULL bundle contains **120 turns**, 32 regions and 10 initial polities. It uses simulation source `eaa4a5d3e1cb5c958b5e32719601c28986c9f6ac` and reviewed extension SHA256 `59f536b8f4a6c2bc82c51eeaec55f3aff6b0a1c5c8f1a324049ad15b42c51617`. The raw bundle is 37,962,968 bytes with SHA256 `f6cb5562a4aaec888b6f2a03b4c4b01bd1e8d49737aec22673034eba30ce0ee2`. This is the registered development pilot with corrected timber work stakes and anchored return experiences; it is not held qualification. Its command and actual import paths are retained in [simulation-source.txt](accepted/simulation-source.txt).
+
+The production TypeScript readers accept **all 1,200 package/snapshot observations** across ten connected packages, with zero malformed records: [reader receipt](accepted/full-p19-validation.json). The exact-pointer finder records **21 of 24 declared categories**, with zero schema errors, skipped validations or mechanical narration audit flags: [examples and audit](accepted/full-p19-examples.json). Three categories honestly remain null in this 120-turn world: positive guild claims receiving no payment, partially paid guild claims, and unobserved/zero-upper-bound relief deliveries. Earlier preliminary examples remain under `pre-fix/` and are not substituted for these nulls.
+
+Some reproducible exact-record observations are:
+
+| Observation | Exact fact | Recorded outcome |
+| --- | --- | --- |
+| Personal adaptation | `s100.lh.adaptive_livelihoods.frame.offers.75` | Person 1108 declines an academy-training offer after the recorded prior-experience rule would decline; this is an offer decision, not a completed job or a welfare conclusion. |
+| Delivered timber with a mixed outcome | `s66.lh.timber_orders.closed.0` | Order 0, carrier 1083: 0.482 timber delivered, 0.015 lost, 0.113 coins credited and 0.887 unused escrow refunded. Physical goods and money are separate units. |
+| Failed timber order | `s70.lh.timber_orders.closed.1` | Carrier 4 died; the order delivered nothing, deposited 2.000 surviving timber as commons, and refunded 1.000 coins to the payer. The 0.026 purchase cost was not freight income. |
+| Unmet army demand | `s10.lh.war_requisition.frame.events.7` | Army `army-2` consumed zero of three demanded rations. A preceding zero-demand row is deliberately excluded from failure selection. |
+| Partial patient supplies | `s18.lh.public_health.supplies.1` | Region 3 received 0.455 food against 0.705 need; 1.000 cash was charged and internal value was zero. Supplies did not remove the physical shortfall. |
+
+The finder was corrected after the saved natural bundle exposed a zero-demand army row with adequacy zero. Failure selection now requires an actual positive unmet demand; a focused regression preserves that distinction. This changes only post-hoc example selection, without changing simulation, control arms or held enrollment.
+
+The accepted production frontend was built from clean, immutable isolated worktree source `e69f823b03e22242e59a3007667e1cabcab8fa9e` (see [viewer-source.json](accepted/viewer-source.json) for the authoritative full hash). It includes the reviewed mixed-clock/person-epoch corrections, missing-polity compatibility guards and future-firm date guards. TypeScript/build passed; the only build warning was the existing large-chunk advisory.
+
+The [final browser receipt](accepted/history-browser.json) records **30 passing checks** across desktop and phone using the actual full saved bundle. At snapshot 27, person 13's exact repair receipt pays 2.000 coins and records 0.09490852802991867 ordinary income withheld. The journey expands earlier rows, follows chain→person→project, seeks the recorded snapshot, opens the regional inspector and reaches the same region from historical search. Individual participation and region-only context remain distinct, actual pointers resolve, explicit construction metadata controls the banner, and there are no console errors or document/explanatory-text overflow. The [phone screenshot](accepted/history-phone27.png) was visually inspected; wide tables scroll independently.
+
+On the shared machine the accepted 120-turn bundle loaded in 2,397 ms desktop / 1,926 ms phone. Initial Livelihoods opening took 4,893 / 4,768 ms; complete journeys took 15,287 / 17,620 ms. The connected-history index is computed when first opening that panel, so this remains a visible latency limitation. These bounded measurements do not establish a hardware-independent throughput guarantee.
+
+Reproduce the final connected-history journey with the frozen development pilot bundle:
+
+```sh
+PYTHONPATH=src node viewer/scripts/validate-connected-records.mjs \
+  --bundle RAW/chronicle_bundle.json --python NATIVE/bin/python --out receipt.json
+PYTHONPATH=src NATIVE/bin/python scripts/connected_world_examples.py \
+  RAW/chronicle_bundle.json --validation receipt.json --output examples.json
+NODE_PATH=BROWSER_NODE_MODULES CHROMIUM_EXECUTABLE=/usr/bin/chromium PYTHONPATH=src \
+  node viewer/scripts/qa-connected-world.mjs --build viewer/dist \
+  --bundle RAW/chronicle_bundle.json --out browser-receipt \
+  --python NATIVE/bin/python --journey history --turns 27
+```
+
+The raw pilot remains in the execution evidence workspace; the repository retains these compact receipts, hashes and commands. Re-running the registered development pilot reproduces the raw observation source; no fresh held seed or paid narration call is needed.
