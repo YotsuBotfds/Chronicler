@@ -48,6 +48,7 @@ const buildAssets = (directory, prefix="") => Object.fromEntries(readdirSync(dir
 const report = { generated: new Date().toISOString(), ...options, constructed: expected.constructed, build_files_sha256:buildAssets(options.build),
   journey_script_sha256:createHash("sha256").update(readFileSync(fileURLToPath(import.meta.url))).digest("hex"),
   bundle_sha256: createHash("sha256").update(readFileSync(options.bundle)).digest("hex"),
+  bundle_bytes: statSync(options.bundle).size,
   build_index_sha256: createHash("sha256").update(readFileSync(path.join(options.build,"index.html"))).digest("hex"),
   evidence: "Provided saved bundle; construction metadata retained explicitly; expectations decoded by Python bundle_codec. Browser journeys are bounded UI checks, not qualification.", viewports: {} };
 let failures = 0;
@@ -88,6 +89,9 @@ try {
       await page.getByLabel("Open saved world file").setInputFiles(options.bundle);
       await page.waitForFunction((count) => document.querySelectorAll('.phase75-region-node').length === count && !!document.querySelector('.phase75-playhead-label') && !document.querySelector('.saved-world-loading'), expected.regions.length, {timeout:120000});
       result.timings_ms.saved_bundle_load=Math.round(performance.now()-loadStarted);
+      result.decode_phases=await page.evaluate(()=>performance.getEntriesByName("chronicler:bundle-decoded").at(-1)?.detail??null);
+      const identityText=await page.locator(".saved-world-details").textContent();
+      check(result,`${name}: uploaded artifact identity names original bytes`,identityText?.includes(path.basename(options.bundle))&&identityText.includes(report.bundle_sha256)&&identityText.includes(report.bundle_bytes.toLocaleString("en-US")),identityText??"missing details");
       const constructed=expected.constructed&&typeof expected.constructed.from==="string"&&/^[a-f0-9]{64}$/i.test(expected.constructed.from)&&Array.isArray(expected.constructed.edits)&&expected.constructed.edits.length>0;
       check(result,`${name}: explicit construction metadata controls the demonstration notice`,await page.getByRole("note",{name:"Constructed demonstration",exact:true}).count()===(constructed?1:0));
       const panel=options.journey === "public_health" ? "Epidemics" : "Livelihoods";

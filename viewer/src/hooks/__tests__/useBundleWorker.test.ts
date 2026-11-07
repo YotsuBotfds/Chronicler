@@ -7,6 +7,7 @@
  * scripts/perf-viewer.mjs and scripts/viewer-equivalence.mjs.
  */
 import { createHash, webcrypto } from "node:crypto";
+import { gzipSync } from "node:zlib";
 import { act, cleanup, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import fixture from "../../__fixtures__/transport_bundle.json";
@@ -173,6 +174,40 @@ describe("decodeInWorker", () => {
 });
 
 describe("useBundle with a worker", () => {
+  it.each(["answer", "crash"] as const)("opens a small gzip archive through worker %s with the original archive identity", async (mode) => {
+    useStandIn(mode);
+    const raw = JSON.stringify(fixture);
+    const compressed = Uint8Array.from(gzipSync(raw));
+    expect(compressed.byteLength).toBeLessThan(WORKER_MIN_BYTES);
+    const { result } = renderHook(() => useBundle());
+    act(() => result.current.loadFromFile(new File([compressed], "archive.json.gz")));
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    expect(StandInWorker.created).toHaveLength(1);
+    expect(StandInWorker.created[0].terminated).toBe(true);
+    expect(result.current.error).toBeNull();
+    expect(result.current.bundle).toEqual(parseBundle(raw).bundle);
+    expect(result.current.artifactIdentity).toEqual({ name: "archive.json.gz", byteLength: compressed.byteLength,
+      sha256: createHash("sha256").update(compressed).digest("hex") });
+  });
+
+  it("retains the loaded world and identity after a truncated archive, then recovers", async () => {
+    useStandIn("answer");
+    const compressed = Uint8Array.from(gzipSync(JSON.stringify(fixture)));
+    const { result } = renderHook(() => useBundle());
+    act(() => result.current.loadFromFile(new File([compressed], "valid.gz")));
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    const bundle = result.current.bundle, identity = result.current.artifactIdentity;
+    act(() => result.current.loadFromFile(new File([compressed.slice(0, -1)], "truncated.gz")));
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    expect(result.current.error).toContain("Could not decompress gzip");
+    expect(result.current.bundle).toBe(bundle);
+    expect(result.current.artifactIdentity).toBe(identity);
+    act(() => result.current.loadFromFile(new File([compressed], "valid.gz")));
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    expect(result.current.error).toBeNull();
+    expect(result.current.artifactIdentity).toEqual(identity);
+  });
+
   it("loads a large file through the worker and ends loading", async () => {
     useStandIn("answer");
     const raw = largeText();

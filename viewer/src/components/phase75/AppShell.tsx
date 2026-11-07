@@ -1022,7 +1022,7 @@ export function AppShell({
         ref={openBundleRef}
         type="file"
         aria-label="Open saved world file"
-        accept=".json,.ckpt,.checkpoint"
+        accept=".json,.json.gz,.gz,.ckpt,.checkpoint"
         className="phase75-hidden-input"
         onChange={(event) => {
           const file = event.target.files?.[0];
