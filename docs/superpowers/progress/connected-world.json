@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "board_version": 14,
+  "board_version": 15,
   "title": "Connected-world program (A livelihoods and trade, B watersheds and infrastructure, C public health, D institutions and war, E stories and evidence) operational board",
   "plan": "docs/superpowers/roadmaps/connected-world-program.md",
   "owner_instruction": "2026-11-06 (after #82): own the A-E program end to end with parallel workers, integrating and evaluating each slice and continuing across slice boundaries; merges of this program authorized after independent review, green premerge Tests on the reviewed head and verified main CI; new systems opt-in and off by default; no default promotion; full 200-seed and procedural qualification gates restricted; bounded held screens (procedural included) authorized; no purchases, paid credits, paid narration APIs, deployments, credential or sharing changes. Amendment (same day): tiers sequence work and are not stopping points; failures block the affected merge, not the program; pin 8abc1acb as the original reference; default-path changes behind a switch or rules version.",
@@ -12,7 +12,7 @@
   },
   "durable_location": {
     "branch": "main (merged slices) plus the lane and integration branches listed in lanes",
-    "base": "main at 8401aa74 (#88)"
+    "base": "main at 66e1ec40 (#89)"
   },
   "status_values": ["proposed", "ready", "active", "blocked", "integrated", "evaluated", "merged", "deferred"],
   "machine": {
@@ -123,7 +123,8 @@
       "id": "B2",
       "branch": "claude/cw-b2-flow",
       "scope": "recalibrated watershed constants; flow mode replacing native water terms, irrigation bonus and cascade",
-      "status": "review fixes + snowmelt channel done; merging main; reviewer re-check then CW3"
+      "status": "approved; CW3 run and checked; PR",
+      "head": "71df8e4c"
     },
     {
       "id": "C1b",
@@ -137,7 +138,7 @@
       "id": "D2",
       "branch": "claude/cw-d2-attribution",
       "scope": "--attribution-records observer: granary seizure actor, casualty split, restoration records, provenance guard, burden records",
-      "status": "approved; PR",
+      "status": "merged (#89)",
       "head": "6a039be9"
     },
     {
@@ -321,9 +322,19 @@
       "premerge_run": 42319124283,
       "main_run": 42320659289,
       "date": "2026-11-07"
+    },
+    {
+      "pr": 89,
+      "slice": "D2 attribution records",
+      "merge_commit": "66e1ec401c3c200b56deb926045f9f945c2ab563",
+      "merge_tree": "d60153bc",
+      "reviewed_head": "0b29f60c",
+      "premerge_run": 42328958939,
+      "main_run": 42330174480,
+      "date": "2026-11-07"
     }
   ],
-  "next": "Merge the D2 PR; A4 review then CW2/CW5 preregistration; B2 CW3 held run then PR; B3 then review; then C2 care, D4 requisition/restitution, E linked histories, A1-2 native observer, D1, D3, A6, C4.",
+  "next": "Merge the B2 PR; A4 fixes then re-check, CW2/CW5 screens; B3 fixes then re-check; then C2 care, D4 requisition/restitution, E linked histories, A1-2 native observer, D1, D3, A6, C4.",
   "baseline": {
     "oracle_lane": "PASS, 63 chunks, 295.5 s, slowest 32.4 s of 110 s",
     "native_check": "check_python_env --expect native PASS (101a4cd5)",
@@ -367,6 +378,14 @@
       "secondary": "QRM-QR: template arrivals and deaths lower 6/6; procedural 4/6 and 5/6",
       "harms": "food shortfall up 10 of 12; merchant unwinds up everywhere; refusals mostly flight",
       "page": "docs/superpowers/progress/connected-world-screens-cw4b.md"
+    },
+    "CW3": {
+      "status": "run 2026-11-07 (procedural only; template cohort unused by design)",
+      "frozen": "b9170bef (Amendment 1: pre-treatment downstream set stated; F_CPc cost-only arm)",
+      "held": "30 runs, 1 failed (F_CP/851: disk full during another lane's build), 0.319 core-hours; supplementary deterministic completion reported separately",
+      "primaries": "F_CP-F downstream water -0.0031 (2/3), food shortfall +0.0071 (4/1), interaction +0.0024 (2/3): all null",
+      "secondaries": "cost alone raised downstream food shortfall 6/6 (cost not held equal); flow vs old index wetter 5/6, less shortfall 6/6",
+      "page": "docs/superpowers/progress/connected-world-screens-cw3.md"
     }
   },
   "events": ["2026-11-07 ~00:10Z: container restart stopped lanes A3, B2, D2 mid-task; all resumed from saved transcripts with no work lost; shared native venv rebuilt from main ae94bca6 (e724072d)."],

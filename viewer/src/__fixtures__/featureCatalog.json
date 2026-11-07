@@ -1033,10 +1033,11 @@
       "key": "watershed_mode",
       "flag": "--watershed-mode",
       "label": "Watershed mode",
-      "help": "record_only (default, the only mode of this slice): the account runs beside the existing water index and changes nothing outside its own record",
+      "help": "record_only (default): the account runs beside the existing water index and changes nothing outside its own record; flow: the account's derived index replaces the native water terms (climate terms, irrigation bonus, downstream deforestation cascade), upstream withdrawals reduce downstream water, and the account's floods act on capacity and soil while the old river flood is superseded; flow requires the native ecology",
       "kind": "choice",
       "choices": [
-        "record_only"
+        "record_only",
+        "flow"
       ],
       "default": null,
       "parent": "watershed",

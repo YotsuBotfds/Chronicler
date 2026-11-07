@@ -88,7 +88,7 @@ link to these by path, so keep their names stable.
   [plan](superpowers/roadmaps/connected-world-program.md)
   ([board](superpowers/progress/connected-world.json));
   [screens, seed registry, harm panel and compatibility matrix](integration/connected-world-screens.md);
-  [watershed account (B1, record only)](integration/watershed.md);
+  [watershed account (B1 record only, B2 flow)](integration/watershed.md);
   [attribution records (D2, observation only: actor, victim and cause; the provenance guard)](integration/attribution-records.md).
 - **World generation:** [geography 2.0](integration/geography-2.md),
   [procedural gates](integration/procedural-gates.md).

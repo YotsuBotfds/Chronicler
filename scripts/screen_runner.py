@@ -113,7 +113,10 @@ CEILING_MARGIN = 1.5
 REGISTRY_STATUSES = ("run", "never_run", "reserved", "restricted_gate", "development")
 REGISTRY_COHORTS = ("held", "pilot", "reserve")
 ENTRY_KEYS = ("id", "source", "use", "stratum", "world", "seeds", "turns", "status")
-OPTIONAL_ENTRY_KEYS = ("program", "cohort", "screen", "held_run")
+OPTIONAL_ENTRY_KEYS = ("program", "cohort", "screen", "held_run", "unused")
+#: The record ``mark-run`` writes on a held reservation it leaves unused by design (a
+#: stratum the screen declares no cohort for); a run-record field, outside the content hash.
+UNUSED_KEYS = ("reason", "out", "recorded")
 HELD_RUN_KEYS = ("out", "identity", "started", "rows", "complete", "recorded")
 #: Cohorts that are evidence: a frozen preregistration, the compute ceiling, the ledger.
 EVIDENCE_COHORTS = ("held", "reserve")
@@ -334,6 +337,11 @@ def validate_registry(reg: Mapping) -> list[str]:
                 problems.append(f"{where}: a reservation names its program and cohort")
             if cohort == "held" and not e.get("screen"):
                 problems.append(f"{where}: a held reservation names its screen")
+        if "unused" in e:
+            note = e["unused"]
+            if e["status"] != "never_run" or not isinstance(note, dict) or set(note) != set(UNUSED_KEYS) \
+                    or not all(isinstance(note[k], str) and note[k] for k in UNUSED_KEYS):
+                problems.append(f"{where}: unused is a {list(UNUSED_KEYS)} record on a never_run entry")
         if "held_run" in e:
             run = e["held_run"]
             if e["status"] != "run" or not isinstance(run, dict) or not set(HELD_RUN_KEYS) <= set(run) \
@@ -426,6 +434,12 @@ def check_seeds(screen: Screen, reg: Mapping, *, reuse: str = "refuse") -> tuple
                             f"{sorted(reserved)}")
         for e in own:
             recorded = isinstance(e.get("held_run"), dict)
+            if not held and e["status"] in ("reserved", "never_run"):
+                # A screen that declares no cohort in this stratum (CW3: the watershed refuses
+                # template worlds) leaves its reservation unused by design; mark-run records it.
+                notes.append(f"{stratum} held reservation {e['id']} is unused by design ({screen.name} declares "
+                             f"no {stratum} cohort; {e['status']})")
+                continue
             if e["status"] == "run" and (reuse == "ignore" or reuse == "recorded" and recorded):
                 run = e.get("held_run") or {}
                 notes.append(f"{stratum} held cohort {e['id']} was recorded as run "
@@ -658,21 +672,29 @@ def arm_command(screen: Screen, arm: str, stratum: str, seed: int, turns: int | 
 
 def check_arm_flags(screen: Screen) -> list[str]:
     """Every arm's command line parses with the real parser and the feature catalog
-    accepts the switches it turns on (prerequisites, agent mode, choices)."""
+    accepts the switches it turns on (prerequisites, agent mode, choices), in each
+    stratum the screen's cohorts use (both when it declares none, as DEV). The live
+    surface cannot see the requested world; a command line can, so the
+    ``procedural_world`` setting is the world its flags resolve to."""
     _src()
     from chronicler import feature_catalog as fc
     from chronicler.main import _build_parser
+    from chronicler.world_gen import resolve_worldgen
     parser = _build_parser()
     problems = []
+    strata = [s for s in STRATA if screen.held.get(s) or screen.pilot.get(s)] or list(STRATA)
     for arm in screen.arms:
-        for stratum in STRATA:
+        for stratum in strata:
             argv = arm_command(screen, arm, stratum, 1)
             try:
                 args = parser.parse_args(argv)
             except SystemExit:
                 problems.append(f"arm {arm} ({stratum}): the command line does not parse: {' '.join(argv)}")
                 continue
-            refusal = fc.validate_features({}, fc.live_surface(args))
+            surface = fc.live_surface(args)
+            surface["settings"]["procedural_world"] = resolve_worldgen(
+                getattr(args, "worldgen", None), int(getattr(args, "regions", None) or 8)) == "procedural"
+            refusal = fc.validate_features({}, surface)
             if refusal:
                 problems.append(f"arm {arm} ({stratum}): {refusal}")
     return problems
@@ -1113,13 +1135,14 @@ def code_path(path: str) -> bool:
 
 
 #: Run-record fields an entry gains from ``mark-run``; the content hash leaves them out.
-RUN_RECORD_FIELDS = ("status", "held_run")
+RUN_RECORD_FIELDS = ("status", "held_run", "unused")
 
 
 def registry_content_sha256(reg: Mapping) -> str:
     """SHA-256 of the registry's cohort definitions and seeds: every entry without its
-    run-record fields (status, ``held_run``, and the screen a reserve entry was used by),
-    and the restricted ranges."""
+    run-record fields (status, ``held_run``, ``unused``, and the screen a reserve entry was
+    used by), and the restricted ranges. Every field ``mark-run`` writes is a run-record
+    field, so a ``mark-run`` does not change it."""
     entries = []
     for e in reg.get("entries") or []:
         drop = set(RUN_RECORD_FIELDS) | ({"screen"} if e.get("cohort") == "reserve" else set())
@@ -1737,10 +1760,21 @@ def dump_registry(reg: Mapping) -> str:
 
 def mark_run(reg: dict, screen: Screen, rows: list[dict], ledger: Mapping) -> list[str]:
     """Set the run cohort's registry entries to ``run`` with a ``held_run`` record; the
-    names of the entries changed. Refuses an entry that is not ``reserved``."""
+    names of the entries changed. Refuses an entry that is not ``reserved``. A held
+    reservation in a stratum the screen declares no cohort for (CW3's template cohort) is
+    not run: it is recorded as ``never_run``, unused by design, and stays excluded."""
     cohort = ledger["cohort"]
+    unused: list[str] = []
     if cohort == "held":
         entries = [e for e in reg["entries"] if e.get("screen") == screen.name and e.get("cohort") == "held"]
+        for e in [e for e in entries if not screen.held.get(e["stratum"])]:
+            if e["status"] == "reserved":
+                e["status"] = "never_run"
+                e["unused"] = {"reason": f"unused by design: {screen.name} declares no {e['stratum']} cohort",
+                               "out": ledger["out"],
+                               "recorded": time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())}
+                unused.append(f"{e['id']} (unused by design, never_run)")
+        entries = [e for e in entries if screen.held.get(e["stratum"])]
     else:
         entries = [e for e in reg["entries"] if e.get("cohort") == "reserve" and e.get("screen") in (None, screen.name)]
     if not entries:
@@ -1759,7 +1793,7 @@ def mark_run(reg: dict, screen: Screen, rows: list[dict], ledger: Mapping) -> li
         e["status"] = "run"
         e["screen"] = screen.name
         e["held_run"] = dict(record)
-    return [e["id"] for e in entries]
+    return [e["id"] for e in entries] + unused
 
 
 def mark_run_main(argv, screens: Mapping[str, Screen], prog: str = "screens") -> int:

@@ -294,6 +294,15 @@ open questions follow each summary.
   12 worlds; merchant unwinds rose in every world; refused migrants were mostly fleeing war, famine or
   persecution.
 
+- **CW3** (B2 watershed flow mode; procedural 851–856, one run lost to a disk-full infrastructure
+  failure, primaries on the frozen 5 worlds, a deterministic supplementary completion reported as a
+  sensitivity line): upstream clearing protection under flow did not measurably change downstream
+  water or food (all three primaries null). Protection's cost alone raised downstream food shortfall
+  in all 6 worlds, but the cost was not held equal across the cost-only and full arms, so the share of
+  the food change due to cost is an inference from secondaries. As a comparison of the two water
+  models, flow made downstream regions wetter (5 of 6) with less food shortfall (6 of 6). Floods
+  arise only from storage released by upstream forest loss (rain has no weather variability).
+
 ### 5.9 Defects recorded for the owner (default-path; not changed by this program)
 
 - **Decisions that read causal provenance.** `docs/integration/causal-provenance.md` says provenance

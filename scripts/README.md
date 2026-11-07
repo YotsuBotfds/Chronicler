@@ -65,9 +65,13 @@ panel, activation before effects, identities); CW1-CW6 are stubs until their sli
 in. `feature_matrix.py` generates the switch compatibility matrix from the feature catalog.
 See [connected-world screens](../docs/integration/connected-world-screens.md).
 `watershed_calibration.py BUNDLE [BUNDLE ...] [--json OUT]` compares the index the watershed
-account (`--watershed`, record only) would derive with the index the simulation used, on
-procedural development worlds only (it refuses other seeds); see
-[docs/integration/watershed.md](../docs/integration/watershed.md), section 7.
+account (`--watershed`, record only) would derive with the index the simulation used;
+`watershed_replay.py capture|check|replay|fit|cv` captures the account's inputs, replays its
+step under other constants (checked against `account_step`), fits a declared parameterization and
+cross-validates it with two seeds held out (the B2 calibration); `watershed_activation.py FLOW_DIR:RECORD_DIR ...`
+compares `--watershed-mode flow` with `record_only` runs (development-only activation report). All
+three read procedural development worlds only and refuse other seeds; see
+[docs/integration/watershed.md](../docs/integration/watershed.md), sections 8 and 9.
 
 ## Bundles and viewer fixtures
 

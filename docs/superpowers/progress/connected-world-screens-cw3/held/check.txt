@@ -1,0 +1,7 @@
+CW3 note: template held reservation cw3-held-t is unused by design (CW3 declares no template cohort; reserved)
+CW3: seeds OK (pilot {'procedural': (19,)}, held {'procedural': '851-856'})
+CW3: extractor, packages, 5 arms and 42 outcomes (3 primary): OK
+FAILED F_CP p851: rc 1: chronicler/artifact_io.py", line 190, in _atomic_write
+    raise ArtifactIOError(f"could not write artifact {path}: {exc}") from exc
+chronicler.artifact_io.ArtifactIOError: could not write artifact /home/user/evidence/cw3/held/runs/F_CP-p851/chronicle_bundle.json: [Errno 28] No space left on device
+
