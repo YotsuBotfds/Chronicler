@@ -54,8 +54,9 @@ pressure. X1 still has one Phase 10 writer and guarded T−1 consumers.
 The downstream regression calls real epidemic introduction and case dynamics,
 including density, hunger, urban effects, C2 care CFR and flux sanitation. With
 the old reader substituted, susceptibility differs 2.1875 versus 1.75; corrected
-reason labels give identical inputs and positive case trajectories. Care CFR
-remains .77 in that constructed test. This is a failing-old-code regression,
+reason labels give identical inputs and positive case trajectories. The composed fatality
+multiplier remains .77 in that constructed test; this is not a 77% case-fatality
+probability. This is a failing-old-code regression,
 not a claim about real-world disease calibration.
 
 A6 rules 2 record-only also erased D3 movement scores, and shuffled mode could
@@ -193,8 +194,7 @@ The [complete performance evidence](connected-world-rework/performance/README.md
 retains commands, budgets, source/native identities, per-turn CSVs, nulls,
 adverse observations and computational failures.
 
-History indexing reused identical locale formatters. All 48 paired desktop/
-phone timing samples and locale/index/query equalities are retained. Long-case
+History indexing reused identical locale formatters. All 48 desktop/phone timing samples (24 matched pairs) and locale/index/query equalities are retained. Long-case
 median cold openings improve from roughly 4.5–8.8 seconds to 1.2–2.0 seconds;
 stress-case gains are smaller. Slower file loads/selection and increased heap
 in some cases remain disclosed. Optional deterministic gzip archives reduce
@@ -252,8 +252,9 @@ cross-border wares are an unimplemented, unadopted audit proposal, not completed
 food/timber procurement. The constructed visibility/redaction example is not
 a separately simulated alternate story or a complete constructed per-slice
 suite. [Scope disposition](../audits/connected-world/rework-scope-disposition-2026-11-07.md)
-and the [original coverage matrix](connected-world-final-coverage.md) retain
-those distinctions.
+and the [current rework coverage](connected-world-rework-coverage.md) map all
+31 original rows. The [historical coverage matrix](connected-world-final-coverage.md)
+remains dated evidence of the adopted implementation.
 
 The existing wealth balance is the single spendable balance, not a globally
 conserved cash system. Regional epidemic fractions and individual health-care
