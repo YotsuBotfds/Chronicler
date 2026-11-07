@@ -1,6 +1,8 @@
 """D1c: locally funded movement branches abroad, opt-in and default off.
 
-Phase 10 T observes members already abroad. Up to 32 adult members per branch
+Phase 10 T observes members already abroad, excluding merchant trips and
+people whose public army attachment is away from their native residence.
+Up to 32 adult members per branch
 (512 total), ordered by stable id, contribute 10 milli each from their actual
 wealth to the host treasury for a local meeting/petition service. Three paid
 members fund the branch for T+1. There is no branch balance, invented income,
@@ -121,13 +123,20 @@ def phase10(world, acc=None, economy_result=None, agent_bridge=None):
     ids, regions, ages, memberships, wealth = (
         snap.column(k).to_pylist() for k in ("id", "region", "age", "movement_id", "wealth"))
     trips = set(map(int, sim.trip_agent_ids()))
+    region_ids = {region.name: i for i, region in enumerate(world.regions)}
+    residence = {int(aid): int(region) for aid, region in zip(ids, regions, strict=True)}
+    # Native region is residence, while a field army carries its own location.
+    # A person knows their present attachment; no X1 frame is read and this
+    # filter neither moves people nor changes native movement membership.
+    away = {int(aid) for army in getattr(getattr(world, "war_state", None), "armies", None) or []
+            for aid, _ in army.roster if region_ids.get(army.region) != residence.get(int(aid))}
     civ_ids = {c.name: i for i, c in enumerate(world.civilizations)}
     controllers = [civ_ids.get(r.controller) for r in world.regions]
     movements = world.agent_movements.movements
     groups = {}
     for aid, region, age, mid, held in zip(ids, regions, ages, memberships, wealth, strict=True):
         aid, region, mid = int(aid), int(region), int(mid)
-        if age < ADULT_AGE or aid in trips or not 0 <= region < len(controllers) or not 1 <= mid <= len(movements):
+        if age < ADULT_AGE or aid in trips or aid in away or not 0 <= region < len(controllers) or not 1 <= mid <= len(movements):
             continue
         movement, host = movements[mid - 1], controllers[region]
         # Guild membership belongs to one city; D1b supplies its cross-border organization.

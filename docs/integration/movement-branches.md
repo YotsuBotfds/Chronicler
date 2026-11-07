@@ -8,8 +8,12 @@ the feature may be explicitly ended. Guild movements remain tied to their
 city and use D1b guild leagues for cross-border organization.
 
 The Phase 10 writer counts people already abroad by native `movement_id`
-(Python movement index + 1), physical region and the region's controller.
-Living adults age 16 and older, excluding merchant trips, organize locally.
+(Python movement index + 1), native residence and the region's controller.
+Living adults age 16 and older, excluding merchant trips and people deployed
+with a field army outside that residence, organize locally. A roster member
+whose army is in the residence region can participate off duty without a new
+work claim. This reads the person's current public army attachment, not X1's
+same-turn frame, and does not move anyone or change native membership itself.
 A branch is identified by its movement and host polity, with a stable,
 checkpointed, never-reused integer id. At most 256 lifetime identities are
 kept. New identities beyond that bound are refused and counted; old identities
