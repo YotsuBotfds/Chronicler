@@ -1,0 +1,9 @@
+{
+  "runner_wall_seconds": 3357.920779772001,
+  "descendant_user_cpu_seconds": 3281.8898919999997,
+  "descendant_system_cpu_seconds": 70.624877,
+  "child_max_single_process_rss_kib_before": 96540,
+  "child_max_single_process_rss_kib_after": 1184040,
+  "rss_scope": "Linux RUSAGE_CHILDREN lifetime maximum of a single waited-for child/descendant, including prior identity probe; not simultaneous process-tree memory and not a subtractable maximum",
+  "cpu_scope": "RUSAGE_CHILDREN deltas immediately around the fresh generic screen-runner subprocess; includes its waited-for simulation descendants and extraction, excludes later check/report"
+}

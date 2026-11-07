@@ -1,0 +1,15 @@
+source b45c1e99572d4d6a60fb01fbd75cb7688aa54e93
+dirty 0 tracked files
+dirty-code 0 tracked code files
+chronicler /workspace/cwr-held-runtime/src/chronicler/__init__.py
+native /workspace/cwr-native/lib/python3.13/site-packages/chronicler_agents/chronicler_agents.cpython-313-x86_64-linux-gnu.so b1d3ea5ac858681960b2cb880c534164905501f6ab4f6f3c94f7c9b5f66196cd
+interpreter /workspace/cwr-native/bin/python
+runner 5ded5f3548bb6403b1df25e9d31e5c5ce638631aa5fd1b4fabdcfb8510b5cadb scripts/screen_runner.py
+screens f8409b1b76be49dbff968323f9eee2f65229e5c1280e0c349fe2e2a3927e4fef scripts/cw_rework_screen.py
+registry e23ecc83fcf94770749b28672d1caca59f3070e4add0dc36f4a07fd1dbf5394c scripts/seed_registry.json
+registry-content 62ce5aa81170da9efa52c56340ef8719f78eae9dfe612459f798195efb3cc446 (cohorts and seeds)
+preregistration 51b8a336969f48b4beb6f5b3e543062eda71822b98513b337ceb2d010e6efe7a docs/superpowers/progress/connected-world-rework-prereg-draft.md
+run: screen CWR1; cohort held; seeds all; arms RD,AD,RL,AL,MX,IX,WX,TX,RPC,APC,RNR,ANR; jobs 1; worlds -; turns -; rows already written 0
+pilot /workspace/evidence/cwr-evaluation/pilot-8792be88-v1/metrics.jsonl sha256 05e9e8d8fe3796604329a9d24eb8b94223f2391f462658d0f5d82cd7ba2e8d1e; projected 0.922 core-hours; ceiling 2.0 core-hours; expected seconds per run: max of the pilot mean per arm and stratum (AD p 35.0, AD t 12.3, AL p 35.6, AL t 12.5, ANR p 35.3, ANR t 11.9, APC p 37.2, APC t 12.0, IX p 28.2, IX t 10.4, MX p 34.3, MX t 10.8, RD p 31.7, RD t 10.3, RL p 33.0, RL t 11.5, RNR p 35.9, RNR t 11.5, RPC p 31.8, RPC t 10.3, TX p 39.4, TX t 13.7, WX p 35.8, WX t 12.8) and the finished runs' mean per stratum
+started 2026-11-07T22:41:33Z
+finished 2026-11-07T23:37:30Z: 144 runs, 0 failed, 3345 s of simulation and extraction (0.929 core-hours in all), 3357.1 s wall
