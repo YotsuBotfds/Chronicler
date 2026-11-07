@@ -3,7 +3,8 @@
 ``docs/integration/residence-ledger.md``: the residence ledger is the
 lead-owned displacement contract. Its per-person rows are observer truth: a
 decision may read a person's own row only through the A6 accessor
-(:func:`chronicler.residence_ledger.own_row`, one's own experience), rulers and
+(:func:`chronicler.residence_ledger.own_row_accessor`, an :class:`OwnRow` bound to
+that person: one's own experience), rulers and
 physical effects read aggregates only (:func:`read_frame`), D3 asks
 :func:`separation`, each dated (T's frame at T+1, never the same turn). This
 test copies the D2 provenance guard's approach (``test_provenance_decision_guard.py``):
@@ -16,17 +17,23 @@ it walks every module under ``src/chronicler`` except the ledger's own modules
   through ``getattr``/``hasattr`` with a constant name, as a constant subscript
   or through ``.get`` with a constant key: the ledger's state;
 * a reference to a name of ``chronicler.residence_ledger`` (imported, or
-  through the module bound to a name, or ``getattr`` with a constant name).
+  through the module bound to a name, or ``getattr`` with a constant name);
+* any constant string naming the ledger (``residence_ledger``,
+  ``chronicler.residence_ledger`` and the state module's names), so a dynamic
+  import such as ``livelihoods._module("residence_ledger")`` is caught
+  (review m3); outside the owners only the switch wiring may hold one.
 
 Every read site - (module, enclosing function, read) with its number of
 occurrences - must be registered in ``LEDGER_READS`` with a classification:
 
 * ``aggregate``: :func:`read_frame` (any decision module; aggregates dated T);
-* ``own_row``: :func:`own_row`, only from ``OWN_ROW_MODULES`` (A6);
+* ``own_row``: :func:`own_row_accessor`, only from ``OWN_ROW_MODULES`` (A6's
+  dispatcher, which hands each agent's decision the accessor bound to it);
 * ``separation``: :func:`separation`, only from ``SEPARATION_MODULES`` (D3);
 * ``record``: :func:`record_status`/:func:`snapshot_summary`, only from modules
   that decide nothing (``RECORD_MODULES``: narration, analysis);
-* ``wiring``: the switch's plumbing in ``livelihoods`` (its value, not the state).
+* ``wiring``: the switch's plumbing in ``livelihoods``, ``feature_catalog`` and
+  ``batch_manifest`` (its name and value, not the state).
 
 State reads are refused outright outside the owners and ``wiring`` rows. The
 test fails closed on an unregistered read, a changed count, a stale row, a row
@@ -61,10 +68,12 @@ STATE = "chronicler.residence_ledger_state"
 #: Public names of ``chronicler.residence_ledger`` and what each is.
 HOOKS = frozenset({"set_residence_ledger_enabled", "residence_ledger_active", "on_pool_reset", "phase10",
                    "snapshot_summary"})
-ACCESSORS = {"read_frame": "aggregate", "own_row": "own_row", "separation": "separation"}
+ACCESSORS = {"read_frame": "aggregate", "own_row_accessor": "own_row", "separation": "separation"}
 RECORD_READERS = frozenset({"record_status", "snapshot_summary"})
 CONSTANTS = frozenset({"STAGE", "LABELS", "FRAME_KEYS", "NATIVE", "FAMINE_ONSET_COOLDOWN", "ADULT_AGE",
-                       "LedgerReadRefused"})
+                       "LedgerReadRefused", "OwnRow"})
+#: Constant strings that name the ledger (review m3).
+NAMES = frozenset({"residence_ledger", LEDGER, "residence_ledger_state", "chronicler.residence_ledger_state"})
 PUBLIC = HOOKS | set(ACCESSORS) | RECORD_READERS | CONSTANTS
 
 #: A6 (``--adaptive-livelihoods``, audit A6 section 7.2): the only modules that
@@ -76,12 +85,20 @@ SEPARATION_MODULES: frozenset[str] = frozenset()
 RECORD_MODULES = frozenset({"narrative", "narration_context", "narration_expansion_context", "narration_inputs",
                             "narration_provenance", "narration_audit", "curator", "historiography",
                             "history_forensics", "expansion_audit", "scientific_receipts_audit"})
-WIRING_MODULES = frozenset({"livelihoods"})
+WIRING_MODULES = frozenset({"livelihoods", "feature_catalog", "batch_manifest"})
 
 #: (module, enclosing function, read) -> (occurrences, classification).
 LEDGER_READS: dict[tuple[str, str, str], tuple[int, str]] = {
     # The switch value (``--residence-ledger``) in the prerequisite check, not the state.
     ("livelihoods", "_check_prerequisites", "['residence_ledger']"): (1, "wiring"),
+    ("livelihoods", "_check_prerequisites", "const:residence_ledger"): (2, "wiring"),
+    # The parser destination and its help text.
+    ("livelihoods", "<module>", "const:residence_ledger"): (2, "wiring"),
+    # The catalog's declared requirements.
+    ("feature_catalog", "<module>", "const:residence_ledger"): (1, "wiring"),
+    # The manifest's simulation keys (recorded only when given).
+    ("batch_manifest", "<module>", "const:residence_ledger"): (1, "wiring"),
+    ("batch_manifest", "simulation_config", "const:residence_ledger"): (1, "wiring"),
 }
 
 #: Modules that may name the bridge's displaced share (narration only, audit 11.5).
@@ -171,6 +188,8 @@ def collect_reads(src: Path = SRC) -> dict[tuple[str, str, str], int]:
             elif isinstance(node, ast.Subscript) and isinstance(node.ctx, ast.Load) \
                     and _const(node.slice) == "residence_ledger":
                 add(where, "['residence_ledger']")
+            if isinstance(node, ast.Constant) and node.value in NAMES:
+                add(where, f"const:{node.value}")
             for child in ast.iter_child_nodes(node):
                 visit(child, where)
         visit(tree, "<module>")
@@ -185,14 +204,16 @@ _STATE_READS = frozenset({"state:import", ".residence_ledger", "getattr('residen
 def _class_problems(reads: dict[tuple[str, str, str], tuple[int, str]]) -> list[str]:
     problems = []
     for (module, where, read), (_n, cls) in sorted(reads.items()):
-        if cls == "wiring":
+        if read.startswith("const:"):
+            ok = cls == "wiring" and module in WIRING_MODULES          # a name of the ledger: wiring only
+        elif cls == "wiring":
             ok = module in WIRING_MODULES
         elif read in _STATE_READS:
             ok = False                                           # state is read only by its owners
         elif cls == "aggregate":
             ok = read == "read_frame"
         elif cls == "own_row":
-            ok = read == "own_row" and module in OWN_ROW_MODULES
+            ok = read == "own_row_accessor" and module in OWN_ROW_MODULES
         elif cls == "separation":
             ok = read == "separation" and module in SEPARATION_MODULES
         elif cls == "record":
@@ -222,8 +243,9 @@ def test_each_read_is_allowed_for_its_class_and_module():
 
 
 def test_the_class_rules_refuse_person_rows_and_state_outside_their_owners():
-    assert _class_problems({("cities", "f", "own_row"): (1, "own_row")})            # not A6
-    assert not _class_problems({("adaptive_livelihoods", "f", "own_row"): (1, "own_row")})
+    assert _class_problems({("cities", "f", "own_row_accessor"): (1, "own_row")})   # not A6
+    assert not _class_problems({("adaptive_livelihoods", "f", "own_row_accessor"): (1, "own_row")})
+    assert _class_problems({("adaptive_livelihoods", "f", "const:residence_ledger"): (1, "own_row")})
     assert _class_problems({("adaptive_livelihoods", "f", "read_frame"): (1, "own_row")})
     assert _class_problems({("war.runtime", "f", "separation"): (1, "separation")})   # D3 not registered yet
     assert _class_problems({("diplomacy", "f", "record_status"): (1, "record")})       # a decision module
@@ -298,7 +320,7 @@ def test_the_collector_sees_every_kind_of_read(tmp_path):
     pkg.mkdir()
     (pkg / "decider.py").write_text(
         "from chronicler import residence_ledger as RL\n"
-        "from chronicler.residence_ledger import own_row as mine\n"
+        "from chronicler.residence_ledger import own_row_accessor as mine\n"
         "def choose(world, aid):\n"
         "    frame = RL.read_frame(world, consumer_turn=world.turn)\n"
         "    return frame, mine(world, aid, consumer_turn=world.turn), world.livelihoods.residence_ledger.rows\n",
@@ -308,19 +330,29 @@ def test_the_collector_sees_every_kind_of_read(tmp_path):
         "from .residence_ledger_state import ResidenceRow\n"
         "from . import residence_ledger as r2\n"
         "def choose(world, lv):\n"
-        "    f = r2.own_row\n"
+        "    f = r2.own_row_accessor\n"
         "    g = getattr(r2, 'separation')\n"
         "    m = importlib.import_module('chronicler.residence_ledger_state')\n"
         "    return (getattr(lv, 'residence_ledger'), vars(lv)['residence_ledger'], lv.__dict__.get('residence_ledger'))\n",
         encoding="utf-8")
-    (pkg / "residence_ledger.py").write_text("def own_row(world):\n    return world.livelihoods.residence_ledger\n",
+    # Review m3: a dynamic import through a helper, by the module's name.
+    (pkg / "dynamic.py").write_text(
+        "from chronicler import livelihoods as LV\n"
+        "def choose(world, aid):\n"
+        "    return LV._module('residence_ledger').own_row_accessor(world, aid, consumer_turn=world.turn)\n",
+        encoding="utf-8")
+    (pkg / "residence_ledger.py").write_text("def own_row_accessor(world):\n    return world.livelihoods.residence_ledger\n",
                                              encoding="utf-8")
     found = collect_reads(pkg)
     assert {k: v for k, v in found.items() if k[0] == "decider"} == {
-        ("decider", "choose", "read_frame"): 1, ("decider", "choose", "own_row"): 1,
+        ("decider", "choose", "read_frame"): 1, ("decider", "choose", "own_row_accessor"): 1,
         ("decider", "choose", ".residence_ledger"): 1}
     assert {k[2] for k in found if k[0] == "sneaky"} == {
-        "state:import", "own_row", "separation", f"import_module({STATE})", "getattr('residence_ledger')",
-        "['residence_ledger']", ".get('residence_ledger')"}
+        "state:import", "own_row_accessor", "separation", f"import_module({STATE})", "getattr('residence_ledger')",
+        "['residence_ledger']", ".get('residence_ledger')", "const:residence_ledger", f"const:{STATE}"}
+    assert {k: v for k, v in found.items() if k[0] == "dynamic"} == {
+        ("dynamic", "choose", "const:residence_ledger"): 1}
+    assert _class_problems({k: (v, cls) for k, v in found.items() if k[0] == "dynamic"
+                            for cls in ("own_row",)})                   # refused in a decision module
     assert not [k for k in found if k[0] == "residence_ledger"]
     assert _class_problems({k: (v, "aggregate") for k, v in found.items() if k[0] == "sneaky"})

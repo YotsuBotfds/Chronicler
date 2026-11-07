@@ -16,6 +16,7 @@ the end, never reorder (``CAUSES`` will take D3's ``evacuated``).
 """
 from __future__ import annotations
 
+from dataclasses import dataclass, field
 from typing import Any, Literal
 
 from pydantic import BaseModel, Field
@@ -29,11 +30,14 @@ ANCHOR_TURNS = 5
 #: Displacement causes (a spell's ``cause``): the driver group of the move that
 #: opened it (``quarantine_rules.FLIGHT_DRIVERS`` / ``HUNGER_DRIVERS``).
 CAUSES: tuple[str, ...] = ("flight", "hunger")
-#: Home-region events a departure can be anchored to, in priority order (the
+#: Home-region event kinds a departure can be anchored to, in priority order (the
 #: first present is the spell's ``anchor``; every present kind is kept in
-#: ``anchor_kinds``); ``none`` when no event is dated in the window.
+#: ``anchor_kinds``). Append only.
+EVENT_KINDS: tuple[str, ...] = ("war", "famine", "persecution")
+#: A spell's ``anchor``: an event kind, or ``none`` when no event is dated in the
+#: window. Append only: a new event kind is appended here after ``none`` (and to
+#: ``EVENT_KINDS``), never inserted.
 ANCHORS: tuple[str, ...] = ("war", "famine", "persecution", "none")
-EVENT_KINDS: tuple[str, ...] = ANCHORS[:3]
 #: Every applied move's driver group: the two causes, the voluntary drivers
 #: (``models.VOLUNTARY_MIGRATION_DRIVERS``) and every other or missing driver.
 MOVE_GROUPS: tuple[str, ...] = ("flight", "hunger", "voluntary", "other")
@@ -52,6 +56,13 @@ REGION_KEYS: tuple[str, ...] = (
     "departures", "departures_flight", "departures_hunger", "departures_voluntary", "departures_other",
     "opened", "returned", "resettled", "died_displaced", "deaths",
     "attached", "attached_away", "in_transit",
+    # Review M1 (appended): arrivals and departures by cause and anchor (audit 11.3).
+    *(f"opened_{cause}" for cause in CAUSES),
+    *(f"opened_{anchor}" for anchor in ANCHORS),
+    *(f"returned_{anchor}" for anchor in ANCHORS),
+    *(f"displaced_from_{anchor}" for anchor in ANCHORS),
+    *(f"arrivals_{group}" for group in MOVE_GROUPS),
+    *(f"arrivals_displaced_{anchor}" for anchor in ANCHORS),
 )
 #: Keys of a frame's world totals (declaration order; append only).
 TOTAL_KEYS: tuple[str, ...] = (
@@ -65,6 +76,14 @@ TOTAL_KEYS: tuple[str, ...] = (
     "new_rows", "newborn_rows", "trip_relocations", "unexplained_relocations", "move_origin_mismatches",
     # Record-only comparisons with the measures the contract replaces (audit section 10).
     "recent_movers_native", "away_from_birth_region",
+    # Review M1 and nits (appended).
+    *(f"opened_{cause}" for cause in CAUSES),
+    *(f"opened_{anchor}" for anchor in ANCHORS),
+    *(f"returned_{anchor}" for anchor in ANCHORS),
+    *(f"displaced_from_{anchor}" for anchor in ANCHORS),
+    *(f"arrivals_{group}" for group in MOVE_GROUPS),
+    *(f"arrivals_displaced_{anchor}" for anchor in ANCHORS),
+    "invalid_moves",
 )
 #: Lifetime counters (declaration order; append only).
 COUNTERS: tuple[str, ...] = (
@@ -74,6 +93,8 @@ COUNTERS: tuple[str, ...] = (
     *(f"opened_{cause}" for cause in CAUSES),
     *(f"opened_{anchor}" for anchor in ANCHORS),
     *(f"closed_{reason}" for reason in CLOSURES),
+    # Review nit (appended): native moves naming an invalid route, counted and skipped.
+    "invalid_moves",
 )
 #: Dated log kinds.
 LOG_KINDS: tuple[str, ...] = ("switched_on", "switched_off", "pool_reset", "gap", "unobserved", "rows_refused")
@@ -88,19 +109,26 @@ def _is_none(value) -> bool:
     return value is None
 
 
-class Spell(BaseModel):
-    """An open displacement spell (one per person at most)."""
+@dataclass(slots=True)
+class Spell:
+    """An open displacement spell (one per person at most). A slotted record:
+    person-level state lives only in exact checkpoints (review m2: cheap to
+    hold and update at scale)."""
 
     start: int                          # the turn of the move that opened it
     origin: int                         # home when it opened (region index)
     cause: str                          # CAUSES
     anchor: str                         # ANCHORS (the first kind present, else "none")
-    anchor_kinds: list[str] = Field(default_factory=list)   # every EVENT_KINDS kind dated in the window
+    anchor_kinds: list[str] = field(default_factory=list)   # every EVENT_KINDS kind dated in the window
     anchor_partial: bool = False        # the window reaches before the ledger watched the regions
     moves: int = 1                      # moves while displaced, the opening one included
+    #: The opening move's native driver code (``models.MIGRATION_DRIVER_NAMES``),
+    #: kept across onward moves (review M2).
+    driver: int | None = None
 
 
-class ResidenceRow(BaseModel):
+@dataclass(slots=True)
+class ResidenceRow:
     """One observed living person, keyed by stable id in ``ResidenceLedgerState.rows``."""
 
     home: int                           # region index
@@ -108,12 +136,12 @@ class ResidenceRow(BaseModel):
     res: int                            # residence: the native region after the tick (a traveller keeps it)
     res_since: int                      # the turn the person arrived at this residence (or was first seen)
     first_seen: int
-    move_turn: int | None = Field(default=None, exclude_if=_is_none)     # the last applied move
-    move_from: int | None = Field(default=None, exclude_if=_is_none)
-    move_driver: int | None = Field(default=None, exclude_if=_is_none)   # native code (None: no driver)
-    spell: Spell | None = Field(default=None, exclude_if=_is_none)
-    army: str | None = Field(default=None, exclude_if=_is_none)          # attachment after reconcile_rosters
-    army_region: int | None = Field(default=None, exclude_if=_is_none)
+    move_turn: int | None = None        # the last applied move
+    move_from: int | None = None
+    move_driver: int | None = None      # native code (None: no driver)
+    spell: Spell | None = None
+    army: str | None = None             # attachment after reconcile_rosters
+    army_region: int | None = None
 
 
 class RegionWatch(BaseModel):
@@ -145,9 +173,11 @@ class ResidenceLedgerState(BaseModel):
     #: The last observed turn.
     last_turn: int | None = None
     #: The completed turn's frame (aggregates) and spell events. None: not observed.
+    #: The frame and events are in every snapshot record, so JSON output leaves
+    #: them out (review nit); exact checkpoints keep them.
     frame_turn: int | None = None
-    frame: dict[str, Any] | None = None
-    events: list[dict[str, Any]] | None = None
+    frame: dict[str, Any] | None = Field(default=None, exclude=True)
+    events: list[dict[str, Any]] | None = Field(default=None, exclude=True)
     events_dropped: int = 0
     #: Per-person state (``exclude=True``): kept in exact checkpoints (the
     #: pickled world), left out of JSON output (the bundle's world state and the
@@ -162,6 +192,9 @@ class ResidenceLedgerState(BaseModel):
     #: ends away from the residence (a native unwind leaves the traveller where
     #: it was) is recognised as such at the next write.
     travelling: list[int] = Field(default_factory=list, exclude=True)
+    #: People on an army roster at the last write (ascending ids): the next
+    #: write clears only their attachment (review m2).
+    attached: list[int] = Field(default_factory=list, exclude=True)
     #: The number of person rows and open spells held after the last write (in JSON too).
     rows_held: int = 0
     open_spells_held: int = 0

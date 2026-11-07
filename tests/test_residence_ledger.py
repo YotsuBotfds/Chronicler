@@ -378,6 +378,114 @@ def test_an_anchor_window_before_the_watch_began_is_partial():
     assert _state(world).frame["totals"]["anchor_partial"] == 1
 
 
+def test_a_battle_or_siege_in_the_home_region_anchors_the_same_turns_departures():
+    """Review M2: battles and sieges are war events, dated in Phase 5 (before the tick)."""
+    from chronicler.models import BattleRecord
+    world, sim = _world(), FakeSim()
+    for aid, region in ((1, CRAG), (2, DUN), (3, EDGE)):
+        sim.add(aid, region)
+    for _ in range(ANCHOR_TURNS):
+        step(world, sim)
+    turn = world.turn
+
+    def fighting():
+        world.war_state.battles.append(BattleRecord(
+            turn=turn, name="Battle of Crag", kind="field", region="Crag", war_key="A|B", attacker="A",
+            defender="B", attacker_soldiers=5, defender_soldiers=5, attacker_power=5, defender_power=5,
+            attacker_losses=1, defender_losses=1))
+        place_army(world, "A", "Dun", 3, "A|B", phase="sieging")
+
+    step(world, sim, moves=[(1, CRAG, BROOK, "battle_memory"), (2, DUN, CRAG, "safety_need"),
+                            (3, EDGE, DUN, "battle_memory")], before=fighting)
+    assert (_row(world, 1).spell.anchor, _row(world, 2).spell.anchor, _row(world, 3).spell.anchor) == (
+        "war", "war", "none")
+    world.war_state.armies.clear()
+    sim.add(4, CRAG)
+    step(world, sim)
+    step(world, sim, moves=[(4, CRAG, AVALON, "battle_memory")])          # the battle stays in the window
+    assert _row(world, 4).spell.anchor == "war"
+
+
+def test_a_region_gaining_or_losing_its_only_controller_is_not_war():
+    """Review m1: a change of controller is war only between two civilizations."""
+    world, sim = _world(), FakeSim()
+    for aid in (1, 2, 3):
+        sim.add(aid, CRAG)
+    for _ in range(ANCHOR_TURNS):
+        step(world, sim)
+    world.regions[CRAG].controller = None                               # abandoned
+    step(world, sim)
+    world.regions[CRAG].controller = "A"                                # settled by a civilization
+    step(world, sim)
+    step(world, sim, moves=[(1, CRAG, BROOK, "safety_need")])
+    assert _row(world, 1).spell.anchor == "none"
+    world.regions[CRAG].controller = "B"                                # civilization to civilization
+    step(world, sim)
+    step(world, sim, moves=[(2, CRAG, BROOK, "safety_need")])
+    assert _row(world, 2).spell.anchor == "war"
+
+
+def test_the_frame_splits_departures_arrivals_returns_and_origins_by_cause_and_anchor():
+    """Review M1: D3 reads war-anchored departures, returns and origins at T+1."""
+    world, sim = _world(), FakeSim()
+    for aid in (1, 2, 3, 4):
+        sim.add(aid, CRAG)
+    for _ in range(ANCHOR_TURNS):
+        step(world, sim)
+    turn = world.turn
+
+    def conquest():
+        world.regions[CRAG].last_conquered_turn = turn
+
+    step(world, sim, moves=[(1, CRAG, BROOK, "conquest_memory"), (2, CRAG, BROOK, "opp_food"),
+                            (3, CRAG, DUN, "wage")], before=conquest)
+    frame = RL.read_frame(world, consumer_turn=world.turn)
+    crag, brook, dun, t = _region(frame, CRAG), _region(frame, BROOK), _region(frame, DUN), frame["totals"]
+    assert (crag["opened_flight"], crag["opened_hunger"], crag["opened_war"], crag["opened_none"]) == (1, 1, 2, 0)
+    assert (crag["displaced_from_war"], crag["displaced_from_none"]) == (2, 0)
+    assert (brook["arrivals_flight"], brook["arrivals_hunger"], brook["arrivals_displaced_war"]) == (1, 1, 2)
+    assert (dun["arrivals_voluntary"], dun["arrivals_displaced_war"]) == (1, 0)
+    assert (t["opened_war"], t["arrivals_voluntary"], t["displaced_from_war"]) == (2, 1, 2)
+    step(world, sim, moves=[(1, BROOK, CRAG, "opp_satisfaction")])
+    frame = RL.read_frame(world, consumer_turn=world.turn)
+    assert _region(frame, CRAG)["returned_war"] == 1 and frame["totals"]["returned_war"] == 1
+    assert frame["totals"]["displaced_from_war"] == 1
+
+
+def test_the_opening_driver_is_kept_across_onward_moves():
+    """Review M2: ``move_driver`` follows the last move; the spell keeps the opening one."""
+    world, sim = _world(), FakeSim()
+    _population(sim, 1)
+    step(world, sim)
+    step(world, sim, moves=[(1, AVALON, BROOK, "battle_memory")])
+    step(world, sim, moves=[(1, BROOK, CRAG, "wage")])
+    row = RL.own_row_accessor(world, 1, consumer_turn=world.turn).read(1)
+    assert row["spell"]["driver"] == MIGRATION_DRIVER_NAMES.index("battle_memory")
+    assert row["move_driver"] == MIGRATION_DRIVER_NAMES.index("wage")
+    step(world, sim, moves=[(1, CRAG, AVALON, None)])
+    returned = _events(world, "returned")[0]
+    assert returned["driver"] == MIGRATION_DRIVER_NAMES.index("battle_memory") and returned["length"] == 2
+
+
+def test_a_native_move_on_an_invalid_route_is_counted_and_skipped():
+    world, sim = _world(), FakeSim()
+    _population(sim, 2)
+    step(world, sim)
+    world.agent_events_raw.append(AgentEventRecord(world.turn, 1, "migration", AVALON, 99, 0, 0))
+    world.agent_events_raw.append(AgentEventRecord(world.turn, 2, "migration", AVALON, AVALON, 0, 0))
+    frame = step(world, sim)
+    assert frame["totals"]["invalid_moves"] == 2 and frame["totals"]["moves"] == 0
+    assert _state(world).counters["invalid_moves"] == 2
+
+
+def test_every_declared_counter_is_recorded_zeros_included():
+    world, sim = _world(), FakeSim()
+    _population(sim, 1)
+    step(world, sim)
+    record = LV.livelihoods_snapshot_fields(world)["livelihoods"]["residence_ledger"]
+    assert list(record["counters"]) == list(COUNTERS) and record["counters"]["closed_died"] == 0
+
+
 # --- attachment, trips, relocations ------------------------------------------------------
 
 def test_enlistment_never_rehomes_and_attachment_is_counted_by_home_region():
@@ -542,7 +650,8 @@ def test_readers_give_t_to_t_plus_1_and_refuse_a_same_turn_or_other_turn_read():
     step(world, sim)
     step(world, sim, moves=[(1, AVALON, BROOK, "battle_memory")], advance=False)   # T = 2 written
     T = world.turn
-    for read in (lambda: RL.read_frame(world, consumer_turn=T), lambda: RL.own_row(world, 1, consumer_turn=T),
+    for read in (lambda: RL.read_frame(world, consumer_turn=T),
+                 lambda: RL.own_row_accessor(world, 1, consumer_turn=T),
                  lambda: RL.separation(world, FakeBridge(sim), consumer_turn=T)):
         with pytest.raises(RL.LedgerReadRefused, match="same-turn read refused"):
             read()
@@ -555,18 +664,34 @@ def test_readers_give_t_to_t_plus_1_and_refuse_a_same_turn_or_other_turn_read():
         RL.read_frame(world, consumer_turn=True)
     frame = RL.read_frame(world, consumer_turn=T + 1)
     assert frame["turn"] == T and frame["totals"]["displaced"] == 1
-    row = RL.own_row(world, 1, consumer_turn=T + 1)
+    mine = RL.own_row_accessor(world, 1, consumer_turn=T + 1)
+    row = mine.read(1)
     assert row["source_turn"] == T and row["spell"]["cause"] == "flight" and row["res"] == BROOK
-    assert row["res_since"] == T and row["move_from"] == AVALON
+    assert row["res_since"] == T and row["move_from"] == AVALON and mine.agent_id == 1
+    assert row["spell"]["driver"] == MIGRATION_DRIVER_NAMES.index("battle_memory")
     assert set(row) == {"id", "source_turn", "home", "home_since", "res", "res_since", "first_seen", "move_turn",
                         "move_from", "move_driver", "spell", "army", "army_region"}
-    assert RL.own_row(world, 2, consumer_turn=T + 1)["spell"] is None           # every key, None included
-    assert RL.own_row(world, 99, consumer_turn=T + 1) is None
+    assert RL.own_row_accessor(world, 2, consumer_turn=T + 1).read(2)["spell"] is None   # every key
+    assert RL.own_row_accessor(world, 99, consumer_turn=T + 1).read(99) is None
     frame["totals"]["displaced"] = 99                                   # a copy
     assert _state(world).frame["totals"]["displaced"] == 1
     world.turn += 1                                                     # T+2: T's frame is stale
     assert RL.read_frame(world, consumer_turn=T + 2) is None
-    assert RL.own_row(world, 1, consumer_turn=T + 2) is None
+    assert RL.own_row_accessor(world, 1, consumer_turn=T + 2).read(1) is None
+    with pytest.raises(RL.LedgerReadRefused, match="at its own turn"):
+        mine.read(1)                                                    # made for T+1: refused at T+2
+
+
+def test_the_own_row_accessor_reads_only_its_own_person():
+    """Review m4: A6's per-agent decision receives an accessor bound to its agent."""
+    world, sim = _world(), FakeSim()
+    _population(sim, 2)
+    step(world, sim)
+    step(world, sim, moves=[(1, AVALON, BROOK, "famine_memory")])
+    mine = RL.own_row_accessor(world, 2, consumer_turn=world.turn)
+    assert mine.read(2)["res"] == AVALON
+    with pytest.raises(RL.LedgerReadRefused, match="own row only: this accessor is bound to agent 2, not 1"):
+        mine.read(1)
 
 
 def test_the_aggregate_frame_names_no_person():
@@ -667,10 +792,11 @@ def test_the_state_round_trips_json_and_pickle():
     assert copy == state and list(copy.rows) == [1, 2, 3] and copy.rows[3].army == "army-1"
     # JSON output (the bundle's world state, the state file) leaves the person rows out.
     dumped = json.loads(world.livelihoods.model_dump_json())["residence_ledger"]
-    assert not {"rows", "deferred", "travelling"} & set(dumped)
-    assert (dumped["rows_held"], dumped["open_spells_held"]) == (3, 1)
+    # The frame and events repeat the last snapshot record, so they are left out too.
+    assert not {"rows", "deferred", "travelling", "attached", "frame", "events"} & set(dumped)
+    assert (dumped["rows_held"], dumped["open_spells_held"], dumped["frame_turn"]) == (3, 1, 2)
     back = LivelihoodsState.model_validate_json(world.livelihoods.model_dump_json()).residence_ledger
-    assert back.rows == {} and back.frame == state.frame and back.counters == state.counters
+    assert back.rows == {} and back.frame is None and back.counters == state.counters
 
 
 def test_rows_and_events_are_bounded(monkeypatch):
@@ -718,7 +844,7 @@ def test_with_the_ledger_on_everything_but_its_record_equals_off():
     dump_on, dump_off = on.model_dump(mode="json"), off.model_dump(mode="json")
     record = dump_on["livelihoods"].pop("residence_ledger")
     assert dump_on.pop("livelihoods") == {"schema_version": 1} and "livelihoods" not in dump_off
-    assert record["frame"]["turn"] == 2 and dump_on == dump_off
+    assert record["frame_turn"] == 2 and on.livelihoods.residence_ledger.frame["turn"] == 2 and dump_on == dump_off
     assert sim_on.people == sim_off.people and sim_on.trips == sim_off.trips
     assert on.agent_events_raw == off.agent_events_raw
 

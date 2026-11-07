@@ -50,13 +50,17 @@ Definitions (audit 11.1):
   or ``migrated``.
 
 Dating of an anchor. Region state is read at this hook: a conquest
-(``last_conquered_turn``, Phase 5), an occupation (Phase 5) and a famine onset
-(``famine_cooldown`` at its onset value, Phase 9 ecology) dated T happened
-before T's agent tick and count for T's departures; a controller change
-without a conquest (secession, cession, absorption, mostly Phase 10) and
-persecution (``persecution_intensity``, computed in Phase 10) dated T count
-from T+1 (the tick of T persecuted by T-1's reading, which is in the window).
-A window reaching before the ledger watched the regions is ``anchor_partial``.
+(``last_conquered_turn``, Phase 5), an occupation (Phase 5), a battle fought
+in the region (``war_state.battles`` of turn T, Phase 5 campaigns), a siege of
+it (an army ``sieging`` there, Phase 5) and a famine onset (``famine_cooldown``
+at its onset value, Phase 9 ecology) dated T happened before T's agent tick
+and count for T's departures; a change of controller between two
+civilizations without a conquest (secession, cession, absorption, mostly
+Phase 10; a region gaining or losing its only controller is not war) and
+persecution (``persecution_intensity``, computed in Phase 10) are read
+against the ledger's previous reading, so they are dated T and count from
+T+1 (the tick of T persecuted by T-1's reading, which is in the window). A
+window reaching before the ledger watched the regions is ``anchor_partial``.
 
 One writer (audit 11.2): the livelihoods ``phase10`` hook of turn T, after
 ``reconcile_rosters`` and every acting package, before D2's records and A1's
@@ -64,9 +68,13 @@ ledger, reads T's applied native migrations with their drivers
 (``world.agent_events_raw``, as RS4 reads them), the post-tick snapshot,
 ``trip_agent_ids()``, the rosters and region state, and writes one frame
 stamped ``source_turn = T``. Army dissolutions at the end-of-turn sync are
-seen at T+1. Only ``apply_migrations`` relocates ordinary agents natively, so
-no native change is needed. It registers no agent-tick hook (the post-tick
-snapshot hand-over is unchanged).
+seen at T+1. Natively, ``apply_migrations`` relocates ordinary agents, and a
+merchant trip unwound on a conquest leaves the traveller where it was (a
+correction to audit 11.2; recorded as ``trip_relocations``); no native change
+is needed. It registers no agent-tick hook (the post-tick snapshot hand-over
+is unchanged). A consumer that reads in Phase 10 must come before this
+package in ``LIVELIHOODS_SWITCHES``: after the writer, T's frame is a
+same-turn read and is refused.
 
 Contract. Record-only: it never writes simulation state, draws no random
 number, builds no world lookup cache and changes nothing it observes, so with
@@ -78,7 +86,8 @@ it; a rebuilt pool (a legacy resume) rebuilds nothing: its spells close as
 
 Readers (audit 11.4). A consumer at turn T+1 reads T's frame through
 :func:`read_frame` (aggregates: C2 crowding, ruler decisions) or a person's
-own row through :func:`own_row` (A6); D3 asks :func:`separation`. Each refuses
+own row through an :class:`OwnRow` bound to that person
+(:func:`own_row_accessor`, A6); D3 asks :func:`separation`. Each refuses
 a same-turn or future read (:class:`LedgerReadRefused`) and returns None when
 T was not observed (unknown, not zero). Decision modules may read nothing
 else (``tests/test_residence_ledger_guard.py``). The bridge's displaced share
@@ -88,6 +97,7 @@ and birth region are unchanged on the default path.
 from __future__ import annotations
 
 import copy
+from dataclasses import asdict
 
 from chronicler.models import NO_MIGRATION_DRIVER, VOLUNTARY_MIGRATION_DRIVERS, migration_driver_name
 from chronicler.quarantine_rules import FLIGHT_DRIVERS, HUNGER_DRIVERS
@@ -117,14 +127,15 @@ LABELS: dict[str, str] = {
              "since), changed only by a voluntary or unclassified move of a person who is not displaced (a "
              f"migrant re-homes at once) or by a displacement spell that resettles after {REHOME_TURNS} turns at "
              "one residence; never by enlistment"),
-    "displaced": ("an open displacement spell: opened by an applied move that left home driven by flight (war, "
-                  "battle, conquest or persecution memories, persecution, the safety need) or hunger (food "
-                  "opportunity, material need); a household follower carries its lead's driver; an onward move, "
-                  "voluntary or not, keeps it open"),
-    "anchor": (f"the home-region event dated in the {ANCHOR_TURNS} turns before the departure: war (a controller "
-               "change, an occupation or a conquest), famine (a famine or dearth report), persecution; the first "
-               "present in that order (anchor_any_* counts every kind present); none without one; anchor_partial: "
-               "the window reaches before the ledger watched the regions"),
+    "displaced": ("an open displacement spell: opened by an applied move that left home driven by flight "
+                  "(memories of famine, battle, conquest or persecution; persecution; the safety need) or hunger "
+                  "(food opportunity, material need); a household follower carries its lead's driver; an onward "
+                  "move, voluntary or not, keeps it open; the opening driver is kept"),
+    "anchor": (f"the home-region event dated in the {ANCHOR_TURNS} turns before the departure: war (a change of "
+               "controller between civilizations, an occupation, a conquest, a battle or a siege), famine (a "
+               "famine or dearth report), persecution; the first present in that order (anchor_any_* counts "
+               "every kind present); none without one; anchor_partial: the window reaches before the ledger "
+               "watched the regions"),
     "closures": (f"returned: back home after a move; resettled: {REHOME_TURNS} turns at one residence, which "
                  "becomes home; died; pool_reset: the native pool was rebuilt; unobserved_gap: turns the ledger did "
                  "not observe"),
@@ -133,8 +144,10 @@ LABELS: dict[str, str] = {
     "in_transit": "residents physically elsewhere on a merchant trip (location differs from residence)",
     "flows": ("arrivals and departures count every applied native move this turn (by driver group: flight, "
               "hunger, voluntary - frontier, wage, chain, urban, learning - and other); arrivals_displaced: "
-              "movers whose spell is open after the move; opened, returned, resettled and died_displaced: spell "
-              "openings (by departure region) and closures (returned by home, the others by residence)"),
+              "movers whose spell is open after the move (arrivals_displaced_<anchor> by its anchor); opened, "
+              "returned, resettled and died_displaced: spell openings (by departure region; opened_<cause>, "
+              "opened_<anchor>) and closures (returned by home, returned_<anchor>; the others by residence); "
+              "displaced_from_<anchor>: open spells by origin and anchor"),
     "comparisons": ("record-only counts of the measures this contract replaces: recent_movers_native (native "
                     "displacement counter above zero: moved in the last 5 turns) and away_from_birth_region "
                     "(native origin region)"),
@@ -183,6 +196,7 @@ def _end_epoch(state: ResidenceLedgerState, reason: str) -> int:
     state.rows = {}
     state.deferred = []
     state.travelling = []
+    state.attached = []
     state.rows_held = state.open_spells_held = 0
     state.observed_from = None
     return closed
@@ -249,7 +263,8 @@ def on_pool_reset(world) -> None:
 
 def _event(aid: int, kind: str, spell: Spell, region: int, turn: int) -> dict:
     return {"id": int(aid), "kind": kind, "turn": int(turn), "region": int(region), "start": spell.start,
-            "origin": spell.origin, "cause": spell.cause, "anchor": spell.anchor, "length": int(turn) - spell.start}
+            "origin": spell.origin, "cause": spell.cause, "anchor": spell.anchor, "length": int(turn) - spell.start,
+            "driver": spell.driver}
 
 
 
@@ -264,23 +279,26 @@ def _group(code: int | None) -> str:
     return "other"
 
 
-def _turn_moves(world, n_regions: int) -> list[tuple[int, int, int, int | None]]:
+def _turn_moves(world, n_regions: int) -> tuple[list[tuple[int, int, int, int | None]], int]:
     """This turn's applied native migrations, in native order: (id, from, to,
-    driver code or None). Every applied move is one (the apply phase is the
-    only native relocation of ordinary agents; L7's household moves included)."""
+    driver code or None), and the number of events naming an invalid route,
+    which are counted and skipped (a record-only package never stops the run).
+    Every applied move is one (L7's household moves included)."""
     raw = getattr(world, "agent_events_raw", None) or []
     out = []
+    invalid = 0
     for e in reversed(raw):
         if e.turn != world.turn:
             break
         if e.event_type == "migration":
             frm, to = int(e.region), int(e.target_region)
             if not (0 <= frm < n_regions and 0 <= to < n_regions) or frm == to:
-                raise RuntimeError("native migration event names an invalid route")
+                invalid += 1
+                continue
             code = int(e.migration_driver)
             out.append((int(e.agent_id), frm, to, None if code == NO_MIGRATION_DRIVER else code))
     out.reverse()
-    return out
+    return out, invalid
 
 
 def _region_index(world, name) -> int | None:
@@ -321,26 +339,54 @@ def _watch_regions(world, state: ResidenceLedgerState, t: _Turn) -> None:
     if state.watch_from is None:
         state.watch_from = turn
     t.partial = state.watch_from > turn - ANCHOR_TURNS
+    fought = _battle_and_siege_regions(world, turn)
     for i, region in enumerate(world.regions):
         w = state.regions[i]
         t.prior.append((w.war, w.famine, w.persecution))
         conquered = region.last_conquered_turn == turn
         occupied = region.occupied_by is not None
         famine = region.famine_cooldown == FAMINE_ONSET_COOLDOWN
-        changed = w.controller_seen and region.controller != w.controller
+        changed = w.controller_seen and _civ_change(w.controller, region.controller)
         pre = set()
-        if conquered or occupied:
+        if conquered or occupied or region.name in fought:
             pre.add("war")
         if famine:
             pre.add("famine")
         t.pre.append(pre)
-        if conquered or occupied or changed:
+        if conquered or occupied or changed or region.name in fought:
             w.war = turn
         if famine:
             w.famine = turn
         if region.persecution_intensity > 0:
             w.persecution = turn
         w.controller, w.controller_seen = region.controller, True
+
+
+def _civ_change(before: str | None, after: str | None) -> bool:
+    """A war-like change of controller: from one civilization to another (a
+    region gaining or losing its only controller is not war; review m1)."""
+    return before is not None and after is not None and before != after
+
+
+def _battle_and_siege_regions(world, turn: int) -> set[str]:
+    """Names of regions where a battle was fought in turn T (``war_state.battles``,
+    appended by Phase 5 campaigns, so before T's agent tick) or an army is
+    besieging (phase ``sieging``, set in Phase 5 and unchanged until the
+    end-of-turn sync)."""
+    state = getattr(world, "war_state", None)
+    if state is None:
+        return set()
+    names = set()
+    for battle in reversed(state.battles):
+        if battle.turn != turn:
+            if battle.turn < turn:
+                break
+            continue
+        names.add(battle.region)
+    for army in state.armies:
+        if army.phase == "sieging":
+            names.add(army.region)
+    return names
 
 
 def _anchor(t: _Turn, region: int) -> tuple[str, list[str]]:
@@ -360,6 +406,9 @@ def _close(state: ResidenceLedgerState, t: _Turn, aid: int, row: ResidenceRow, r
     key = {"returned": "returned", "resettled": "resettled", "died": "died_displaced"}.get(reason)
     if key is not None:
         t.region[region][key] += 1
+    if reason == "returned":
+        t.region[region][f"returned_{spell.anchor}"] += 1
+        t.totals[f"returned_{spell.anchor}"] += 1
     event = _event(aid, reason, spell, region, t.turn)
     if relocation:
         event["relocation"] = True       # not an applied migration (a trip that ended away, or unexplained)
@@ -379,6 +428,8 @@ def _move(state: ResidenceLedgerState, t: _Turn, aid: int, row: ResidenceRow, fr
         t.region[frm]["departures"] += 1
         t.region[frm][f"departures_{group}"] += 1
         t.region[to]["arrivals"] += 1
+        t.region[to][f"arrivals_{group}"] += 1
+        t.totals[f"arrivals_{group}"] += 1
         if row.res != frm:
             # The row missed a relocation: the native origin is authoritative.
             t.totals["move_origin_mismatches"] += 1
@@ -396,9 +447,12 @@ def _move(state: ResidenceLedgerState, t: _Turn, aid: int, row: ResidenceRow, fr
     elif group in CAUSES:
         anchor, kinds = _anchor(t, frm)
         row.spell = Spell(start=turn, origin=row.home, cause=group, anchor=anchor, anchor_kinds=kinds,
-                          anchor_partial=t.partial)
+                          anchor_partial=t.partial, driver=code)
         t.totals["opened"] += 1
         t.region[frm]["opened"] += 1
+        for key in (f"opened_{group}", f"opened_{anchor}"):
+            t.region[frm][key] += 1
+            t.totals[key] += 1
         _bump(state, f"opened_{group}")
         _bump(state, f"opened_{anchor}")
         t.event(_event(aid, "opened", row.spell, to, turn))
@@ -410,6 +464,8 @@ def _move(state: ResidenceLedgerState, t: _Turn, aid: int, row: ResidenceRow, fr
     row.move_turn, row.move_from, row.move_driver = turn, frm, code
     if counted and row.spell is not None:
         t.region[to]["arrivals_displaced"] += 1
+        t.region[to][f"arrivals_displaced_{row.spell.anchor}"] += 1
+        t.totals[f"arrivals_displaced_{row.spell.anchor}"] += 1
 
 
 def _unobserved(state: ResidenceLedgerState, turn: int, reason: str) -> list:
@@ -482,7 +538,11 @@ def phase10(world, acc, economy_result, agent_bridge):
 
     # 1. T's applied moves, in native order.
     moved: set[int] = set()
-    for aid, frm, to, code in _turn_moves(world, n):
+    moves, invalid = _turn_moves(world, n)
+    if invalid:
+        t.totals["invalid_moves"] += invalid
+        _bump(state, "invalid_moves", invalid)
+    for aid, frm, to, code in moves:
         row = rows.get(aid)
         if row is None:
             if aid not in alive:
@@ -525,31 +585,37 @@ def phase10(world, acc, economy_result, agent_bridge):
             _bump(state, key)
             _move(state, t, aid, row, row.res, region, None, counted=False)
 
-    # 3. Deaths (in this tick, or since the last observed turn).
-    for aid in sorted(rows):
-        if aid not in alive:
-            row = rows.pop(aid)
-            t.region[row.res]["deaths"] += 1
-            t.totals["deaths"] += 1
-            if row.spell is not None:
-                _close(state, t, aid, row, "died", row.res)
+    # 3. Deaths (in this tick, or since the last observed turn), in ascending id.
+    for aid in sorted(rows.keys() - alive.keys()):
+        row = rows.pop(aid)
+        t.region[row.res]["deaths"] += 1
+        t.totals["deaths"] += 1
+        if row.spell is not None:
+            _close(state, t, aid, row, "died", row.res)
     deferred = {aid for aid in deferred if aid in alive and aid not in rows}
 
-    # 4. Resettlement after REHOME_TURNS at one residence.
-    for aid, row in rows.items():
-        if row.spell is not None and turn - row.res_since >= REHOME_TURNS:
-            _close(state, t, aid, row, "resettled", row.res)
-            row.home, row.home_since = row.res, turn
+    # 4. Resettlement after REHOME_TURNS at one residence, in ascending id.
+    due = sorted(aid for aid, row in rows.items()
+                 if row.spell is not None and turn - row.res_since >= REHOME_TURNS)
+    for aid in due:
+        row = rows[aid]
+        _close(state, t, aid, row, "resettled", row.res)
+        row.home, row.home_since = row.res, turn
 
-    # 5. Attachment from the reconciled rosters (enlistment never re-homes).
-    for row in rows.values():
-        row.army = row.army_region = None
+    # 5. Attachment from the reconciled rosters (enlistment never re-homes): only
+    #    the people attached at the last write are cleared (review m2).
+    for aid in state.attached:
+        row = rows.get(aid)
+        if row is not None:
+            row.army = row.army_region = None
+    attached = set()
     for army in getattr(getattr(world, "war_state", None), "armies", None) or []:
         where = _region_index(world, army.region)
         for aid, _region in army.roster:
             row = rows.get(int(aid))
             if row is not None:
                 row.army, row.army_region = army.army_id, where
+                attached.add(int(aid))
 
     # 6. Stocks after the turn, and the frame.
     totals, reg = t.totals, t.region
@@ -562,6 +628,8 @@ def phase10(world, acc, economy_result, agent_bridge):
             r[f"displaced_{spell.cause}"] += 1
             r[f"displaced_{spell.anchor}"] += 1
             reg[spell.origin]["displaced_from"] += 1
+            reg[spell.origin][f"displaced_from_{spell.anchor}"] += 1
+            totals[f"displaced_from_{spell.anchor}"] += 1
             totals["displaced"] += 1
             totals[f"displaced_{spell.cause}"] += 1
             totals[f"displaced_{spell.anchor}"] += 1
@@ -589,10 +657,11 @@ def phase10(world, acc, economy_result, agent_bridge):
         _log(state, turn, "rows_refused", refused=refused, max_rows=MAX_ROWS)
     if t.dropped:
         _bump(state, "events_dropped", t.dropped)
-    state.rows = dict(sorted(rows.items()))
+    # ``rows`` keeps its deterministic insertion order (pickled as it is).
     state.rows_held, state.open_spells_held = len(rows), totals["displaced"]
     state.deferred = sorted(deferred)
     state.travelling = sorted(trips)
+    state.attached = sorted(attached)
     state.frame = {"turn": turn, "observed_from": state.observed_from, "totals": totals, "regions": regions}
     state.events, state.events_dropped = t.events, t.dropped
     state.frame_turn = state.last_turn = turn
@@ -629,22 +698,48 @@ def read_frame(world, *, consumer_turn: int) -> dict | None:
     return copy.deepcopy(state.frame) if state is not None else None
 
 
-def own_row(world, agent_id: int, *, consumer_turn: int) -> dict | None:
-    """One person's own row as of turn ``consumer_turn - 1`` (A6: one's own
-    experience): home and since, residence and arrival turn, the last move and
-    the open spell, the attachment. None: not observed (or the turn was not)."""
-    state = _dated(world, consumer_turn)
-    if state is None:
-        return None
-    row = state.rows.get(int(agent_id))
-    if row is None:
-        return None
-    # Every key, None included (the stored JSON omits empty fields).
-    return {"id": int(agent_id), "source_turn": state.frame_turn, "home": row.home, "home_since": row.home_since,
-            "res": row.res, "res_since": row.res_since, "first_seen": row.first_seen, "move_turn": row.move_turn,
-            "move_from": row.move_from, "move_driver": row.move_driver,
-            "spell": row.spell.model_dump(mode="json") if row.spell is not None else None,
-            "army": row.army, "army_region": row.army_region}
+class OwnRow:
+    """One person's own row as of turn T, bound to that person (A6: one's own
+    experience; review m4).
+
+    A6's dispatcher makes one per agent it decides for
+    (:func:`own_row_accessor`) and hands it to that agent's decision, which
+    reads only through it: :meth:`read` refuses any other id, and refuses once
+    the world is no longer at the consumer turn the accessor was made for."""
+
+    __slots__ = ("_world", "_agent_id", "_consumer_turn")
+
+    def __init__(self, world, agent_id: int, consumer_turn: int):
+        self._world, self._agent_id, self._consumer_turn = world, int(agent_id), int(consumer_turn)
+
+    @property
+    def agent_id(self) -> int:
+        return self._agent_id
+
+    def read(self, agent_id: int) -> dict | None:
+        """The bound person's row (every key, None included), or None when the
+        person or T was not observed. Refuses another person's id."""
+        if int(agent_id) != self._agent_id:
+            raise LedgerReadRefused(f"own row only: this accessor is bound to agent {self._agent_id}, "
+                                    f"not {int(agent_id)}")
+        state = _dated(self._world, self._consumer_turn)
+        if state is None:
+            return None
+        row = state.rows.get(self._agent_id)
+        if row is None:
+            return None
+        return {"id": self._agent_id, "source_turn": state.frame_turn, "home": row.home,
+                "home_since": row.home_since, "res": row.res, "res_since": row.res_since,
+                "first_seen": row.first_seen, "move_turn": row.move_turn, "move_from": row.move_from,
+                "move_driver": row.move_driver, "spell": asdict(row.spell) if row.spell is not None else None,
+                "army": row.army, "army_region": row.army_region}
+
+
+def own_row_accessor(world, agent_id: int, *, consumer_turn: int) -> OwnRow:
+    """An :class:`OwnRow` bound to ``agent_id`` for a consumer at
+    ``consumer_turn`` (refuses a same-turn or other-turn consumer now)."""
+    _dated(world, consumer_turn)
+    return OwnRow(world, agent_id, consumer_turn)
 
 
 def separation(world, agent_bridge, *, consumer_turn: int) -> dict | None:
@@ -719,7 +814,8 @@ def snapshot_summary(world) -> dict:
         "frame": copy.deepcopy(state.frame) if fresh else None,
         "events": copy.deepcopy(state.events) if fresh else None,
         "events_dropped": state.events_dropped if fresh else 0,
-        "counters": {k: state.counters[k] for k in COUNTERS if k in state.counters},
+        # Every declared counter, zeros included (a missing key is not a zero; review nit).
+        "counters": {k: state.counters.get(k, 0) for k in COUNTERS},
         "log": [r.model_dump() for r in state.log], "log_dropped": state.log_dropped,
         "labels": dict(LABELS),
         "parameters": {"rehome_turns": REHOME_TURNS, "anchor_turns": ANCHOR_TURNS,
