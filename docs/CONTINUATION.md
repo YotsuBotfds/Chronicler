@@ -89,10 +89,11 @@
   `own_row` for A6, `separation` for D3) and a guard refuses any other read by decision modules;
   a viewer panel; one layer `cwx1`. Found: a merchant trip unwound on conquest is a second native
   relocation path (recorded as an unclassified relocation; audit 11.2 said only
-  `apply_migrations`). Lead decision pending: 11.1 read literally resettles a displaced person's
-  voluntary onward move; with the audit probe's rule the ledger reproduces audit section 10
-  within 0.01. [Integration page](integration/residence-ledger.md) (verification and
-  development-world evidence).
+  `apply_migrations`). Lead decisions (2026-11-07): any onward move of a displaced person keeps
+  the spell open (the ledger then reproduces audit section 10 within 0.01); person rows live in
+  exact checkpoints only, not in the bundle or state file.
+  [Integration page](integration/residence-ledger.md) (verification and development-world
+  evidence).
 - **Lanes in flight** (each on its own branch, provisional witness layers regenerated at
   integration): A5 retail rules v2, war reaches owned stock once per event (RL1–RL3; review
   merge-ready); A1 `--wealth-accounting` observation ledger (RL7; review fixes); B1 `--watershed

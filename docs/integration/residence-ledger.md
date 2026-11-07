@@ -47,56 +47,66 @@ manifest key: feature-off output is byte-identical (verified below).
   none. Enlistment never re-homes. An army dissolved at the end-of-turn sync is still attached
   in T's frame and gone at T+1 (declared).
 - **Home**, dated `home_since`: the residence at first observation (the birth region for a
-  person born after it). It changes only when a voluntary or unclassified move is applied (a
-  migrant re-homes at once), or when an open spell resettles after `REHOME_TURNS = 20` turns at
-  one residence.
+  person born after it). It changes only when a voluntary or unclassified move is applied to a
+  person without an open spell (a migrant re-homes at once), or when an open spell resettles
+  after `REHOME_TURNS = 20` turns at one residence.
 - **Displacement spell**: opened when an applied move leaves home and its driver is in C1b's
   `FLIGHT_DRIVERS` (cause `flight`) or `HUNGER_DRIVERS` (`hunger`), imported from
   `quarantine_rules` (one source). A household follower's event carries its lead's driver
   natively (`behavior.rs`), so the follower opens the same spell. Fields: `start`,
   `origin = home`, `cause`, `anchor` and `anchor_kinds`, `anchor_partial`, `moves`.
-  **Displaced** = an open spell.
+  **Displaced** = an open spell. **Any onward move of a displaced person** (flight, hunger,
+  voluntary or unclassified, or a trip that ends away) neither re-homes them nor closes the spell:
+  `moves` counts it and the residence and its date move (the lead's resolution, below).
 - **Anchor**: the home-region event dated in the `ANCHOR_TURNS = 5` turns before the departure:
   `war` (a controller change, an occupation or a conquest), `famine` (a famine or dearth report:
   `famine_cooldown` at its onset value 5), `persecution` (`persecution_intensity > 0`); the first
   present in that order is `anchor`, every kind present is kept in `anchor_kinds`; `none` without
   one. `anchor_partial`: the window reaches before the ledger watched the regions (the first five
   turns of an observation epoch).
-- **Closures**: `returned` (residence equals home after a move), `resettled` (home becomes the
-  residence; the event's `by` says `rehome_turns` or `move`), `died`, `pool_reset`,
-  `unobserved_gap`.
+- **Closures** (the only ways a spell ends): `returned` (residence equals home after a move or
+  relocation), `resettled` (`REHOME_TURNS` at one residence, which becomes home), `died`,
+  `pool_reset`, `unobserved_gap`.
 - **Separated** (D3; computed on demand by `separation`, never stored): a married partner, or a
   dependent child's (age below 20, native `AGE_ADULT`) parent, alive with a different residence
   or location, with the cause `trip`, `attached`, `displaced` or `migrated` (first that applies).
 
-### Decisions within 11.1 (for the lead)
+### Lead decisions on this lane (2026-11-07)
 
-1. **A displaced person's voluntary or unclassified onward move resettles the spell** at the
-   destination (`by: "move"`), as 11.1 reads ("home changes only when a voluntary or unclassified
-   move is applied"). The audit's probe kept such spells open. This is the main reason the
-   ledger's displaced shares are below audit section 10's (measured below: with the probe's rule
-   the ledger reproduces section 10 within 0.01). Changing it is one branch in `_move`; it
-   changes D3's meaning of "return" (audit 14, question 1).
-2. **Anchor dating** follows when the event happened relative to the tick. Read at Phase 10 of
-   T: a conquest (`last_conquered_turn == T`, Phase 5), an occupation (Phase 5) and a famine onset
-   (Phase 9 ecology) dated T precede T's agent tick and anchor T's departures. A controller
-   change without a conquest (secession, cession, absorption; mostly Phase 10) and persecution
-   (computed in Phase 10; T's tick persecuted by T−1's reading, which is in the window) dated T
-   anchor departures from T+1. The probe counted same-turn controller changes for T; the
-   war-anchored share on procedural 13 is 0.0056 here against 0.0082 with the probe's onward rule.
-3. **A second native relocation path.** Audit 11.2 says only `apply_migrations` relocates
-   ordinary agents. A merchant trip unwound on a conquest (`merchant.rs`, `reset_trip_fields`
-   without a return) leaves the traveller in its current transit region. The ledger recognises
-   it (`travelling`, the ids on a trip at the last write) and records it as an unclassified
-   relocation (`trip_relocations`; re-homes, or resettles or returns an open spell, with
-   `relocation: true` on the event); anything else not explained by a move is counted as
-   `unexplained_relocations` and applied the same way. Measured: 7 trip relocations (2 of them
-   in the same tick as a move) in 120 turns of procedural 13; no unexplained relocation in any
-   run. The native code is unchanged (a correction to the audit's statement, not a defect fix).
-4. **Switching off** closes open spells as `unobserved_gap` and drops the rows, the frame and the
-   region watch (counters and log kept); switching on again starts a new epoch.
-5. **Per-person events** (spell openings and closures by stable id, at most 512 per turn) are in
-   the snapshot record for the viewer, narration and analysis, never in `read_frame`.
+1. **Onward moves keep the spell (the lead's resolution of an ambiguity in 11.1).** 11.1 says
+   home changes "only when a voluntary or unclassified move is applied"; read literally, a
+   displaced person's voluntary onward move would resettle the spell. The lead adopted the
+   audit probe's rule instead: a voluntary or unclassified move by a person with an open spell
+   neither re-homes them nor closes the spell (`moves += 1`; the residence and its date update);
+   non-displaced migrants still re-home at once. With it the ledger reproduces audit section 10
+   within 0.01 (below). The first implementation, the literal reading, gave open-spell shares of
+   0.572 and 0.415 on the configuration-C worlds against 0.598 and 0.482.
+2. **Anchor dating** (accepted as declared): read at Phase 10 of T, a conquest
+   (`last_conquered_turn == T`, Phase 5), an occupation (Phase 5) and a famine onset (Phase 9
+   ecology) dated T precede T's agent tick and anchor T's departures. A controller change without
+   a conquest (secession, cession, absorption; mostly Phase 10) and persecution (computed in Phase
+   10) are read against the ledger's previous reading, so they are dated T and anchor departures
+   from T+1 (T's tick persecuted by T−1's reading, which is in the window). The probe counted
+   same-turn controller changes for T: the war-anchored share on procedural 13 is 0.0082 here
+   against the probe's 0.0089.
+3. **Correction to audit 11.2: a second native relocation path** (accepted). Audit 11.2 says only
+   `apply_migrations` relocates ordinary agents. A merchant trip unwound on a conquest
+   (`merchant.rs`, `reset_trip_fields` without a return) leaves the traveller in its current
+   transit region. The ledger recognises it (`travelling`, the ids on a trip at the last write)
+   and records it as an unclassified relocation (`trip_relocations`): it re-homes a person who is
+   not displaced, keeps an open spell open, or returns it when the trip stopped at home
+   (`relocation: true` on the event); anything else not explained by a move is counted as
+   `unexplained_relocations` and applied the same way. Measured: 7 trip relocations (2 in the same
+   tick as a move) in 120 turns of procedural 13; no unexplained relocation in any run. The
+   native code is unchanged.
+4. **Person rows stay out of output** (decision 4): the rows, deferred travellers and trip ids
+   are kept in exact checkpoints (the pickled world) and left out of JSON output, the bundle's
+   world state and the state file (`exclude=True`; see Cost).
+
+Also: **switching off** closes open spells as `unobserved_gap` and drops the rows, the frame and
+the region watch (counters and log kept); switching on again starts a new epoch. **Per-person
+events** (spell openings and closures by stable id, at most 512 per turn) are in the snapshot
+record for the viewer, narration and analysis, never in `read_frame`.
 
 ## One writer (audit 11.2)
 
@@ -117,10 +127,12 @@ native change.
 
 ## Dated persistence and the record (audit 11.3)
 
-State (`world.livelihoods.residence_ledger`, checkpointed, omitted while off): one row per
-observed living person by stable id (home, home_since, residence and since, first seen, the last
-move with its driver, the open spell, the attachment), at most `MAX_ROWS = 262,144` (refusals
-counted); one watch row per region; `observed_from`; the frame of the last observed turn.
+State (`world.livelihoods.residence_ledger`, omitted while off): one row per observed living
+person by stable id (home, home_since, residence and since, first seen, the last move with its
+driver, the open spell, the attachment), at most `MAX_ROWS = 262,144` (refusals counted), with
+the deferred travellers and the trip ids, all three in exact checkpoints only; in JSON too: one
+watch row per region, `observed_from`, `rows_held` and `open_spells_held`, the frame of the last
+observed turn, counters and log.
 
 Snapshot record `snapshot.livelihoods.residence_ledger` (stage `X1`, `source_turn = T`): `frame`
 (None when T was not observed: unknown, not zero) with `totals` (`TOTAL_KEYS`) and `regions`
@@ -135,16 +147,24 @@ displaced or attached, no move, opening, closure or death), recorded.
 
 Resume: an exact resume restores everything (pickled state). A legacy state-file resume rebuilds
 the native pool; the first livelihoods hook calls `on_pool_reset`, which closes open spells as
-`pool_reset` (reported in that turn's frame), drops the rows and restarts observation
-(`observed_from` = the resumed turn). Nothing is rebuilt from the saved rows. A turn the writer
-did not run (an observation gap) closes open spells as `unobserved_gap`.
+`pool_reset` (reported in that turn's frame) and restarts observation (`observed_from` = the
+resumed turn). Nothing is rebuilt: the state file holds no rows, so the closures are counted from
+`open_spells_held` and reported as `events_dropped` (counted, not listed by person). A turn the
+writer did not run (an observation gap) closes open spells as `unobserved_gap`.
 
 Cost: per turn one snapshot read and a pass over the rows (O(alive + moves + regions +
-roster)). Record: hybrid_s42 bundle 3.19 → 3.61 MB over 200 turns, proc48_hybrid_s42 9.1 →
-10.2 MB. The rows are in the final world state (bundle and `state.json`) at about 200 bytes a
-person: on the 43,700-agent scaled case the bundle grows 0.7 → 9.9 MB and `state.json` 0.7 →
-18.2 MB. Only exact checkpoints continue the rows, so a compact row encoding, or leaving the rows
-out of JSON with a count for the pool-reset report, is a possible follow-up for the lead.
+roster)). The bundle carries the dated frames and events; the person rows are not output. On the
+43,700-agent scaled case (`scaled52k_s7`, 20 turns, a checkpoint at turn 20):
+
+| | bundle | `state.json` | exact checkpoint |
+| --- | --- | --- | --- |
+| ledger off | 0.68 MB | 0.71 MB | 5.41 MB |
+| ledger on, rows in JSON (first implementation) | 9.92 MB | 18.19 MB | 5.99 MB |
+| ledger on, rows in checkpoints only (now) | 1.49 MB | 0.85 MB | 5.99 MB |
+
+The rows cost about 200 bytes a person in JSON and add 0.58 MB (compressed) to the checkpoint.
+Over 200 turns the record (frames and events) adds 0.38 MB to hybrid_s42's bundle (3.19 → 3.57
+MB) and 0.97 MB to proc48_hybrid_s42's (9.11 → 10.08 MB).
 
 ## Readers (audit 11.4)
 
@@ -206,71 +226,69 @@ hybrid plus RS4; template 7 200 turns, procedural 13 120 turns), the audit's pro
 in one process (the probe reproduced its published numbers exactly, so the ledger changed
 nothing it observed):
 
-| Definition (share of the living) | probe t7 | ledger t7 | ledger, probe's onward rule t7 | probe p13 | ledger p13 | ledger, probe's onward rule p13 |
-| --- | --- | --- | --- | --- | --- | --- |
-| native cooldown | 0.292 | 0.292 | 0.292 | 0.283 | 0.283 | 0.283 |
-| away from the birth region | 0.698 | 0.698 | 0.698 | 0.682 | 0.682 | 0.682 |
-| open spell (flight or hunger from home) | 0.598 | 0.572 | 0.598 | 0.482 | 0.415 | 0.482 |
-| the same, flight only | 0.535 | 0.516 | 0.534 | 0.397 | 0.341 | 0.397 |
-| the same, famine or war anchor | 0.517 | 0.488 | 0.508 | 0.289 | 0.258 | 0.284 |
-| the same, war anchor | 0.0006 | 0.0006 | 0.0006 | 0.0089 | 0.0056 | 0.0082 |
+| Definition (share of the living) | audit probe t7 | ledger t7 | audit probe p13 | ledger p13 |
+| --- | --- | --- | --- | --- |
+| native cooldown | 0.292 | 0.292 | 0.283 | 0.283 |
+| away from the birth region | 0.698 | 0.698 | 0.682 | 0.682 |
+| open spell (flight or hunger from home) | 0.598 | 0.598 | 0.482 | 0.482 |
+| the same, flight only | 0.535 | 0.534 | 0.397 | 0.397 |
+| the same, famine or war anchor | 0.517 | 0.508 | 0.289 | 0.284 |
+| the same, war anchor | 0.0006 | 0.0006 | 0.0089 | 0.0082 |
+| spells closed: returned / resettled / died | 389 / 182 / 429 | 396 / 180 / 438 | 577 / 346 / 562 | 586 / 346 / 571 |
 
-The comparison measures are equal; with the probe's rule for onward moves (an analysis-only
-variant, `measure/variant_keep_spell.py`) the spell shares match within 0.01 and the resettlement
-counts match (180 against 182, 346 against 346); the remaining anchor difference is the stricter
-dating (decision 2). The contract as implemented (decision 1) resettles 301 (t7) and 683 (p13)
-spells, 120 and 337 more than the probe.
+Every share is within 0.01; the anchor shares differ by the stricter dating (decision 2), the
+closures by the trip relocations and the merchants the probe placed at their transit region.
 
 **Ledger alone** (no RS4; 200 turns each):
 
 | | template 7 | procedural 13 |
 | --- | --- | --- |
 | living (range) | 104–272 | 458–804 |
-| displaced share (flight · famine-or-war anchor · war anchor) | 0.491 (0.387 · 0.394 · 0.000) | 0.427 (0.362 · 0.280 · 0.0003) |
-| spells opened (flight / hunger) | 1,096 (858 / 238) | 3,017 (2,579 / 438) |
-| opened by anchor (war / famine / persecution / none) | 1 / 849 / 72 / 174 | 31 / 1,739 / 581 / 666 |
-| closed: returned / resettled / died | 356 / 313 / 379 | 884 / 980 / 977 |
-| median length: returned / resettled / died | 9 / 20 / 10 | 9 / 20 / 10 |
+| displaced share (flight · famine-or-war anchor · war anchor) | 0.532 (0.404 · 0.435 · 0.000) | 0.498 (0.425 · 0.312 · 0.0006) |
+| spells opened (flight / hunger) | 1,017 (783 / 234) | 2,735 (2,321 / 414) |
+| opened by anchor (war / famine / persecution / none) | 1 / 798 / 54 / 164 | 30 / 1,559 / 543 / 603 |
+| closed: returned / resettled / died | 360 / 189 / 415 | 874 / 524 / 1,125 |
+| median length: returned / resettled / died | 10 / 25 / 14 | 9 / 20 / 14 |
 | pool resets, unobserved gaps, unexplained relocations | 0, 0, 0 | 0, 0, 0 |
 
-War-anchored displacement is rare on both worlds (one spell in 200 turns of template 7; 31 on
-procedural 13, 0.03% of the living on average); famine anchors dominate. For C2 the stock of open
-spells is high everywhere (43–49% of the living), as audit 14 question 6 anticipated; this turn's
-displaced arrivals are recorded beside it.
+War-anchored displacement is rare on both worlds (one spell in 200 turns of template 7; 30 on
+procedural 13, 0.06% of the living on average); famine anchors dominate. For C2 the stock of open
+spells is high everywhere (50–53% of the living), as audit 14 question 6 anticipated; this turn's
+displaced arrivals are recorded beside it. A resettlement comes `REHOME_TURNS` after the last
+move, so a spell with onward moves lasts longer than 20 turns (median 25 on template 7).
 
-## Verification (lane X1, 2026-11-07; Linux, Python 3.13, native extension `20e77f99…` = main's Rust, no native change)
+## Verification (lane X1, 2026-11-07; final source `9b58ab0c`; Linux, Python 3.13, native extension `20e77f99…` = main's Rust, no native change)
 
-- **Offline**: `tests/test_residence_ledger.py` (39) and `tests/test_residence_ledger_guard.py` (7)
-  in the new oracle chunk `connected-world-x`; the D2 provenance guard extended; the order tests
-  (`test_wealth_accounting.py`, `test_attribution_records.py`), feature catalog and matrix, batch
-  manifest and witness suites pass. `scripts/run_python_oracle_checks.py`: PASS, 71 chunks in 295.0 s (slowest chunk 34.2 s of
-  110 s; `connected-world-x` 5.9 s, 46 passed).
-- **Native** (`tests/test_residence_ledger_native.py`, shard 0, 7 tests, 20 s): record-only
-  identity on template 7 (with RS4) and procedural 13 (40 turns each: history, world state,
-  `state.json`, chronicle and agent events equal after removing the record); frame invariants on
-  60-turn runs (region rows sum to the totals, the stock moves by openings minus closures, the
-  events match the counts, no unexplained relocation); RS4 agreement; an exact resume at turn 12
-  inside open spells; a legacy state-file resume (pool reset, nothing carried over); separation
-  read at the next turn before its tick. Offline lane: the module skips.
+- **Offline**: `tests/test_residence_ledger.py` (40) and `tests/test_residence_ledger_guard.py` (7)
+  in the new oracle chunk `connected-world-x`; the D2 provenance guard extended; the focused,
+  order, catalog, manifest, shard and witness suites: 699 passed. `scripts/run_python_oracle_checks.py`:
+  PASS, 71 chunks in 292.8 s (slowest chunk 31.2 s of 110 s; `connected-world-x` 5.9 s, 47 passed).
+- **Native** (`tests/test_residence_ledger_native.py`, shard 0, 7 tests): record-only identity on
+  template 7 (with RS4) and procedural 13 (40 turns each: history, world state, `state.json`,
+  chronicle and agent events equal after removing the record); frame invariants on 60-turn runs
+  (region rows sum to the totals, the stock moves by openings minus closures, the events match the
+  counts, no unexplained relocation); RS4 agreement; an exact resume at turn 12 inside open
+  spells; a legacy state-file resume (pool reset counted from the held spells, nothing carried
+  over); separation read at the next turn before its tick. With the D2, A1, RS4 native suites and
+  the feature matrix: 100 passed. Offline lane: the module skips.
 - **Witness**: layer `cwx1` (parent `bac45cb5`) inverts the two pinned edits
   (`batch_manifest.py`, `tests/test_batch_manifest.py`), appended last in `LAYERS`; the
   livelihoods sprint witness and every chained witness suite pass.
 - **Feature-off identity** (`scripts/turn_speed_identity.py`, 9 cases, each side its own source
-  tree): head against the `8abc1acb` reference outputs: 9 cases, 399 files, 0 differences; head
-  against `main` `bac45cb5`: 9 cases, 399 files, 0 differences; explicit `--no-residence-ledger`
-  (hybrid_s42, proc48_hybrid_s42): 203 files, 0 differences.
+  tree): against the `8abc1acb` reference outputs: 399 files, 0 differences; against `main`
+  `bac45cb5`: 399 files, 0 differences; explicit `--no-residence-ledger` (hybrid_s42,
+  proc48_hybrid_s42): 203 files, 0 differences.
 - **Record-only identity**: ledger on against off, every file equal after removing only the
   record: the six hybrid cases (hybrid_s42, hybrid_s7, hybrid_s1234, proc48_hybrid_s42,
   scaled22k_s42, scaled52k_s7): 366 files, 0 differences (800 snapshots carry the record); with
-  every catalog switch on (template and procedural all-enabled sets, retail in every region, D2,
-  A1, quarantine closure with the migration channel): 205 files, 0 differences.
+  every catalog switch on (all-enabled sets, retail in every region, D2, A1, quarantine closure
+  with the migration channel): 205 files, 0 differences.
 - **Exact resume** (`scripts/checkpoint_identity.py`, `--cli-arg=--residence-ledger`):
   `hybrid_s42_long` PASS at 19 resume points (16 with open spells, 6 with armies on campaign);
   `proc32_hybrid_s11` PASS at all 39 (37 with open spells, 23 with armies); writing checkpoints
   changes nothing (111 and 40 files, 0 differences).
-- **Viewer**: `npx vitest run --maxWorkers=1` 163 files, 1,626 passed, 2 skipped (a first run under
-  concurrent identity load timed out one unrelated FeatureOptions case at 5 s; alone it passes); `npm run lint` clean; `npm run build`
-  passes (the existing large-chunk warning).
+- **Viewer**: `npx vitest run --maxWorkers=1` 163 files, 1,626 passed, 2 skipped; `npm run lint`
+  clean; `npm run build` passes (the existing large-chunk warning).
 - **Preflight** (`refactor_preflight.py --git-diff origin/main`): content pins only on
   `batch_manifest.py` and `tests/test_batch_manifest.py` (covered by `cwx1`); the other enforced
   entries are test-module enrollment (shard owner, oracle chunk).

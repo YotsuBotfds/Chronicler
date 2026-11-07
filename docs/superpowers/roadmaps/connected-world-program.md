@@ -73,16 +73,20 @@ Terms (owner instruction and amendment):
     last one); location = residence except a merchant in transit or a person on a roster (record
     only); attachment = `(army_id, army region)` after `reconcile_rosters`; home = the residence
     at first observation (birth region for the born), changed only by a voluntary or
-    unclassified move or after `REHOME_TURNS = 20` turns at one residence, never by enlistment.
+    unclassified move of a person who is not displaced or after `REHOME_TURNS = 20` turns at one
+    residence, never by enlistment.
     A displacement spell opens when an applied move leaves home with a C1b flight or hunger
     driver (a follower carries its lead's), with `cause`, the home-region `anchor` (war, famine,
-    persecution, none) dated in the `ANCHOR_TURNS = 5` turns before, and closes `returned`,
-    `resettled` (also by a voluntary or unclassified onward move), `died`, `pool_reset` or
-    `unobserved_gap`. Displaced = an open spell. Separation is computed on demand only.
+    persecution, none) dated in the `ANCHOR_TURNS = 5` turns before (conquest, occupation and
+    famine onset anchor the same turn's departures; a controller change without conquest and
+    persecution from the next turn), and closes only `returned`, `resettled` (`REHOME_TURNS` at
+    one residence), `died`, `pool_reset` or `unobserved_gap`: any onward move of a displaced
+    person keeps the spell open (lead decision, 2026-11-07, resolving 11.1). Displaced = an open
+    spell. Separation is computed on demand only.
   - *One writer*: the livelihoods `phase10` hook of T after `reconcile_rosters`, before D2 and
     A1, from T's applied moves with drivers, the post-tick snapshot, trips, rosters and region
-    events; one frame stamped `source_turn = T`; rows bounded by stable id, checkpointed,
-    omitted while off; an exact resume restores it; a rebuilt pool (legacy resume) rebuilds
+    events; one frame stamped `source_turn = T`; rows bounded by stable id, in exact
+    checkpoints only (not in the bundle or state file), omitted while off; an exact resume restores it; a rebuilt pool (legacy resume) rebuilds
     nothing (`pool_reset`, `observed_from`). Late army dissolutions are seen at T+1.
   - *Readers* get T's frame at T+1 only (`read_frame` aggregates for C2 and rulers, `own_row`
     for A6, `separation` for D3; a same-turn or future read is refused). The guard
