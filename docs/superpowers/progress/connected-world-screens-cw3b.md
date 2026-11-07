@@ -1,16 +1,25 @@
 # Connected-world CW3b: preregistered held screen for infrastructure condition and repair (slice B3)
 
-Status: DRAFT (not frozen; the lead reviews the screen and freezes this page before any held run)
+Status: FROZEN. Frozen by the lead on 2026-11-07 after independent review of the design, extractors and revisions (review record in the program's review notes); code at `dbfcd84ac802644f3c7ccf7c2bfba3ff9c661c1c`; pilot at `dbfcd84ac802644f3c7ccf7c2bfba3ff9c661c1c` (clean tree).
 
 Written 2026-11-07 by the B3 lane on branch `claude/cw-b3-infrastructure` (main bac45cb5 merged;
 B3 reviewed and approved at `10d73230`; the flow x condition integration at `c5593e81`, approved at
 `453d307c`; the screen declared at `80966420` and revised before any freeze at `7364c643`; the
-works' timber need connected to PL1 at `733e5e08`/`9daaec56` and the screen revised again at
-`d5834d07`, on which the timing pilot below ran, clean tree; the revisions are listed at the end). Native extension `20e77f9945efa71d597c142e99069337586cc865ddee7a17c6d20948a2c0c1ca`
+works' timber need connected to PL1 at `733e5e08`/`9daaec56`, the screen revised again at
+`d5834d07`, and the review's fixes at `dbfcd84a`, on which the timing pilot below ran, clean tree;
+the revisions are listed at the end). Native extension `20e77f9945efa71d597c142e99069337586cc865ddee7a17c6d20948a2c0c1ca`
 (`~/.venvs/native-a3`, built from main's Rust). No held seed (template 3501-3506, procedural
 3601-3606) has been run. Code may change before the held run only to fix a defect, recorded as an
 amendment below with a new pilot; no arm, outcome, region set or parameter changes in response to
 held outcomes.
+
+**The screen runs under PL1's real forest limits.** The works' timber comes only through PL1's
+expeditions (a healthy forest within two hops that no other crew is cutting) and the stockpile, so
+most of the works' timber requests are refused (`no_forest`, `forest_depleted`) and timber stalls
+dominate the works; under L9 the works must also win their own envelope. **The L9 primaries are
+therefore expected to measure mostly exposure (works opened) with little delivery: a null is a
+null.** No code change after this freeze except a defect fix recorded as an amendment with a new
+pilot.
 
 Compute ceiling: 0.50 core-hours
 
@@ -112,8 +121,10 @@ world, each arm's check and whether C and W, and C_T and W_T, used the same set.
 that fails the check in either arm of a pair is excluded from that pair's primaries (the reading is
 missing, so the runner leaves the world out) and is reported, never imputed; it stays in the
 full-trajectory secondaries. Passing the check in both arms implies the same set (the arms are
-identical through snapshot 28); a different set with both checks passing would be a defect, fixed
-by amendment.
+identical through snapshot 28); a world whose two arms nevertheless recorded different sets is
+also excluded from that pair's primaries (the gated reading of the control is missing) and reported
+in the pair table as "DIFFERENT SETS, excluded", and such a case would be a defect, fixed by
+amendment.
 
 **Activation (exposure, not success):** C and C_T are activated when a work opened on an irrigation
 asset, whether or not it was ever funded or delivered work (delivered work is a secondary), so the
@@ -166,21 +177,21 @@ in service bought with a world-wide food or population loss is reported as such.
 
 ## Compute ceiling (from the timing pilot)
 
-Pilot at `d5834d07` (revision 8, clean tree), `--jobs 1`, 12 runs, 0 failed, every arm activated,
-every world passing the pre-treatment check in every arm (each pair shares its set; procedural 19's
-treasury pair has a larger set than its L9 pair, as the arms differ before snapshot 28), 177 s of
-simulation and extraction (0.049 core-hours); per run, template 7.1-8.4 s and procedural
-19.9-24.1 s. The runner's projection for the held run (72 runs) is 0.295 core-hours, x1.5 = 0.442,
-under the **ceiling of 0.50 core-hours** (the line above, read by the runner; unchanged). With the
-works' need in PL1, timber stalls still dominate the works: arm C 1,232 (template 5) and 2,896
-(procedural 19) work-turns, against 1,232 and 3,101 at `7364c643`; C_T 1,307 and 2,445 (1,306 and
-2,450). PL1 launched 0 and 3 expeditions for the works in C (0 and 16 in C_T) and refused 526 and
-933 of the works' need rows in C, mostly `no_forest` and `forest_depleted` (the development
-re-measure in the integration page, section 8, shows the same). The works delivered 0 and 221.1 work
-units in C (0 and 122.3 before) and 36.9 and 372.6 in C_T (27.1 and 253.8). Superseded pilots:
-`7364c643` (165 s, `--jobs 2`, projection 0.275 x1.5 = 0.413) and `dda1be4b` (168 s). Pilot evidence:
-`/home/user/evidence/b3/cw3b/` (`pilot2/metrics.jsonl`, `pilot2/source.txt`, `pilot2-report.txt`;
-the superseded `pilot/` and `pilot-report.txt`; outside the repository).
+Pilot at `dbfcd84a` (revision 9, clean tree), `--jobs 2`, 12 runs, 0 failed, every arm activated,
+every world passing the pre-treatment check in every arm, each pair sharing its set (procedural
+19's treasury pair has a larger set than its L9 pair, as those arms differ before snapshot 28), so
+every pair is in the primaries; `check --screen CW3b --metrics ... --cohort pilot` passes (12 runs,
+complete). 168 s of simulation and extraction (0.047 core-hours); per run, template 6.9-7.5 s and
+procedural 17.2-19.7 s. The runner's projection for the held run (72 runs) is 0.280 core-hours,
+x1.5 = 0.419, under the **ceiling of 0.50 core-hours** (the line above, read by the runner;
+unchanged). Timber stalls dominate the works: arm C 1,232 (template 5) and 3,142 (procedural 19)
+work-turns, C_T 1,307 and 2,445; PL1 launched 0 and 15 expeditions for the works in C (0 and 16 in
+C_T) and refused 526 and 991 of the works' need rows in C. The works delivered 0 and 215.3 work
+units in C and 36.9 and 372.6 in C_T. Pilot files: `connected-world-screens-cw3b/pilot/`
+(`metrics.jsonl`, `source.txt`, `report.md`, copied from `/home/user/evidence/b3/cw3b/pilot3/`; a
+documents-only change since `dbfcd84a`, so the runner's pilot check accepts them). Superseded
+pilots (outside the repository): `d5834d07` (177 s, `--jobs 1`, projection 0.295 x1.5 = 0.442),
+`7364c643` (165 s, `--jobs 2`, 0.275 x1.5 = 0.413) and `dda1be4b` (168 s).
 
 ## Failure handling
 
@@ -204,7 +215,7 @@ its stall causes, funding and the asset's failure. Worlds that show one:
   Its works never win an envelope and never progress; six irrigation and road assets fail by turn
   190 (`viewer/src/__fixtures__/infrastructure_records.json` keeps 12 of its snapshots).
 - **Pilot worlds (never evidence):** arm C on template 5 (6 works stalled 20+ turns on failed assets)
-  and procedural 19 (17 at `d5834d07`; 23 before revision 8), reproducible with
+  and procedural 19 (15 at `dbfcd84a`; 17 at `d5834d07`; 23 before revision 8), reproducible with
   `run OUT --screen CW3b --cohort pilot --arms C`.
 
 ## Pre-freeze revisions (before any freeze or held run; the lead's decisions on the delta review)
@@ -237,7 +248,16 @@ its stall causes, funding and the asset's failure. Worlds that show one:
    their woodcutter person-turns, refused need rows) and two harm rows (RS2 timber stalls and
    woodcutter time, each pair); the timber stall turns stay secondaries, RS2's delivery stays in the
    harm panel. Arms, primaries, cohort and parameters are unchanged; no constant was tuned. Re-pilot
-   at `d5834d07` (above).
+   at `d5834d07`.
+9. **The review's fixes** (delta review of `0187bfb5`, 2026-11-07), at `dbfcd84a`: (a) PL1 kept the
+   store for every open work, so under L9 a road work (never funded) or a work in a region without
+   a farmer held RS2's leftover store out of the stockpile; the store is now kept only where the
+   works ask, by the need rows' own screen (a same-region test proves RS2 and PL1 equal the switch
+   off). (b) PL1's `launched` counter stays RS2's and `launched_works` counts the works' launches
+   (absent until one launches), so the screen's `pl1_launched` reads RS2's launches only and
+   `pl1_works_launched` the works'. (c) The primaries are gated on the pair's irrigated-set identity
+   too (above), so the report's "excluded" label is true. Re-pilot at `dbfcd84a` (above); the
+   development re-measure moved only procedural 13 under L9 (integration page, section 8).
 
 ## Amendments
 

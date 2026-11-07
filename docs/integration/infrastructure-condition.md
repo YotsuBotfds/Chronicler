@@ -419,11 +419,14 @@ less in all under L9 than before (template 10.1 against 53.0 work units, procedu
 ### Timber link re-measure (development worlds only; no held seed; no tuning)
 
 The works' timber need entering PL1 after RS2's (section 5), measured before (`518407eb`) and after
-(`9daaec56`, the link; `src` unchanged since) on template seeds 7 and 11 and procedural seed 13
+(`dbfcd84a`, the link with the review's store fix; at `9daaec56`, before that fix, only procedural
+13 under L9 differed: 12 expeditions for the works, 144 person-turns, timber stalls 4,348, works
+117.3 (12), RS2 368.9 and 1,860 timber stalls, 785 woodcutter person-turns) on template seeds 7
+and 11 and procedural seed 13
 (32 regions, 10 civs), CW3b's work arms at 200 turns: `C` (L9 and the maintenance obligation) and
 `C_T` (treasury), both with RS2, grain storage, the L3 stock and PL1. Extension
 `20e77f99...c0c1ca`; script and compact output `/home/user/evidence/b3/timber_remeasure.py` and
-`timber-remeasure.json` (outside the repository). The two sides follow different trajectories
+`timber-remeasure3.json` (outside the repository; `timber-remeasure.json` holds the `9daaec56` side). The two sides follow different trajectories
 once anything differs, so a single world's difference mixes the link with trajectory divergence.
 
 | World, arm | Expeditions for the works (woodcutter person-turns) | Works' timber-stall work-turns before / after | Works' work delivered before / after (completed) | RS2 work delivered before / after | RS2 timber-stall work-turns before / after | All woodcutter person-turns before / after |
@@ -432,48 +435,50 @@ once anything differs, so a single world's difference mixes the link with trajec
 | template 7, C_T | 1 (18) | 1,317 / 1,294 | 17.9 (3) / 15.7 (3) | 66.8 / 72.7 | 791 / 905 | 34 / 57 |
 | template 11, C | 0 | 1,203 / 1,203 | 0.29 / 0.29 | 41.7 / 41.7 | 617 / 617 | 5 / 5 |
 | template 11, C_T | 4 (37) | 930 / 955 | 11.0 (1) / 38.2 (5) | 65.1 / 86.1 | 506 / 468 | 111 / 104 |
-| procedural 13, C | 12 (144) | 4,147 / 4,348 | 77.4 (8) / 117.3 (12) | 296.3 / 368.9 | 1,782 / 1,860 | 696 / 785 |
+| procedural 13, C | 3 (36) | 4,147 / 4,256 | 77.4 (8) / 112.1 (11) | 296.3 / 442.0 | 1,782 / 1,638 | 696 / 707 |
 | procedural 13, C_T | 3 (35) | 3,774 / 3,764 | 282.1 (50) / 266.7 (49) | 490.4 / 466.4 | 1,721 / 1,906 | 764 / 765 |
 
 - **PL1's own rules bind the works' need.** Of the works' need rows, PL1 refused most:
-  `no_forest` (template 7: 482 C, 557 C_T rows; procedural 13: 662 / 523) and `forest_depleted`
-  (template 11 C_T 497; procedural 13 702 / 1,451), then `forest_busy` and `too_far`; it launched
-  1-12 expeditions per world and arm. Under L9 on the template worlds it launched none (every row
+  `no_forest` (template 7: 482 C, 557 C_T rows; procedural 13: 669 / 523) and `forest_depleted`
+  (template 11 C_T 497; procedural 13 794 / 1,451), then `forest_busy` and `too_far`; it launched
+  1-4 expeditions per world and arm. Under L9 on the template worlds it launched none (every row
   refused or covered), and the run's counters are unchanged (the record gains its rows).
-- **Timber stalls barely move** (-1.7% to +4.8% of work-turns): the works still lack timber
+- **Timber stalls barely move** (-1.7% to +2.7% of work-turns): the works still lack timber
   wherever PL1 can reach no healthy free forest.
-- **Works delivered:** up in template 11 C_T (x3.5, completions 1 -> 5) and procedural 13 C (+51%,
-  8 -> 12 completions); down in template 7 C_T (-12%) and procedural 13 C_T (-5.5%).
-- **RS2 displacement (harm):** RS2's delivery rose in three activated arms (+9%, +32%, +25%; the
+- **Works delivered:** up in template 11 C_T (x3.5, completions 1 -> 5) and procedural 13 C (+45%,
+  8 -> 11 completions); down in template 7 C_T (-12%) and procedural 13 C_T (-5.5%).
+- **RS2 displacement (harm):** RS2's delivery rose in three activated arms (+9%, +32%, +49%; the
   works' deliveries to a shared store and trajectory changes) and fell in procedural 13 C_T (-4.9%),
   where RS2's timber-stall work-turns rose 10.7% (1,721 -> 1,906); in template 7 C_T they rose 14%
   while RS2's delivery rose. RS2 is served first within each turn; displacement acts across turns,
   through forests and crews a works' expedition still holds when RS2 next needs them.
-- Woodcutter time follows the launches (up to +89 person-turns, procedural 13 C).
+- Woodcutter time follows the launches (up to +23 person-turns, template 7 C_T).
 
 ### Verification
 
 Section 9.
 
-## 9. Verification record (2026-11-07; branch `claude/cw-b3-infrastructure`, `src` at `9daaec56`)
+## 9. Verification record (2026-11-07; branch `claude/cw-b3-infrastructure`, code at `dbfcd84a`)
 
 Source: the branch head (main 66e1ec40 merged at `33fc1685`, main bac45cb5, PR #90, at `8da9ead4`;
 the reviewer approved `10d73230`; the flow x condition integration at `c5593e81`, approved at
 `453d307c`; the skipped-damage counter and the CW3b revisions at `7364c643`/`518407eb`; the works'
-timber need in PL1 at `733e5e08`/`9daaec56`; `src` unchanged since `9daaec56`, later commits are
-viewer, screen, tests and documents; layer `cwb3` last, after `cwd2` and `cwb2`, unchanged since
-`8da9ead4`: the timber link touches no pinned file). Every native step used
-`PYTHONPATH=<worktree>/src` and the extension at `~/.venvs/native-a3`, SHA-256
-`20e77f9945efa71d597c142e99069337586cc865ddee7a17c6d20948a2c0c1ca`, built from Rust identical to main
-(no Rust change in this lane, so `cargo test` was not rerun). Compact evidence under
-`/home/user/evidence/b3/` (outside the repository).
+timber need in PL1 at `733e5e08`/`9daaec56`, approved at `0187bfb5` with one minor; the review's
+fixes (the store kept only where works ask, PL1's `launched_works`, the CW3b pair gate) at
+`dbfcd84a`; later commits are documents and the CW3b pilot and held-run files; layer `cwb3`
+last, after `cwd2` and `cwb2`, unchanged since `8da9ead4`: the timber link touches no pinned file).
+Every native step used `PYTHONPATH=<worktree>/src` and the extension at `~/.venvs/native-a3`,
+SHA-256 `20e77f9945efa71d597c142e99069337586cc865ddee7a17c6d20948a2c0c1ca`, built from Rust
+identical to main (no Rust change in this lane, so `cargo test` was not rerun). Compact evidence
+under `/home/user/evidence/b3/` (outside the repository). Every check below ran at `dbfcd84a`.
 
 | Check | Result |
 | --- | --- |
-| Focused offline tests | `tests/test_infrastructure_condition.py` 68 passed; with PL1, RS2, the screen runner and the CW3 screens: 277 passed |
-| Bounded offline lane (`scripts/run_python_oracle_checks.py`, at `47f7dfe3`) | PASS in 297.3 s: 70 chunks, 7,418 passed, 69 skipped, 0 failed; `connected-world-b` 134 passed in 4.6 s of 110 s (the lane includes the witness and pin modules) |
-| Native pytest (real extension, at `47f7dfe3`) | 66 passed in 177.0 s: `test_infrastructure_condition_native.py` (5, including the exact resume with an outstanding timber order) with the RS2, PL3, closure, PL1, L3, A1, A3, D2 and watershed native modules |
-| Feature-off identity against `8abc1acb` (`turn_speed_identity.py`, the 9 standard cases; head `daf13c24`) | 9 cases, 399 files compared, 0 differences |
+| Focused offline tests | `tests/test_infrastructure_condition.py` 69 passed; with PL1, RS2, PL3, the screen runner, the CW3 screens, watershed, money, A1, catalog and manifest: 490 passed |
+| Witness and pin modules (the playbook's list) | 509 passed, 61 subtests passed |
+| Bounded offline lane (`scripts/run_python_oracle_checks.py`) | PASS in 300.4 s: 70 chunks, 7,419 passed, 69 skipped, 0 failed; `connected-world-b` 135 passed in 4.6 s of 110 s |
+| Native pytest (real extension) | 66 passed in 160.1 s: `test_infrastructure_condition_native.py` (5, including the exact resume with an outstanding timber order) with the RS2, PL3, closure, PL1, L3, A1, A3, D2 and watershed native modules |
+| Feature-off identity against `8abc1acb` (`turn_speed_identity.py`, the 9 standard cases) | 9 cases, 399 files compared, 0 differences |
 | Feature-off identity against the preceding main `bac45cb5` | 9 cases, 399 files compared, 0 differences |
 | Each switch alone against `518407eb` (the head before the timber link; hybrid_s42 and proc48_hybrid_s42 with grain storage, RS2, the L3 stock, PL1, L9 and the maintenance obligation): B3 off, `record_only`, `wear_only` | each 2 cases, 205 files compared, 0 differences |
 | B3 `repair` **without** PL1 against `518407eb` (the same cases, RS2 and L9) | 2 cases, 205 files compared, 0 differences: the link acts only through PL1 |
@@ -481,8 +486,8 @@ viewer, screen, tests and documents; layer `cwb3` last, after `cwd2` and `cwb2`,
 | Exact resume, every livelihoods switch with retail everywhere, A3, D2, A1, PL1 and B3 (`hybrid_s42_long`, 19 resume points) | PASS: checkpointing changes nothing, every resume byte-identical |
 | Exact resume, watershed `flow` x condition with RS2, L9 and the maintenance obligation (`proc32_hybrid_s11`, 39 resume points) | PASS |
 | Exact resume, B3 `repair` with PL1 and the L3 stock (treasury; `proc32_hybrid_s11`, 39 resume points) | PASS |
-| Viewer (at `47f7dfe3`) | full suite 1,625 passed and 2 skipped (163 files, `--maxWorkers=2`); `npm run lint` clean; `npm run build` passes |
-| CW3b screen | `check --screen all` passes (42 outcomes, 3 primary); timing pilot at `d5834d07` (template 5, procedural 19) 12 runs, 0 failed, every arm activated |
+| Viewer | full suite 1,626 passed and 2 skipped (163 files, `--maxWorkers=2`); `npm run lint` clean; `npm run build` passes |
+| CW3b screen | `check --screen all` passes (42 outcomes, 3 primary); timing pilot at `dbfcd84a` (template 5, procedural 19) 12 runs, 0 failed, every arm activated, every pair in the primaries; `check --metrics` passes |
 
 Earlier identities still standing: `--watershed-mode flow` alone against main bac45cb5 (92 files, 0
 differences, at `e2b62e6c`) and `--infrastructure-condition` alone without L9 against the approved
@@ -492,7 +497,7 @@ regions), the one intended change since `10d73230` apart from the timber link (w
 PL1) and the skipped-damage record (present only once a damage was skipped).
 
 **Not run:** a desktop and phone browser journey (V8), profiling at a declared scale (V11), the
-narration audit (no narration change), any held screen (CW3b is preregistered, DRAFT), the 200-seed
+narration audit (no narration change), the 200-seed
 gate and the procedural qualification gate.
 
 ## 10. Limits and open questions
