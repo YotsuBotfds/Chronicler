@@ -107,61 +107,82 @@ def test_the_screen_declares_two_arms_two_primaries_and_both_cohorts(CW):
     assert s.held == {"template": tuple(range(771, 777)), "procedural": tuple(range(871, 877))}
     assert [(o.id, o.arm, o.control) for o in s.primaries()] == [
         ("cw5_food_in_deficit", "T", "R"), ("cw5_shortfall_deficit", "T", "R")]
-    assert {o.id for o in s.outcomes} >= {"cw5_holder_balance", "cw5_margin_vs_withheld", "cw5_t0_food_in_deficit"}
+    assert {o.id for o in s.outcomes} >= {"cw5_holder_balance", "cw5_margin_vs_withheld", "cw5_t0_food_in_deficit",
+                                          "cw5_rr_food_in_deficit"}
     assert s.report is not None and {"--household-retail-boundary", "all", "--wealth-accounting"} <= set(s.base)
 
 
+def _paired(CW, r_bundle=None, t_bundle=None):
+    def row(arm, m):
+        return {"arm": arm, "stratum": "t", "seed": 5, "rc": 0, "m": m}
+    r = row("R", CW.cw5_extract(r_bundle or _bundle(titled=False), ())[0])
+    t = row("T", CW.cw5_extract(t_bundle or _bundle(), T)[0])
+    return r, t
+
+
 def test_the_window_sets_are_relative_and_the_turn_zero_sets_are_a_sensitivity_line(CW):
-    deficit, surplus, ratio, problems = CW.cw5_window_sets(_bundle())
-    assert (deficit, surplus, problems) == ([0], [1, 2], []) and ratio == pytest.approx(0.7)
+    m, problems = CW.cw5_extract(_bundle(), T)
+    assert problems == [] and m["first_purchase_turn"] == 20
+    deficit, surplus, ratio = CW.cw5_window_sets(m, 19)
+    assert (deficit, surplus) == ([0], [1, 2]) and ratio == pytest.approx(0.7)   # 2 sits at the world ratio
     assert CW.cw5_sets(_bundle()) == ([0, 2], [1], [])               # region 2 produced nothing at turn 0
+    assert m["t0_sets_digest"] == "D:0,2|S:1"
     short = _bundle()
     short["history"] = short["history"][:10]
-    assert "incomplete" in CW.cw5_window_sets(short)[3][0]
+    assert any("incomplete" in p for p in CW.cw5_extract(short, T)[1])
 
 
-def test_titled_food_into_the_deficit_regions_and_the_merchants_balance(CW):
+def test_the_report_pairs_rows_and_fills_the_set_measures_over_t_s_window(CW):
+    r, t = _paired(CW)
+    lines = CW._cw5_report([r, t], {"t": [5]})
+    assert any("| t | 5 | 20 | 20 | 1 / 2 | yes | valid |" in line for line in lines)
+    tm, rm = t["m"], r["m"]
+    assert tm["sets_digest"] == rm["sets_digest"] == "D:0|S:1,2" and tm["window_end"] == 19
+    assert tm["titled_delivered_deficit"] == pytest.approx(0.95) and tm["titled_net_deficit"] == pytest.approx(0.95)
+    assert tm["titled_net_surplus"] == pytest.approx(-1.5)                   # bought there, never returned
+    assert tm["native_net_deficit"] == pytest.approx(12.0)                   # 0.5 a turn, 24 snapshots
+    assert tm["food_in_deficit"] == pytest.approx(12.95) and rm["food_in_deficit"] == pytest.approx(12.0)
+    assert tm["shortfall_deficit"] == pytest.approx(0.5) and tm["shortfall_surplus"] == pytest.approx(0.05)
+    assert tm["price_deficit"] == 300 and tm["priced_out_deficit"] == 48
+    assert rm["rr_food_in_deficit"] == pytest.approx(12.0) and tm["rr_food_in_deficit"] == pytest.approx(12.95)
+    assert tm["t0_food_in_deficit"] == pytest.approx(12.95 + 0.0)            # region 2 adds no trade
+
+
+def test_the_window_ends_before_t_s_first_purchase(CW):
+    r, t = _paired(CW, t_bundle=_bundle(first=12))
+    lines = CW._cw5_report([r, t], {"t": [5]})
+    assert any("| t | 5 | 12 | 12 | 1 / 2 | yes | valid |" in line for line in lines)
+    assert t["m"]["window_end"] == r["m"]["window_end"] == 11 and t["m"]["food_in_deficit"] is not None
+
+
+def test_a_window_shorter_than_five_turns_or_differing_records_exclude_the_world(CW):
+    r, t = _paired(CW, t_bundle=_bundle(first=3))
+    lines = CW._cw5_report([r, t], {"t": [5]})
+    assert any("excluded: first purchase in world turn 3, a window of 3 turns" in line for line in lines)
+    assert t["m"]["food_in_deficit"] is None and r["m"]["shortfall_deficit"] is None
+    assert t["m"]["t0_food_in_deficit"] is not None                          # the sensitivity line stays
+    r, t = _paired(CW)
+    t["m"]["v_window_produced"][4][1] += 1.0
+    lines = CW._cw5_report([r, t], {"t": [5]})
+    assert any("| NO | excluded: R's and T's window records differ |" in line for line in lines)
+    assert t["m"]["food_in_deficit"] is None
+
+
+def test_the_merchants_balance_and_the_counts_kept_apart(CW):
     m, problems = CW.cw5_extract(_bundle(), T)
-    assert problems == [] and m["window_valid"] is True and m["window_purchases"] == 0
-    assert m["sets_digest"] == "D:0|S:1,2" and m["t0_sets_digest"] == "D:0,2|S:1"
-    assert m["titled_delivered_deficit"] == pytest.approx(0.95) and m["titled_net_deficit"] == pytest.approx(0.95)
-    assert m["titled_net_surplus"] == pytest.approx(-1.5)                    # bought there, never returned
-    assert m["native_net_deficit"] == pytest.approx(12.0)                    # 0.5 a turn, 24 snapshots
-    assert m["food_in_deficit"] == pytest.approx(12.95)
+    assert problems == []
     assert m["tt_returned"] == 0 and m["tt_returned_food"] == 0.0            # a count and food, apart
     assert m["holder_net"] == pytest.approx(0.3) and m["tt_withheld"] == pytest.approx(0.1)
     assert m["held_aboard_value"] == pytest.approx(0.3) and m["held_returned_value"] == 0.0
     assert m["held_unsold_value"] == pytest.approx(0.4 * 0.6)                # 400 milli at 900 / 1500 per milli
     assert m["holder_balance"] == pytest.approx(0.2 + 0.3 + 0.24)
-    assert m["shortfall_deficit"] == pytest.approx(0.5) and m["shortfall_surplus"] == pytest.approx(0.05)
-    assert m["price_deficit"] == 300 and m["priced_out_deficit"] == 48
     assert m["commons_end"] == pytest.approx(4.0) and m["dest_regions"] == 1 and m["origin_regions"] == 1
-
-
-def test_a_purchase_inside_the_window_invalidates_the_world_for_set_outcomes(CW):
-    m, problems = CW.cw5_extract(_bundle(first=19), T)
-    assert problems == [] and m["window_purchases"] == 1 and m["window_valid"] is False
-    read = CW._cw5_set_read("shortfall_deficit")
-    assert read({"m": m}) is None and read({"m": CW.cw5_extract(_bundle(), T)[0]}) == pytest.approx(0.5)
-
-
-def test_the_report_compares_the_set_records_across_arms_and_marks_a_mismatch(CW):
-    def row(arm, m):
-        return {"arm": arm, "stratum": "t", "seed": 5, "rc": 0, "m": m}
-    r = row("R", CW.cw5_extract(_bundle(titled=False), ())[0])
-    t = row("T", CW.cw5_extract(_bundle(), T)[0])
-    lines = CW._cw5_report([r, t], {"t": [5]})
-    assert any("| t | 5 | 1 / 2 | 0 | yes | yes |" in line for line in lines)
-    t2 = copy.deepcopy(t)
-    t2["m"]["sets_digest"] = "D:0,2|S:1"
-    lines = CW._cw5_report([copy.deepcopy(r), t2], {"t": [5]})
-    assert any("NO: left out" in line for line in lines) and t2["m"]["window_valid"] is False
 
 
 def test_without_titled_trade_the_titled_flows_are_zero_by_construction(CW):
     m, problems = CW.cw5_extract(_bundle(titled=False), ())
-    assert problems == [] and m["titled_net_deficit"] == 0.0 and m["food_in_deficit"] == pytest.approx(12.0)
-    assert m["window_valid"] is True and m["holder_balance"] is None and m["tt_dispatched"] is None
+    assert problems == [] and sum(m["v_titled_in"]) == sum(m["v_titled_out"]) == 0
+    assert m["holder_balance"] is None and m["tt_dispatched"] is None and m["first_purchase_turn"] is None
     assert any("without the switch" in p for p in CW.cw5_extract(_bundle(), ())[1])
     assert any("enabled but not recorded" in p for p in CW.cw5_extract(_bundle(titled=False), T)[1])
 
@@ -184,10 +205,10 @@ def test_the_validity_checks_are_problems(CW, kw, needle):
     assert any(needle in p for p in CW.cw5_extract(_bundle(**kw), T)[1])
 
 
-def test_activation_names_shipments_region_turns_and_window_purchases(CW):
+def test_activation_names_shipments_region_turns_and_the_first_purchase(CW):
     assert CW.cw5_activation(_bundle(titled=False), ())[0] is None
     acted, text = CW.cw5_activation(_bundle(), T)
-    assert acted is True and "1 delivered" in text and "0 purchases in world turns 0-19" in text
+    assert acted is True and "1 delivered" in text and "first purchase in world turn 20" in text
     assert f"of {4 * TURNS} region-turns" in text
     idle = _bundle()
     for s in idle["history"]:
