@@ -37,3 +37,14 @@ strict adapter is added; the timeline does not silently infer their histories.
 Focused tests use the retained natural seed-23 chain records and explicitly
 constructed absent, malformed and capped variants. Browser journeys and broad
 viewer checks are recorded separately with their actual build/source identity.
+
+A4-3 and D4 add namespaced timber orders, food shipments, restitution claims
+and string army ids. These identities are separate even if their numeric ids
+match. Army allocation rows join the actual named army; the viewer never
+infers that every person in a region was requisitioned. Claim rows show the
+original cumulative obligation, actual paid amount, and unpaid difference.
+The unpaid obligation is not household wealth. Timber cargo position is
+labelled separately from its carrier's unrecorded residence. The strict
+supply readers verify cargo/escrow identities and food-to-ration allocations
+before contributing any linked fact; truncated samples never stand for the
+whole liability ledger.

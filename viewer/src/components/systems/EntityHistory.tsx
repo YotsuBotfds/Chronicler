@@ -18,7 +18,7 @@ export function EntityHistory({ bundle, currentTurn, onSeek, onSelectRegion }: S
     for (const { snapshot, frames } of index.snapshots) if (snapshot.turn <= currentTurn)
       for (const frame of Object.values(frames)) for (const row of frame.rows)
         for (const item of [row.entity, ...row.related]) named.set(entityKey(item), item);
-    return [...named.values()].sort((a, b) => a.kind.localeCompare(b.kind) || a.id - b.id);
+    return [...named.values()].sort((a, b) => a.kind.localeCompare(b.kind) || String(a.id).localeCompare(String(b.id), undefined, { numeric: true }));
   }, [index, currentTurn]);
   const entity = selected && available.some((e) => entityKey(e) === entityKey(selected)) ? selected : available.find((e) => e.kind === "person") ?? available[0];
   const rows = useMemo(() => entity ? entityHistory(index, entity, currentTurn) : [], [index, entity, currentTurn]);
