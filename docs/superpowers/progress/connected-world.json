@@ -650,7 +650,7 @@
       "verification": "Independent actual source/native/inverse/evidence/test-contract reviews; all nine premerge Tests success; tree equals reviewed head; all nine exact main Tests success."
     }
   ],
-  "next": "Finish final10-case comparison after exact-arithmetic optimization, then official24x120pilot on879 frozenruntime; no heldspent.",
+  "next": "Execute reviewed CWR1 fresh12-world/144case120T held screen on immutable frozen source, cap2corehours. Complete active exact resumes concurrently; independently audit all held worlds/contrasts; final review/CI/merge/main verification.",
   "baseline": {
     "oracle_lane": "PASS, 63 chunks, 295.5 s, slowest 32.4 s of 110 s",
     "native_check": "check_python_env --expect native PASS (101a4cd5)",
@@ -842,13 +842,13 @@
     "final_documentation_policy": "The completion-ledger PR changes documentation only; its exact-head premerge and final main Tests are verified separately. The authoritative later ledger result is the GitHub Tests push run for current main HEAD, linked in the completion PR."
   },
   "rework": {
-    "status": "active_validation",
+    "status": "frozen_held_ready",
     "instruction": "Correctness, causal evaluation and practical performance; no favorable-result target; preserve default-off/restricted gates",
     "base": "2726bf449d0e4d581a72034000ee0861a58ee439",
     "base_main_run": 42397121718,
     "ledger": "docs/superpowers/progress/connected-world-rework.md",
     "branch": "codex/cw-rework",
-    "next": "Finish final10-case comparison after exact-arithmetic optimization, then official24x120pilot on879 frozenruntime; no heldspent.",
+    "next": "Execute reviewed CWR1 fresh12-world/144case120T held screen on immutable frozen source, cap2corehours. Complete active exact resumes concurrently; independently audit all held worlds/contrasts; final review/CI/merge/main verification.",
     "correctness": "Explicit rules3/density_only implemented and independently reviewed; legacy defaults unchanged.41 physical-arrival/downstream epidemic testsPASS; old reader fails at susceptibility2.1875 vs1.75. Initial scoped418PASS, extractor48PASS, Rust1339PASS/2existingmanualbenchesignored. Broad execution/CI gates continue.",
     "native": {
       "sha256": "b1d3ea5ac858681960b2cb880c534164905501f6ab4f6f3c94f7c9b5f66196cd",
@@ -914,6 +914,29 @@
       "final_runtime": "8792be88dd36ba4d7c22e480de6a19dd64ea1300",
       "final_profile": "1e047e7b6585d2cf13bb990f03f292c1067979c5 (same src/Rust/scripts bytes)",
       "next": "Finish final10-case comparison after exact-arithmetic optimization, then official24x120pilot on879 frozenruntime; no heldspent."
+    },
+    "pilot": {
+      "status": "passed24/24",
+      "runtime": "8792be88dd36ba4d7c22e480de6a19dd64ea1300",
+      "simulation_seconds": 484.7,
+      "extraction_seconds": 68.5,
+      "projected_held_margin_corehours": 1.383,
+      "cap_corehours": 2.0,
+      "metrics_sha256": "05e9e8d8fe3796604329a9d24eb8b94223f2391f462658d0f5d82cd7ba2e8d1e",
+      "independent_arithmetic": "passed"
+    },
+    "protocol": {
+      "status": "FROZEN",
+      "sha256": "51b8a336969f48b4beb6f5b3e543062eda71822b98513b337ceb2d010e6efe7a",
+      "cohort": "template4101\u20134106/procedural4201\u20134206",
+      "turns": 120,
+      "arms": 12,
+      "held_started": false
+    },
+    "code_ci": {
+      "head": "4502fdc1f915d3fe1717c9f8f31a28464f7e7459",
+      "run": 42419454116,
+      "all_nine": "passed; later changes docs and testfixture only, final-head CI stillrequired"
     }
   }
 }

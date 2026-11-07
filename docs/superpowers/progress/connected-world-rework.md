@@ -105,3 +105,13 @@ immutable and published; profiling source `1e047e7b` has identical Python/Rust/
 scripts bytes. Final10-case measurements/admission are running. Next is the
 official24×120 pilot, followed by frozen fresh CWR1, enabled exact resumes,
 final identity/CI/review and merge. No held seed has run.
+
+Frozen held checkpoint: all24 official120T timing/schema cases pass independent
+arithmetic/source/control review. Measured553.2s projects1.383core-hours with
+fixed1.5margin, below unchanged2hour cap. ProtocolSHA51b8a336 is FROZEN; no
+cohort/control/outcome/horizon/modelparameter changed after the pilot. Main125
+and complete code checkpoint4502fdc1 each passed all nine CI jobs. Final held
+source must be immutable, production-equivalent to8792be88, and pass freshlive
+registry/source/pilot gates before first held world. Next: execute144 bounded
+held cases, finish enabled active resumes, audit every pair, finalreview/CI and
+merge/mainverification. No restricted qualification/defaultpromotion.
