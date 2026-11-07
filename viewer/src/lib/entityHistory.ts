@@ -10,8 +10,9 @@ import { timberOrdersAt } from "./timberOrders";
 import { warRequisitionAt } from "./warRequisition";
 import { adaptiveAt, warConsequencesAt } from "./personalExperience";
 import { publicHealthAt } from "./publicHealth";
+import { readInfrastructure } from "./infrastructureCondition";
 
-export type EntityKind = "person" | "project" | "expedition" | "shipment" | "timber_order" | "claim" | "army" | "region";
+export type EntityKind = "person" | "project" | "expedition" | "shipment" | "timber_order" | "claim" | "army" | "infrastructure_work" | "infrastructure_asset" | "region";
 export interface EntityRef { kind: EntityKind; id: number | string }
 export type HistoryState = "disabled" | "unknown" | "malformed" | "not_sampled" | "truncated" | "recorded_zero" | "recorded";
 export interface EntityHistoryRow {
@@ -19,7 +20,7 @@ export interface EntityHistoryRow {
   join: "id" | "region" | "inferred"; state: HistoryState; text: string;
   source: string | null; region: number | null; related: EntityRef[];
 }
-export const HISTORY_PACKAGES = ["recovery_crews", "repair_projects", "timber_supply", "household_retail", "titled_trade", "residence_ledger", "timber_orders", "war_requisition", "adaptive_livelihoods", "war_consequences", "public_health"] as const;
+export const HISTORY_PACKAGES = ["recovery_crews", "repair_projects", "timber_supply", "household_retail", "titled_trade", "residence_ledger", "timber_orders", "war_requisition", "adaptive_livelihoods", "war_consequences", "public_health", "infrastructure_condition"] as const;
 type Package = typeof HISTORY_PACKAGES[number];
 interface Observation extends EntityHistoryRow { package: Package }
 interface PackageFrame { state: HistoryState; reason: string; rows: Observation[]; source: string | null; sourceTurn: number | null }
@@ -175,7 +176,7 @@ export function indexEntityHistory(bundle: Bundle): EntityHistoryIndex {
         f.separation?.separated.forEach((p,j)=>{
           for(const [id,other] of [[p.a,p.b],[p.b,p.a]]) add(ref("person",id),`/frame/separation/separated/${j}`,`Separated ${p.relation} pair with person #${other}: ${p.cause}; prior source turn ${f.separation!.source_turn}. Army attachment is not residence`,null,[ref("person",other)],"recorded","id",f.separation!.source_turn);
         });
-      } else {
+      } else if (key === "public_health") {
         const r=publicHealthAt(snapshot,regions,civs);
         if (!r) { bad(); continue; }
         if (!r.enabled) { Object.assign(frame,{state:"disabled",reason:"Public health is explicitly disabled"}); continue; }
@@ -183,6 +184,17 @@ export function indexEntityHistory(bundle: Bundle): EntityHistoryIndex {
         r.environment.forEach((e,j)=>add(ref("region",e.region),`/environment/${j}`,`Regional public-health exposure context: displaced share ${num(e.displaced_share)}, water service ${num(e.water_service)}, crowding factor ${num(e.crowding_factor)}. No individual diagnosis or mortality attribution`,e.region,[],e.residence_observed&&e.sanitation_observed?"recorded":"unknown","id",e.source_turn));
         r.supplies.forEach((p,j)=>add(ref("region",p.region),`/supplies/${j}`,`Regional patient supply: ${num(p.food_milli/1000)} food of ${num(p.need_milli/1000)} needed; ${p.reason}. Patients and recipient households are not identified`,p.region));
         r.guards.forEach((g,j)=>g.members.forEach((m,k)=>add(ref("person",m.agent_id),`/guards/${j}/members/${k}`,`Public-health guard work ${num(m.share)} share; wage actually paid ${coins(m.wage_paid_milli)} coins, refused ${coins(m.wage_residual_milli)}; ordinary income withheld ${m.income_withheld===null?"unknown":num(m.income_withheld)}. Work does not imply illness or exposure`,m.region)));
+      } else {
+        const r=readInfrastructure(snapshot,regions,true);
+        if (r.status!=="ok") { bad(); continue; }
+        for (const name of ["assets","terminal"] as const) r.record[name].forEach((a,j)=>add(ref("infrastructure_asset",a.aid),`/${name}/${j}`,`${a.kind} ${a.status}; condition ${num(a.condition)}, service ${num(a.service)}; responsible polity ${a.responsible}`,a.region));
+        for (const name of ["works","closed"] as const) r.record[name].forEach((w,j)=>add(ref("infrastructure_work",w.wid),`/${name}/${j}`,`${w.kind} ${w.status}; ${num(w.delivered)} work delivered of ${num(w.scope)}, ${num(w.credited)} condition work credited; ${num(w.timber_used)} timber used`,w.region,[ref("infrastructure_asset",w.aid)]));
+        if (r.record.receipts===null) { if (r.frame!=="no_works") unknown(); continue; }
+        r.record.receipts.forEach((receipt,j)=>{
+          const work=ref("infrastructure_work",receipt.wid),asset=ref("infrastructure_asset",receipt.aid);
+          add(work,`/receipts/${j}`,`${receipt.status}: ${receipt.reasons.join(", ")||"no limit recorded"}; work delivered ${num(receipt.delivered)}, credited ${num(receipt.credited)}`,receipt.region,[asset]);
+          receipt.members?.forEach((m,k)=>add(ref("person",m.agent_id),`/receipts/${j}/members/${k}`,`${receipt.kind} repair work ${num(m.worked)}; wage actually paid ${coins(m.wages_milli)}, refused ${coins(m.wage_refused_milli)} coins; ordinary income withheld ${m.income_replaced===null?"unknown":num(m.income_replaced)}`,receipt.region,[work,asset]));
+        });
       }
     }
     return { snapshot, frames };
