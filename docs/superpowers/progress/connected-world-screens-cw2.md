@@ -280,3 +280,110 @@ template 1 matched the extractor for P, E1 and E2) and asked for changes before 
    docs/integration/workshop-economics.md say so). E2f is a decomposition arm, and its results
    are never read as an option.
 4. **Ceiling** 1.05 core-hours from the revision-1 pilot, which ran under load (above).
+
+## Results (held run, 2026-11-07)
+
+Template 741-746 and procedural 841-846, 200 turns, five arms, `run HELD --screen CW2 --cohort
+held --pilot connected-world-screens-cw2/pilot/metrics.jsonl --jobs 2` on `8ae4efa4` (the frozen
+code: the freeze commit `fa564161` plus CW5's held evidence and registry record, no code path;
+clean tree). `mark-run` recorded both cohorts as `run` (complete). Retained in
+`connected-world-screens-cw2/held/`: `metrics.jsonl`, `source.txt`, `held-run.json`, `report.md`
+(every per-world cell, the sign-flip ranges and the full harm panel), `check.txt`. The runner
+deleted each raw run directory after its extraction (nothing else was pruned).
+
+**Identity.** Source `8ae4efa4365b97c3f1d2238f42040a1e0ed82765`, dirty 0, dirty-code 0; native
+extension SHA-256 `43cbd22ac4e7e2c6a77e71781a884be5342f41aa4173ff6f43e0facf0f5e0eb0`; runner
+`deb4eb57…`, screen module `5abac387…`, registry `f5b52a29…` (CW5's run record) and content
+`a703a850…`, preregistration `436aed62…`; run identity digest `9798cd88…`. The pilot's identity
+matches (its source `60edc6c9` differs only outside the code).
+
+**Runs and failures.** 60 runs, 0 failed, missing outcomes 0; every validity check held in every
+run (no input converted unpaid in `market`, no input charged with free inputs, no household sale in
+`academy_only` or in P, no free use and whole titles under rules 2, ledger wages equal to payroll's
+and economics deliveries equal to payroll's, every A1 ledger closure true). `check --metrics ...
+--cohort held` passes (60 runs complete, every outcome extracted).
+
+**Compute.** 951 s of simulation and extraction, **0.264 core-hours, under the 1.05 ceiling** (no
+run stopped by it); 478 s wall. Seconds per run, mean (template, procedural): P 7.8, 22.8; E1 8.8,
+24.9; E2 8.4, 23.4; E2f 8.5, 23.7; E2a 7.9, 22.2.
+
+### Activation (before any effect)
+
+E1, E2, E2f and E2a each activated on 12 of 12 worlds (6 of 6 per stratum). P is the root. The
+active share is defined in E1 and E2 on every world (k = 6 for the first primary); P opened no
+firm on procedural 841 and 846, so E2 - P and E1 - P shares are undefined there (secondaries).
+
+### Primary outcomes
+
+| Outcome | Stratum | Per world | Mean [min, max] | > 0 / < 0 | Sign-flip (of 64) | Reading (frozen rule) |
+| --- | --- | --- | --- | --- | --- | --- |
+| `cw2_active_share` (E2 - E1) | t | 741 +0.0296; 742 −0.0359; 743 +0.0382; 744 −0.4952; 745 +0.0850; 746 −0.0577 | −0.0727 [−0.4952, +0.0850] | 3 / 3 | 44 | no consistent effect |
+| | p | 841 −0.0692; 842 +0.0859; 843 −0.1079; 844 −0.1350; 845 +0.0414; 846 −0.2780 | −0.0772 [−0.2780, +0.0859] | 2 / 4 | 14 | no consistent effect |
+| `cw2_wages` (E2 - P), units | t | 741 +8.40; 742 −41.38; 743 −11.60; 744 +6.60; 745 +1.53; 746 +17.90 | −3.09 [−41.38, +17.90] | 4 / 2 | 52 | no consistent effect |
+| | p | 841 +37.95; 842 −2.10; 843 −18.30; 844 +49.02; 845 +46.85; 846 +30.10 | +23.92 [−18.30, +49.02] | 4 / 2 | 8 | no consistent effect |
+| `cw2_wares_sold` (E2 - E1), loads | t | 741 −8.26; 742 −29.95; 743 +1.38; 744 −78.11; 745 +15.21; 746 −6.17 | −17.65 [−78.11, +15.21] | 2 / 4 | 20 | no consistent effect |
+| | p | 841 −8.08; 842 +27.21; 843 −19.10; 844 −77.20; 845 +7.86; 846 −30.39 | −16.62 [−77.20, +27.21] | 2 / 4 | 22 | no consistent effect |
+
+Sign-flip: the share of the 2^k sign assignments whose mean is at least as far from zero as the
+observed mean (descriptive, not a significance test). Beside `cw2_wares_sold`: E1's free-use upper
+bound (firm output the people could draw free before title) was 4.96 [1.63, 13.65] loads
+(template) and 13.66 [3.84, 35.62] (procedural), none in E2.
+
+### Harms beside the primaries (E2 - P unless stated; mean [min, max], > 0 / < 0, sign-flip of 64)
+
+| Harm | Template | Procedural |
+| --- | --- | --- |
+| Food shortfall after relief, world | −258.9 [−1105, +467.5], 2/4, 22 | −393.2 [−2131, +1100], 2/4, 32 |
+| Wages due but not paid, units | −2.12 [−6.48, +0.60], 1/5, 6 | −1.11 [−3.55, +0.70], 3/3, 16 |
+| Workshop asset arrears at the end | 0 on all 6 | −2.5 [−15, 0], 0/1 (5 zero) |
+| Unsold firm inventory at the end, loads | +1.18 [−1.01, +8.11], 1/1 (4 zero) | +4.05 [0, +12.55], 2/0 (4 zero) |
+| Farm time diverted to crews, work units | −67.0 [−185.5, −8.9], 0/6, 2 | −106.0 [−192.0, −27.9], 0/6, 2 |
+| Treasury at the end | +162.7 [−898, +2414], 1/5, 64 | −251.8 [−2621, +1171], 3/3, 46 |
+| Mean stability at the end | −4.42 [−19.5, +11.0], 3/3, 32 | +1.92 [−9.19, +7.20], 4/2, 34 |
+| Population at the end | −27.3 [−52, −1], 0/6, 2 | −104.0 [−225, +35], 1/5, 6 |
+| Epidemic deaths | +35.2 [−27, +74], 5/1, 8 | +49.2 [−105, +266], 4/2, 26 |
+| Agents migrating between regions | −200.0 [−649, +296], 2/4, 20 | −676.5 [−1539, +219], 1/5, 6 |
+| Wealth Gini at the end | −0.051 [−0.251, +0.204], 2/4, 24 | +0.012 [−0.134, +0.226], 3/3, 54 |
+| Households priced out of firm wares (E2 - E1, and E2) | 0 on all 6 | 0 on all 6 |
+| Inputs bought from the commons' owner (E2), units | 58.9 [18.6, 181.7] | 138.9 [32.0, 252.2] |
+
+Nulls as nulls: priced-out persons and children and the timber stand are `not recorded` (household
+retail and the timber stock are off); deaths by famine and by war `require a slice extractor`. The
+runner's panel for every arm against its declared control (E1 - P, E2 - E1, E2f - E2, E2a - E2) is
+in `held/report.md`.
+
+### Secondary outcomes (mean [min, max], > 0 / < 0 (= 0), sign-flip)
+
+| Outcome | Template | Procedural |
+| --- | --- | --- |
+| Active share, E2 - P (worlds where P opened a firm) | −0.053 [−0.555, +0.388], 2/4, 46/64 | −0.073 [−0.153, +0.032], 1/3, 6/16 (841, 846 undefined) |
+| Active firm-turns, E2 - P | +58.2 [−94, +168], 4/2, 16/64 | +265.2 [+110, +333], 6/0, 2/64 |
+| Active share, E1 - P | +0.019 [−0.258, +0.445], 2/4, 56/64 | −0.044 [−0.194, +0.167], 1/3, 10/16 (841, 846 undefined) |
+| Wages credited, E1 - P | +9.90 [−25.57, +40.90], 4/2, 24/64 | +37.37 [−12.80, +77.62], 5/1, 4/64 |
+| Wages credited, E2 - E1 | −12.99 [−34.30, +8.10], 1/5, 6/64 | −13.45 [−50.35, +20.70], 2/4, 18/64 |
+| Households' money paid for wares, E2 - E1 | −21.2 [−70.0, +5.4], 1/5, 4/64 | −35.4 [−84.5, +6.3], 1/5, 4/64 |
+| Price per load, E2 - E1 | −0.181 [−0.444, +0.378], 1/5, 14/64 | −0.296 [−0.397, −0.151], 0/6, 2/64 |
+| Firms opened, E2 - E1 | −0.17 [−2, +1], 1/1 (4), 64/64 | −1.33 [−6, +2], 1/3 (2), 32/64 |
+| Firms closed idle, E2 - E1 | +0.33 [−2, +3], 3/2 (1), 52/64 | −0.17 [−6, +2], 4/2, 64/64 |
+| Net household income from firm work, E2 - P | −2.68 [−34.98, +12.92], 3/3, 52/64 | +18.80 [−22.33, +38.47], 5/1, 6/64 |
+| Wares sold to academies, E2 - P, loads | −35.4 [−145.9, +4.5], 1/4 (1), 8/64 | −10.9 [−79.4, +19.1], 2/3 (1), 44/64 |
+| Firms opened, E2 - P | +0.67 [−3, +3], 3/1 (2), 40/64 | +9.33 [+7, +11], 6/0, 2/64 |
+| **Input cost (diagnostic; never read as an option)**: active share, E2f - E2 | +0.219 [−0.081, +0.492], 5/1, 6/64 | +0.243 [+0.057, +0.399], 6/0, 2/64 |
+| Firms opened, E2f - E2 | +0.5 [−1, +2], 3/2 (1), 36/64 | −1 [−3, +2], 1/4 (1), 20/64 |
+| Firms closed idle, E2f - E2 | −0.17 [−1, +2], 1/3 (2), 64/64 | −3.17 [−7, +2], 1/5, 6/64 |
+| Wares sold to households, E2f - E2 | +44.6 [−4.3, +144.6], 5/1, 6/64 | +50.0 [+18.3, +84.7], 6/0, 2/64 |
+| Wages credited, E2f - E2 | +31.2 [+1.7, +69.6], 6/0, 2/64 | +37.3 [+21.5, +64.0], 6/0, 2/64 |
+| Treasury at the end, E2f - E2 | +153.8 [−982, +1844], 3/3, 46/64 | −362.7 [−3091, +2397], 2/4, 42/64 |
+| **Demand collapse**: active share, E2a - E2 | −0.232 [−0.381, −0.022], 0/6, 2/64 | −0.180 [−0.236, −0.087], 0/6, 2/64 |
+| Firms closed idle, E2a - E2 | +0.83 [0, +2], 4/0 (2), 8/64 | +3 [+1, +5], 6/0, 2/64 |
+| Wages credited, E2a - E2 | −5.08 [−8.90, +0.70], 1/5, 4/64 | −13.08 [−51.15, +7.15], 1/5, 8/64 |
+| Unsold inventory at the end, E2a - E2 | −2.00 [−11.97, 0], 0/1 (5), 64/64 | −1.97 [−11.95, +9.16], 1/2 (3), 48/64 |
+| Wares handed to the owner at liquidation, E2a - E2 | +28.9 [+2.0, +48.4], 6/0, 2/64 | +71.6 [+44.5, +110.6], 6/0, 2/64 |
+
+E2 alone (template; procedural): producing share 0.179 [0.100, 0.267]; 0.177 [0.132, 0.232];
+selling share 0.286 [0.094, 0.414]; 0.247 [0.128, 0.345]; idle share 0.059; 0.059; closed share
+0.642 [0.493, 0.834]; 0.671 [0.595, 0.783]; firms closed idle 3.3 [1, 4]; 9.5 [4, 13]; closed
+insolvent 0; 0; closed when the city fell 0; 1.3 [0, 3]; wares handed to the owner at liquidation
+0; 5.8 [0, 18.7] loads; owned output titled whole 63.2 [46.6, 109.9]; 133.9 [79.2, 205.4] loads.
+
+Under the frozen rule none of the three primaries reads as consistent in either stratum.
