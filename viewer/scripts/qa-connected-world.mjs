@@ -2,7 +2,7 @@
 /** Production Chromium saved-bundle journeys. No simulation, held seeds or paid calls.
  * NODE_PATH=/path/to/playwright/node_modules PLAYWRIGHT_BROWSERS_PATH=/path/to/browsers 
  * PYTHONPATH=src node viewer/scripts/qa-connected-world.mjs --build viewer/dist 
- *   --bundle chronicle_bundle.json --out /tmp/qa --python python --journey relief|leagues|branches|history
+ *   --bundle chronicle_bundle.json --out /tmp/qa --python python --journey relief|leagues|branches|public_health|history
  * Uses actual file upload, keyboard timeline seek, desktop and phone/touch viewports.
  * Bundle expectations are decoded independently by the Python bundle codec.
  */
@@ -19,19 +19,22 @@ for (let i = 2; i < process.argv.length; i += 2) {
   if (!(key in options) || !process.argv[i + 1]) throw new Error(`Unknown/missing option ${process.argv[i]}`);
   options[key] = process.argv[i + 1];
 }
-if (!options.out || !options.bundle || !["relief", "leagues", "branches", "history"].includes(options.journey)) throw new Error("Required: --bundle FILE --out DIR --journey relief|leagues|branches|history");
+if (!options.out || !options.bundle || !["relief", "leagues", "branches", "public_health", "history"].includes(options.journey)) throw new Error("Required: --bundle FILE --out DIR --journey relief|leagues|branches|public_health|history");
 for (const key of ["build", "bundle", "out"]) options[key] = path.resolve(options[key]);
 mkdirSync(options.out, { recursive: true });
 const py = spawnSync(options.python, ["-c", `
 import json,sys
 from chronicler.bundle_codec import load_bundle
-b=load_bundle(sys.argv[1]); turns=set(map(int,sys.argv[2].split(','))) if sys.argv[2] else None
+b=load_bundle(sys.argv[1])
 print(json.dumps({'constructed':(b.get('metadata') or {}).get('constructed'),'regions':[r['name'] for r in b['world_state']['regions']],
- 'history':[{'turn':s['turn'],'livelihoods':s.get('livelihoods')} if turns is None or s['turn'] in turns else None for s in b['history']]}))
-`, options.bundle, options.turns ?? (options.journey === "relief" ? "86,87" : options.journey === "leagues" ? "120" : "")], { encoding: "utf8", maxBuffer: 128 * 1024 * 1024 });
+ 'civs':[c['name'] for c in b['world_state']['civilizations']],
+ 'history':[{'turn':s['turn'],'livelihoods':s.get('livelihoods')} for s in b['history']]}))
+`, options.bundle], { encoding: "utf8", maxBuffer: 256 * 1024 * 1024 });
 if (py.status !== 0) throw new Error(py.stderr || "Python independent bundle decoder failed");
 const expected = JSON.parse(py.stdout);
 let snapshots = expected.history.filter(Boolean);
+const requestedTurns=options.turns ?? (options.journey === "relief" ? "86,87" : options.journey === "leagues" ? "120" : options.journey === "public_health" ? "6,7,23,24" : "");
+if(requestedTurns){const turns=new Set(requestedTurns.split(",").map(Number));snapshots=snapshots.filter(s=>turns.has(s.turn));if(snapshots.length!==turns.size)throw new Error("A requested saved snapshot does not exist");}
 if (options.journey === "branches" && !options.turns) {
   const funded = snapshots.filter((s)=>s.livelihoods?.movement_branches?.frame?.rows?.some((r)=>r.status === "funded"));
   if (!funded.length) throw new Error("Natural branch journey requires an actual funded receipt");
@@ -80,12 +83,15 @@ try {
       await page.goto(url);
       await page.getByLabel("Open saved world file").setInputFiles(options.bundle);
       await page.waitForFunction((count) => document.querySelectorAll('.phase75-region-node').length === count && !!document.querySelector('.phase75-playhead-label') && !document.querySelector('.saved-world-loading'), expected.regions.length, {timeout:120000});
-      await page.getByRole("tab",{name:"Livelihoods",exact:true}).click();
-      await page.waitForFunction(() => document.querySelector('.systems-shell [role="tabpanel"]')?.getAttribute("aria-label") === "Livelihoods");
+      const constructed=expected.constructed&&typeof expected.constructed.from==="string"&&/^[a-f0-9]{64}$/i.test(expected.constructed.from)&&Array.isArray(expected.constructed.edits)&&expected.constructed.edits.length>0;
+      check(result,`${name}: explicit construction metadata controls the demonstration notice`,await page.getByRole("note",{name:"Constructed demonstration",exact:true}).count()===(constructed?1:0));
+      const panel=options.journey === "public_health" ? "Epidemics" : "Livelihoods";
+      await page.getByRole("tab",{name:panel,exact:true}).click();
+      await page.waitForFunction((label) => document.querySelector('.systems-shell [role="tabpanel"]')?.getAttribute("aria-label") === label,panel);
       for (const snapshot of snapshots) {
         if (options.journey === "history" && snapshot !== snapshots.at(-1)) continue;
         await seek(page,snapshot.turn);
-        const section = page.getByRole("region",{ name: options.journey === "relief" ? "Poor relief services" : options.journey === "leagues" ? "Guild leagues" : options.journey === "branches" ? "Movement branches abroad" : "Linked histories", exact:true });
+        const section = page.getByRole("region",{ name: options.journey === "relief" ? "Poor relief services" : options.journey === "leagues" ? "Guild leagues" : options.journey === "branches" ? "Movement branches abroad" : options.journey === "public_health" ? "Connected public health" : "Linked histories", exact:true });
         await section.waitFor();
         const text = await section.innerText();
         check(result,`${name} snapshot${snapshot.turn}: panel mounts and has finite text`,!(/\bNaN\b|\bundefined\b|rejected as malformed/i.test(text)),text.slice(0,300));
@@ -133,10 +139,28 @@ try {
             await investigation.waitFor();
             check(result,`${name} snapshot${snapshot.turn}: branch region opens dated inspector`,(await investigation.innerText()).includes(`Region identity ${region}.`)&&(await investigation.innerText()).includes(`Recorded conditions · turn ${snapshot.turn}`));
           } else check(result,`${name} snapshot${snapshot.turn}: funded branch has region witness`,false);
+        } else if(options.journey === "public_health") {
+          const record=snapshot.livelihoods.public_health;
+          check(result,`${name} snapshot${snapshot.turn}: source turn and additional delay are explicit`,text.includes(`Observation from simulation turn ${record.source_turn}`)&&text.includes(`Additional report delay: ${record.report_delay} turns`)&&text.includes("delivered, unexpired reports"));
+          check(result,`${name} snapshot${snapshot.turn}: regional epidemics and individual care remain distinct`,text.includes("Regional epidemic observations remain separate from individual injury care")&&text.includes("prior observed fatality"));
+          const funding=record.funding.find(f=>f.care_paid_milli+f.guard_paid_milli+f.supply_cash_milli>0)??record.funding[0];
+          if(funding)check(result,`${name} snapshot${snapshot.turn}: actual whole cash, envelope and fractional carry`,text.includes(`${expected.civs[funding.civ]}: ${((funding.care_cash_milli+funding.supply_cash_milli+funding.guard_cash_milli)/1000).toFixed(3)} cash charged within ${(funding.envelope_milli/1000).toFixed(3)} envelope; care carry ${(funding.care_carry_before/1000).toFixed(3)} → ${(funding.care_carry_after/1000).toFixed(3)}, guard carry ${(funding.guard_carry_before/1000).toFixed(3)} → ${(funding.guard_carry_after/1000).toFixed(3)}`),JSON.stringify(funding));
+          const supply=record.supplies.find(s=>s.food_milli>0)??record.supplies[0];
+          if(supply){const rows=await section.locator("tbody tr").evaluateAll(rs=>rs.map(r=>[...r.querySelectorAll("td")].map(c=>c.textContent)));const cells=[expected.regions[supply.region],supply.source===null?"unobserved":expected.regions[supply.source],(supply.food_milli/1000).toFixed(3),(supply.charged_milli/1000).toFixed(3),(supply.internal_milli/1000).toFixed(3),supply.reason];check(result,`${name} snapshot${snapshot.turn}: actual patient supply custody and internal versus cash cost`,rows.some(row=>JSON.stringify(row)===JSON.stringify(cells)),JSON.stringify(cells));}
+          else check(result,`${name} snapshot${snapshot.turn}: absent supplies are explicit`,text.includes(record.supply_turn===null?"Supply settlement not observed":"No patient supplies requested"));
+          const environment=record.environment.find(e=>e.displaced_share>0||e.water_service>0);
+          if(environment)check(result,`${name} snapshot${snapshot.turn}: prior environment source date and observed labels`,text.includes(`${expected.regions[environment.region]}: ${environment.residence_observed?`${(100*environment.displaced_share).toFixed(1)}% displaced`:"residence unobserved"}; ${environment.sanitation_observed?`water service ${(100*environment.water_service).toFixed(0)}%, flux susceptibility ×${environment.flux_factor.toFixed(2)}`:"water service unobserved"} (source turn ${environment.source_turn})`),JSON.stringify(environment));
+          const decision=record.decisions.find(d=>d.close)??record.decisions[0];
+          if(decision)check(result,`${name} snapshot${snapshot.turn}: actual delivered report identities and observed prior fatality`,text.includes(`${expected.civs[decision.civ]} → ${expected.civs[decision.target]}: ${decision.close?"close":"remain open"}; expected loss ${decision.expected_loss_units.toFixed(3)} against cost ${decision.cost_units.toFixed(3)}; ${decision.fatality_observed?"prior own fatality observed":"own fatality unobserved"}; reports ${decision.report_ids.join(", ")}`),JSON.stringify(decision));
+          else check(result,`${name} snapshot${snapshot.turn}: undelivered advice is explicit`,text.includes(record.report_turn===null?"Reports not observed":"No delivered foreign outbreak advice"));
+          const guard=record.guards.find(g=>g.staffed)??record.guards[0];
+          if(guard)check(result,`${name} snapshot${snapshot.turn}: actual stable guard identities and dated capacity`,text.includes(`${expected.civs[guard.civ]} → ${expected.civs[guard.target]}: ${guard.members.length} guards, ${guard.work.toFixed(3)} worker-turns, ${guard.payment}; ${guard.staffed?"staffed for the next turn":"no closure capacity"}. Stable IDs: ${guard.members.map(m=>m.agent_id).join(", ")}`),JSON.stringify(guard));
+          else check(result,`${name} snapshot${snapshot.turn}: absent guard staffing is explicit`,text.includes(record.guard_turn===null?"Guard staffing not observed":"No border watch proposed"));
         } else {
           const selector = section.getByLabel("Recorded entity");
           const opts = await selector.locator("option").evaluateAll((os)=>os.map((o)=>o.value));
-          const person = opts.includes("person:13") ? "person:13" : opts.find((o)=>o.startsWith("person:"));
+          const projectWitness=(snapshot.livelihoods?.recovery_crews?.receipts??[]).flatMap((r,j)=>(r.members??[]).map((m,k)=>({member:m,project:r.pid,receipt:j,index:k}))).find(w=>opts.includes(`person:${w.member.agent_id}`));
+          const person = projectWitness?`person:${projectWitness.member.agent_id}`:opts.find((o)=>o.startsWith("person:"));
           check(result,`${name}: named person is selectable`,!!person,opts.slice(0,20).join(","));
           if (person) await selector.selectOption(person);
           const pointers = await section.locator("code").allTextContents();
@@ -147,7 +171,11 @@ try {
           };
           check(result,`${name}: displayed source pointers exist in actual bundle`,pointers.length > 0 && pointers.every(resolves),pointers.join("\n"));
           check(result,`${name}: individual and regional evidence are visibly distinct`,(await section.innerText()).includes("Region only") && (await section.innerText()).includes("not this person's record"));
-          const project = section.getByRole("button",{name:/^Project #\d+\s*$/}).first();
+          let project = section.getByRole("button",{name:projectWitness?new RegExp(`^Project #${projectWitness.project}\\s*$`):/^Project #\d+\s*$/}).first();
+          for(let earlier=0;!(await project.count())&&earlier<4;earlier++){const expand=section.getByRole("button",{name:/^Show earlier observations/});if(!await expand.count())break;await expand.click();}
+          const earlierPointers=await section.locator("code").allTextContents();
+          check(result,`${name}: earlier-page source pointers retain their original snapshot indices`,earlierPointers.length>0&&earlierPointers.every(resolves),earlierPointers.join("\n"));
+          if(projectWitness){const pointer=`/history/${expected.history.findIndex(s=>s.turn===snapshot.turn)}/livelihoods/recovery_crews/receipts/${projectWitness.receipt}/members/${projectWitness.index}`;const row=section.locator("tbody tr").filter({has:page.getByText(pointer,{exact:true})});const actual=await row.innerText();check(result,`${name}: actual named repair wage and withheld ordinary income`,actual.includes(`wage ${units(projectWitness.member.wage_milli)} coins`)&&actual.includes(`ordinary income withheld ${projectWitness.member.income_replaced===null?"unknown":fmt(projectWitness.member.income_replaced)}`),actual);}
           if (await project.count()) {
             await project.click();
             check(result,`${name}: related project button changes stable-id entity`,(await selector.inputValue()).startsWith("project:"));
