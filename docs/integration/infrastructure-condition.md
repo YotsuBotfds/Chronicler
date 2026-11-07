@@ -509,6 +509,24 @@ stored screen report (CW1, CW3, CW4, CW4b, CW5c, CW3b; held and pilot) regenerat
 under the merged runner. The CW3b gate then moved to `Outcome.pair` (the CW3b page, post-run
 refactor): numbers unchanged, excluded cells labelled.
 
+**After merging `main` 4ecfb54d (PR #92, A4 titled trade, new Rust) at `a370923c`.** Switch
+order `..., workshop_economics, titled_trade, infrastructure_condition, epidemic_care,
+attribution_records, wealth_accounting` (B3 books labour, so before C2's carers; C2's guard green;
+A4's order test names B3 between titled trade and C2); money books append-only with B3 last; layer
+`cwb3` rebuilt last, after `cwa4`, against 4ecfb54d (the same 7 B3 hunks); the runner is `main`'s.
+Every native step used `~/.venvs/native-a4` (extension `43cbd22a...`, `main`'s Rust; B3 changes no
+Rust). Checks at `a370923c`: feature-off identity against `8abc1acb` and against 4ecfb54d, 9 cases
+and 399 files each, 0 differences; B3 off with PL1 and L9 against 4ecfb54d (hybrid_s42,
+proc48_hybrid_s42) 205 files, 0 differences; `record_only` against 4ecfb54d without the switch:
+bundle and `state.json` equal once the B3 record and its keys are removed; exact resume with every
+livelihoods switch, C2 in place of A1, titled trade, B3 and PL1 (`hybrid_s42_long`, 19 resume
+points) PASS, and flow x condition (`proc32_hybrid_s11`, 39) PASS; offline lane PASS (71 chunks,
+7,562 passed, 0 failed); native B3, PL1, C2, A4, RS2, closure and watershed modules 36 passed;
+witness 509 passed; every stored screen report (CW1, CW2, CW3, CW4, CW4b, CW5, CW5c, CW3b; held and
+pilot) regenerates byte for byte, CW3b held with only its 14 exclusion labels; viewer 1,646 passed
+with one timeout under a load average near 6.6 (`FeatureOptions`, 7.8 s against 5 s; 14 of 14 alone),
+lint and build clean.
+
 Earlier identities still standing: `--watershed-mode flow` alone against main bac45cb5 (92 files, 0
 differences, at `e2b62e6c`) and `--infrastructure-condition` alone without L9 against the approved
 `10d73230` (205 files, 0 differences, at `e2b62e6c`); with `--local-budgets` the condition switch
