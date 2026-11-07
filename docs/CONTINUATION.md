@@ -73,13 +73,16 @@
   transfer, minted, destroyed or restriction (occupation plunder and requisitions are minted; city
   dues and guild levies are internal). Its guard test found seven decision sites that read causal
   provenance against the documented contract (four default-path), recorded for the owner.
-- **B2 PR** (`claude/cw-b2-flow`): `--watershed-mode flow` — the derived index replaces (never stacks
-  on) the native water climate terms, the irrigation bonus and the downstream deforestation cascade;
-  recalibrated with three free constants by leave-two-out cross-validation over 32×10 and 64×16
-  development worlds (held-out 1.1–1.5× training; downstream regions still run wetter than the old
-  index — disclosed); floods are events from storage released by upstream forest loss; terrain cap
-  changes recorded. **CW3** (procedural 851–856): all three primaries null; the cost of clearing
-  protection raised downstream food shortfall (cost not held equal across arms).
+- **PR #90 merged** at `bac45cb5` (tree `9be647c7` = reviewed head `5122b89d`; premerge Tests
+  42332351997 and main Tests 42333485333 green), B2: `--watershed-mode flow` — the derived index
+  replaces (never stacks on) the native water climate terms, the irrigation bonus and the downstream
+  deforestation cascade; recalibrated with three free constants by leave-two-out cross-validation
+  over 32×10 and 64×16 development worlds (held-out 1.1–1.5× training; downstream regions still run
+  wetter than the old index — disclosed); floods are events from storage released by upstream forest
+  loss; terrain cap changes recorded. **CW3** (procedural 851–856): all three primaries null; the cost
+  of clearing protection raised downstream food shortfall (cost not held equal across arms). A test
+  that assumed the extension is absent failed native CI once; tests that depend on the extension
+  must pass in both the offline lane and the native shards.
 - **C2 lane** (`claude/cw-c2-care`, from `main` `bac45cb5`): `--epidemic-care` (mode `care` |
   `cost_only`; requires hybrid, `--local-budgets`, epidemiology; excludes `--wealth-accounting`) -
   L9-funded named carers (provider `epidemic_care`), farm time out through `farm_labor_factor`,
@@ -91,15 +94,24 @@
   cells and world deaths per infectious person-turn lower on 6 of 6 template and 5 of 6
   procedural worlds; food shortfall higher on 5 of 6 template worlds (procedural 2 / 4):
   [integration page](integration/epidemic-care.md),
-  [preregistration and results](superpowers/progress/connected-world-screens-cw5c.md). Not
-  merged; the write-up awaits the independent check.
-- **Lanes in flight** (each on its own branch, provisional witness layers regenerated at
-  integration): A5 retail rules v2, war reaches owned stock once per event (RL1–RL3; review
-  merge-ready); A1 `--wealth-accounting` observation ledger (RL7; review fixes); B1 `--watershed
-  record_only` (review fixes); A2R schedule boundary, opening map, household-group cohorts (RL4,
-  RL5); C1 `--quarantine-mode`; A3 `--workshop-economics`.
-- **Next:** merge PR 1; integrate S1 (A5 + A1 + A2R) with one regenerated layer, the CW1
-  preregistration and held screen; then B1/C1 (S3) and A3 (S2).
+  [preregistration and results](superpowers/progress/connected-world-screens-cw5c.md). The
+  write-up was checked independently (process and every number confirmed; four small
+  corrections applied).
+- **Lanes in flight** (each on its own branch from `bac45cb5`; witness layers rebuilt last at
+  integration): A4 (A3-2 firm-output column, `--titled-trade`; CW2 and CW5 run and checked); B3
+  `--infrastructure-condition` (irrigation and roads wear, fail and are repaired by paid works through
+  their own L9 proposal; flow × condition; works' timber through PL1) with the CW3b held screen; X1
+  `--residence-ledger` (the lead-owned displacement contract, record-only); D1 `--reform-services`
+  and `--guild-leagues`.
+- **A6 audit** ([audit-a6](superpowers/audits/connected-world/audit-a6-adaptive-decisions.md)): no
+  livelihood choice reads experience today; failed attempts are recorded but unread; the native
+  "displaced" counter means moved-in-the-last-5-turns and the birth region never updates — hence the
+  residence ledger before C2 crowding, D3 and A6-1. It also reports enlisted soldiers migrating
+  natively with their roster following, against audit D's "soldiers never move natively"; D3/D4
+  must settle which holds.
+- **Next:** merge the checked lanes in turn (each merges main and rebuilds its layer last); then D4
+  requisition/restitution/reconstruction, E linked histories, the A1-2 native observer, D3, A6-1
+  (one native build with D3) and C4.
 
 # 2026-11-06 — productive recovery, checkpoint 3 (the integrated chain), merged (PR #81)
 
