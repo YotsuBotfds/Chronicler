@@ -525,6 +525,9 @@ def test_readers_give_t_to_t_plus_1_and_refuse_a_same_turn_or_other_turn_read():
     row = RL.own_row(world, 1, consumer_turn=T + 1)
     assert row["source_turn"] == T and row["spell"]["cause"] == "flight" and row["res"] == BROOK
     assert row["res_since"] == T and row["move_from"] == AVALON
+    assert set(row) == {"id", "source_turn", "home", "home_since", "res", "res_since", "first_seen", "move_turn",
+                        "move_from", "move_driver", "spell", "army", "army_region"}
+    assert RL.own_row(world, 2, consumer_turn=T + 1)["spell"] is None           # every key, None included
     assert RL.own_row(world, 99, consumer_turn=T + 1) is None
     frame["totals"]["displaced"] = 99                                   # a copy
     assert _state(world).frame["totals"]["displaced"] == 1

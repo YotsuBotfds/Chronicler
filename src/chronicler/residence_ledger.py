@@ -202,7 +202,7 @@ def set_residence_ledger_enabled(world, value: bool, *, args=None, agent_mode=No
     closed = _end_epoch(state, "unobserved_gap")
     _bump(state, "switched_off")
     _log(state, turn, "switched_off", frame_turn=state.frame_turn, rows=rows, spells_closed=closed)
-    state.frame = state.events = state.frame_turn = None
+    state.frame = state.events = state.frame_turn = state.pending = None
     state.events_dropped = 0
     state.regions = []
     state.watch_from = state.last_turn = None
@@ -633,7 +633,12 @@ def own_row(world, agent_id: int, *, consumer_turn: int) -> dict | None:
     row = state.rows.get(int(agent_id))
     if row is None:
         return None
-    return {"id": int(agent_id), "source_turn": state.frame_turn, **row.model_dump(mode="json")}
+    # Every key, None included (the stored JSON omits empty fields).
+    return {"id": int(agent_id), "source_turn": state.frame_turn, "home": row.home, "home_since": row.home_since,
+            "res": row.res, "res_since": row.res_since, "first_seen": row.first_seen, "move_turn": row.move_turn,
+            "move_from": row.move_from, "move_driver": row.move_driver,
+            "spell": row.spell.model_dump(mode="json") if row.spell is not None else None,
+            "army": row.army, "army_region": row.army_region}
 
 
 def separation(world, agent_bridge, *, consumer_turn: int) -> dict | None:
