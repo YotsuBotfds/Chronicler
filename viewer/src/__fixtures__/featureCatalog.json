@@ -1146,7 +1146,9 @@
     "techniques": "techniques (on by default for new worlds; off with --no-techniques)",
     "no_household_mobility_liquid_requirement": "no household-mobility liquid requirement (--household-mobility-liquid-requirement unset or 0)",
     "procedural_world": "a procedural world (template worlds have no elevation): in Batch Lab, a batch of more than 12 regions; on a live start, the run checks the requested world and refuses a template world (12 regions or fewer), reopening the lobby with the reason",
-    "epidemiology": "epidemiology with the contact ledger (on by default for new worlds; off with --no-epidemiology or --no-contact-ledger)"
+    "epidemiology": "epidemiology with the contact ledger (on by default for new worlds; off with --no-epidemiology or --no-contact-ledger)",
+    "agent_movements": "agent movements (on by default for new worlds; off with --no-agent-movements)",
+    "guilds": "guilds (on by default for new worlds; off with --no-guilds)"
   },
   "surfaces": {
     "live": {
@@ -1160,7 +1162,9 @@
         "techniques": true,
         "no_household_mobility_liquid_requirement": true,
         "procedural_world": true,
-        "epidemiology": true
+        "epidemiology": true,
+        "agent_movements": true,
+        "guilds": true
       },
       "new_worlds_only": true
     },
@@ -1178,7 +1182,9 @@
         "techniques": true,
         "no_household_mobility_liquid_requirement": true,
         "procedural_world": false,
-        "epidemiology": true
+        "epidemiology": true,
+        "agent_movements": true,
+        "guilds": true
       },
       "new_worlds_only": true
     }

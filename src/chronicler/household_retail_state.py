@@ -73,12 +73,16 @@ FLOW_KINDS: tuple[str, ...] = (
     # its holder's claim at the destination or back at the origin. Recorded
     # only when nonzero, so frames without titled trade keep their bytes.
     "sold_merchant", "consigned_in", "returned_in",
+    # D1a (--reform-services): owned food a poor-relief fund bought from its
+    # owners (paid by stable id), moved into the region's commons.
+    "relief_bought",
 )
 #: Signs of the flows in ``close = open + sum(sign x flow)``.
 FLOW_SIGNS: dict[str, int] = {
     "titled": 1, "own_eaten": -1, "sold": -1, "procured": -1, "decay": -1, "overflow": -1,
     "war_loss": -1, "to_commons": -1, "inherited_in": 1, "inherited_out": -1, "cap_overflow": -1,
     "sold_merchant": -1, "consigned_in": 1, "returned_in": 1,
+    "relief_bought": -1,
 }
 #: Why owned food went to the region's commons (``region.stockpile``).
 COMMONS_REASONS: tuple[str, ...] = (
@@ -125,6 +129,8 @@ COUNTERS: tuple[str, ...] = (
     "owned_grain_above_cap_milli",
     # (S1, A2R review 2): the commons' pro-rata share of that cut, milli-food rounded.
     "commons_grain_above_cap_milli",
+    # D1a (--reform-services): owned food bought by relief funds into the commons.
+    "relief_bought_milli",
 )
 #: RL5 (version 2): household groups of the people provisioned in a pilot
 #: region, in this order (a partition; ``household_retail.cohort_groups``).

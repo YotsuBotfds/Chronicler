@@ -11,7 +11,10 @@ One rule set for every new payment:
 
 * **Accounts** (``ACCOUNT_KINDS``): a civilization's treasury (index in
   ``world.civilizations``), a firm's cash (the firm id the caller names),
-  an agent's native wealth (stable id) and a declared sink (``SINKS``).
+  an agent's native wealth (stable id), a declared sink (``SINKS``) and a
+  civilization's poor-relief fund (D1a ``--reform-services``: the fund the
+  realm's relief upkeep pays into and food purchases are paid from; the
+  caller names the civilization index and hands the purses as ``funds``).
 * **Units.** Every amount is a whole number of milli-units (1000 = one
   treasury unit = one native wealth unit, the equivalence domestic credit
   and L6a already use). Treasuries hold whole units: a treasury *debit* must
@@ -75,8 +78,7 @@ NATIVE_PURPOSES: tuple[str, ...] = (
 )
 #: Purposes an agent may pay agents for (``settle_pairs``; append only).
 PAIRWISE_PURPOSES: tuple[str, ...] = ("cargo_purchase", "cargo_sale")
-#: Python-only purposes, appended in integration order.
-PYTHON_PURPOSES: tuple[str, ...] = ("firm_capital", "firm_input_purchase", "infrastructure_repair", "care_supply")
+PYTHON_PURPOSES: tuple[str, ...] = ("firm_capital", "firm_input_purchase", "infrastructure_repair", "relief_budget", "relief_refund", "care_supply")
 #: Seam purposes that ride an existing native purpose code (append only).
 #: The connected-world Python-only lanes cannot add a native code, so a new
 #: agent-wealth purpose is keyed natively under an existing code with batches
@@ -84,7 +86,10 @@ PYTHON_PURPOSES: tuple[str, ...] = ("firm_capital", "firm_input_purchase", "infr
 #: is per turn, code and batch); the seam's own book keys it by its own name.
 #: ``care_wage`` (C2): treasury -> epidemic carers, under ``repair_wage`` (as
 #: PL1 woodcut and PL3 granary crew wages are), batches ``epidemic_care.CARE_WAGE_BATCH + civ``.
-NATIVE_ALIASES: dict[str, str] = {"care_wage": "repair_wage"}
+#: ``relief_purchase`` (D1a): relief fund -> owners of food bought for poor
+#: relief, under ``food_procurement``, batches ``reform_services.RELIEF_BATCH_BASE
+#: + region`` (household retail's own procurement credit keeps batch 0).
+NATIVE_ALIASES: dict[str, str] = {"care_wage": "repair_wage", "relief_purchase": "food_procurement"}
 #: Every registered purpose -> its native code (None: Python accounts only).
 PURPOSES: dict[str, int | None] = {
     **{name: code for code, name in enumerate(NATIVE_PURPOSES)},
@@ -98,7 +103,7 @@ PURPOSES: dict[str, int | None] = {
 #: carry (``return_to_payer``), whole units of it to the treasury.
 TREASURY_AGENT_PURPOSES: tuple[str, ...] = ("care_wage", "restitution")
 #: Account kinds, in declaration order (append only).
-ACCOUNT_KINDS: tuple[str, ...] = ("civ_treasury", "firm_cash", "agent_wealth", "sink")
+ACCOUNT_KINDS: tuple[str, ...] = ("civ_treasury", "firm_cash", "agent_wealth", "sink", "relief_fund")
 #: Declared sinks a bill may name for its residual or as a payee (append only).
 #: ``unowned_commons``: inputs taken from the commons of a region nobody
 #: controls (paid, but to nobody); ``credit_refused``: agent credits a
@@ -268,6 +273,25 @@ def sink(name: str) -> Account:
     return Account("sink", name)
 
 
+def relief_fund(civ: int) -> Account:
+    return Account("relief_fund", int(civ))
+
+
+#: Account kinds whose balance is a Python purse (``.cash``, whole milli) the
+#: caller hands to ``quote``/``pay``: firm cash in ``firms``, relief funds in
+#: ``funds`` (each keyed by the account's integer identity).
+_PURSES: dict[str, str] = {"firm_cash": "firms", "relief_fund": "funds"}
+
+
+def _purse(account: Account, firms, funds):
+    pool = firms if _PURSES[account.kind] == "firms" else funds
+    purse = (pool or {}).get(int(account.ident))
+    if purse is None:
+        what = "firm" if account.kind == "firm_cash" else "relief fund"
+        raise MoneyError(f"unknown {what} {account.ident}")
+    return purse
+
+
 def _validate_shape(bill: Bill) -> None:
     if bill.purpose not in PURPOSES:
         raise MoneyError(f"unregistered payment purpose {bill.purpose!r}")
@@ -318,9 +342,20 @@ def _validate_shape(bill: Bill) -> None:
             # (RS2/PL1), or through this seam only for a declared purpose whose
             # every line is an agent (``TREASURY_AGENT_PURPOSES``, C2).
             raise MoneyError("a treasury payment to agents is not supported by this seam")
+        # A relief fund is its own civilization's purse: only that treasury pays
+        # into it, and it pays only agents (food bought) or back to that treasury.
+        for account, _ in bill.lines:
+            if account.kind == "relief_fund" and bill.payer != treasury(int(account.ident)):
+                raise MoneyError("only its own civilization's treasury pays into a relief fund")
+        if bill.payer.kind == "relief_fund" and any(
+                a.kind not in ("agent_wealth", "civ_treasury")
+                or (a.kind == "civ_treasury" and a != treasury(int(bill.payer.ident))) for a, _ in bill.lines):
+            raise MoneyError("a relief fund pays agents or its own civilization's treasury")
     else:
         if bill.payee.kind == "agent_wealth":
             raise MoneyError("a collection pays a firm, a treasury or a sink, not an agent")
+        if bill.payee.kind == "relief_fund":
+            raise MoneyError("a relief fund is paid only by its own civilization's treasury")
         if any(a.kind != "agent_wealth" for a, _ in bill.lines):
             raise MoneyError("a collection's lines are paying agents")
     if bill.payer is not None and bill.payer.kind == "civ_treasury" and any(a % MILLI for _, a in bill.lines) \
@@ -366,7 +401,7 @@ def _wealth(sim, ids) -> dict[int, int]:
 
 
 def quote(world, bill: Bill, *, turn: int, book: MoneyBook, acc=None, sim=None,
-          firms: dict[int, Any] | None = None) -> Quote:
+          firms: dict[int, Any] | None = None, funds: dict[int, Any] | None = None) -> Quote:
     """Validate the whole bill and compute what it needs; moves nothing."""
     _validate_shape(bill)
     total = sum(amount for _, amount in bill.lines)
@@ -376,8 +411,8 @@ def quote(world, bill: Bill, *, turn: int, book: MoneyBook, acc=None, sim=None,
     for account in ([a for a, _ in bill.lines] if bill.payer is not None else [bill.payee]):
         if account.kind == "civ_treasury" and not 0 <= int(account.ident) < len(world.civilizations):
             raise MoneyError(f"unknown civilization {account.ident}")
-        if account.kind == "firm_cash" and int(account.ident) not in (firms or {}):
-            raise MoneyError(f"unknown firm {account.ident}")
+        if account.kind in _PURSES:
+            _purse(account, firms, funds)
     if bill.payer is not None and bill.payer.kind == "agent_wealth":
         # Pairwise: the payer covers the whole bill and every payee is alive,
         # from one fresh snapshot read.
@@ -396,10 +431,7 @@ def quote(world, bill: Bill, *, turn: int, book: MoneyBook, acc=None, sim=None,
                 # The prepaid remainder of earlier bills is spent first.
                 available += book.carry.get(f"{int(bill.payer.ident)}:{bill.purpose}", 0)
         else:
-            firm = (firms or {}).get(int(bill.payer.ident))
-            if firm is None:
-                raise MoneyError(f"unknown firm {bill.payer.ident}")
-            available = int(firm.cash)
+            available = int(_purse(bill.payer, firms, funds).cash)
         return Quote(available >= total, None if available >= total else "payer_short", total, available)
     holdings = _wealth(sim, [int(a.ident) for a, _ in bill.lines])
     for account, amount in bill.lines:
@@ -524,9 +556,9 @@ def _record(book: MoneyBook, turn: int, flows: list[MoneyFlow]) -> None:
 
 
 def pay(world, bill: Bill, *, turn: int, book: MoneyBook, acc=None, sim=None,
-        firms: dict[int, Any] | None = None) -> Receipt:
+        firms: dict[int, Any] | None = None, funds: dict[int, Any] | None = None) -> Receipt:
     """Validate the whole bill, then move it once; a refused bill moves nothing."""
-    q = quote(world, bill, turn=turn, book=book, acc=acc, sim=sim, firms=firms)
+    q = quote(world, bill, turn=turn, book=book, acc=acc, sim=sim, firms=firms, funds=funds)
     if not q.ok:
         return Receipt(False, q.reason, total=q.total)
     flows: list[MoneyFlow] = []
@@ -573,11 +605,8 @@ def pay(world, bill: Bill, *, turn: int, book: MoneyBook, acc=None, sim=None,
                 status = "absent" if code_status == 2 else "limited" if applied != amount else "applied"
             elif account.kind == "civ_treasury":
                 units, before, after = _credit_treasury(world, int(account.ident), bill.purpose, amount, book, acc)
-            elif account.kind == "firm_cash":
-                firm = (firms or {}).get(int(account.ident))
-                if firm is None:
-                    raise MoneyError(f"unknown firm {account.ident}")
-                firm.cash += amount
+            elif account.kind in _PURSES:
+                _purse(account, firms, funds).cash += amount
             else:
                 book.sinks[str(account.ident)] = book.sinks.get(str(account.ident), 0) + amount
             residual = amount - applied
@@ -608,9 +637,11 @@ def pay(world, bill: Bill, *, turn: int, book: MoneyBook, acc=None, sim=None,
                 f.treasury_units = -(f.applied // MILLI)
             units_total = -(debit // MILLI)
         else:
-            firms[int(payer.ident)].cash -= debit
-            if firms[int(payer.ident)].cash < 0:
-                raise MoneyError("firm cash went negative")
+            purse = _purse(payer, firms, funds)
+            purse.cash -= debit
+            if purse.cash < 0:
+                raise MoneyError("firm cash went negative" if payer.kind == "firm_cash"
+                                 else "relief fund went negative")
     else:
         payee = bill.payee
         rows = sorted((int(a.ident), -amount) for a, amount in bill.lines)
@@ -628,8 +659,8 @@ def pay(world, bill: Bill, *, turn: int, book: MoneyBook, acc=None, sim=None,
             flows.append(MoneyFlow(turn=turn, phase=bill.phase, purpose=bill.purpose, batch=bill.batch,
                                    payer=(account.kind, account.ident), payee=(payee.kind, payee.ident),
                                    region=regions[i], requested=amount, applied=applied))
-        if payee.kind == "firm_cash":
-            firms[int(payee.ident)].cash += received
+        if payee.kind in _PURSES:
+            _purse(payee, firms, funds).cash += received
         elif payee.kind == "civ_treasury":
             units, before, after = _credit_treasury(world, int(payee.ident), bill.purpose, received, book, acc)
             units_total += units
@@ -648,8 +679,7 @@ def pay(world, bill: Bill, *, turn: int, book: MoneyBook, acc=None, sim=None,
 # The register the A1 ledger reads
 # ---------------------------------------------------------------------------
 
-#: Packages whose persisted state keeps a :class:`MoneyBook` (``state.book``; append only).
-MONEY_BOOKS: tuple[str, ...] = ("workshop_economics", "epidemic_care", "titled_trade", "infrastructure_condition", "war_requisition")
+MONEY_BOOKS: tuple[str, ...] = ("workshop_economics", "epidemic_care", "titled_trade", "infrastructure_condition", "reform_services", "war_requisition", "public_health")
 
 
 def flows_for_turn(world, turn: int) -> list[MoneyFlow] | None:

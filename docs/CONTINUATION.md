@@ -143,6 +143,20 @@ Six isolated workers own B3, D1, D4, independent coverage/evidence, health follo
   `--infrastructure-condition` (CW3b run and checked; merging after X1); D1 `--reform-services` and
   `--guild-leagues` (review running); D4 `--war-requisition` with A4-2 cargo seizure and restitution
   (native purpose 10).
+- **D1 lane** (`claude/cw-d1-institutions`, unmerged; merged with `main` `4ecfb54d`; layer `cwd1` last):
+  D1a `--reform-services` (modes `service`, `cost_only`) withholds the poor-relief label credit from the
+  native reform table; in `service` the treasury's unchanged relief payment (upkeep or the Commons
+  Management enforcement share) goes into a capped relief fund (`money.py` account `relief_fund`,
+  purposes `relief_budget`, `relief_refund`, `relief_purchase` under native `food_procurement`) that buys
+  owners' unsold food, paid by id, where the realm's own retail markets recorded people priced out, into
+  the commons of the next free pool ([page](integration/reform-services.md)). D1b `--guild-leagues`
+  (modes `mutual`, `dues_only`): guilds of different realms linked by recorded merchant deliveries form
+  leagues (one member per realm, at most 4), pay capped dues into a fund that pays members' recorded levy
+  shares and sack plunder ([page](integration/guild-leagues.md)). Development activation is low (relief
+  purchases 0-2 per world; procedural leagues 8-10 with about 107 levy claims each). Offline lane,
+  identity (9 cases, 399 files, 0 differences vs `8abc1acb` and vs `4ecfb54d`), checkpoint resumes
+  (relief alone and an all-enabled procedural case) and viewer suites pass; prereg draft
+  [CW6-D1](superpowers/progress/connected-world-screens-cw6d1.md), cohort for the lead.
 - **A6 audit** ([audit-a6](superpowers/audits/connected-world/audit-a6-adaptive-decisions.md)): no
   livelihood choice reads experience today; failed attempts are recorded but unread; the native
   "displaced" counter means moved-in-the-last-5-turns and the birth region never updates — hence the

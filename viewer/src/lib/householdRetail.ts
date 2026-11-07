@@ -35,6 +35,8 @@ export const FLOW_SIGNS = {
   /** A4 titled trade: owners' surplus bought by a merchant (title passes to its shipment), and a
    * shipment's cargo becoming its holder's claim at the destination or back at the origin. */
   sold_merchant: -1, consigned_in: 1, returned_in: 1,
+  /** D1a (--reform-services): owned food a poor-relief fund bought (owners paid by id) into the commons. */
+  relief_bought: -1,
 } as const;
 export type FlowKind = keyof typeof FLOW_SIGNS;
 const FLOW_KINDS = Object.keys(FLOW_SIGNS) as FlowKind[];
