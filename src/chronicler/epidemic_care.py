@@ -121,6 +121,9 @@ class _Turn:
         self.receipts: list[CareReceipt] = []
         #: civ -> coins of the care envelopes it executes this turn.
         self.envelopes: dict[int, int] = {}
+        self.cash_envelopes: dict[int, int] = {}
+        self.wages_planned: dict[int, int] = {}
+        self.health_cash_limits: dict[int, int] = {}
         self.prepared = False
         self.finished = False
         self.installed = False
@@ -403,6 +406,8 @@ def prepare_phase2(world, region_input, agent_bridge, snapshot, acc):
     sim = _native(agent_bridge)
     t = state._turn = _Turn(turn, sim)
     commitments = _envelopes(world)
+    for c in commitments:
+        t.cash_envelopes[c.civ] = t.cash_envelopes.get(c.civ, 0) + c.amount * MILLI
     t.prepared = True
     if not commitments:
         return region_input
@@ -483,6 +488,7 @@ def prepare_phase2(world, region_input, agent_bridge, snapshot, acc):
                         continue
                 r.carers.append(Carer(agent_id=aid, origin="urban_farmer" if urban else "rural_farmer", share=share,
                                       wage_due_milli=wage))
+                t.wages_planned[c.civ] = t.wages_planned.get(c.civ, 0) + wage
                 care += share
                 from chronicler.public_health import supply_for_work
                 reserve_supplies = supply_for_work(world, rid, share)
