@@ -399,7 +399,9 @@ def resolve_record_pointer(bundle: dict, fid: str) -> ResolvedRecordPointer | No
     """Resolve the reserved exact-record grammar; never fall back to snapshot presence.
 
     A unique saved snapshot, versioned livelihoods/package and its T-1 date
-    are mandatory. Readers additionally validate each package's model books;
+    are mandatory. A nested explicitly dated observation retains its own
+    earlier source_turn; an invalid or newer nested date is not accepted.
+    Readers additionally validate each package's model books;
     this function does not replace those readers or certify a causal claim.
     """
     match = _RECORD_FACT.fullmatch(fid)
@@ -433,6 +435,11 @@ def resolve_record_pointer(bundle: dict, fid: str) -> ResolvedRecordPointer | No
             value = value[int(token)]
         else:
             return None
+        if isinstance(value, dict) and "source_turn" in value:
+            nested = value["source_turn"]
+            if isinstance(nested, bool) or not isinstance(nested, int) or not 0 <= nested <= source:
+                return None
+            source = nested
     if isinstance(value, float) and not math.isfinite(value):
         return None
     return ResolvedRecordPointer(fid, f"/history/{i}/livelihoods/" + "/".join(tokens), source, value)

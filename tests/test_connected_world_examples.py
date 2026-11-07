@@ -34,3 +34,13 @@ def test_natural_examples_require_observed_strict_reader_receipt():
         assert not report["examples"]["timber_orders:failure"]["found"]
         assert report["skipped_validation"]
         assert report["story_audit"]["totals"]["entries"]==0
+
+
+def test_mechanical_story_preserves_explicit_prior_separation_date():
+    package={"schema_version":1,"source_turn":2,"frame":{"separation":{"source_turn":1,"separated":[{"a":7,"b":8,"relation":"partner","cause":"field_service"}]}}}
+    bundle={"world_state":{},"history":[{"turn":3,"livelihoods":{"schema_version":1,"war_consequences":package}}]}
+    report=collect(bundle,{"snapshots":{"3":{"war_consequences":"observed"}}})
+    example=report["examples"]["war_consequences:mixed"]
+    assert example["found"] and example["source_turn"]==1
+    assert example["story_entry"]["provenance"]["facts"]==[[example["fact_id"],1]]
+    assert report["story_audit"]["flags"]==[]

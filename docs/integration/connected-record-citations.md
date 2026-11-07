@@ -65,3 +65,5 @@ Constructed saved demonstrations use the canonical optional
 The loader validates it and the viewer displays a visible "Constructed
 demonstration" notice on the loaded app. Natural bundles without this explicit
 marker receive no notice. Filenames, seeds and modes do not imply construction.
+
+An exact pointer to an explicitly earlier nested observation keeps that observation's `source_turn`, rather than relabelling it with the newer package/snapshot date. Examples include D3's prior separation frame and dated public-health exposure. Nested dates must be nonnegative completed turns no newer than their enclosing observation; unknown or future dates fail resolution. Mechanical posthoc stories supply the earlier date explicitly in provenance, so the existing mismatch and future-citation audits still apply.

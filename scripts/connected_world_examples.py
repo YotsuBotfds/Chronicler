@@ -78,7 +78,7 @@ def collect_examples(bundle: dict, validation: dict | None = None) -> dict:
                 values={field:row.get(field) for field in fields}
                 # One recorded observation per sentence, no causal connectors.
                 text=f"At snapshot {turn}, {package.replace('_',' ')} recorded {json.dumps(values,sort_keys=True,separators=(',',':'))}."
-                prov={"v":1,"narrator":"mechanical","as_of":turn-1,"facts":[fid],"names":[],"spans":[[0,len(text),[fid]]]}
+                prov={"v":1,"narrator":"mechanical","as_of":turn-1,"facts":[fid if resolved.source_turn==turn-1 else [fid,resolved.source_turn]],"names":[],"spans":[[0,len(text),[fid]]]}
                 entry={"narrative":text,"provenance":prov}
                 entries.append(entry)
                 individual=any(field in values for field in ("holder","owner","id","a","army","wid","aid"))

@@ -73,3 +73,23 @@ def test_declared_id_cause_requires_actual_equal_stable_keys(bundle):
     assert audit_bundle(bundle).flags == []
     prov["record_links"][0]["value"] = 999
     assert "unsupported_record_cause" in {f.kind for f in audit_bundle(bundle).flags}
+
+
+def test_nested_observation_keeps_its_earlier_completed_source_date(bundle):
+    s=next(s for s in bundle["history"] if s["turn"]==28)
+    s["livelihoods"]["constructed_contract"]={"schema_version":1,"source_turn":27,"frame":{"source_turn":26,"rows":[{"id":13}]}}
+    fid=livelihood_fact_id(28,"constructed_contract","frame","rows",0)
+    assert resolve_record_pointer(bundle,fid).source_turn==26
+    assert BundleRecords(bundle).resolve(fid,{})==(True,26)
+    text="The earlier observation names person13."
+    bundle["chronicle_entries"]=[{"narrative":text,"provenance":{"v":1,"narrator":"mechanical","as_of":27,"facts":[[fid,26]],"names":[],"spans":[[0,len(text),[fid]]]}}]
+    assert audit_bundle(bundle).flags==[]
+    bundle["chronicle_entries"][0]["provenance"]["facts"]=[fid]
+    assert "date_mismatch" in {f.kind for f in audit_bundle(bundle).flags}
+
+
+@pytest.mark.parametrize("source",[True,28,-1,"26",None])
+def test_future_or_unknown_nested_source_is_not_relabelled_with_snapshot_date(bundle,source):
+    s=next(s for s in bundle["history"] if s["turn"]==28)
+    s["livelihoods"]["constructed_contract"]={"schema_version":1,"source_turn":27,"frame":{"source_turn":source,"rows":[{"id":13}]}}
+    assert resolve_record_pointer(bundle,livelihood_fact_id(28,"constructed_contract","frame","rows",0)) is None
