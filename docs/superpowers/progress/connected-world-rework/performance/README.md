@@ -151,7 +151,7 @@ X1 state, artifact binding, flags, native identity and truncated CSV rejection.
 These controls are not simulation evidence or a qualification claim.
 
 The [actual template pilot comparison](template200-pilot-comparison.json) passes
-all 117 non-bundle outputs, every Arrow file, the complete decoded bundle and
+all 111 non-bundle outputs, every Arrow file, the complete decoded bundle and
 four native/private-state checkpoint comparisons. Corrected unoptimized source
 `09403c15070ddab4977ae8b2e65c336238468447` and its timber-only optimization
 `a1fcb482f4d971e1c20e99075f2e256f9838a359` share native artifact
