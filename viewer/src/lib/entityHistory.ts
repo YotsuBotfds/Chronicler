@@ -8,6 +8,8 @@ import { residenceLedgerAt } from "./residenceLedger";
 import { titledTradeAt } from "./titledTrade";
 import { timberOrdersAt } from "./timberOrders";
 import { warRequisitionAt } from "./warRequisition";
+import { adaptiveAt, warConsequencesAt } from "./personalExperience";
+import { publicHealthAt } from "./publicHealth";
 
 export type EntityKind = "person" | "project" | "expedition" | "shipment" | "timber_order" | "claim" | "army" | "region";
 export interface EntityRef { kind: EntityKind; id: number | string }
@@ -17,7 +19,7 @@ export interface EntityHistoryRow {
   join: "id" | "region" | "inferred"; state: HistoryState; text: string;
   source: string | null; region: number | null; related: EntityRef[];
 }
-export const HISTORY_PACKAGES = ["recovery_crews", "repair_projects", "timber_supply", "household_retail", "titled_trade", "residence_ledger", "timber_orders", "war_requisition"] as const;
+export const HISTORY_PACKAGES = ["recovery_crews", "repair_projects", "timber_supply", "household_retail", "titled_trade", "residence_ledger", "timber_orders", "war_requisition", "adaptive_livelihoods", "war_consequences", "public_health"] as const;
 type Package = typeof HISTORY_PACKAGES[number];
 interface Observation extends EntityHistoryRow { package: Package }
 interface PackageFrame { state: HistoryState; reason: string; rows: Observation[]; source: string | null; sourceTurn: number | null }
@@ -53,8 +55,8 @@ export function indexEntityHistory(bundle: Bundle): EntityHistoryIndex {
       }
       const bad = () => { Object.assign(frame, { state: "malformed", reason: "Rejected by the package's strict reader", sourceTurn: null }); };
       const unknown = () => { Object.assign(frame, { state: "unknown", reason: "The completed turn was not observed; unknown, not zero" }); };
-      const add = (entity: EntityRef, path: string, text: string, region: number | null = null, related: EntityRef[] = [], state: HistoryState = "recorded", join: EntityHistoryRow["join"] = "id") => {
-        frame.rows.push({ entity, turn: snapshot.turn, sourceTurn: frame.sourceTurn, package: key, join, state, text, source: source + path, region, related });
+      const add = (entity: EntityRef, path: string, text: string, region: number | null = null, related: EntityRef[] = [], state: HistoryState = "recorded", join: EntityHistoryRow["join"] = "id", sourceTurn: number | null = frame.sourceTurn) => {
+        frame.rows.push({ entity, turn: snapshot.turn, sourceTurn, package: key, join, state, text, source: source + path, region, related });
         for (const e of [entity, ...related]) entities.set(entityKey(e), e);
       };
       if (key === "recovery_crews") {
@@ -123,7 +125,7 @@ export function indexEntityHistory(bundle: Bundle): EntityHistoryIndex {
         });
         if (!r.record.frame) { unknown(); continue; }
         if (r.record.frame.events_dropped) Object.assign(frame, { state: "truncated", reason: "Timber order events were dropped; absence is unknown" });
-      } else {
+      } else if (key === "war_requisition") {
         const r = warRequisitionAt(snapshot, regions, civs);
         if (r.status === "malformed" || !r.record) { bad(); continue; }
         if (r.status === "disabled") { Object.assign(frame, { state: "disabled", reason: "Requisition is explicitly disabled" }); continue; }
@@ -146,6 +148,41 @@ export function indexEntityHistory(bundle: Bundle): EntityHistoryIndex {
               : `${e.kind}: ${num((e.removed_milli ?? 0) / 1000)} food removed; ${(e.allocations ?? []).reduce((s, a) => s + a.rations, 0) + (e.credited_rations ?? 0)} rations credited; ${num((e.destroyed_milli ?? 0) / 1000)} food destroyed`;
           for (const entity of unique) add(entity, `/frame/events/${j}`, text, e.region ?? null, unique.filter((item) => entityKey(item) !== entityKey(entity)));
         });
+      } else if (key === "adaptive_livelihoods") {
+        const r = adaptiveAt(snapshot, regions);
+        if (!r) { bad(); continue; }
+        if (!r.frame) { unknown(); continue; }
+        const f = r.frame;
+        if ([f.rows_dropped,f.refusals_dropped,f.quick_departures_dropped,f.work_dropped,f.offers_dropped,f.trade_dropped,f.known_destinations_dropped].some((n)=>Number(n)>0)) Object.assign(frame,{state:"truncated",reason:"Personal experience rows outside the bounded sample are unknown"});
+        f.work.forEach((w,j)=>add(ref("person",w.id),`/frame/work/${j}`,`${w.kind} experience: actually paid ${w.paid_milli===null?"unknown":coins(w.paid_milli)}, ordinary income withheld ${w.withheld_milli===null?"unknown":coins(w.withheld_milli)}, title forgone ${w.title_forgone_milli===null?"unknown":coins(w.title_forgone_milli)}, net money ${w.net_milli===null?"unknown":coins(w.net_milli)}; training progress ${w.progress===null?"unknown":w.progress?"yes":"no"}. Source: ${w.source??"unrecorded"}`));
+        f.offers.forEach((o,j)=>add(ref("person",o.id),`/frame/offers/${j}`,`${o.kind} offer ${o.accepted?"accepted":"declined"}; prior personal experience would decline: ${o.would_decline?"yes":"no"}. An offer is not a completed job`));
+        for (const name of ["refusals","quick_departures"] as const) f[name].forEach((e,j)=>add(ref("person",e.id),`/frame/${name}/${j}`,e.kind==="refused"?`Native migration refused: ${e.gate===0?"quarantine closure":"relocation fare/household liquidity"}; target region context only`:`Left soon after arriving; dated own experience, no inferred motive`,e.region));
+        f.rows.forEach(([id,target,penalty],j)=>add(ref("person",id),`/frame/rows/${j}`,`Destination score input ${num(penalty)} for region ${target}; mode ${r.mode}. An input is not a move`,target));
+        f.known_destinations?.forEach(([id,dst,mask],j)=>add(ref("person",id),`/frame/known_destinations/${j}`,`Destination information for region ${dst}: ${[mask&1?"own past residence":null,mask&2?"living bond":null,mask&4?"dated packet":null].filter(Boolean).join(", ")}. This is knowledge, not residence`,dst));
+        f.trade?.forEach((t,j)=>add(ref("person",t.id),`/frame/trade/${j}`,`Own shipment #${t.shipment}: ${t.outcome}${t.cause?` (${t.cause})`:""}; destination context only`,t.region,[ref("shipment",t.shipment)]));
+      } else if (key === "war_consequences") {
+        const r = warConsequencesAt(snapshot,regions);
+        if (!r) { bad(); continue; }
+        if (!r.frame) { unknown(); continue; }
+        const f=r.frame;
+        if (f.events_dropped || f.separation?.separated_dropped) Object.assign(frame,{state:"truncated",reason:"War events or separation pairs outside retention are unknown"});
+        f.events.forEach((e,j)=>{
+          const person=ref("person",e.id), related=e.army?[ref("army",e.army)]:[];
+          const text=`War event ${e.kind}; recorded cause ${e.cause}${e.destination!==undefined?`; destination region ${e.destination}`:""}. No safety or causal inference from this row`;
+          add(person,`/frame/events/${j}`,text,e.region,related);
+          for(const army of related) add(army,`/frame/events/${j}`,text,e.region,[person]);
+        });
+        f.separation?.separated.forEach((p,j)=>{
+          for(const [id,other] of [[p.a,p.b],[p.b,p.a]]) add(ref("person",id),`/frame/separation/separated/${j}`,`Separated ${p.relation} pair with person #${other}: ${p.cause}; prior source turn ${f.separation!.source_turn}. Army attachment is not residence`,null,[ref("person",other)],"recorded","id",f.separation!.source_turn);
+        });
+      } else {
+        const r=publicHealthAt(snapshot,regions,civs);
+        if (!r) { bad(); continue; }
+        if (!r.enabled) { Object.assign(frame,{state:"disabled",reason:"Public health is explicitly disabled"}); continue; }
+        if ([r.report_turn,r.environment_turn,r.supply_turn,r.guard_turn].every((t)=>t===null)) { unknown(); continue; }
+        r.environment.forEach((e,j)=>add(ref("region",e.region),`/environment/${j}`,`Regional public-health exposure context: displaced share ${num(e.displaced_share)}, water service ${num(e.water_service)}, crowding factor ${num(e.crowding_factor)}. No individual diagnosis or mortality attribution`,e.region,[],e.residence_observed&&e.sanitation_observed?"recorded":"unknown","id",e.source_turn));
+        r.supplies.forEach((p,j)=>add(ref("region",p.region),`/supplies/${j}`,`Regional patient supply: ${num(p.food_milli/1000)} food of ${num(p.need_milli/1000)} needed; ${p.reason}. Patients and recipient households are not identified`,p.region));
+        r.guards.forEach((g,j)=>g.members.forEach((m,k)=>add(ref("person",m.agent_id),`/guards/${j}/members/${k}`,`Public-health guard work ${num(m.share)} share; wage actually paid ${coins(m.wage_paid_milli)} coins, refused ${coins(m.wage_residual_milli)}; ordinary income withheld ${m.income_withheld===null?"unknown":num(m.income_withheld)}. Work does not imply illness or exposure`,m.region)));
       }
     }
     return { snapshot, frames };
@@ -173,7 +210,7 @@ export function entityHistory(index: EntityHistoryIndex, entity: EntityRef, thro
     result.push(...direct);
     if (entity.kind !== "region") {
       const regions = new Set(direct.flatMap((r) => r.region === null ? [] : [r.region]));
-      for (const region of regions) for (const row of frames.household_retail.rows) if (row.entity.kind === "region" && row.entity.id === region) {
+      for (const region of regions) for (const row of [...frames.household_retail.rows,...frames.public_health.rows]) if (row.entity.kind === "region" && row.entity.id === region) {
         result.push({ ...row, entity, join: "region", text: `Regional context, not this ${entity.kind}'s record: ${row.text}`, related: [ref("region", region)] });
       }
     }

@@ -48,3 +48,19 @@ labelled separately from its carrier's unrecorded residence. The strict
 supply readers verify cargo/escrow identities and food-to-ration allocations
 before contributing any linked fact; truncated samples never stand for the
 whole liability ledger.
+
+A6 history distinguishes exact personal cash, nullable forgone income/title
+value, training progress, an offer decision, a native gate refusal, and a
+migration score input. It never turns an input into a completed move. The
+recorded destination-information mask preserves own past residence, living
+bonds and dated packets as separate possible sources. Own closed cargo
+experiences link only the named holder to that food shipment.
+
+D3 records named wounds, releases, evacuation and return separately from the
+prior X1 separation frame. A separation pair carries the actual T−1 source
+turn, not the newer enclosing snapshot date. Evacuation does not establish
+safety or a causal explanation for movement. The existing health care module
+remains the injury authority. C4 guard rows name exact paid workers; regional
+crowding, water service and patient supplies are attached only as explicitly
+regional context, with their actual prior exposure date. Neither employment
+nor regional exposure records diagnose an individual or attribute a death.

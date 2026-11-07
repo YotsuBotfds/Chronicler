@@ -1,0 +1,9 @@
+/* Constructed source-contract fixtures; not natural activation evidence. */
+import type { TurnSnapshot } from "../../types";
+export const adaptive = {schema_version:1,stage:"A6",source_turn:3,mode:"adapt",rules:"2",memory_rows:1,work_rows:1,counters:{},parameters:{penalty_cap:0.3},
+ frame:{turn:3,rows:[[7,1,-0.2]],rows_total:1,rows_dropped:0,rows_installed:1,refusals:[{turn:3,id:7,kind:"refused",origin:0,region:1,gate:0}],refusals_total:1,refusals_dropped:0,quick_departures:[],quick_departures_dropped:0,
+ receipt:[3,[[7,0,1,0]],1,0],work:[{turn:3,id:7,kind:"workshop",paid_milli:1000,withheld_milli:300,title_forgone_milli:null,net_milli:null,progress:null,source:"exact payroll; forgone title unknown"}],work_dropped:0,
+ offers:[{turn:3,id:7,kind:"workshop",would_decline:false,accepted:true}],offers_dropped:0,known_destinations:[[7,1,5]],known_destinations_total:1,known_destinations_dropped:0,information_gate_installed:true,trade:[{turn:3,id:7,kind:"shipment",region:1,outcome:"seized",cause:null,shipment:9}],trade_dropped:0}};
+export const war = {schema_version:1,stage:"D3",source_turn:3,mode:"active",history:[],history_dropped:0,counters:{},
+ frame:{turn:3,events:[{turn:3,id:7,kind:"evacuated",region:0,destination:1,home:0,cause:"personally_witnessed_field_army"}],events_dropped:0,separation:{source_turn:2,pairs:1,separated:[{a:7,b:8,relation:"spouse",cause:"attached"}],separated_total:1,separated_dropped:0,by_cause:{attached:1},by_relation:{spouse:1}},separation_source:"T-1; computed before this turn's native tick",injury_authority:"health_care",wound_share:0.3,local_threats:1,return_experiences:1}};
+export const experienceSnapshot = () => ({turn:4,livelihoods:{schema_version:1,adaptive_livelihoods:structuredClone(adaptive),war_consequences:structuredClone(war)}}) as unknown as TurnSnapshot;
