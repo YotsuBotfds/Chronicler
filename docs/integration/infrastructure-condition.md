@@ -465,7 +465,8 @@ the reviewer approved `10d73230`; the flow x condition integration at `c5593e81`
 `453d307c`; the skipped-damage counter and the CW3b revisions at `7364c643`/`518407eb`; the works'
 timber need in PL1 at `733e5e08`/`9daaec56`, approved at `0187bfb5` with one minor; the review's
 fixes (the store kept only where works ask, PL1's `launched_works`, the CW3b pair gate) at
-`dbfcd84a`; later commits are documents and the CW3b pilot and held-run files; layer `cwb3`
+`dbfcd84a`; later commits are documents, the CW3b pilot and held-run files and the registry's
+run record; layer `cwb3`
 last, after `cwd2` and `cwb2`, unchanged since `8da9ead4`: the timber link touches no pinned file).
 Every native step used `PYTHONPATH=<worktree>/src` and the extension at `~/.venvs/native-a3`,
 SHA-256 `20e77f9945efa71d597c142e99069337586cc865ddee7a17c6d20948a2c0c1ca`, built from Rust
@@ -487,7 +488,7 @@ under `/home/user/evidence/b3/` (outside the repository). Every check below ran 
 | Exact resume, watershed `flow` x condition with RS2, L9 and the maintenance obligation (`proc32_hybrid_s11`, 39 resume points) | PASS |
 | Exact resume, B3 `repair` with PL1 and the L3 stock (treasury; `proc32_hybrid_s11`, 39 resume points) | PASS |
 | Viewer | full suite 1,626 passed and 2 skipped (163 files, `--maxWorkers=2`); `npm run lint` clean; `npm run build` passes |
-| CW3b screen | `check --screen all` passes (42 outcomes, 3 primary); timing pilot at `dbfcd84a` (template 5, procedural 19) 12 runs, 0 failed, every arm activated, every pair in the primaries; `check --metrics` passes |
+| CW3b screen | `check --screen all` passes (42 outcomes, 3 primary); timing pilot at `dbfcd84a` (template 5, procedural 19) 12 runs, 0 failed, every arm activated, every pair in the primaries; `check --metrics` passes; held run on the frozen code: 72 runs, 0 failed, 0.288 core-hours, `check --metrics --cohort held` passes |
 
 Earlier identities still standing: `--watershed-mode flow` alone against main bac45cb5 (92 files, 0
 differences, at `e2b62e6c`) and `--infrastructure-condition` alone without L9 against the approved
@@ -525,5 +526,14 @@ gate and the procedural qualification gate.
   each `InfraDamage`); left for the integration of the two.
 - Ports are deferred (no consumer reads the type). Flood damage per unit of excess is declared and
   uncalibrated (floods are rare and small under `flow`). Constants are declared and uncalibrated;
-  nothing here was run on held seeds or through the 200-seed gate (CW3b is preregistered, not run:
-  `docs/superpowers/progress/connected-world-screens-cw3b.md`).
+  nothing was tuned on held seeds, and the 200-seed gate is unrun.
+- **CW3b held screen (run 2026-11-07, frozen code `dbfcd84a`;
+  `docs/superpowers/progress/connected-world-screens-cw3b.md`, Results):** 72 runs, 0 failed, 0.288
+  of 0.50 core-hours. Treasury-funded repair kept more irrigation serving on every gated world that
+  differed (procedural +0.12, 4 of 4; template +0.05, 4 of 5); under L9 procedural +0.09 (4 of 4)
+  but template a null (+0.02; the L9 works delivered 5.8 work units per world); food shortfall in
+  the irrigated regions lower under L9 repair (procedural -0.016, 4 of 4; template -0.006, 3 of 4).
+  Harms beside it: RS2 delivered less repair under L9 (5 of 6 procedural worlds), treasury-funded
+  works sent more woodcutters (procedural +180 person-turns, 6 of 6), and the works stalled for
+  timber on every world under PL1's real forest limits. Whole-trajectory differences on four to six
+  worlds per stratum; no promotion.

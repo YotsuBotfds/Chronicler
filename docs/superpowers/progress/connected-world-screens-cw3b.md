@@ -262,3 +262,138 @@ its stall causes, funding and the asset's failure. Worlds that show one:
 ## Amendments
 
 None.
+
+## Results (held run, 2026-11-07)
+
+Read after the run; nothing below changed an arm, outcome or parameter, and no held seed was rerun
+or tuned on. Full report: `connected-world-screens-cw3b/held/report.md` (every per-world value of
+every outcome and harm), with `metrics.jsonl`, `source.txt`, `held-run.json` and `check.txt` beside
+it.
+
+**Run.** `run HELD --screen CW3b --cohort held --pilot
+connected-world-screens-cw3b/pilot/metrics.jsonl --jobs 2` under the program's shared held-run
+lock, on source `76a9eb05` (the frozen code `dbfcd84a` plus the freeze commit: `git diff --name-only
+dbfcd84a 76a9eb05` touches only this page, its pilot files and the integration page; dirty 0,
+dirty-code 0), interpreter and extension `~/.venvs/native-a3`. Started 06:31:30Z, finished
+06:40:17Z: **72 runs, 0 failed, complete, every outcome extracted**; **0.288 core-hours** of
+simulation and extraction (ceiling 0.50; the pilot projected 0.280), no run stopped by the
+ceiling. `check --screen CW3b --metrics ... --cohort held` passes (72 runs, complete); `mark-run`
+recorded `cw3b-held-t` and `cw3b-held-p` as run (72 rows, complete) in `scripts/seed_registry.json`.
+Identities: run digest `9b5c4f41…`; native `20e77f99…`; runner `3463b5cb…`; screen module
+`1e963741…`; registry content `3b505087…`; preregistration `45e22756…` (this page as frozen). The
+pilot's identity matched (its source `dbfcd84a` differs from the run's only in documents). Mean
+seconds per run: template 7.8-8.8, procedural 19.9-22.1. Code identities for this source (feature
+off, each switch alone, exact resumes): the integration page, section 9.
+
+**Activation (before any effect).** R, W, C, W_T and C_T activated on 6 of 6 worlds in both
+strata (B is the root): every C and C_T world opened works on irrigation assets (8.5 [7, 10] works
+per template world, 37 [30, 45] per procedural world, in C).
+
+**Pre-treatment check (snapshot 28).** R, W and W_T passed on every world. C failed on template 3503
+(a work opened by turn 27) and 3506 (work delivered by snapshot 28) and procedural 3604 and 3606
+(works opened by turn 27); C_T failed on template 3503 and procedural 3602 and 3604 (works opened
+and work delivered before snapshot 28). Under the frozen rule those pairs are excluded from the
+primaries (reported, not imputed): **C - W on 4 template and 4 procedural worlds; C_T - W_T on 5
+template and 4 procedural worlds.** Every pair shares its irrigated-region set except procedural
+3602's treasury pair, whose C_T run had already delivered work before snapshot 28 (the check
+failed, so the trajectories had diverged: not the defect case of two passing arms with different
+sets). With four worlds the most extreme sign-flip share possible is 2 of 16; with five, 2 of 32.
+
+Uncertainty below is descriptive (the runner's report): the mean, min/max, sign counts (> 0 / < 0
+/ = 0) and how many sign assignments of the per-world differences give a mean at least as far from
+zero as the observed one. Not significance tests.
+
+### Primary outcomes (after snapshot 28, gated worlds)
+
+| Outcome | Stratum | Per world | Mean [min, max] | >0 / <0 / =0 | Sign flips at least as extreme |
+| --- | --- | --- | --- | --- | --- |
+| `cw3b_service_l9` (C - W, share of irrigation asset-turns at service >= 0.5) | template | 3501 -0.001, 3502 0, 3504 +0.010, 3505 +0.072 | +0.020 [-0.001, +0.072] | 2 / 1 / 1 | 8 of 16 |
+| `cw3b_service_l9` | procedural | 3601 +0.143, 3602 +0.113, 3603 +0.098, 3605 +0.014 | +0.092 [+0.014, +0.143] | 4 / 0 / 0 | 2 of 16 |
+| `cw3b_food_l9` (C - W, food shortfall share in the irrigated regions) | template | 3501 -0.004, 3502 0, 3504 -0.002, 3505 -0.016 | -0.006 [-0.016, 0] | 0 / 3 / 1 | 4 of 16 |
+| `cw3b_food_l9` | procedural | 3601 -0.006, 3602 -0.031, 3603 -0.023, 3605 -0.004 | -0.016 [-0.031, -0.004] | 0 / 4 / 0 | 2 of 16 |
+| `cw3b_service_treasury` (C_T - W_T) | template | 3501 +0.122, 3502 0, 3504 +0.045, 3505 +0.089, 3506 +0.004 | +0.052 [0, +0.122] | 4 / 0 / 1 | 4 of 32 |
+| `cw3b_service_treasury` | procedural | 3601 +0.177, 3603 +0.122, 3605 +0.022, 3606 +0.144 | +0.116 [+0.022, +0.177] | 4 / 0 / 0 | 2 of 16 |
+
+**Reading (the frozen analysis plan: per stratum, the three primaries read together, no pooling,
+no test).**
+
+- **Treasury-funded repair kept more irrigation serving** on every gated world where it differed:
+  +0.12 of irrigation asset-turns in procedural (4 of 4, the most extreme assignment) and +0.05 in
+  template (4 of 5, the fifth unchanged; 4 of 32).
+- **Under L9 the procedural worlds kept more irrigation serving too** (+0.09, 4 of 4, 2 of 16), while
+  **the template L9 result is a null** (+0.02: one world +0.07, the others within ±0.01 or
+  unchanged; 8 of 16). That is the expected exposure-with-little-delivery case the frozen page
+  names: the template L9 works delivered 5.8 [0, 17.6] work units per world over 200 turns, won 3.3
+  [0, 11] awards and stalled 1,138 work-turns for want of an envelope and 1,116 for want of timber
+  per world; on template 3502 they opened 7 works and delivered nothing, and the C and W runs were
+  identical in every harm. The procedural L9 works delivered 78.6 [1.2, 140] per world (30 awards).
+- **Food in the irrigated regions: a lower shortfall under L9 repair on every gated world that
+  differed** (procedural -0.016 of demand, 4 of 4, 2 of 16; template -0.006, 3 of 4 with one
+  unchanged, 4 of 16). Small in size, as predicted, and of consistent sign here; whole-trajectory
+  differences on four worlds per stratum, not a mechanism estimate.
+
+### Harms beside the primaries
+
+Screen harms (the harm outcomes of the frozen panel; template / procedural):
+
+- **RS2 displacement (the L9 envelope):** RS2's delivered repair work was lower under C than W:
+  -15.6 [-42.7, 0] (0/4/2, 8 of 64) / -67.5 [-178, +55.7] (1/5/0, 6 of 64). Under the treasury it was
+  higher in template (+20.3, 5/0/1, 4 of 64) and mixed in procedural (-3.7, 1/5/0 but one +139;
+  58 of 64). So, under L9, the works' own envelopes went with less RS2 repair on most worlds.
+- **RS2 timber stalls** (work-turns without timber): no consistent direction, C - W -21 (1/3/2, 24
+  of 64) / +19 (3/3/0, 54 of 64); C_T - W_T -25 (2/3/1, 28 of 64) / +21 (5/1/0, 46 of 64).
+- **Woodcutter time** (person-turns away from home, every expedition): C - W +32.7 (4/0/2, 8 of 64)
+  / -67.7 (1/5/0, 18 of 64); C_T - W_T +14.7 (3/0/3, 16 of 64) / **+180 [+30, +410] (6/0/0, 2 of
+  64)**: treasury-funded works sent many more woodcutters in procedural worlds (11.7 [2, 21] works
+  expeditions per world).
+- **Farm time removed** (the works' delivered work, C): 5.8 / 78.6 work units per world; C_T 28.5 /
+  221.6. **Coins destroyed** by the public-works sink: C 3.8 / 50.3 per world; C_T 17.0 / 129.3.
+- **Treasury at the end** (C - W): +37.5 (3/2/1, 48 of 64) / **-1,375 [-3,317, +1,898] (1/5/0, 8 of
+  64)**; **mean stability** -3.4 (28 of 64) / -0.3 (60 of 64): no consistent direction.
+- **Food shortfall world-wide** (C - W): -63 (3/2/1, 44 of 64) / -655 [-2,032, +227] (1/5/0, 6 of
+  64); C_T - W_T +85 (4/1/1, 32 of 64) / -154 (3/3/0, 44 of 64). **Population at the end**: C - W
+  -9.3 [-20, 0] (0/5/1, 4 of 64) / -8.2 (4/2/0, 60 of 64); C_T - W_T +15.3 (4/1/1, 12 of 64) / +20.7
+  (4/2/0, 8 of 64). The template L9 population was lower on 5 of 6 worlds (by 3-20 people).
+- **Timber stand at the end** (share of capacity): C - W +0.066 (3/1/1, 8 of 32) / **+0.082 (6/0/0, 2
+  of 64)**; C_T - W_T (runner panel) +0.013 (2/1/1) / +0.074 (6/0/0). Higher with repair despite
+  more woodcutting under the treasury; wear alone lowered it (W - R -0.040 / -0.047, 1/3/1 and
+  2/4/0), so part of the rise may reverse wear's own effect through irrigation's ecology consumers.
+  Not separated here.
+- **R - B is structurally 0 and was 0** on every world for every harm the runner records
+  (population, treasury, food shortfall, epidemic deaths, migration, Gini, timber stand).
+
+Runner panel, C - W and C_T - W_T (no consistent direction unless noted): epidemic deaths -12.5 /
++48.8 and +6.3 / +3.0; agents migrating -29.5 / -198 and +42.8 / -250; wealth Gini -0.059 / +0.010
+and -0.010 / +0.020. Not recorded in these runs: priced-out persons (retail off); famine and war
+deaths ("requires slice extractor").
+
+### Secondary outcomes (template / procedural)
+
+- Food in the irrigated regions under the treasury (C_T - W_T, roads repaired too): a null, -0.0001
+  (2/2/1, 32 of 32) / -0.002 (2/2/0, 14 of 16).
+- Full-trajectory service (every world): C - W +0.017 (3/1/2, 16 of 64) / +0.088 (6/0/0, 2 of 64);
+  C_T - W_T +0.075 (5/0/1, 4 of 64) / +0.119 (6/0/0, 2 of 64). Full-trajectory food (C - W): -0.006
+  (1/4/1, 36 of 64) / -0.014 (1/5/0, 6 of 64); food met (C - W, demand-weighted): +0.009 (36 of 64) /
+  +0.018 (5/1/0, 6 of 64).
+- What wear alone costs (W - R): food shortfall in the irrigated regions +0.013 (5/1/0, 4 of 64) /
+  +0.014 (4/2/0, 12 of 64); the service share itself barely moves (+0.004, 52 of 64 / -0.010, 16 of
+  64), because R records the condition service W reads (only trajectory feedback differs).
+- Assets failed: C - W 0 on every template world / -1.7 (2/4/0, 22 of 64); C_T - W_T +2.7 (32 of 64)
+  / -1.0 (56 of 64): no consistent direction.
+- The works and their funding (C alone): 8.5 / 37 works opened per world; 5.8 / 78.6 work delivered;
+  3.3 / 30.2 awards to the works' own proposal; work-turns stalled without an envelope 1,138 / 3,758
+  and without timber 1,116 / 3,420 per world (C_T, without timber: 1,089 / 3,189). The underfunded
+  public-works story (works stalled 20+ turns on a failed asset): 6.8 / 20.5 per world.
+- The timber link (C alone): PL1 delivered 12.4 / 216 loads per world; launched 1.3 [0, 3] / 8.5
+  [1, 15] expeditions for the works (C_T 0.8 / 11.7), whose woodcutters spent 18 / 100.5
+  person-turns; PL1 refused 531 / 1,351 of the works' need rows per world. **The screen ran under
+  PL1's real forest limits, and they bound: on every world the works stalled for want of timber on
+  hundreds to thousands of work-turns (980-4,229 in C).**
+
+### Failures and limits
+
+No run failed, none was incomplete, no outcome was missing, and no run was stopped by the ceiling
+(0.288 of 0.50 core-hours). Pre-treatment exclusions are listed above. These are whole-trajectory
+comparisons on four to six worlds per stratum: they describe direction and spread on held worlds,
+not a mechanism, and they do not license promotion (the owner's decision). Constants are declared
+and uncalibrated; nothing was tuned on these or any held worlds.
