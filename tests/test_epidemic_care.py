@@ -590,7 +590,6 @@ def _plain_world():
 @pytest.mark.parametrize("args, agent_mode, message", [
     (dict(epidemic_care=True, local_budgets=True), "shadow", "requires --agents hybrid"),
     (dict(epidemic_care=True), "hybrid", "requires --local-budgets"),
-    (dict(epidemic_care=True, local_budgets=True, wealth_accounting=True), "hybrid", "cannot run with --wealth-accounting"),
     (dict(epidemic_care_mode="cost_only", local_budgets=True), "hybrid", "requires --epidemic-care"),
 ])
 def test_invalid_requests_are_refused(args, agent_mode, message):

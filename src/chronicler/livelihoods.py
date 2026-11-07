@@ -130,6 +130,7 @@ from chronicler.livelihoods_state import LIVELIHOODS_SWITCHES, LivelihoodsState
 
 #: Non-boolean options, with their choices (first: the default when enabled).
 LIVELIHOODS_CHOICES: dict[str, tuple[str, ...]] = {
+    "movement_branches_mode": ("funded", "record_only", "cost_only"),
     "wealth_accounting_mode": ("observe", "strict"),
     "war_requisition_mode": ('transfer', 'cost_only'),
     "war_consequences_mode": ('active', 'record_only'),
@@ -212,6 +213,7 @@ LIVELIHOODS_ARG_KEYS: tuple[str, ...] = (
     "public_health_mode",
     "public_health_policy",
     "public_health_report_delay",
+    "movement_branches", "movement_branches_mode",
     "residence_ledger",
     "attribution_records",
     "wealth_accounting", "wealth_accounting_mode",
@@ -225,6 +227,8 @@ LIVELIHOODS_PATH_KEYS: tuple[str, ...] = ("household_retail_schedule",)
 _AGENT_ECONOMY = ("hybrid", "shadow", "demographics-only")
 
 _HELP = {
+    "movement_branches": "Dated movement branches abroad funded by named local members (default off).",
+    "movement_branches_mode": "funded (default): paid local permission; cost_only: identical dues without permission; record_only: no payment or native effect.",
     "timber_orders": "Cross-civilization timber procurement for measured repair gaps, real carrier purchases, finite escrow and delivery (default off).",
     "wealth_accounting_mode": "observe (default): itemized source/sink ledger; strict: refuse an unexplained balance closure.",
     "war_requisition": 'D4 real army supply, seizure and treasury-funded restitution (default off); requires hybrid, campaigns and retail rules 2.',
@@ -879,6 +883,9 @@ def _check_prerequisites(world: Any, values: dict, agent_mode: str, args: Any = 
             raise ValueError("--adaptive-livelihoods requires --residence-ledger")
         if getattr(args, "decision_ablation", None) or getattr(args, "decision_observer", None):
             raise ValueError("--adaptive-livelihoods refuses decision ablations/observer until separately instrumented")
+    from chronicler.movement_branches import check_request as check_branch_request
+    from chronicler.agent_movements_state import agent_movements_on
+    check_branch_request(world, values["movement_branches"], args, agent_mode=agent_mode, movements_on=agent_movements_on(world))
     from chronicler.public_health import check_request as check_public_health_request
     check_public_health_request(world, values, args, agent_mode=agent_mode, on=lambda name: _on(world, values, name))
     if _on(world, values, "residence_ledger") and agent_mode != "hybrid":
@@ -960,6 +967,7 @@ def _present(world: Any):
 
 #: Each option of ``LIVELIHOODS_CHOICES``: its switch and the sub-state field holding it.
 _CHOICE_FIELDS: dict[str, tuple[str, str]] = {
+    "movement_branches_mode": ("movement_branches", "mode"),
     "wealth_accounting_mode": ("wealth_accounting", "mode"),
     "workshop_mode": ("workshops", "mode"),
     "food_allocation_regime": ("food_allocation", "regime"),

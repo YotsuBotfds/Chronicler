@@ -1,3 +1,5 @@
+import { MovementBranches } from "./MovementBranches";
+import { AdaptiveLivelihoods, WarConsequences } from "./PersonalExperience";
 import { WarRequisition } from "./WarRequisition";
 import { TimberOrders } from "./TimberOrders";
 import { EntityHistory } from "./EntityHistory";
@@ -82,10 +84,13 @@ export function LivelihoodsPanel(panelProps: SystemPanelProps) {
   return <div className="systems-body">
     {raw !== null && !readable ? <p className="systems-note">The livelihoods record at snapshot {at} is unreadable (malformed or of an unknown version); nothing is shown from it.</p> : null}
     {record !== null && !PACKAGES.some((key) => record[key] != null) ? <p className="systems-note">The livelihoods record at snapshot {at} names no package this viewer reads.</p> : null}
-    {chain ? <WarRequisition {...panelProps} />
+    <WarRequisition {...panelProps} />
     <TimberOrders {...panelProps} />
+    <MovementBranches {...panelProps} />
+    <AdaptiveLivelihoods {...panelProps} />
+    <WarConsequences {...panelProps} />
     <EntityHistory {...panelProps} />
-    <RecoveryChain {...panelProps} /> : null}
+    {chain ? <RecoveryChain {...panelProps} /> : null}
     {record?.workshops != null ? <Workshops {...props} /> : null}
     {record?.workshop_payroll != null ? <WorkshopFinance {...props} /> : null}
     {record?.workshop_payroll != null || record?.workshop_economics !== undefined ? <WorkshopEconomics {...props} /> : null}

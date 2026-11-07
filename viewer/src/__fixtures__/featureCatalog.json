@@ -875,6 +875,34 @@
       "experimental": true
     },
     {
+      "key": "timber_orders",
+      "flag": "--timber-orders",
+      "label": "Timber orders",
+      "help": "Cross-civilization timber procurement for measured repair gaps, real carrier purchases, finite escrow and delivery (default off).",
+      "kind": "bool",
+      "choices": null,
+      "default": null,
+      "parent": null,
+      "requires": [
+        {
+          "agents": [
+            "hybrid"
+          ],
+          "reason": "requires --agents hybrid"
+        },
+        {
+          "feature": "timber_supply",
+          "reason": "requires --timber-supply"
+        },
+        {
+          "feature": "local_budgets",
+          "reason": "requires --local-budgets"
+        }
+      ],
+      "group": "Livelihoods",
+      "experimental": true
+    },
+    {
       "key": "recovery_crews",
       "flag": "--recovery-crews",
       "label": "Recovery crews",
@@ -1258,10 +1286,55 @@
       "experimental": true
     },
     {
+      "key": "harvest_cover",
+      "flag": "--harvest-cover",
+      "label": "Harvest cover",
+      "help": "Timber depletion opens canopy gaps without destroying standing stock; ecology owns regrowth and the watershed reads cover; requires --agents hybrid and --timber-stock (default off)",
+      "kind": "bool",
+      "choices": null,
+      "default": null,
+      "parent": null,
+      "requires": [
+        {
+          "agents": [
+            "hybrid"
+          ],
+          "reason": "requires --agents hybrid"
+        },
+        {
+          "feature": "timber_stock",
+          "reason": "requires --timber-stock"
+        }
+      ],
+      "group": "Livelihoods",
+      "experimental": true
+    },
+    {
+      "key": "harvest_cover_mode",
+      "flag": "--harvest-cover-mode",
+      "label": "Harvest cover mode",
+      "help": "loss (default): apply canopy gaps; record_only: observe proposed loss without changing cover",
+      "kind": "choice",
+      "choices": [
+        "loss",
+        "record_only"
+      ],
+      "default": null,
+      "parent": "harvest_cover",
+      "requires": [
+        {
+          "feature": "harvest_cover",
+          "reason": "requires --harvest-cover"
+        }
+      ],
+      "group": "Livelihoods",
+      "experimental": true
+    },
+    {
       "key": "epidemic_care",
       "flag": "--epidemic-care",
       "label": "Epidemic care",
-      "help": "Epidemic care (C2): each ruler may fund, from its local budget, carers for a region with a reported outbreak: adult farmers resident there who hold no other work, named by stable id, give their farm time (removed from farming, their ordinary income share withheld) for a wage paid from the treasury; the patients they can serve (5 per worker-turn) multiply case fatality at the next epidemic tick by 1 - 0.3 x coverage (one floor with practised medicine); requires --agents hybrid, --local-budgets and epidemiology with the contact ledger; cannot run with --wealth-accounting (default off)",
+      "help": "Epidemic care (C2): each ruler may fund, from its local budget, carers for a region with a reported outbreak: adult farmers resident there who hold no other work, named by stable id, give their farm time (removed from farming, their ordinary income share withheld) for a wage paid from the treasury; the patients they can serve (5 per worker-turn) multiply case fatality at the next epidemic tick by 1 - 0.3 x coverage (one floor with practised medicine); requires --agents hybrid, --local-budgets and epidemiology with the contact ledger (default off)",
       "kind": "bool",
       "choices": null,
       "default": null,
@@ -1280,13 +1353,6 @@
         {
           "setting": "epidemiology",
           "reason": "requires epidemiology with the contact ledger (on by default for new worlds; off with --no-epidemiology or --no-contact-ledger)"
-        },
-        {
-          "not": {
-            "feature": "wealth_accounting",
-            "reason": "requires --wealth-accounting"
-          },
-          "reason": "requires --wealth-accounting off"
         }
       ],
       "group": "Livelihoods",
@@ -1718,6 +1784,52 @@
       "experimental": true
     },
     {
+      "key": "movement_branches",
+      "flag": "--movement-branches",
+      "label": "Movement branches",
+      "help": "Dated movement branches abroad funded by named local members (default off).",
+      "kind": "bool",
+      "choices": null,
+      "default": null,
+      "parent": null,
+      "requires": [
+        {
+          "agents": [
+            "hybrid"
+          ],
+          "reason": "requires --agents hybrid"
+        },
+        {
+          "setting": "agent_movements",
+          "reason": "requires agent movements (on by default for new worlds; off with --no-agent-movements)"
+        }
+      ],
+      "group": "Livelihoods",
+      "experimental": true
+    },
+    {
+      "key": "movement_branches_mode",
+      "flag": "--movement-branches-mode",
+      "label": "Movement branches mode",
+      "help": "funded (default): paid local permission; cost_only: identical dues without permission; record_only: no payment or native effect.",
+      "kind": "choice",
+      "choices": [
+        "funded",
+        "record_only",
+        "cost_only"
+      ],
+      "default": null,
+      "parent": "movement_branches",
+      "requires": [
+        {
+          "feature": "movement_branches",
+          "reason": "requires --movement-branches"
+        }
+      ],
+      "group": "Livelihoods",
+      "experimental": true
+    },
+    {
       "key": "residence_ledger",
       "flag": "--residence-ledger",
       "label": "Residence ledger",
@@ -1772,13 +1884,27 @@
             "hybrid"
           ],
           "reason": "requires --agents hybrid"
-        },
+        }
+      ],
+      "group": "Livelihoods",
+      "experimental": true
+    },
+    {
+      "key": "wealth_accounting_mode",
+      "flag": "--wealth-accounting-mode",
+      "label": "Wealth accounting mode",
+      "help": "observe (default): itemized source/sink ledger; strict: refuse an unexplained balance closure.",
+      "kind": "choice",
+      "choices": [
+        "observe",
+        "strict"
+      ],
+      "default": null,
+      "parent": "wealth_accounting",
+      "requires": [
         {
-          "not": {
-            "feature": "epidemic_care",
-            "reason": "requires --epidemic-care"
-          },
-          "reason": "requires --epidemic-care off"
+          "feature": "wealth_accounting",
+          "reason": "requires --wealth-accounting"
         }
       ],
       "group": "Livelihoods",

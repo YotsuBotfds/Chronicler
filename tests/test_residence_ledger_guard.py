@@ -91,6 +91,7 @@ WIRING_MODULES = frozenset({"livelihoods", "feature_catalog", "batch_manifest", 
 LEDGER_READS: dict[tuple[str, str, str], tuple[int, str]] = {
     # Reviewed T-1 consumers: one own row, aggregate environment and separation.
     ("adaptive_livelihoods", "phase10", "own_row_accessor"): (1, "own_row"),
+    ("adaptive_livelihoods", "_known_residences", "own_row_accessor"): (1, "own_row"),
     ("public_health", "check_request", "const:residence_ledger"): (1, "wiring"),
     ("public_health", "environment_factors", "read_frame"): (1, "aggregate"),
     ("war_consequences", "before_agent_tick", "separation"): (1, "separation"),

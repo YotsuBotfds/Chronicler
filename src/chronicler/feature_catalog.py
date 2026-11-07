@@ -186,6 +186,7 @@ REQUIREMENTS: dict[str, tuple[dict, ...]] = {
     "war_consequences": (_HYBRID, _feature("war_requisition"), _feature("health_care"), _feature("residence_ledger")),
     "adaptive_livelihoods": (_HYBRID, _feature("residence_ledger")),
     "public_health": (_HYBRID, _feature("epidemic_care"), _feature("infrastructure_condition"), _feature("residence_ledger"), _choice("quarantine_mode", "closure", "cost_only")),
+    "movement_branches": (_HYBRID, _setting("agent_movements")),
     "residence_ledger": (_HYBRID,),
     "attribution_records": (_HYBRID,),
     "wealth_accounting": (_HYBRID,),

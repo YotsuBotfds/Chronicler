@@ -231,13 +231,13 @@ def _known_residences(world, ids):
     return own, [(aid, region) for date, aid, region in rows if date < world.turn]
 
 
-def note_trade(world, agent_id, destination, outcome, cause, shipment):
+def note_trade(world, agent_id, destination, outcome, cause, shipment, *, package="titled_trade"):
     """A holder's dated closed shipment, not knowledge of another merchant."""
     if not adaptive_livelihoods_active(world):
         return
     state = _state(world)
     row = {"turn": int(world.turn), "id": int(agent_id), "region": int(destination),
-           "kind": "shipment", "outcome": str(outcome), "cause": cause, "shipment": int(shipment)}
+           "kind": "shipment", "outcome": str(outcome), "cause": cause, "shipment": int(shipment), "package": str(package)}
     state.trade_experience.append(row)
     _trim(state, "trade_experience", MAX_MEMORY)
 
@@ -261,7 +261,7 @@ def accepts_trade_destination(world, aid, destination, known):
         _bump(state, "trade_unknown_destination")
         return False
     failed = any(r["id"] == aid and r["region"] == destination and 0 < world.turn - r["turn"] <= WORK_WINDOW
-                 and r["outcome"] in ("returned", "released_returned", "seized") for r in state.trade_experience)
+                 and r["outcome"] in ("returned", "released_returned", "seized", "route_lost", "recipient_lost", "carrier_released", "expired") for r in state.trade_experience)
     if failed:
         _bump(state, "trade_personal_return_refusal")
     return not failed

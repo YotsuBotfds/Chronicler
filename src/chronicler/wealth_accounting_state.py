@@ -52,6 +52,7 @@ CHANNELS: tuple[tuple[str, str | None, str], ...] = (
     ("timber_freight", "timber_orders", "destination escrow -> carriers only for delivered timber"),
     ("guard_wage", "public_health", "treasury -> named border guard"),
     ("infrastructure_wage", "infrastructure_condition", "treasury -> named public works crew"),
+    ("branch_dues", "movement_branches", "named abroad members -> host treasury local meeting service"),
 )
 CHANNEL_NAMES: tuple[str, ...] = tuple(c[0] for c in CHANNELS)
 
@@ -94,7 +95,7 @@ WEALTH_ROUTERS: dict[str, tuple[str, ...]] = {
     # The shared payment seam (connected-world A3): ``money.pay`` routes every
     # agent-wealth line of a bill through ``money._native_transfer``; the
     # purposes it may carry are ``MONEY_PURPOSE_CHANNELS``.
-    "_native_transfer": ("wares_purchase", "care_wage", "restitution", "relief_purchase", "timber_purchase", "timber_freight", "guard_wage", "infrastructure_wage"),
+    "_native_transfer": ("wares_purchase", "care_wage", "restitution", "relief_purchase", "timber_purchase", "timber_freight", "guard_wage", "infrastructure_wage", "branch_dues"),
     # A4: ``money.pay`` routes a pairwise bill (an agent paying agents)
     # through ``money._native_pairs`` (native ``settle_pairs``).
     "_native_pairs": ("cargo_purchase",),
@@ -147,8 +148,8 @@ WEALTH_WRITERS: dict[tuple[str, str, str, str], tuple[int, tuple[str, ...]]] = {
     ("health_care", "prepare_health_care", "prepare_health_work", ""): (2, ("withheld_health",)),
     # A3 (the payment seam): the router's one native call, and its two callers in
     # ``money.pay`` (a payment's agent credits, a collection's agent debits).
-    ("money", "_native_transfer", "transfer_wealth", "purpose=code,batch=batch"): (1, ("wares_purchase", "care_wage", "restitution", "relief_purchase", "timber_purchase", "timber_freight", "guard_wage", "infrastructure_wage")),
-    ("money", "pay", "_native_transfer", "purpose=bill.purpose"): (2, ("wares_purchase", "care_wage", "restitution", "relief_purchase", "timber_purchase", "timber_freight", "guard_wage", "infrastructure_wage")),
+    ("money", "_native_transfer", "transfer_wealth", "purpose=code,batch=batch"): (1, ("wares_purchase", "care_wage", "restitution", "relief_purchase", "timber_purchase", "timber_freight", "guard_wage", "infrastructure_wage", "branch_dues")),
+    ("money", "pay", "_native_transfer", "purpose=bill.purpose"): (2, ("wares_purchase", "care_wage", "restitution", "relief_purchase", "timber_purchase", "timber_freight", "guard_wage", "infrastructure_wage", "branch_dues")),
     # C2 (epidemic care): carers' ordinary income withheld for their care time.
     ("epidemic_care", "finish_phase2", "extend_paid_work", ""): (1, ("withheld_care", "epidemic_care")),
     # A4 (titled trade): the pairwise router's one native call and its caller in
@@ -156,13 +157,14 @@ WEALTH_WRITERS: dict[tuple[str, str, str, str], tuple[int, tuple[str, ...]]] = {
     ("money", "_native_pairs", "settle_pairs", "purpose=code,batch=batch"): (1, ("cargo_purchase",)),
     ("money", "pay", "_native_pairs", "purpose=bill.purpose"): (1, ("cargo_purchase",)),
     ("titled_trade", "finish_phase2", "extend_paid_work", ""): (1, ("titled_trade",)),
-    ("timber_orders", "finish_phase2", "extend_paid_work", ""): (1, ("withheld_timber_orders",)),
+    ("timber_orders", "finish_phase2", "extend_paid_work", ""): (1, ("timber_orders",)),
 }
 #: Purposes ``money.pay`` may move agent wealth for, with the ledger channel
 #: each is read as (``money.flows_for_turn``); ``money`` refuses any other
 #: agent-wealth purpose at run time, so a new payer through the seam must add
 #: its row here (and its channel). Append only.
 MONEY_PURPOSE_CHANNELS: dict[str, str] = {
+    "branch_dues": "branch_dues",
     "guard_wage": "guard_wage",
     "infrastructure_wage": "infrastructure_wage",
     "wares_purchase": "wares_purchase",
@@ -181,6 +183,7 @@ MONEY_PURPOSE_CHANNELS: dict[str, str] = {
 #: and fails on an unregistered or stale caller, a non-literal purpose, or an
 #: agent-wealth purpose without a ledger channel. Append only.
 MONEY_BILLS: dict[tuple[str, str], tuple[str, ...]] = {
+    ("movement_branches", "phase10"): ("branch_dues",),
     ("public_health", "finish_phase2"): ("guard_wage",),
     ("public_health", "supply_care"): ("care_supply",),
     ("infrastructure_crews", "settle"): ("infrastructure_wage",),

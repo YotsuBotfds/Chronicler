@@ -1063,7 +1063,7 @@ def _frame(world, t: _Turn, closing, economy_result, acc) -> dict:
     _care(world, book, turn)
     _retail(world, book, turn)
     _titled_trade(world, book, turn)
-    for package in ("war_requisition", "timber_orders", "public_health", "infrastructure_condition"):
+    for package in ("war_requisition", "timber_orders", "public_health", "infrastructure_condition", "movement_branches"):
         _seam_package(world, book, turn, package)
     _remittances(world, book, turn)
     _relocation(world, book, t, turn)

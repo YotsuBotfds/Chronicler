@@ -94,24 +94,18 @@ def _state(world) -> WealthAccountingState:
 SWITCH_ORDER = ("workshops", "food_allocation", "timber_stock", "grain_convoys", "commons_rules",
         "learning_cohorts", "workshop_payroll", "relocation_costs", "local_budgets", "apprenticeship",
         "repair_projects", "veteran_reintegration", "remittances", "clearing_protection", "operating_wear",
-        "timber_supply", "recovery_crews", "maintenance_obligation", "reform_services", "household_retail",
-        "watershed", "workshop_economics", "titled_trade", "infrastructure_condition", "epidemic_care", "guild_leagues", "residence_ledger", "attribution_records",
-        "wealth_accounting")   # A3, A4, C2's carers (after every other work consumer), D1b, then D2's observer
+        "timber_supply", "timber_orders", "recovery_crews", "maintenance_obligation", "reform_services",
+        "household_retail", "watershed", "workshop_economics", "titled_trade", "infrastructure_condition",
+        "harvest_cover", "epidemic_care", "guild_leagues", "war_requisition", "war_consequences",
+        "adaptive_livelihoods", "public_health", "movement_branches", "residence_ledger", "attribution_records",
+        "wealth_accounting")
 
 
 def test_switch_is_appended_last_with_cli_catalog_and_manifest_keys():
     assert LIVELIHOODS_SWITCHES == SWITCH_ORDER and LIVELIHOODS_SWITCHES[-1] == "wealth_accounting"
-    assert LV.LIVELIHOODS_ARG_KEYS[-1] == "wealth_accounting"
-    # Every switch's own keys come right after it (a choice belongs to the switch before it).
-    assert LV.LIVELIHOODS_ARG_KEYS[-19:] == ("household_retail_boundary", "household_retail_rules", "watershed",
-                                             "watershed_mode", "workshop_economics", "workshop_economics_mode",
-                                             "workshop_economics_rules", "titled_trade", "infrastructure_condition", "epidemic_care",
-                                             "epidemic_care_mode", "reform_services", "reform_services_mode",
-                                             "guild_leagues", "guild_league_mode", "residence_ledger", "attribution_records",
-                                             "wealth_accounting")
-    assert "wealth_accounting" not in LV.LIVELIHOODS_CHOICES            # no modes in slice 1
-    # C2 (epidemic care) and the ledger exclude each other: care wages are not itemized.
-    assert REQUIREMENTS["wealth_accounting"] == ({"agents": ["hybrid"]}, {"not": {"feature": "epidemic_care"}})
+    assert LV.LIVELIHOODS_ARG_KEYS[-2:] == ("wealth_accounting", "wealth_accounting_mode")
+    assert LV.LIVELIHOODS_CHOICES["wealth_accounting_mode"] == ("observe", "strict")
+    assert REQUIREMENTS["wealth_accounting"] == ({"agents": ["hybrid"]},)
     assert "wealth_accounting" in SIMULATION_ARG_KEYS
     default = parse()
     assert default.wealth_accounting is None
@@ -504,7 +498,7 @@ def test_every_paid_work_row_is_attributed_once_and_pl3_splits_granary_from_work
     wh = frame["withheld"]
     by = {r["package"]: r for r in wh["packages"]}
     # A4's carriers have a row only while titled trade is active (not here).
-    assert [r["package"] for r in wh["packages"]] == [p for p in WITHHELD_PACKAGES if p not in ("titled_trade", "epidemic_care")]
+    assert [r["package"] for r in wh["packages"]] == [p for p in WITHHELD_PACKAGES if p not in ("titled_trade", "epidemic_care", "timber_orders", "public_health", "infrastructure_condition")]
     assert {k: r["rows"] for k, r in by.items()} == {
         "workshop_payroll": 2, "apprenticeship": 1, "recovery_crews_granary": 1, "recovery_crews_workshop": 2,
         "repair_projects": 0, "timber_supply": 2}

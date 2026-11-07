@@ -148,7 +148,7 @@ def test_the_manifest_records_the_cohort_and_identity(batch_42):
                                                            "infrastructure_condition", "infrastructure_condition_mode", "harvest_cover", "harvest_cover_mode",
                                                            "epidemic_care", "epidemic_care_mode",
                                                            "reform_services", "reform_services_mode", "guild_leagues", "guild_league_mode",
-                                                           "war_requisition", "war_requisition_mode", "war_consequences", "war_consequences_mode", "adaptive_livelihoods", "adaptive_livelihoods_mode", "adaptive_livelihoods_rules", "public_health", "public_health_mode", "public_health_policy", "public_health_report_delay", "residence_ledger", "attribution_records",
+                                                           "war_requisition", "war_requisition_mode", "war_consequences", "war_consequences_mode", "adaptive_livelihoods", "adaptive_livelihoods_mode", "adaptive_livelihoods_rules", "public_health", "public_health_mode", "public_health_policy", "public_health_report_delay", "movement_branches", "movement_branches_mode", "residence_ledger", "attribution_records",
                                                            "wealth_accounting", "wealth_accounting_mode", "quarantine_channels"}) | {"tuning_overrides"}
     assert (simulation["civs"], simulation["regions"], simulation["agents"], simulation["cities"]) == (2, 4, "off", None)
     assert manifest["outputs"]["simulate_only"] is True
