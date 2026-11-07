@@ -369,3 +369,126 @@ Made at `55748ec7` (screen module, the runner's `Outcome.pair`, tests; this page
 5. **Two primaries stand**; the merchant and farmer counts are recorded as a missing record for a
    later slice.
 6. **Ceiling** 0.45 core-hours (above).
+
+## Results (held run, 2026-11-07)
+
+Template 771-776 and procedural 871-876, 200 turns, arms R and T, `run HELD --screen CW5 --cohort
+held --pilot connected-world-screens-cw5/pilot/metrics.jsonl --jobs 2` on `fa564161` (the freeze
+commit: code and pilot at `60edc6c9`, docs since; clean tree). `mark-run` recorded both cohorts as
+`run` (complete) in `scripts/seed_registry.json`. Retained in `connected-world-screens-cw5/held/`:
+`metrics.jsonl`, `source.txt`, `held-run.json`, `report.md` (every per-world cell, the sign-flip
+ranges and the harm panel), `check.txt`. The runner deleted each raw run directory after its
+extraction (nothing else was pruned).
+
+**Identity.** Source `fa564161960ee5c3259dc3da298fc6a875fdc769`, dirty 0, dirty-code 0; native
+extension SHA-256 `43cbd22ac4e7e2c6a77e71781a884be5342f41aa4173ff6f43e0facf0f5e0eb0`; runner
+`deb4eb57…`, screen module `5abac387…`, registry `51d55d78…` and content `a703a850…`,
+preregistration `2b7c9344…`; run identity digest `db04f4e3…`. The pilot's identity matches (its
+source `60edc6c9` differs only in documentation).
+
+**Runs and failures.** 24 runs, 0 failed, missing outcomes 0; every validity check held in every
+run (a breach would have been a problem, rc 3): every shipment's cargo closed, one receipt row per
+carrier-turn, every A1 ledger closure true, a complete food account in every snapshot. `check
+--metrics ... --cohort held` passes (24 runs complete, every outcome extracted).
+
+**Compute.** 435 s of simulation and extraction, **0.121 core-hours, under the 0.45 ceiling** (no
+run stopped by it); 223 s wall. Seconds per run, mean [min, max]: R template 10.0 [8.3, 14.5],
+procedural 22.9 [19.0, 25.5]; T template 11.9 [8.9, 16.7], procedural 27.6 [22.9, 34.5].
+
+### Activation and the pre-treatment windows (before any effect)
+
+T activated on 12 of 12 worlds (6 of 6 per stratum). Windows (world turns 0 .. min(19, f - 1)); R's
+and T's window records were identical on all 12 worlds:
+
+| Stratum | World | f | Window turns | Deficit / surplus regions | Status |
+| --- | --- | --- | --- | --- | --- |
+| t | 771 | 10 | 10 | 5 / 1 | valid |
+| t | 772 | 8 | 8 | 2 / 4 | valid |
+| t | 773 | 4 | 4 | 4 / 2 | excluded (window < 5 turns) |
+| t | 774 | 7 | 7 | 4 / 2 | valid |
+| t | 775 | 4 | 4 | 6 / 2 | excluded (window < 5 turns) |
+| t | 776 | 9 | 9 | 4 / 2 | valid |
+| p | 871 | 5 | 5 | 7 / 8 | valid |
+| p | 872 | 5 | 5 | 8 / 7 | valid |
+| p | 873 | 8 | 8 | 8 / 9 | valid |
+| p | 874 | 8 | 8 | 8 / 8 | valid |
+| p | 875 | 6 | 6 | 7 / 7 | valid |
+| p | 876 | 4 | 4 | 8 / 7 | excluded (window < 5 turns) |
+
+Valid worlds: template k = 4, procedural k = 5. Under the frozen rule no template result can read
+as consistent (k <= 4).
+
+### Primary outcomes (T - R)
+
+| Outcome | Stratum | Per world | Mean [min, max] | > 0 / < 0 | Sign-flip | Reading (frozen rule) |
+| --- | --- | --- | --- | --- | --- | --- |
+| `cw5_food_in_deficit`: food into the deficit regions by trade, food units | t | 771 +107.1; 772 −131.3; 773 excluded; 774 +229.6; 775 excluded; 776 +81.31 | +71.67 [−131.3, +229.6] | 3 / 1 | 8/16 | no consistent effect (k = 4) |
+| | p | 871 −34.41; 872 −199.3; 873 +232.5; 874 −57.33; 875 +35.47; 876 excluded | −4.602 [−199.3, +232.5] | 2 / 3 | 30/32 | no consistent effect |
+| `cw5_shortfall_deficit`: the deficit regions' food shortfall share after relief | t | 771 +0.00698; 772 +0.00230; 773 excluded; 774 +0.03539; 775 excluded; 776 +0.01307 | +0.01443 [+0.00230, +0.03539] | 4 / 0 | 2/16 | no consistent effect (k = 4) |
+| | p | 871 −0.02862; 872 −0.01023; 873 −0.00773; 874 −0.00214; 875 −0.00283; 876 excluded | −0.01031 [−0.02862, −0.00214] | 0 / 5 | 2/32 | **consistent: lower in T** (5 of 6 agree, 876 excluded; 2/32 = 4/64) |
+
+Sign-flip: the share of the 2^k sign assignments of the valid worlds whose mean is at least as far
+from zero as the observed mean (descriptive, not a significance test).
+
+### Harms beside the primaries (T - R; mean [min, max], > 0 / < 0, sign-flip of 64)
+
+| Harm | Template | Procedural |
+| --- | --- | --- |
+| Population at the end | +18 [−25, +43], 4/2, 10 | +48.83 [−22, +149], 3/3, 16 |
+| Treasury at the end | +44.83 [−938, +1314], 3/3, 60 | +2108 [+277, +4293], 6/0, 2 |
+| Food shortfall after relief, world | +299.8 [−125, +801.2], 4/2, 8 | +33.42 [−398.1, +780.2], 2/4, 58 |
+| Priced-out person-turns | +56.33 [−178, +295], 3/3, 36 | +36.5 [−338, +298], 5/1, 44 |
+| Priced-out child-turns | +13.83 [−16, +35], 5/1, 10 | +51.5 [−11, +133], 5/1, 4 |
+| Epidemic deaths | +34.83 [−23, +89], 4/2, 14 | +34 [−28, +196], 3/3, 30 |
+| Agents migrating between regions | +218.8 [−116, +553], 5/1, 6 | +383.8 [+57, +1095], 6/0, 2 |
+| Wealth Gini at the end | +0.046 [−0.041, +0.195], 3/3, 24 | +0.006 [−0.056, +0.076], 3/3, 50 |
+| Commons food at the end | +0.39 [−0.07, +2.01], 2/2 (2 zero), 32 | −0.64 [−5.41, +3.18], 3/2 (1 zero), 44 |
+| Mean stability at the end | +10.42 [+2, +19], 6/0, 2 | −2.42 [−12.7, +4.53], 2/3 (1 zero), 28 |
+
+Nulls as nulls: the timber stand is `not recorded` (the timber stock is off); deaths by famine and
+by war `require a slice extractor`; merchant and farmer counts at the end are not recorded in any
+bundle field (declared; a missing record for a later slice).
+
+The exporters (set-based, valid worlds only; template k = 4, procedural k = 5): surplus regions'
+food shortfall share −0.0153 [−0.0307, +0.0140], 1/3 (t) and +0.0032 [−0.0115, +0.0135], 4/1 (p);
+their retail price −27.3 (t; 1/3) and +11.2 (p; 3/2) milli per ration; their priced-out
+person-turns +11.8 (t; 2/2) and −62 (p; 3/2); food into them by trade −181.6 [−367.4, −86.1], 0/4
+(t; 2/16) and −103.4 [−280.4, +104.2], 1/4 (p; 6/32).
+
+### Secondary outcomes
+
+| Outcome | Template | Procedural |
+| --- | --- | --- |
+| Titled food delivered into the deficit regions (T - R; valid worlds) | +271.9 [+16.1, +650.4], 4/0, 2/16 | +257.3 [+113.9, +375.3], 5/0, 2/32 |
+| Titled net into the deficit regions (valid worlds) | +71.67, 3/1, 8/16 | −4.485, 2/3, 30/32 |
+| Native commons trade into the deficit regions (valid worlds) | 0 on all 4 | −0.117 [−0.584, 0], 0/1 (4 zero) |
+| Deficit regions' min(1, sufficiency) (valid worlds) | −0.0144, 0/4, 2/16 | +0.0103, 5/0, 2/32 |
+| Deficit regions' priced-out person-turns (valid worlds) | +40 [−94, +187], 3/1, 10/16 | +11 [−146, +182], 3/2, 28/32 |
+| Deficit regions' retail price, milli per ration (valid worlds) | +98.5 [+27.4, +178.7], 4/0, 2/16 | −51.8 [−129.7, +5.2], 1/4, 4/32 |
+| All regions' food shortfall share | +0.0062 [−0.0137, +0.0282], 4/2, 22/64 | −0.0027 [−0.0111, +0.0094], 2/4, 24/64 |
+| Households' food purchases credited to sellers, units | +310.2 [+137.3, +438.7], 6/0, 2/64 | +769.1 [+2.2, +1794], 6/0, 2/64 |
+
+T alone (mean [min, max], per stratum template; procedural): shipments bought 295.5 [83, 598];
+674.7 [382, 891]; delivered 283.5; 633.8; returned after a carrier's release 0 on every world;
+returned for a lost route 0.33 [0, 2]; 6 [0, 11]; returned for a conquered destination 0; 1.17
+[0, 4]; escheated 8.8 [1, 22]; 26 [13, 37]; region-turns with a titled shipment 356.8 [99, 613] of
+1,600; 1,195 [778, 1,524] of 6,400; owners paid 208.2; 477.9; merchants' realized margin 186.0
+[56.5, 305.3]; 341.5 [155.2, 521.3]; model income withheld 18.3 [0.5, 53.1]; 57.2 [11.3, 94.7];
+margin less the withheld income 167.7 [55.9, 262.6]; 284.3 [143.8, 426.7] (positive on 12 of 12);
+the merchants' balance (adding returned food 0.17 and 5.75, cargo aboard 2.06 and 4.67 at
+purchase cost) 172.0 [56.0, 265.5]; 298.5 [166.3, 437.6]; food lost to transit decay 19.4; 40.4;
+food shortfall share in the regions T delivered to 0.202 [0.118, 0.330]; 0.115 [0.079, 0.180] and
+bought from 0.175; 0.107 (selection, no counterpart in R).
+
+### Sensitivity lines (T - R; never primary)
+
+| Sets | Outcome | Template (6 worlds) | Procedural (6 worlds) |
+| --- | --- | --- | --- |
+| Turn 0 | Food into the deficit regions | +151.1 [+16.1, +335.9], 6/0, 2/64 | −38.4 [−280.7, +331.2], 2/4, 48/64 |
+| Turn 0 | Deficit regions' shortfall share | +0.0111 [−0.0286, +0.0454], 4/2, 26/64 | −0.0015 [−0.0076, +0.0050], 2/4, 30/64 |
+| R's whole-run ratio (regression-to-the-mean risk) | Food into the deficit regions | +283.6 [+42.7, +673.9], 6/0, 2/64 | +333.7 [+172.9, +556.8], 6/0, 2/64 |
+| R's whole-run ratio (regression-to-the-mean risk) | Deficit regions' shortfall share | +0.0094 [−0.0302, +0.0425], 4/2, 28/64 | −0.0133 [−0.0482, +0.0061], 2/4, 8/64 |
+
+Under the frozen rule only `cw5_shortfall_deficit` on the procedural stratum reads as consistent
+(lower in T, five of five valid worlds). Every other primary cell reads as no consistent effect;
+the template stratum could not read as consistent with four valid worlds.
