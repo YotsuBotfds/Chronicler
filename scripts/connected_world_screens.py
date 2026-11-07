@@ -1385,18 +1385,20 @@ SCREENS["CW3"] = SR.Screen(
 # same pair without L9 and the maintenance obligation (works funded from the treasury
 # alone: does repair keep service when it is paid for?). Every arm: hybrid, grain
 # reserves, grain storage and RS2 repair projects. Snapshot s records world turn s - 1.
-# The irrigated-region set is fixed at snapshot CW3B_FIXED (pre-treatment: no work
-# can open before an asset wears below 0.75, 25 turns after its build, and no service is
-# lost before condition falls below 0.5, 50 turns after; a war-damage work opened before
-# it is counted in ``early_war_works``).
+# The irrigated-region set is fixed at snapshot CW3B_FIXED, the last pre-treatment
+# snapshot: an asset completes at the earliest in turn 2 (BUILD takes two turns), wears
+# 0.01 a turn from its first Phase 10, so its first wear work opens in Phase 10 of turn
+# 27 and spends from turn 28, and no service is lost before condition falls below 0.5,
+# 50 turns after; snapshot 28 records world turn 27. A war-damage work opened before it
+# is counted in ``early_war_works``. Arm B carries no record: its set is not recorded.
 
 CW3B_IC = ("livelihoods", "infrastructure_condition")
 CW3B_RS2 = ("livelihoods", "repair_projects")
 CW3B_LB = ("livelihoods", "local_budgets")
 #: Service at or above which an irrigation work serves (B3's gate).
 CW3B_GATE = 0.5
-#: The snapshot that fixes the irrigated-region set.
-CW3B_FIXED = 20
+#: The snapshot that fixes the irrigated-region set (the last pre-treatment snapshot).
+CW3B_FIXED = 28
 #: A stalled work counts in the underfunded-works story after this many stall turns.
 CW3B_STORY_STALLS = 20
 
@@ -1452,8 +1454,8 @@ def cw3b_extract(bundle: dict, flags) -> tuple[dict, list[str]]:
         if r.get("source_turn") != s.get("turn", 0) - 1 or r.get("mode") != mode:
             problems.append(f"infrastructure record of snapshot {s.get('turn')} misdated or not in mode {mode}")
             break
-    # The irrigated-region set: regions with an active irrigation record at snapshot CW3B_FIXED,
-    # read from the world's regions where the record is absent (B): every arm, the same rule.
+    # The irrigated-region set: regions with an irrigation asset at snapshot CW3B_FIXED (the
+    # record; arm B has none, so its set and food there are not recorded, never zero).
     fixed = next((s for s in history if s.get("turn") == CW3B_FIXED), None)
     names = [r.get("name") for r in (bundle.get("world_state") or {}).get("regions") or []]
     irrigated: list[int] = []
@@ -1463,12 +1465,7 @@ def cw3b_extract(bundle: dict, flags) -> tuple[dict, list[str]]:
             problems.append(f"no infrastructure record at snapshot {CW3B_FIXED}")
         else:
             irrigated = sorted({a["region"] for a in rec.get("assets") or [] if a.get("kind") == "irrigation"})
-    else:
-        infra = (fixed or {}).get("infrastructure") if fixed is not None else None
-        irrigated = sorted(i for i, name in enumerate(names)
-                           if any(x.get("type") in ("irrigation", "IRRIGATION") and x.get("active")
-                                  for x in ((infra or {}).get(name) or []))) if isinstance(infra, dict) else []
-    m["irrigated_regions"] = len(irrigated)
+    m["irrigated_regions"] = len(irrigated) if mode is not None else None
     share, met, turns = _cw3_food(bundle, irrigated) if irrigated else (None, None, 0)
     m["food_shortfall_irrigated"], m["food_met_irrigated"] = share, met
     m["food_shortfall_all"] = _cw3_food(bundle, list(range(len(names))))[0] if names else None
@@ -1546,7 +1543,7 @@ def _cw3b_outcomes() -> tuple[SR.Outcome, ...]:
         # repair keep service when the treasury pays (C_T - W_T: the funding counterfactual).
         SR.Outcome("cw3b_service_l9", "Irrigation asset-turns at service >= 0.5, share (C - W: works funded "
                    "through L9 against none)", "C", "W", service, primary=True),
-        SR.Outcome("cw3b_food_l9", "Food shortfall share after relief in the regions irrigated at snapshot 20 "
+        SR.Outcome("cw3b_food_l9", "Food shortfall share after relief in the regions irrigated at snapshot 28 "
                    "(C - W)", "C", "W", food, primary=True),
         SR.Outcome("cw3b_service_treasury", "Irrigation asset-turns at service >= 0.5, share (C_T - W_T: works "
                    "funded by the treasury against none)", "C_T", "W_T", service, primary=True),

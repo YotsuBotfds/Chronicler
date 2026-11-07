@@ -944,19 +944,20 @@ def test_the_cw3b_screen_is_declared_with_its_cohort_and_reads_the_record():
     assert screen.ready and screen.root == "B" and set(screen.arms) == {"B", "R", "W", "C", "W_T", "C_T"}
     assert screen.held == {"template": tuple(range(3501, 3507)), "procedural": tuple(range(3601, 3607))}
     assert [o.id for o in screen.outcomes if o.primary] == ["cw3b_service_l9", "cw3b_food_l9", "cw3b_service_treasury"]
-    # The extractor on records of a constructed world (wear_only, 21 snapshots).
+    # The extractor on records of a constructed world (wear_only, 29 snapshots).
     world = _world(mode="wear_only", infrastructure=((0, IRR), (1, IRR)))
     history = []
-    for _ in range(21):
+    for _ in range(29):
         _turn(world, _Sim())
         history.append({"turn": world.turn, "livelihoods": {"schema_version": 1,
                                                             "infrastructure_condition": IC.snapshot_summary(world)}})
-        _asset(world, 0, "irrigation").condition = max(0.0, _asset(world, 0, "irrigation").condition - 0.05)
+        _asset(world, 0, "irrigation").condition = max(0.0, _asset(world, 0, "irrigation").condition - 0.04)
     bundle = {"history": history, "world_state": {"regions": [{"name": r.name} for r in world.regions]}}
     flags = list(screen.base) + list(screen.arms["W_T"][0])
     m, problems = cws.cw3b_extract(bundle, flags)
     assert m["irrigated_regions"] == 2 and 0 < m["irrigation_serving_share"] < 1
     assert m["rs2_work_delivered"] is None and m["l9_awards_infrastructure_works"] is None   # not recorded, not zero
+    assert cws.cw3b_extract(bundle, list(screen.base) + list(screen.arms["B"][0]))[0]["irrigated_regions"] is None
     assert problems == ["food in the irrigated regions could not be measured"]                # no food accounts here
     acted, text = cws.cw3b_activation(bundle, flags)
     assert acted is True and "below full service" in text
