@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "layer": "cwa3",
+  "parent": "ae94bca677af5b39277eae26fda5a52db3b56f7e",
+  "files": {
+    "src/chronicler/batch_manifest.py": {
+      "sha256": "ce79600db0995587ec522d617e06805ac4245276d0537dbcc19cfe611144a680",
+      "current_sha256": "95caf56ac4bbae545c5feed36a8d0dd6a1b9d45b05861c072b0ee2d3efe6ee42",
+      "patches": [
+        {
+          "old": "    \"watershed\",\n    \"watershed_mode\",\n    \"quarantine_mode\",\n    \"wealth_accounting\",\n    \"quarantine_channels\",\n    \"tuning\",\n",
+          "new": "    \"watershed\",\n    \"watershed_mode\",\n    \"quarantine_mode\",\n    \"workshop_economics\",\n    \"workshop_economics_mode\",\n    \"wealth_accounting\",\n    \"quarantine_channels\",\n    \"tuning\",\n"
+        },
+        {
+          "old": "                             \"maintenance_obligation_mode\", \"apprenticeship_rules\",\n                             \"household_retail\", \"household_retail_mode\", \"household_retail_boundary\",\n                             \"household_retail_rules\", \"household_retail_schedule\", \"watershed\", \"watershed_mode\",\n                             \"quarantine_mode\", \"wealth_accounting\", \"quarantine_channels\")\n              or getattr(args, key, None) is not None}\n    overrides = tuning_overrides if tuning_overrides is not None else getattr(args, \"tuning_overrides\", None)\n    config[\"tuning_overrides\"] = _json_value(overrides or {})\n",
+          "new": "                             \"maintenance_obligation_mode\", \"apprenticeship_rules\",\n                             \"household_retail\", \"household_retail_mode\", \"household_retail_boundary\",\n                             \"household_retail_rules\", \"household_retail_schedule\", \"watershed\", \"watershed_mode\",\n                             \"quarantine_mode\", \"workshop_economics\", \"workshop_economics_mode\",\n                             \"wealth_accounting\", \"quarantine_channels\")\n              or getattr(args, key, None) is not None}\n    overrides = tuning_overrides if tuning_overrides is not None else getattr(args, \"tuning_overrides\", None)\n    config[\"tuning_overrides\"] = _json_value(overrides or {})\n"
+        }
+      ]
+    },
+    "tests/test_batch_manifest.py": {
+      "sha256": "fb42ad13892607bd500d4780aeaaa6764929ae897e05f2dfe6748fddfb3e9b0b",
+      "current_sha256": "cbffbeb0ecaadf894e20734e115d7ada212a9d72813a6ce1924b667dbbc4fa3a",
+      "patches": [
+        {
+          "old": "                                                           \"household_retail\", \"household_retail_mode\", \"household_retail_boundary\",\n                                                           \"household_retail_rules\", \"household_retail_schedule\",\n                                                           \"watershed\", \"watershed_mode\",\n                                                           \"quarantine_mode\", \"wealth_accounting\", \"quarantine_channels\"}) | {\"tuning_overrides\"}\n    assert (simulation[\"civs\"], simulation[\"regions\"], simulation[\"agents\"], simulation[\"cities\"]) == (2, 4, \"off\", None)\n    assert manifest[\"outputs\"][\"simulate_only\"] is True\n    environment = manifest[\"environment\"]\n",
+          "new": "                                                           \"household_retail\", \"household_retail_mode\", \"household_retail_boundary\",\n                                                           \"household_retail_rules\", \"household_retail_schedule\",\n                                                           \"watershed\", \"watershed_mode\",\n                                                           \"quarantine_mode\", \"workshop_economics\", \"workshop_economics_mode\",\n                                                           \"wealth_accounting\", \"quarantine_channels\"}) | {\"tuning_overrides\"}\n    assert (simulation[\"civs\"], simulation[\"regions\"], simulation[\"agents\"], simulation[\"cities\"]) == (2, 4, \"off\", None)\n    assert manifest[\"outputs\"][\"simulate_only\"] is True\n    environment = manifest[\"environment\"]\n"
+        }
+      ]
+    }
+  }
+}
