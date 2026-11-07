@@ -93,3 +93,26 @@ def test_information_tick_date_is_checked_before_mutation():
     with pytest.raises(ValueError, match="adaptive information must be installed for this tick"):
         sim.tick(2, pa.record_batch({"unused": [0]}))
     assert sim.cancel_adaptive_information() is True
+
+
+def test_legacy_attribution_observer_refuses_active_adaptive_inputs_in_both_orders():
+    from chronicler_agents import AgentSimulator
+    sim = AgentSimulator(2, 7)
+    sim.configure_decision_delivery(True)
+    with pytest.raises(ValueError, match="legacy decision observer"):
+        sim.set_adaptive_migration(1, [(1, 0, 0.1)])
+    with pytest.raises(ValueError, match="legacy decision observer"):
+        sim.set_adaptive_information(1, [])
+    assert sim.cancel_adaptive_migration() is False
+    assert sim.cancel_adaptive_information() is False
+    sim.configure_decision_delivery(False)
+    sim.set_adaptive_migration(1, [(1, 0, 0.1)])
+    with pytest.raises(ValueError, match="active adaptive inputs"):
+        sim.configure_decision_delivery(True)
+    with pytest.raises(ValueError, match="driver budget"):
+        sim.get_migration_driver_stats()
+    assert sim.cancel_adaptive_migration() is True
+    # The record_only input has no behavioral effect or attribution gap.
+    sim.set_adaptive_migration(1, [])
+    sim.configure_decision_delivery(True)
+    assert isinstance(sim.get_migration_driver_stats(), dict)
