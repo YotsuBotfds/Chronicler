@@ -1,0 +1,338 @@
+FF                                                                       [100%]
+=================================== FAILURES ===================================
+____ test_actual_branch_fee_and_exact_resume_with_permission_due_next_tick _____
+
+tmp_path = PosixPath('/workspace/evidence/d1/branches-native/test_actual_branch_fee_and_exa0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f48c1851ba0>
+constructed_members = None
+
+    def test_actual_branch_fee_and_exact_resume_with_permission_due_next_tick(tmp_path, monkeypatch, constructed_members):
+        from chronicler.movement_branches import record_status
+        from chronicler.run_checkpoint import read_checkpoint
+        argv = ["--seed", "23", "--agents", "hybrid", "--simulate-only", "--turns", "18", "--movement-branches"]
+        straight, resumed = tmp_path / "straight", tmp_path / "resumed"
+>       _cli(monkeypatch, straight, *argv, "--checkpoint-turns", "3")
+
+../cw-d1-branches/tests/test_movement_branches_native.py:67:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+../cw-d1-branches/tests/test_movement_branches_native.py:41: in _cli
+    main_mod.main()
+../cw-d1-branches/src/chronicler/main.py:2554: in main
+    args = parser.parse_args()
+           ^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.13/argparse.py:1916: in parse_args
+    self.error(msg)
+/usr/lib/python3.13/argparse.py:2672: in error
+    self.exit(2, _('%(prog)s: error: %(message)s\n') % args)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = ArgumentParser(prog='chronicler', usage=None, description='Generate an AI-driven civilization chronicle (local inference via LM Studio)', formatter_class=<class 'argparse.HelpFormatter'>, conflict_handler='error', add_help=True)
+status = 2
+message = 'chronicler: error: unrecognized arguments: --movement-branches\n'
+
+    def exit(self, status=0, message=None):
+        if message:
+            self._print_message(message, _sys.stderr)
+>       _sys.exit(status)
+E       SystemExit: 2
+
+/usr/lib/python3.13/argparse.py:2659: SystemExit
+----------------------------- Captured stderr call -----------------------------
+usage: chronicler [-h] [--seed SEED] [--turns TURNS] [--civs CIVS]
+                  [--regions REGIONS] [--worldgen {auto,template,procedural}]
+                  [--output OUTPUT] [--state STATE] [--resume RESUME]
+                  [--checkpoint-every N] [--checkpoint PATH]
+                  [--checkpoint-turns T,T,...] [--resume-allow-mismatch]
+                  [--state-every K]
+                  [--reflection-interval REFLECTION_INTERVAL]
+                  [--local-url LOCAL_URL] [--sim-model SIM_MODEL]
+                  [--narrative-model NARRATIVE_MODEL] [--llm-actions]
+                  [--scenario SCENARIO] [--batch BATCH]
+                  [--parallel [PARALLEL]] [--fork FORK] [--interactive]
+                  [--pause-every PAUSE_EVERY] [--live] [--live-port LIVE_PORT]
+                  [--live-origin ORIGIN] [--simulate-only]
+                  [--agents {off,demographics-only,shadow,hybrid}]
+                  [--agent-scale-mode {exact,fast}]
+                  [--decision-ablation {needs,kin_roots,placebo,community_anchor}]
+                  [--ablation-start-turn TURN]
+                  [--mutual-aid | --no-mutual-aid]
+                  [--fisheries | --no-fisheries]
+                  [--campaigns | --no-campaigns]
+                  [--governance | --no-governance]
+                  [--contact-ledger | --no-contact-ledger]
+                  [--epidemiology | --no-epidemiology]
+                  [--finance | --no-finance] [--diplomacy | --no-diplomacy]
+                  [--techniques | --no-techniques]
+                  [--maritime | --no-maritime]
+                  [--gp-agendas | --no-gp-agendas] [--nomads | --no-nomads]
+                  [--cities | --no-cities]
+                  [--agent-movements | --no-agent-movements]
+                  [--guilds | --no-guilds] [--scholarship | --no-scholarship]
+                  [--grain-reserves | --no-grain-reserves]
+                  [--grain-storage | --no-grain-storage]
+                  [--grain-storage-policy {neglect,maintain,expand}]
+                  [--grain-storage-work-budget GRAIN_STORAGE_WORK_BUDGET]
+                  [--household-mobility-liquid-requirement HOUSEHOLD_MOBILITY_LIQUID_REQUIREMENT]
+                  [--academy-services | --no-academy-services]
+                  [--harvest-report-delay HARVEST_REPORT_DELAY]
+                  [--public-grain-shipments | --no-public-grain-shipments]
+                  [--community-anchoring | --no-community-anchoring]
+                  [--capacity-aware-refugees | --no-capacity-aware-refugees]
+                  [--health-care | --no-health-care]
+                  [--harvest-forecasts | --no-harvest-forecasts]
+                  [--ritual-gatherings | --no-ritual-gatherings]
+                  [--scientific-claims | --no-scientific-claims]
+                  [--transaction-receipts | --no-transaction-receipts]
+                  [--scientific-research-agendas | --no-scientific-research-agendas]
+                  [--workshops | --no-workshops]
+                  [--workshop-mode {operate,observe,cost_only}]
+                  [--food-allocation | --no-food-allocation]
+                  [--food-allocation-regime {floor_means,equal,targeted_relief}]
+                  [--timber-stock | --no-timber-stock]
+                  [--grain-convoys | --no-grain-convoys]
+                  [--convoy-route-policy {adaptive,cheapest,safest}]
+                  [--commons-rules | --no-commons-rules]
+                  [--commons-rule-mode {enforced,cost_only}]
+                  [--learning-cohorts | --no-learning-cohorts]
+                  [--learning-cohort-mode {learn,no_learning}]
+                  [--workshop-payroll | --no-workshop-payroll]
+                  [--workshop-payroll-mode {paid,unpaid_labor,no_customer}]
+                  [--relocation-costs | --no-relocation-costs]
+                  [--relocation-mode {paid,assisted,liquidity_only}]
+                  [--local-budgets | --no-local-budgets]
+                  [--local-budget-mode {bargained,fixed_shares}]
+                  [--apprenticeship | --no-apprenticeship]
+                  [--apprenticeship-mode {train,no_qualification}]
+                  [--apprenticeship-rules {2,1}]
+                  [--repair-projects | --no-repair-projects]
+                  [--repair-mode {repair,cost_only}]
+                  [--veteran-reintegration | --no-veteran-reintegration]
+                  [--veteran-mode {priority,record_only}]
+                  [--remittances | --no-remittances]
+                  [--remittance-mode {send,record_only}]
+                  [--clearing-protection | --no-clearing-protection]
+                  [--clearing-protection-mode {enforced,cost_only}]
+                  [--operating-wear | --no-operating-wear]
+                  [--timber-supply | --no-timber-supply]
+                  [--timber-supply-mode {supply,cost_only}]
+                  [--recovery-crews | --no-recovery-crews]
+                  [--recovery-crew-mode {paid,unpaid}]
+                  [--maintenance-obligation | --no-maintenance-obligation]
+                  [--maintenance-obligation-mode {reserve,reserve_only}]
+                  [--household-retail | --no-household-retail]
+                  [--household-retail-mode {retail,no_relief,free_exchange,record_only}]
+                  [--household-retail-boundary {market,paid_work,all,schedule}]
+                  [--household-retail-rules {2,1}]
+                  [--watershed | --no-watershed]
+                  [--watershed-mode {record_only,flow}]
+                  [--workshop-economics | --no-workshop-economics]
+                  [--workshop-economics-mode {market,free_inputs,academy_only}]
+                  [--workshop-economics-rules {1,2}]
+                  [--titled-trade | --no-titled-trade]
+                  [--epidemic-care | --no-epidemic-care]
+                  [--epidemic-care-mode {care,cost_only}]
+                  [--reform-services | --no-reform-services]
+                  [--reform-services-mode {service,cost_only}]
+                  [--guild-leagues | --no-guild-leagues]
+                  [--guild-league-mode {mutual,dues_only}]
+                  [--residence-ledger | --no-residence-ledger]
+                  [--attribution-records | --no-attribution-records]
+                  [--wealth-accounting | --no-wealth-accounting]
+                  [--household-retail-schedule PATH]
+                  [--quarantine-mode {legacy,none,cost_only,closure}]
+                  [--quarantine-channels {trade,trade,migration}]
+                  [--domestic-credit | --no-domestic-credit]
+                  [--historiography | --no-historiography]
+                  [--languages | --no-languages] [--tuning TUNING]
+                  [--seed-range SEED_RANGE] [--analyze ANALYZE]
+                  [--compare COMPARE] [--checkpoints CHECKPOINTS]
+                  [--aggression-bias AGGRESSION_BIAS]
+                  [--tech-diffusion-rate TECH_DIFFUSION_RATE]
+                  [--resource-abundance RESOURCE_ABUNDANCE]
+                  [--trade-friction TRADE_FRICTION]
+                  [--severity-multiplier SEVERITY_MULTIPLIER]
+                  [--cultural-drift-speed CULTURAL_DRIFT_SPEED]
+                  [--religion-intensity RELIGION_INTENSITY]
+                  [--secession-likelihood SECESSION_LIKELIHOOD]
+                  [--preset {pangaea,archipelago,golden-age,dark-age,ice-age,silk-road}]
+                  [--narrate NARRATE] [--budget BUDGET]
+                  [--narrate-output NARRATE_OUTPUT]
+                  [--narrator {local,api,gemini,mechanical}]
+                  [--citations | --no-citations] [--relationship-stats]
+                  [--validation-sidecar]
+chronicler: error: unrecognized arguments: --movement-branches
+_____________ test_record_only_preserves_native_world_and_history ______________
+
+tmp_path = PosixPath('/workspace/evidence/d1/branches-native/test_record_only_preserves_nat0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f48c1851810>
+constructed_members = None
+
+    def test_record_only_preserves_native_world_and_history(tmp_path, monkeypatch, constructed_members):
+        argv = ["--seed", "23", "--agents", "hybrid", "--simulate-only", "--turns", "12"]
+        off, record = tmp_path / "off", tmp_path / "record"
+        _cli(monkeypatch, off, *argv)
+>       _cli(monkeypatch, record, *argv, "--movement-branches", "--movement-branches-mode", "record_only")
+
+../cw-d1-branches/tests/test_movement_branches_native.py:85:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+../cw-d1-branches/tests/test_movement_branches_native.py:41: in _cli
+    main_mod.main()
+../cw-d1-branches/src/chronicler/main.py:2554: in main
+    args = parser.parse_args()
+           ^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.13/argparse.py:1916: in parse_args
+    self.error(msg)
+/usr/lib/python3.13/argparse.py:2672: in error
+    self.exit(2, _('%(prog)s: error: %(message)s\n') % args)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = ArgumentParser(prog='chronicler', usage=None, description='Generate an AI-driven civilization chronicle (local inference via LM Studio)', formatter_class=<class 'argparse.HelpFormatter'>, conflict_handler='error', add_help=True)
+status = 2
+message = 'chronicler: error: unrecognized arguments: --movement-branches --movement-branches-mode record_only\n'
+
+    def exit(self, status=0, message=None):
+        if message:
+            self._print_message(message, _sys.stderr)
+>       _sys.exit(status)
+E       SystemExit: 2
+
+/usr/lib/python3.13/argparse.py:2659: SystemExit
+----------------------------- Captured stdout call -----------------------------
+Generating chronicle for 'Aetheris' — 12 turns, 4 civs
+  Sim model: dummy | Narrative model: dummy [local inference]
+  Era reflection generated for turns 1-10
+  Turn 10/12 complete
+
+Chronicle written to /workspace/evidence/d1/branches-native/test_record_only_preserves_nat0/off/chronicle.md (190 characters)
+Final world state saved to /workspace/evidence/d1/branches-native/test_record_only_preserves_nat0/off/state.json
+Viewer bundle written to /workspace/evidence/d1/branches-native/test_record_only_preserves_nat0/off/chronicle_bundle.json
+
+Chronicle complete: /workspace/evidence/d1/branches-native/test_record_only_preserves_nat0/off
+----------------------------- Captured stderr call -----------------------------
+usage: chronicler [-h] [--seed SEED] [--turns TURNS] [--civs CIVS]
+                  [--regions REGIONS] [--worldgen {auto,template,procedural}]
+                  [--output OUTPUT] [--state STATE] [--resume RESUME]
+                  [--checkpoint-every N] [--checkpoint PATH]
+                  [--checkpoint-turns T,T,...] [--resume-allow-mismatch]
+                  [--state-every K]
+                  [--reflection-interval REFLECTION_INTERVAL]
+                  [--local-url LOCAL_URL] [--sim-model SIM_MODEL]
+                  [--narrative-model NARRATIVE_MODEL] [--llm-actions]
+                  [--scenario SCENARIO] [--batch BATCH]
+                  [--parallel [PARALLEL]] [--fork FORK] [--interactive]
+                  [--pause-every PAUSE_EVERY] [--live] [--live-port LIVE_PORT]
+                  [--live-origin ORIGIN] [--simulate-only]
+                  [--agents {off,demographics-only,shadow,hybrid}]
+                  [--agent-scale-mode {exact,fast}]
+                  [--decision-ablation {needs,kin_roots,placebo,community_anchor}]
+                  [--ablation-start-turn TURN]
+                  [--mutual-aid | --no-mutual-aid]
+                  [--fisheries | --no-fisheries]
+                  [--campaigns | --no-campaigns]
+                  [--governance | --no-governance]
+                  [--contact-ledger | --no-contact-ledger]
+                  [--epidemiology | --no-epidemiology]
+                  [--finance | --no-finance] [--diplomacy | --no-diplomacy]
+                  [--techniques | --no-techniques]
+                  [--maritime | --no-maritime]
+                  [--gp-agendas | --no-gp-agendas] [--nomads | --no-nomads]
+                  [--cities | --no-cities]
+                  [--agent-movements | --no-agent-movements]
+                  [--guilds | --no-guilds] [--scholarship | --no-scholarship]
+                  [--grain-reserves | --no-grain-reserves]
+                  [--grain-storage | --no-grain-storage]
+                  [--grain-storage-policy {neglect,maintain,expand}]
+                  [--grain-storage-work-budget GRAIN_STORAGE_WORK_BUDGET]
+                  [--household-mobility-liquid-requirement HOUSEHOLD_MOBILITY_LIQUID_REQUIREMENT]
+                  [--academy-services | --no-academy-services]
+                  [--harvest-report-delay HARVEST_REPORT_DELAY]
+                  [--public-grain-shipments | --no-public-grain-shipments]
+                  [--community-anchoring | --no-community-anchoring]
+                  [--capacity-aware-refugees | --no-capacity-aware-refugees]
+                  [--health-care | --no-health-care]
+                  [--harvest-forecasts | --no-harvest-forecasts]
+                  [--ritual-gatherings | --no-ritual-gatherings]
+                  [--scientific-claims | --no-scientific-claims]
+                  [--transaction-receipts | --no-transaction-receipts]
+                  [--scientific-research-agendas | --no-scientific-research-agendas]
+                  [--workshops | --no-workshops]
+                  [--workshop-mode {operate,observe,cost_only}]
+                  [--food-allocation | --no-food-allocation]
+                  [--food-allocation-regime {floor_means,equal,targeted_relief}]
+                  [--timber-stock | --no-timber-stock]
+                  [--grain-convoys | --no-grain-convoys]
+                  [--convoy-route-policy {adaptive,cheapest,safest}]
+                  [--commons-rules | --no-commons-rules]
+                  [--commons-rule-mode {enforced,cost_only}]
+                  [--learning-cohorts | --no-learning-cohorts]
+                  [--learning-cohort-mode {learn,no_learning}]
+                  [--workshop-payroll | --no-workshop-payroll]
+                  [--workshop-payroll-mode {paid,unpaid_labor,no_customer}]
+                  [--relocation-costs | --no-relocation-costs]
+                  [--relocation-mode {paid,assisted,liquidity_only}]
+                  [--local-budgets | --no-local-budgets]
+                  [--local-budget-mode {bargained,fixed_shares}]
+                  [--apprenticeship | --no-apprenticeship]
+                  [--apprenticeship-mode {train,no_qualification}]
+                  [--apprenticeship-rules {2,1}]
+                  [--repair-projects | --no-repair-projects]
+                  [--repair-mode {repair,cost_only}]
+                  [--veteran-reintegration | --no-veteran-reintegration]
+                  [--veteran-mode {priority,record_only}]
+                  [--remittances | --no-remittances]
+                  [--remittance-mode {send,record_only}]
+                  [--clearing-protection | --no-clearing-protection]
+                  [--clearing-protection-mode {enforced,cost_only}]
+                  [--operating-wear | --no-operating-wear]
+                  [--timber-supply | --no-timber-supply]
+                  [--timber-supply-mode {supply,cost_only}]
+                  [--recovery-crews | --no-recovery-crews]
+                  [--recovery-crew-mode {paid,unpaid}]
+                  [--maintenance-obligation | --no-maintenance-obligation]
+                  [--maintenance-obligation-mode {reserve,reserve_only}]
+                  [--household-retail | --no-household-retail]
+                  [--household-retail-mode {retail,no_relief,free_exchange,record_only}]
+                  [--household-retail-boundary {market,paid_work,all,schedule}]
+                  [--household-retail-rules {2,1}]
+                  [--watershed | --no-watershed]
+                  [--watershed-mode {record_only,flow}]
+                  [--workshop-economics | --no-workshop-economics]
+                  [--workshop-economics-mode {market,free_inputs,academy_only}]
+                  [--workshop-economics-rules {1,2}]
+                  [--titled-trade | --no-titled-trade]
+                  [--epidemic-care | --no-epidemic-care]
+                  [--epidemic-care-mode {care,cost_only}]
+                  [--reform-services | --no-reform-services]
+                  [--reform-services-mode {service,cost_only}]
+                  [--guild-leagues | --no-guild-leagues]
+                  [--guild-league-mode {mutual,dues_only}]
+                  [--residence-ledger | --no-residence-ledger]
+                  [--attribution-records | --no-attribution-records]
+                  [--wealth-accounting | --no-wealth-accounting]
+                  [--household-retail-schedule PATH]
+                  [--quarantine-mode {legacy,none,cost_only,closure}]
+                  [--quarantine-channels {trade,trade,migration}]
+                  [--domestic-credit | --no-domestic-credit]
+                  [--historiography | --no-historiography]
+                  [--languages | --no-languages] [--tuning TUNING]
+                  [--seed-range SEED_RANGE] [--analyze ANALYZE]
+                  [--compare COMPARE] [--checkpoints CHECKPOINTS]
+                  [--aggression-bias AGGRESSION_BIAS]
+                  [--tech-diffusion-rate TECH_DIFFUSION_RATE]
+                  [--resource-abundance RESOURCE_ABUNDANCE]
+                  [--trade-friction TRADE_FRICTION]
+                  [--severity-multiplier SEVERITY_MULTIPLIER]
+                  [--cultural-drift-speed CULTURAL_DRIFT_SPEED]
+                  [--religion-intensity RELIGION_INTENSITY]
+                  [--secession-likelihood SECESSION_LIKELIHOOD]
+                  [--preset {pangaea,archipelago,golden-age,dark-age,ice-age,silk-road}]
+                  [--narrate NARRATE] [--budget BUDGET]
+                  [--narrate-output NARRATE_OUTPUT]
+                  [--narrator {local,api,gemini,mechanical}]
+                  [--citations | --no-citations] [--relationship-stats]
+                  [--validation-sidecar]
+chronicler: error: unrecognized arguments: --movement-branches --movement-branches-mode record_only
+=========================== short test summary info ============================
+FAILED ../cw-d1-branches/tests/test_movement_branches_native.py::test_actual_branch_fee_and_exact_resume_with_permission_due_next_tick
+FAILED ../cw-d1-branches/tests/test_movement_branches_native.py::test_record_only_preserves_native_world_and_history
+2 failed in 1.15s
