@@ -31,8 +31,13 @@ def CW():
 
 
 def _receipt(turn, *, operating, sold=0, household=0, inventory=1000):
-    return {"turn": turn, "site": 0, "operating": operating, "sold": sold, "household_sold": household,
-            "inventory_close": inventory}
+    """Payroll adds ``sold`` and ``household_sold`` only when nonzero (``_add``)."""
+    r = {"turn": turn, "site": 0, "operating": operating, "inventory_close": inventory}
+    if sold:
+        r["sold"] = sold
+    if household:
+        r["household_sold"] = household
+    return r
 
 
 def _bundle(econ=True, *, rules=2, mode="market", turns=6, close_at=4, household=(200, 0, 300, 0),
@@ -82,7 +87,7 @@ def test_the_screen_declares_five_arms_three_primaries_and_both_cohorts(CW):
     assert s.held == {"template": tuple(range(741, 747)), "procedural": tuple(range(841, 847))}
     primaries = s.primaries()
     assert [(o.id, o.arm, o.control) for o in primaries] == [
-        ("cw2_active_share", "E2", "P"), ("cw2_wages", "E2", "P"), ("cw2_served", "E2", "E1")]
+        ("cw2_active_share", "E2", "E1"), ("cw2_wages", "E2", "P"), ("cw2_served", "E2", "E1")]
     assert "--wealth-accounting" in s.base and "--workshop-payroll" in s.base
 
 
@@ -93,6 +98,7 @@ def test_firm_turns_by_state_count_closed_turns_against_the_firm(CW):
     assert (m["firms_opened"], m["firm_turns_horizon"], m["open_firm_turns"], m["closed_firm_turns"]) == (1, 5, 4, 1)
     # Turn 1 produced and sold to households, 2 sold to an academy, 3 produced and sold, 4 idle.
     assert m["active_share"] == pytest.approx(3 / 5) and m["producing_share"] == pytest.approx(2 / 5)
+    assert m["active_firm_turns"] == 3
     assert m["selling_share"] == pytest.approx(3 / 5) and m["idle_share"] == pytest.approx(1 / 5)
     assert m["closed_share"] == pytest.approx(1 / 5) and m["closed_idle"] == 1 and m["open_at_end"] == 0
     assert m["household_delivered"] == pytest.approx(0.5) and m["wages_credited"] == pytest.approx(0.5)
@@ -106,6 +112,15 @@ def test_the_status_quo_has_no_household_customers(CW):
     assert m["active_share"] == pytest.approx(3 / 5)        # the same firm-turn states without economics
     stray = _bundle(econ=True)
     assert any("without the switch" in p for p in CW.cw2_extract(stray, ())[1])
+
+
+def test_a_receipt_without_operating_or_with_a_text_sale_is_a_problem(CW):
+    b = _bundle()
+    del b["history"][2]["livelihoods"]["workshop_payroll"]["receipts"][0]["operating"]
+    assert any("lacks operating" in p for p in CW.cw2_extract(b, E2)[1])
+    b = _bundle()
+    b["history"][2]["livelihoods"]["workshop_payroll"]["receipts"][0]["sold"] = "5"
+    assert any("non-numeric" in p for p in CW.cw2_extract(b, E2)[1])
 
 
 @pytest.mark.parametrize("bundle_kw, flags, needle", [

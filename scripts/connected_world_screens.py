@@ -1482,10 +1482,12 @@ def cw2_extract(bundle: dict, flags) -> tuple[dict, list[str]]:
             if not isinstance(r, dict):
                 problems.append("a payroll receipt is not an object")
                 continue
-            hh = r.get("household_sold", 0) if not econ_on else r.get("household_sold")
-            ac = r.get("sold")
+            # ``sold`` (academies) and ``household_sold`` are added to a receipt only when
+            # nonzero (payroll's ``_add``): absent reads as none sold that turn.
+            hh, ac = r.get("household_sold", 0), r.get("sold", 0)
             if not (SR._num(hh) and SR._num(ac) and isinstance(r.get("operating"), bool)):
-                problems.append(f"payroll receipt of snapshot {s.get('turn')} lacks operating, sold or household_sold")
+                problems.append(f"payroll receipt of snapshot {s.get('turn')} lacks operating or has a non-numeric "
+                                "sold or household_sold")
                 break
             open_turns += 1
             produced = r["operating"]
@@ -1502,6 +1504,7 @@ def cw2_extract(bundle: dict, flags) -> tuple[dict, list[str]]:
     m["firms_opened"] = len(firms)
     m["firm_turns_horizon"] = horizon
     m["open_firm_turns"] = open_turns
+    m["active_firm_turns"] = active
     m["closed_firm_turns"] = max(0, horizon - open_turns) if horizon else 0
     share = (lambda n: n / horizon if horizon else None)
     m["active_share"], m["producing_share"], m["selling_share"] = share(active), share(operating), share(selling)
@@ -1645,19 +1648,23 @@ def _cw2_outcomes() -> tuple[SR.Outcome, ...]:
     active, wages, served = _m("active_share"), _m("wages_credited"), _m("household_delivered")
     harm = (lambda key: (lambda r: SR.harm_value(r, key)))
     return (
-        # Primaries: the firms' operating outcome and the households' wages against the L6a
-        # status quo (the whole A3 package as it now stands, rules 2), and the households
-        # served by sale against A3-1's free-use rule.
+        # Primaries: the firms' operating outcome under the owned-output rule against A3-1 (the
+        # share is undefined in P on a world where L6a opens no firm, so P is not its control),
+        # the households' wages against the L6a status quo (a recorded zero where no firm
+        # opens), and the households served by sale against A3-1's free-use rule.
         SR.Outcome("cw2_active_share", "Share of firm-turns since opening in which the firm produced or sold "
-                   "(idle and closed turns count against it) (E2 - P)", "E2", "P", active, primary=True),
+                   "(idle and closed turns count against it) (E2 - E1)", "E2", "E1", active, primary=True),
         SR.Outcome("cw2_wages", "Workshop wages credited to households over the run, units (A1 ledger) (E2 - P)",
                    "E2", "P", wages, primary=True),
         SR.Outcome("cw2_served", "Wares delivered to households by sale over the run, loads (E2 - E1)", "E2", "E1",
                    served, primary=True),
         # A3-1 against the status quo, and A3-2 against A3-1.
+        SR.Outcome("cw2_active_share_p", "Active share of firm-turns (E2 - P; worlds where L6a opens a firm)", "E2",
+                   "P", active),
+        SR.Outcome("cw2_active_turns", "Active firm-turns, produced or sold (E2 - P; defined on every world)", "E2",
+                   "P", _m("active_firm_turns")),
         SR.Outcome("cw2_active_share_e1", "Active share of firm-turns (E1 - P)", "E1", "P", active),
         SR.Outcome("cw2_wages_e1", "Workshop wages credited (E1 - P)", "E1", "P", wages),
-        SR.Outcome("cw2_active_share_rules", "Active share of firm-turns (E2 - E1)", "E2", "E1", active),
         SR.Outcome("cw2_wages_rules", "Workshop wages credited (E2 - E1)", "E2", "E1", wages),
         SR.Outcome("cw2_paid_rules", "Households' money paid for wares, units (E2 - E1)", "E2", "E1",
                    _m("household_paid")),
