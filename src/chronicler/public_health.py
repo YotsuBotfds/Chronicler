@@ -610,7 +610,8 @@ def farm_time(world, turn: int) -> dict[int, float]:
     not restore that lost farm time. No capped or historical frame is read.
     """
     state = _state(world)
-    if state is None or not state.enabled or turn != world.turn or state.guard_turn != turn:
+    if state is None or not state.enabled or turn != world.turn or state.guard_turn != turn \
+            or state._guard_tick is None or state._guard_tick[0] != turn:
         return {}
     removed = {}
     for row in state.guards:

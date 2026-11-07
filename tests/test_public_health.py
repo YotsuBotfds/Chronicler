@@ -561,5 +561,7 @@ def test_guard_title_time_is_actual_urban_partial_removal_independent_of_payment
     PH.finish_phase2(w, SimpleNamespace(), bridge, None)
     assert st.guards[0]["payment"] == "refused:payer_short" and not st.guards[0]["staffed"]
     assert PH.farm_time(w, w.turn) == removed
+    PH.rollback_phase2(w)
+    assert PH.farm_time(w, w.turn) == {}
     st.enabled = False
     assert PH.farm_time(w, w.turn) == {}
