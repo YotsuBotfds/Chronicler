@@ -347,7 +347,15 @@ def farm_labour(world, snapshot) -> list[int] | None:
     if snapshot is None:
         return None
     try:
-        return _People(world, snapshot).farmer_counts(len(world.regions))
+        people = _People(world, snapshot)
+        counts = people.farmer_counts(len(world.regions))
+        from chronicler.war_requisition import enlisted_ids
+        service = set(enlisted_ids(world))
+        if service:
+            for aid, region, occupation in zip(people.ids, people.region, people.occupation):
+                if int(aid) in service and int(occupation) == FARMER and 0 <= int(region) < len(counts):
+                    counts[int(region)] -= 1
+        return counts
     except RuntimeError:
         return None
 

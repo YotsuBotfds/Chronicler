@@ -463,12 +463,37 @@ def _install_service(world, sim, *, after_logistics):
     sim.set_enlisted_service(world.turn, enlisted_service_rows(world, after_logistics=after_logistics), suppress)
 
 
-def prepare_phase2(world, region_input, agent_bridge, snapshot, acc):
+def prepare_service_economy(world, region_input, agent_bridge, snapshot, acc):
     """Freeze the service census before civilian production and consumption."""
+    if not war_requisition_active(world):
+        return region_input
     state = _state(world)
     state._sim = agent_bridge._sim
+    if getattr(world, "war_state", None) is not None and getattr(world, "_war_roster_sim", None) != id(state._sim):
+        from chronicler.war.common import build_context
+        from chronicler.war.armies import rebind_rosters
+        before = [tuple(a.roster) for a in world.war_state.armies]
+        rebind_rosters(build_context(world, bridge=agent_bridge))
+        if before != [tuple(a.roster) for a in world.war_state.armies]:
+            # Simulation prepared health before the livelihoods fan-out.
+            # Rebinds change its excluded identities: rebuild that same
+            # authority before reserving any new work, with no new draw.
+            from chronicler.health_care import prepare_health_care
+            prepare_health_care(world, agent_bridge)
     _install_service(world, state._sim, after_logistics=False)
-    return region_input
+    # Cities computed their average over the original pool. Native economy
+    # now counts civilian farmers only: rebuild the urban average before any
+    # package subtracts its named workers from that same denominator.
+    from chronicler.household_retail import title_inputs
+    work = title_inputs(world, snapshot, range(len(world.regions)))
+    factors = [sum(u for _aid, u, _h in work[r]) / len(work[r]) if work[r] else 1.0
+               for r in range(len(world.regions))]
+    import pyarrow as pa
+    column = pa.array(factors, type=pa.float32())
+    names = region_input.schema.names
+    if "farm_labor_factor" in names:
+        return region_input.set_column(names.index("farm_labor_factor"), "farm_labor_factor", column)
+    return region_input.append_column("farm_labor_factor", column)
 
 
 def before_agent_tick(world, agent_bridge, economy_result):

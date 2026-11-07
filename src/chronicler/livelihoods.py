@@ -1136,10 +1136,14 @@ def prepare_phase2(world, region_input, agent_bridge, snapshot, *, acc=None):
     Work held across turns (PL1 expedition crews, away from home) is reserved
     first (``reserve_first``), so every package's planner sees it as held."""
     bind_native_pool(world, agent_bridge)
+    from chronicler.war_requisition import prepare_service_economy
+    region_input = prepare_service_economy(world, region_input, agent_bridge, snapshot, acc)
     for fn in _hooks(world, "reserve_first"):
         fn(world, agent_bridge, snapshot)
     for fn in _hooks(world, "prepare_phase2"):
         region_input = fn(world, region_input, agent_bridge, snapshot, acc)
+    from chronicler.household_retail import finalize_phase2_input
+    finalize_phase2_input(world, region_input)
     return region_input
 
 

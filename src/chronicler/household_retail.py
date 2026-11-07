@@ -1145,6 +1145,27 @@ def crew_farm_time(world, p2: "_Phase2", economy_result) -> tuple[dict[int, floa
                     removed[m.agent_id] = removed.get(m.agent_id, 0.0) + float(m.farm_time)
                     if rec.kind == "granary":
                         granary[rec.region] = granary.get(rec.region, 0.0) + float(m.farm_time)
+    # Care and guards remove farm time during preparation, even when a
+    # later wage quote fails. Their complete current plans are authoritative;
+    # snapshot samples and payment rows are not a labor roster.
+    from chronicler.epidemic_care import farm_time as care_farm_time
+    from chronicler.public_health import farm_time as guard_farm_time
+    for planned in (care_farm_time(world, turn), guard_farm_time(world, turn)):
+        for aid, amount in planned.items():
+            if aid in u_of:
+                removed[aid] = removed.get(aid, 0.0) + float(amount)
+    # Named infrastructure workers use the shared granary-work column, but
+    # their title belongs to remaining farming only, just like PL3 crews.
+    infra = getattr(lv, "infrastructure_condition", None)
+    it = getattr(infra, "_turn", None) if infra is not None else None
+    if it is not None and it.turn == turn and it.named and it.finished:
+        for receipt in it.receipts:
+            if receipt.region not in p2.work:
+                continue
+            for member in receipt.members:
+                if member.agent_id in u_of and member.worked > 0:
+                    removed[member.agent_id] = removed.get(member.agent_id, 0.0) + float(member.worked)
+                    granary[receipt.region] = granary.get(receipt.region, 0.0) + float(member.worked)
     return removed, granary
 
 
@@ -1307,6 +1328,23 @@ def _split_title(state, t: _Turn, rid: int, titled: list[int], reg: RetailRegion
         else:
             pseudo[REFUSED] += credits[aid]
     return admitted, pseudo
+
+
+def finalize_phase2_input(world, region_input):
+    """Capture the final labor factor after every work consumer prepared it.
+
+    The retail planner precedes late care and guard consumers. Its opening
+    roster is stable, but the factor used to verify food title must be the
+    actual final economy input, never the earlier planner's intermediate one.
+    """
+    if not household_retail_active(world):
+        return
+    state = _state(world)
+    t = state._turn
+    if t is None or t.phase2 is None or t.phase2.turn != world.turn:
+        raise RetailAccountingError("retail final labor input requires this turn's prepared roster")
+    values = region_input.column("farm_labor_factor").to_pylist() if "farm_labor_factor" in region_input.schema.names else None
+    t.phase2.factor = {rid: float(values[rid]) if values is not None else 1.0 for rid in t.phase2.pilots}
 
 
 def finish_phase2(world, economy_result, agent_bridge, acc):
