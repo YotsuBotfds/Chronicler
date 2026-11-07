@@ -3,9 +3,9 @@
 Status: DRAFT (not frozen; the lead reviews the screen and freezes this page before any held run)
 
 Written 2026-11-07 by the B3 lane on branch `claude/cw-b3-infrastructure` (main bac45cb5 merged;
-B3 reviewed and approved at `10d73230`; the flow x condition integration at `c5593e81`; the screen
-declared at `80966420` and its region set fixed at `dda1be4b`, on which the timing pilot below ran,
-clean tree). Native extension `20e77f9945efa71d597c142e99069337586cc865ddee7a17c6d20948a2c0c1ca`
+B3 reviewed and approved at `10d73230`; the flow x condition integration at `c5593e81`, approved at
+`453d307c`; the screen declared at `80966420` and revised before any freeze at `PILOT_HEAD`, on which
+the timing pilot below ran, clean tree; the revisions are listed at the end). Native extension `20e77f9945efa71d597c142e99069337586cc865ddee7a17c6d20948a2c0c1ca`
 (`~/.venvs/native-a3`, built from main's Rust). No held seed (template 3501-3506, procedural
 3601-3606) has been run. Code may change before the held run only to fix a defect, recorded as an
 amendment below with a new pilot; no arm, outcome, region set or parameter changes in response to
@@ -56,8 +56,15 @@ treasury, coins destroyed by the public-works sink, food and population world-wi
   now be refused by the runner's identity check.
 - **Timing pilot:** the shared pilot, template 5 and procedural 19 (never evidence).
 - **Base flags (every arm):** `--turns 200 --agents hybrid --simulate-only --grain-reserves
-  --grain-storage --repair-projects` (RS2 is a prerequisite of the repair modes and the repairs
-  budget the works compete with); every other switch at its default.
+  --grain-storage --repair-projects --timber-stock --timber-supply`. RS2 is a prerequisite of the
+  repair modes and the repairs budget the works compete with. The timber stock (L3: a renewable,
+  harvest-limited stock) and the timber supply (PL1: paid woodcutting expeditions feeding a store)
+  give the works' materials a real supply, so the screen does not mostly measure timber starvation;
+  their prerequisites (`--timber-supply` needs hybrid, `--repair-projects` and `--timber-stock`;
+  `--timber-stock` an agent economy) are all in the base, so they alter no arm. One design
+  consequence: PL1 dispatches expeditions for RS2's projects' needs, not the works'; the works use
+  the store and the stockpile after RS2's holds. Timber stalls stay a secondary. Every other switch
+  at its default.
 - **Arms** (root B):
 
   | Arm | Flags (added to the base) | Control | Role |
@@ -65,37 +72,64 @@ treasury, coins destroyed by the public-works sink, food and population world-wi
   | B | `--local-budgets --maintenance-obligation` | — | the L9 + RS2 baseline without the switch |
   | R | B + `--infrastructure-condition --infrastructure-condition-mode record_only` | B | condition recorded, nothing changes (the measurement control; R - B is structurally 0) |
   | W | B + `--infrastructure-condition --infrastructure-condition-mode wear_only` | R | condition and service act, nothing repairs: every work refused (the underfunded counterfactual) |
-  | C | B + `--infrastructure-condition` (repair) | W | works funded through their own L9 proposal |
+  | C | B + `--infrastructure-condition` (repair) | W | works funded only through their own L9 proposal (irrigation works only: roads are not proposed and get no envelope) |
   | W_T | `--infrastructure-condition --infrastructure-condition-mode wear_only` | W | wear without L9 or the maintenance obligation |
-  | C_T | `--infrastructure-condition` (repair) | W_T | works funded from the treasury alone |
+  | C_T | `--infrastructure-condition` (repair) | W_T | works funded from the treasury alone (irrigation **and roads**) |
 
   The "works refused" counterfactual is `wear_only`: the switches allow it cleanly (the same wear,
   damage and consequences, no work opens), whereas refusing works inside the repair mode would need
   a new switch. W_T - W carries the removal of L9 (other services change too), so it is reported in
   the harm panel only, never as an effect of repair.
 
-## Primary outcomes (arm - control on each world)
+## Primary outcomes (arm - control on each world, after the pre-treatment snapshots)
+
+Every primary reads only the snapshots after 28 (the pre-treatment snapshots are identical in the
+two arms of a pair and would dilute it) and only worlds that pass the pre-treatment check in both
+arms of the pair (below).
 
 1. **`cw3b_service_l9`**: irrigation service maintained, C - W: the share of irrigation asset-turns
-   (every serving or failed irrigation asset in every snapshot's record) whose service
+   (every serving or failed irrigation asset in every snapshot's record after 28) whose service
    `min(1, condition / 0.5)` is at least 0.5 (the gate at which irrigation still sets the native
    flag). Read from `condition_service`, which every mode records the same way.
 2. **`cw3b_food_l9`**: food in the irrigated regions, C - W: the demand-weighted food shortfall share
    after relief (sum of demand x max(0, 1 - min(1, sufficiency after relief)) over sum of demand)
-   over every snapshot, in the regions holding an irrigation asset at snapshot 28. Snapshot 28 is
-   the last pre-treatment snapshot: BUILD takes two turns, so an asset completes at the earliest in
-   turn 2; it wears 0.01 a turn, so its first wear work opens in Phase 10 of turn 27 and spends
-   from turn 28, and no service is lost before 50 turns of wear; snapshot 28 records world turn 27.
-   A war-damage work opened before then is counted (`early_war_works`; 0 in the pilot).
+   over the snapshots after 28, in the regions holding an irrigation asset at snapshot 28.
 3. **`cw3b_service_treasury`**: irrigation service maintained, C_T - W_T (the same measure as 1, the
    pair without L9).
 
+**Snapshot 28** is the last pre-treatment snapshot: BUILD takes two turns, so an asset completes at
+the earliest in turn 2; it wears 0.01 a turn, so its first wear work opens in Phase 10 of turn 27
+and spends from turn 28, and no service is lost before 50 turns of wear; snapshot 28 records world
+turn 27.
+
+**Pre-treatment check (per world and arm, recorded):** at snapshot 28 no work has delivered work, no
+work (open or closed, read from every record up to it, since the closed list keeps only 16) opened
+by world turn 27, and every irrigation asset is at full service (`condition_service == 1`). The
+irrigated-region set is recorded per arm (sorted region ids and a hash), and the report shows, per
+world, each arm's check and whether C and W, and C_T and W_T, used the same set. **Rule:** a world
+that fails the check in either arm of a pair is excluded from that pair's primaries (the reading is
+missing, so the runner leaves the world out) and is reported, never imputed; it stays in the
+full-trajectory secondaries. Passing the check in both arms implies the same set (the arms are
+identical through snapshot 28); a different set with both checks passing would be a defect, fixed
+by amendment.
+
+**Activation (exposure, not success):** C and C_T are activated when a work opened on an irrigation
+asset, whether or not it was ever funded or delivered work (delivered work is a secondary), so the
+L9 primaries include worlds where the budget process never funds the works, which is the question.
+W and W_T are activated when an irrigation asset-turn fell below full service; R when assets were
+registered. A world with no irrigation asset is not activated for W, W_T, C and C_T (no extraction
+failure).
+
 ## Secondary outcomes (shown, not primary)
 
-Food in the irrigated regions C_T - W_T; what wear alone costs (W - R: service, food); food met;
-assets failed (C - W, C_T - W_T); the works' delivered work (C, C_T), L9 awards to the works'
-proposal (C), stall turns without an envelope and without timber (C), and the underfunded public
-works story count (C: works stalled 20 or more turns on an asset that failed).
+Food in the irrigated regions C_T - W_T after snapshot 28 (**C_T also repairs roads, which C does
+not**: the works' L9 proposal is irrigation-only, and roads without an envelope stall; so this
+secondary mixes road repair into irrigation's effect); the full-trajectory versions of the three
+primaries (every snapshot, every world); what wear alone costs (W - R: service, food); food met;
+assets failed (C - W, C_T - W_T); works opened on irrigation assets, the works' delivered work (C,
+C_T), L9 awards to the works' proposal (C), stall turns without an envelope and without timber (C,
+C_T), the underfunded public works story count (C: works stalled 20 or more turns on an asset that
+failed) and the timber the woodcutters delivered (C).
 
 ## Fixed harm panel (beside every comparison)
 
@@ -106,14 +140,13 @@ the integration page found the works' own proposal lowered RS2's and the works' 
 the pooled design, 53 -> 10 and 303 -> 191 work units on development worlds), **farm time removed**
 (the works' delivered work, C), **treasury** and **mean stability of living civs** at the end (C - W),
 **coins destroyed** by the public-works sink (C, C_T), **food shortfall world-wide** and **population**
-(C - W, C_T - W_T), and R - B world food shortfall (structurally 0: the record changes nothing).
+(C - W, C_T - W_T), the **timber stand** at the end (C - W), and R - B world food shortfall
+(structurally 0: the record changes nothing).
 
 ## Activation (reported first, per world)
 
-R: assets registered. W, W_T: an irrigation asset-turn below full service. C, C_T: the works
-delivered work. B is not judged. A world where an arm did not act is "not activated", never zero,
-and is left out of that arm's effect summaries (the runner's rule). The pilot activated every arm on
-both pilot worlds.
+As defined above (exposure for C and C_T). B is not judged. A world where an arm did not act is "not
+activated", never zero, and is left out of that arm's effect summaries (the runner's rule).
 
 ## Analysis plan
 
@@ -154,6 +187,26 @@ its stall causes, funding and the asset's failure. Worlds that show one:
   190 (`viewer/src/__fixtures__/infrastructure_records.json` keeps 12 of its snapshots).
 - **Pilot worlds (never evidence):** arm C on template 5 (7 works stalled 20+ turns on failed assets)
   and procedural 19 (23), reproducible with `run OUT --screen CW3b --cohort pilot --arms C`.
+
+## Pre-freeze revisions (before any freeze or held run; the lead's decisions on the delta review)
+
+1. **Pre-treatment guard.** The first extractor read early war works from the last record's works and
+   closed works only (closed keeps the last 16), so an early work closed before turn 200 was
+   invisible. It now scans every record, and a direct snapshot-28 check (no delivery, no work opened
+   by turn 27, every irrigation asset at full service) and the set's identity per arm are recorded;
+   a world failing the check in either arm of a pair leaves that pair's primaries (reason: the
+   primaries must compare pre-treatment-identical worlds).
+2. **Activation is exposure.** C and C_T were activated by delivered work, a post-treatment success
+   that would have dropped the worlds where L9 never funds the works from the L9 primaries; they are
+   now activated when a work opened on an irrigation asset, and delivery is a secondary.
+3. **No irrigation is not a failure.** A world without an irrigation asset reads None for the
+   irrigation measures and is not activated, instead of failing the run.
+4. **Primaries after snapshot 28.** The identical pre-treatment snapshots diluted the primaries; the
+   full-trajectory versions are kept as secondaries.
+5. **Roads in the treasury pair** are declared (C_T repairs roads, C does not).
+6. **Timber supply in the base** (`--timber-stock --timber-supply`), so materials come from real
+   supply rather than the screen measuring timber starvation (the development finding).
+7. **Re-pilot** at the revised head, with the ceiling recomputed (below).
 
 ## Amendments
 

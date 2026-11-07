@@ -828,6 +828,27 @@ def test_a_flood_onset_damages_the_works_once_with_its_event_as_cause(monkeypatc
     assert b3.counters["damages_flood"] == 2
 
 
+def test_a_flood_onset_after_a_same_turn_conquest_is_counted_and_recorded_as_skipped(monkeypatch):
+    from tests.test_watershed import _set_storage, _settle
+    from chronicler.watershed import before_ecology
+    world, up, down = _flow_condition_world(monkeypatch, condition=1.0)
+    state = world.livelihoods.watershed
+    _settle(world, down)
+    _set_storage(state, up, 10.0)
+    RP.region_conquered(world, world.regions[down], "x", "y")            # Phase 5: war damage first
+    b3 = _state(world)
+    assert [d.event for d in b3.damages] == ["conquest", "conquest"]
+    before_ecology(world, acc=None, native=True)                         # Phase 9: the flood's onset
+    assert down in state._plan.consequences
+    assert [d.event for d in b3.damages] == ["conquest", "conquest"]     # the one-damage rule is unchanged
+    skipped = b3.skipped_damages
+    assert [(s.event, s.ref, s.kept) for s in skipped] == [
+        ("flood", f"flood:{down}:{world.turn}", d.did) for d in b3.damages]
+    assert all(s.amount > 0 for s in skipped)
+    assert b3.counters["damages_skipped_same_turn"] == 2 and b3.counters["damages_skipped_flood"] == 2
+    assert IC.snapshot_summary(world)["skipped_damages"] == [s.model_dump() for s in skipped]
+
+
 def test_a_flood_withheld_by_a_disaster_cooldown_damages_nothing(monkeypatch):
     world, up, down = _flow_condition_world(monkeypatch, condition=1.0)
     world.regions[down].disaster_cooldowns["earthquake"] = 4
@@ -944,6 +965,7 @@ def test_the_cw3b_screen_is_declared_with_its_cohort_and_reads_the_record():
     assert screen.ready and screen.root == "B" and set(screen.arms) == {"B", "R", "W", "C", "W_T", "C_T"}
     assert screen.held == {"template": tuple(range(3501, 3507)), "procedural": tuple(range(3601, 3607))}
     assert [o.id for o in screen.outcomes if o.primary] == ["cw3b_service_l9", "cw3b_food_l9", "cw3b_service_treasury"]
+    assert "--timber-stock" in screen.base and "--timber-supply" in screen.base
     # The extractor on records of a constructed world (wear_only, 29 snapshots).
     world = _world(mode="wear_only", infrastructure=((0, IRR), (1, IRR)))
     history = []
@@ -956,9 +978,32 @@ def test_the_cw3b_screen_is_declared_with_its_cohort_and_reads_the_record():
     flags = list(screen.base) + list(screen.arms["W_T"][0])
     m, problems = cws.cw3b_extract(bundle, flags)
     assert m["irrigated_regions"] == 2 and 0 < m["irrigation_serving_share"] < 1
+    assert m["irrigation_serving_share_after"] is not None and m["irrigation_asset_turns_after"] < m["irrigation_asset_turns"]
     assert m["rs2_work_delivered"] is None and m["l9_awards_infrastructure_works"] is None   # not recorded, not zero
     assert cws.cw3b_extract(bundle, list(screen.base) + list(screen.arms["B"][0]))[0]["irrigated_regions"] is None
     assert problems == ["food in the irrigated regions could not be measured"]                # no food accounts here
+    # The pre-treatment check failed here (condition was lowered before snapshot 28): the gated
+    # primaries read nothing, so the pair excludes the world.
+    assert m["pre_ok"] is False and "below full service" in m["pre_reasons"] and m["irrigated_set"] == "0,1"
+    row = {"m": m}
+    assert next(o for o in screen.outcomes if o.id == "cw3b_service_treasury").read(row) is None
+    assert next(o for o in screen.outcomes if o.id == "cw3b_service_treasury_all").read(row) == m["irrigation_serving_share"]
     acted, text = cws.cw3b_activation(bundle, flags)
     assert acted is True and "below full service" in text
     assert cws.cw3b_activation(bundle, list(screen.base) + list(screen.arms["B"][0]))[0] is None
+    # C: activated by a work opened on irrigation (exposure), not by delivered work.
+    c_flags = list(screen.base) + list(screen.arms["C_T"][0])
+    for snap in history:
+        snap["livelihoods"]["infrastructure_condition"]["mode"] = "repair"
+    assert cws.cw3b_activation(bundle, c_flags) == (False, "0 works opened on irrigation assets; "
+                                                           f"{text.split()[0]} irrigation asset-turns below full service")
+    history[-1]["livelihoods"]["infrastructure_condition"]["works"] = [{"wid": 0, "kind": "irrigation"}]
+    assert cws.cw3b_activation(bundle, c_flags)[0] is True
+    # A world without irrigation: not activated, and no extraction problem.
+    for snap in history:
+        rec = snap["livelihoods"]["infrastructure_condition"]
+        rec["assets"] = [a for a in rec["assets"] if a["kind"] != "irrigation"]
+        rec["works"], rec["mode"] = [], "wear_only"
+    assert cws.cw3b_activation(bundle, flags) == (False, "no irrigation asset in the run")
+    m2, problems2 = cws.cw3b_extract(bundle, flags)
+    assert m2["irrigation_serving_share"] is None and problems2 == []

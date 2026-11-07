@@ -110,7 +110,8 @@ import math
 
 from chronicler.infrastructure_condition_state import (
     COUNTERS, KINDS, MAX_CLOSED, MAX_DAMAGES, MAX_HISTORY, MAX_TERMINAL, MODES, WORK_MODES,
-    InfraAsset, InfraDamage, InfrastructureConditionState, InfraWork, UnmetWork, WorkReceipt, WorksLedger,
+    InfraAsset, InfraDamage, InfrastructureConditionState, InfraWork, SkippedDamage, UnmetWork, WorkReceipt,
+    WorksLedger,
 )
 
 MILLI = 1000
@@ -454,8 +455,17 @@ def _damage(world, state, asset: InfraAsset, event: str, amount: float, key, sta
     turn = world.turn
     if amount <= 0 or asset.status != "serving":
         return
-    if any(d.turn == turn and d.aid == asset.aid for d in state.damages):
-        return                                        # one damage per asset per turn
+    first = next((d for d in state.damages if d.turn == turn and d.aid == asset.aid), None)
+    if first is not None:
+        # One damage per asset per turn (the RS2 rule, unchanged). A second event the
+        # same turn (a flood onset after a conquest, a sack after a conquest) is
+        # counted and recorded as skipped, never silently lost.
+        state.skipped_damages.append(SkippedDamage(turn=turn, aid=asset.aid, region=asset.region, event=event,
+                                                   war_key=key, ref=ref, amount=float(amount), kept=first.did))
+        del state.skipped_damages[:-MAX_DAMAGES]
+        _bump(state, "damages_skipped_same_turn")
+        _bump(state, f"damages_skipped_{event}")
+        return
     before = asset.condition
     _set_condition(state, asset, before - amount, turn)
     after = asset.condition
@@ -1273,6 +1283,8 @@ def snapshot_summary(world) -> dict:
         "works": [w.model_dump() for w in state.works],
         "closed": [w.model_dump() for w in state.closed],
         "damages": [d.model_dump() for d in state.damages],
+        # Only once a damage was skipped (records without it read the same as before).
+        **({"skipped_damages": [d.model_dump() for d in state.skipped_damages]} if state.skipped_damages else {}),
         "receipts": [r.model_dump() for r in state.receipts] if fresh and state.receipts is not None else None,
         "ledger": [r.model_dump() for r in state.ledger] if fresh and state.ledger is not None else None,
         "unmet": [u.model_dump() for u in state.unmet] if fresh else None,

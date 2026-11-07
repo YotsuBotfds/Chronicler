@@ -74,7 +74,8 @@ COUNTERS: frozenset[str] = frozenset({
     "responsibility_moved", "wear", "damages", "damage", "cap_waste",
     "progress_turns", "stalled_turns", "work_delivered", "work_credited", "timber_used",
     "charged", "coin_cost_milli", "prepaid_written_off_milli", "settled_turns", "inherited",
-    "shared_regions", "damages_dropped", "damages_dropped_unattached",
+    "shared_regions", "damages_dropped", "damages_dropped_unattached", "damages_skipped_same_turn",
+    *(f"damages_skipped_{e}" for e in DAMAGE_EVENTS),
     *(f"assets_opened_{k}" for k in KINDS),
     *(f"assets_failed_{k}" for k in KINDS),
     *(f"{k}_work" for k in KINDS),
@@ -145,6 +146,21 @@ class InfraDamage(BaseModel):
     condition_after: float
     #: The work it was attached to (None until a work takes it).
     work: int | None = None
+
+
+class SkippedDamage(BaseModel):
+    """A damage the one-damage-per-asset-per-turn rule skipped: the asset was
+    already damaged this turn (``kept``: that record's ``did``)."""
+
+    turn: int
+    aid: int
+    region: int
+    event: str
+    war_key: str | None = None
+    ref: str | None = None
+    #: The condition the skipped event would have taken.
+    amount: float
+    kept: int
 
 
 class InfraWork(BaseModel):
@@ -248,6 +264,8 @@ class InfrastructureConditionState(BaseModel):
     works: list[InfraWork] = Field(default_factory=list)
     closed: list[InfraWork] = Field(default_factory=list)
     damages: list[InfraDamage] = Field(default_factory=list)
+    #: Damages skipped by the one-per-asset-per-turn rule (the last ``MAX_DAMAGES``).
+    skipped_damages: list[SkippedDamage] = Field(default_factory=list)
     #: The turn the registry was last reconciled with the world's records.
     reconciled_turn: int | None = None
     #: The last turn wear was applied (once per turn).

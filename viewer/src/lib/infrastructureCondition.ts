@@ -151,6 +151,9 @@ export function readInfrastructure(snapshot: TurnSnapshot | null | undefined, re
       || !one(INFRA_DAMAGE_EVENTS, d.event) || !amount(d.amount) || !unit(d.condition_before) || !unit(d.condition_after)
       || Math.abs(d.condition_before - d.condition_after - d.amount) > 1e-9) return bad("malformed damage");
   }
+  if (x.skipped_damages !== undefined && (!Array.isArray(x.skipped_damages) || !x.skipped_damages.every((d) => object(d)
+    && count(d.turn) && count(d.aid) && count(d.region) && one(INFRA_DAMAGE_EVENTS, d.event) && amount(d.amount)
+    && count(d.kept)))) return bad("malformed skipped damage");
   const frame = [x.receipts, x.ledger, x.unmet, x.shared];
   if (frame.every((v) => v === null)) {
     return { status: "ok", frame: works ? "unsettled" : "no_works", record: x as unknown as InfraRecord };

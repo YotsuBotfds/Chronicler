@@ -113,13 +113,18 @@ export function InfrastructureCondition({ bundle, snapshot, currentTurn, onSelec
       </table></div> : null}
     </>}
     <h4>Damage</h4>
-    {record.damages.length === 0 ? <p className="systems-note">No war or flood damage is recorded (recorded: none).</p>
+    {record.damages.length === 0 && (record.skipped_damages ?? []).length === 0 ? <p className="systems-note">No war or flood damage is recorded (recorded: none).</p>
       : <div className="systems-table-wrap"><table className="systems-table" aria-label={`Infrastructure damage to snapshot ${at}`}>
         <thead><tr><th>Turn</th><th>Asset</th><th>Cause</th><th>Condition lost</th></tr></thead>
         <tbody>{[...record.damages].reverse().map((d) => <tr key={d.did}>
           <td>{d.turn}</td><td>{KIND[d.kind]} {d.aid} in {region(d.region)}</td>
           <td>{CAUSE[d.event] ?? words(d.event)}{d.event === "flood" && d.ref ? ` (event ${d.ref})` : d.war_key ? ` (${d.war_key})` : ""}</td>
           <td>{show(d.amount)} ({show(d.condition_before)} → {show(d.condition_after)})</td>
+        </tr>)}
+        {[...(record.skipped_damages ?? [])].reverse().map((d) => <tr key={`skipped-${d.turn}-${d.aid}-${d.event}`}>
+          <td>{d.turn}</td><td>Asset {d.aid} in {region(d.region)}</td>
+          <td>{CAUSE[d.event] ?? words(d.event)}{d.ref ? ` (event ${d.ref})` : ""}: skipped, already damaged this turn (damage {d.kept})</td>
+          <td>None ({show(d.amount)} not taken)</td>
         </tr>)}</tbody>
       </table></div>}
     <h4>Underfunded public works</h4>

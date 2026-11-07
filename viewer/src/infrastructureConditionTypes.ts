@@ -87,6 +87,18 @@ export interface InfraDamage {
   work: number | null;
 }
 
+/** A damage the one-damage-per-asset-per-turn rule skipped (``kept``: that turn's recorded damage). */
+export interface InfraSkippedDamage {
+  turn: number;
+  aid: number;
+  region: number;
+  event: string;
+  war_key: string | null;
+  ref: string | null;
+  amount: number;
+  kept: number;
+}
+
 export interface InfraReceipt {
   turn: number;
   wid: number;
@@ -147,6 +159,8 @@ export interface InfraRecord {
   works: InfraWork[];
   closed: InfraWork[];
   damages: InfraDamage[];
+  /** Absent in records written before the field existed. */
+  skipped_damages?: InfraSkippedDamage[];
   receipts: InfraReceipt[] | null;
   ledger: InfraLedger[] | null;
   unmet: InfraUnmet[] | null;
