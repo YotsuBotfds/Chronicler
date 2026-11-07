@@ -345,7 +345,7 @@ def _anchor(t: _Turn, region: int) -> tuple[str, list[str]]:
 
 
 def _close(state: ResidenceLedgerState, t: _Turn, aid: int, row: ResidenceRow, reason: str, region: int,
-           *, by: str | None = None) -> None:
+           *, by: str | None = None, relocation: bool = False) -> None:
     spell, row.spell = row.spell, None
     t.totals[reason] += 1
     _bump(state, f"closed_{reason}")
@@ -356,6 +356,8 @@ def _close(state: ResidenceLedgerState, t: _Turn, aid: int, row: ResidenceRow, r
     if by is not None:
         event["by"] = by
         t.totals["resettled_by_move"] += int(by == "move")
+    if relocation:
+        event["relocation"] = True       # not an applied migration (a trip that ended away, or unexplained)
     t.event(event)
 
 
@@ -381,12 +383,12 @@ def _move(state: ResidenceLedgerState, t: _Turn, aid: int, row: ResidenceRow, fr
             row.res = frm
     if row.spell is not None:
         if to == row.home:
-            _close(state, t, aid, row, "returned", to)
+            _close(state, t, aid, row, "returned", to, relocation=not counted)
         elif group in CAUSES:
             row.spell.moves += 1
         else:
             # A voluntary or unclassified move re-homes at once: the spell resettles there.
-            _close(state, t, aid, row, "resettled", to, by="move")
+            _close(state, t, aid, row, "resettled", to, by="move", relocation=not counted)
             row.home, row.home_since = to, turn
     elif group in CAUSES:
         anchor, kinds = _anchor(t, frm)

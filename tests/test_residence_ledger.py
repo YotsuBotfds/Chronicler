@@ -424,6 +424,7 @@ def test_a_trip_that_ends_away_from_home_is_an_unclassified_relocation():
     frame = step(world, sim)                                            # both stay where the trip stopped
     assert (_row(world, 1).home, _row(world, 1).res, _row(world, 1).spell) == (EDGE, EDGE, None)
     assert (_row(world, 2).home, _row(world, 2).res, _row(world, 2).spell) == (DUN, DUN, None)   # resettled
+    assert [(e["id"], e["kind"], e["by"], e["relocation"]) for e in _events(world)] == [(2, "resettled", "move", True)]
     assert frame["totals"]["trip_relocations"] == 2 and frame["totals"]["unexplained_relocations"] == 0
     assert frame["totals"]["moves"] == 0                                # not applied migrations
     sim.people[3]["region"] = CRAG                                      # no trip, no event
