@@ -33,7 +33,7 @@ export function ReformServices({ bundle, snapshot, currentTurn }: {
     const why = reliefRecordAt(snapshot, regions.length, civs.length).reason ?? "unreadable";
     return section(<p className="systems-note">The poor-relief services record at snapshot {at} was rejected as malformed: {why}. Nothing is shown from it.</p>);
   }
-  const r = reading.record;
+  const r = reading.record!;   // the three readings without a record returned above
   if (reading.state === "unobserved") {
     return section(<p className="systems-note">Simulation turn {r.source_turn} was not observed: relief payments and purchases that turn are unknown, not zero.</p>);
   }
