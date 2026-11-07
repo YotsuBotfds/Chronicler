@@ -143,7 +143,7 @@ function Settled({ record, statics, names, regionLink }: {
             <td>{regionLink(e.region)}</td><td>{status}</td><td>{e.start_turn}</td><td>{e.turns}</td><td>{show(e.peak_excess)}</td>
           </tr>)}</tbody>
       </table></div>}
-    {b2 && <p className="systems-note">A flood event starts when a region's arrivals cross its channel from below and stays open until they fall to {show(Number(statics.parameters.flood_recession ?? 0) * 100, 0)}% of it{flow ? "; it acts once, at its start, unless the region already holds a disaster cooldown" : ""}.</p>}
+    {b2 && <p className="systems-note">A flood event starts when a region's arrivals cross its channel from below and stays open until they return to the region's normal arrivals (its normal rain and melt plus the normal net outflow upstream){flow ? "; it acts once, at its start, unless the region already holds a disaster cooldown" : ""}.</p>}
     {record.cap_changes && record.cap_changes.length > 0
       && <div className="systems-table-wrap"><table className="systems-table" aria-label={`Terrain cap changes at snapshot ${turn}`}>
         <thead><tr><th>Region</th><th>Terrain</th><th>Water-index cap</th>{flow ? <th>Index removed (used = min(derived, cap))</th> : null}</tr></thead>

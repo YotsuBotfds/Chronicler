@@ -24,8 +24,9 @@ world-generation index and are left out of all but the drifts):
   cycles (cycle 2, turns 75-149, to cycle 5, turns 300-374: ``drift_long``;
   cycle 4 to cycle 5, turns 225-374: ``drift_late``), beside the observed
   index's own drift over the same cycles;
-* floods: flood events (onset above the channel, open until arrivals fall
-  to the recession threshold) per world and their lengths.
+* floods: flood events (onset above the channel, open until arrivals return
+  to the region's normal arrivals) per world, their lengths, and the
+  exceedances (crossings of the channel from below) they cover.
 
 ``score`` is the mean over worlds of each world's weighted absolute errors
 (stationarity, level by group, amplitude, drought share), so errors in two
@@ -208,11 +209,20 @@ def simulate(world: World, params) -> dict:
             s2row[r], wrow[r] = s2, w
         s = s2row
         storage[k], withdrawal[k], inflow[k] = s2row, wrow, inc
+    # Normal (net) arrivals, as account_step: own normal rain and melt plus upstream normal net outflow.
+    own = params.precipitation_base * (0.2 + world.moisture) + params.tundra_melt * (warming & world.tundra)
+    through = np.maximum(0.0, own - params.evaporation_base * tev * (1.0 + params.transpiration * world.cover)
+                         - demand)
+    normal = own.copy()
+    for r in world.order:
+        if world.down[r] >= 0:
+            normal[:, world.down[r]] += through[:, r]
+            through[:, world.down[r]] += through[:, r]
     fill = np.minimum(1.0, storage / cap + params.irrigation_wetting * withdrawal / cap)
     derived = floor + (world.cap - floor) * np.maximum(0.0, fill)
     excess = np.maximum(0.0, p + inflow - channel)
     return {"storage": storage, "capacity": cap, "derived": derived, "excess": excess,
-            "arrivals": p + inflow, "channel": channel, "precipitation": p}
+            "arrivals": p + inflow, "channel": channel, "precipitation": p, "normal": normal}
 
 
 def check(folder: Path, turns: int = 120) -> float:
@@ -235,6 +245,7 @@ def check(folder: Path, turns: int = 120) -> float:
             c = plan.columns
             for name, key in (("storage", "storage"), ("derived", "index_derived"), ("excess", "flood_excess")):
                 worst = max(worst, max(abs(sim[name][k][r] - c[key][r]) for r in range(n)))
+            worst = max(worst, max(abs(sim["normal"][k][r] - plan.normal_arrivals[r]) for r in range(n)))
             storage, last = list(c["storage"]), list(t["observed"])
     return worst
 
@@ -250,15 +261,15 @@ def _runs(flags) -> "object":
     return out
 
 
-def flood_events(arrivals, channel, recession: float):
-    """Flood events with hysteresis (as ``watershed.after_ecology``): a list of
-    (region, start, turns) and the count of region-turns inside an event."""
+def flood_events(arrivals, channel, normal, tolerance: float = 1e-9):
+    """Flood events (as ``watershed.after_ecology``): a list of (region, start,
+    turns); an event ends when arrivals return to the region's normal arrivals."""
     T, n = arrivals.shape
     events, open_at = [], {}
     for k in range(T):
         for r in range(n):
             if r in open_at:
-                if arrivals[k, r] > recession * channel[k, r]:
+                if arrivals[k, r] > normal[k, r] * (1.0 + tolerance):
                     open_at[r][2] += 1
                 else:
                     events.append(tuple(open_at.pop(r)))
@@ -306,7 +317,8 @@ def world_metrics(world: World, sim: dict, params, start: int = CYCLE) -> dict:
     out["drift_late"], out["drift_late_observed"] = drift(total, 3, 4), drift(obs_total, 3, 4)
     out["drift_early"], out["drift_early_observed"] = drift(total, 1, 2), drift(obs_total, 1, 2)
     out["storage_open_end"] = [round(float(sim["storage"][0].sum()), 2), round(float(total[-1]), 2)]
-    events = [e for e in flood_events(sim["arrivals"], sim["channel"], params.flood_recession) if e[1] >= 1]
+    events = [e for e in flood_events(sim["arrivals"], sim["channel"], sim["normal"], params.closure_tolerance)
+              if e[1] >= 1]
     lengths = sorted(e[2] for e in events)
     out["flood_events"] = len(events)
     out["flood_regions"] = len({e[0] for e in events})
@@ -314,6 +326,9 @@ def world_metrics(world: World, sim: dict, params, start: int = CYCLE) -> dict:
     out["flood_event_turns_median"] = lengths[len(lengths) // 2] if lengths else 0
     excess = sim["excess"][1:] > 0
     out["flood_region_turns"] = int(excess.sum())
+    above = sim["arrivals"] > sim["channel"]
+    # Exceedances: turns crossing the channel from below (never the opening turn).
+    out["exceedances"] = int((above[1:] & ~above[:-1]).sum())
     runs = _runs(excess)
     out["flood_run_max"] = int(runs.max()) if runs.size else 0
     out["coastal_floods"], out["river_floods_old"] = world.coastal_floods, world.river_floods

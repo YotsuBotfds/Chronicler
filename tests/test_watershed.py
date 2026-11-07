@@ -1234,3 +1234,32 @@ def test_the_opening_turn_starts_no_flood_event_and_an_onset_needs_a_turn_below_
     _phase9(world)                                                 # crosses from below: an event starts
     assert any(f.region == down for f in state.frame.floods)
     assert state.counters["flood_region_turns"] >= 3 and state.counters["floods_started"] >= 1
+
+
+def test_a_flood_event_ends_when_arrivals_return_to_the_regions_normal_arrivals(monkeypatch):
+    """Normal arrivals: the region's own normal rain and melt plus the normal net outflow of
+    everything upstream (normal rain and melt less potential evaporation at phase factor 1
+    and irrigation demand); never above the channel (the basin's gross normal inflow)."""
+    world = _flow_world(monkeypatch)
+    state = _state(world)
+    before_ecology(world, acc=None, native=True)
+    plan = state._plan
+    p = ws.PARAMETERS
+    inputs = ws.region_inputs(world, state)[3]
+    key = plan.phase
+    own = [p.precipitation_base * (0.2 + i.moisture) + (p.tundra_melt if key == "warming" and i.terrain == "tundra" else 0.0)
+           for i in inputs]
+    net = [max(0.0, own[r] - p.evaporation_base * p.terrain_evaporation.get(i.terrain, 1.0) * (1 + p.transpiration * i.cover)
+               - (p.irrigation_demand if i.irrigated else 0.0)) for r, i in enumerate(inputs)]
+    up = ws.upstream_regions(state)
+    for r in range(len(inputs)):
+        assert plan.normal_arrivals[r] == pytest.approx(own[r] + math.fsum(net[u] for u in up[r]), rel=1e-12)
+        assert plan.normal_arrivals[r] <= plan.channel[r] * (1 + 1e-12)
+    after_ecology(world, acc=None)
+    world.turn += 1
+    up_r, down = _isolated_edge(state)
+    _settle(world, down)
+    _flow_turn(world, overflow=[up_r])
+    assert any(e.region == down for e in state.flood_events)
+    _flow_turn(world, quiet=[up_r])                                   # arrivals back at or below normal: it ends
+    assert any(e.region == down for e in state.frame.floods_ended)

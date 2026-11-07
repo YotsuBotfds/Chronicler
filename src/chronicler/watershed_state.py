@@ -152,8 +152,8 @@ class FloodRecord(BaseModel):
 
 class FloodEvent(BaseModel):
     """A flood event: it starts when arrivals cross the channel capacity from
-    below and stays open while they exceed the recession threshold
-    (``flood_recession`` x channel, hysteresis); ``turns`` counts its settled
+    below and stays open until they return to the region's normal (net)
+    arrivals, the flow it normally receives; ``turns`` counts its settled
     turns, ``peak_excess`` its largest excess above the channel."""
     model_config = ConfigDict(extra="forbid")
 

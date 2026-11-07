@@ -59,8 +59,9 @@ continuous at enable and the world-generation river bonus is inside it.
 Conditions. A flood event starts on a settled turn whose arrivals ``P + I``
 (channel flow; an external inflow is not counted) exceed the region's
 channel capacity after a settled turn at or below it (never on the opening
-turn), while no event is open there, and stays open while
-arrivals exceed ``flood_recession`` x channel (hysteresis). The channel is
+turn), while no event is open there, and stays open until arrivals return to
+the region's normal (net) arrivals: its normal precipitation and melt plus the
+normal net outflow of everything upstream. The channel is
 ``channel_ratio`` x the normal inflow of the region's drainage basin (normal
 precipitation plus the seasonal melt of its terrain in this phase), so only
 anomalous rain or melt crosses it (B1: a fixed ``CHANNEL_CAPACITY``, x
@@ -174,9 +175,6 @@ class Parameters:
     flood_silt: float = 0.15
     #: ... and the excess (wu) from which it lasts two turns instead of one.
     flood_long_excess: float = 0.1
-    #: A flood event, once started (arrivals above the channel), stays open
-    #: while arrivals exceed this share of the channel (hysteresis).
-    flood_recession: float = 0.75
 
     def as_dict(self) -> dict:
         return {f.name: (dict(v) if isinstance(v := getattr(self, f.name), dict) else v) for f in fields(self)}
@@ -246,6 +244,8 @@ class _Plan:
         #: The pre-tick terrain and water-index cap of each region (inputs).
         self.terrain: list[str] = []
         self.caps: list[float] = []
+        #: Each region's normal (net) arrivals: a flood event ends when arrivals return to it.
+        self.normal_arrivals: list[float] = []
 
 
 # --- State and switch -----------------------------------------------------------------
@@ -576,6 +576,22 @@ def account_step(graph: WatershedGraph, storage: list[float], last_index: list[f
         for r in graph.order:
             if graph.down[r] >= 0:
                 basin[graph.down[r]] += basin[r]
+    # Each region's normal arrivals: the net flow it normally receives, its own normal
+    # precipitation and seasonal melt plus the normal net outflow of every region upstream
+    # (their normal precipitation and melt less potential evaporation at phase factor 1 and
+    # the irrigation demand), from the same declared quantities. A flood event ends when
+    # arrivals return to it (no constant of its own).
+    own = [params.precipitation_base * (0.2 + inp.moisture)
+           + (params.tundra_melt if key == "warming" and inp.terrain == "tundra" else 0.0) for inp in inputs]
+    through = [max(0.0, own[r] - params.evaporation_base * params.terrain_evaporation.get(inp.terrain, 1.0)
+                   * (1.0 + params.transpiration * inp.cover) - (params.irrigation_demand if inp.irrigated else 0.0))
+               for r, inp in enumerate(inputs)]
+    normal_arrivals = list(own)
+    for r in graph.order:
+        d = graph.down[r]
+        if d >= 0:
+            normal_arrivals[d] += through[r]
+            through[d] += through[r]
     for r in graph.order:
         inp = inputs[r]
         cover = inp.cover
@@ -639,6 +655,7 @@ def account_step(graph: WatershedGraph, storage: list[float], last_index: list[f
     plan = _Plan(turn, key, cols, routed, contributions, normal, covers, unmet, channels, residual, external, stale)
     plan.terrain = [inp.terrain for inp in inputs]
     plan.caps = [float(inp.cap) for inp in inputs]
+    plan.normal_arrivals = normal_arrivals
     return plan
 
 
@@ -836,8 +853,8 @@ def after_ecology(world, acc) -> list:
         return math.fsum(plan.cover[u] for u in up[r]) / len(up[r]) if up[r] else None
 
     # Flood events: an onset crosses the channel from below (no event open);
-    # an open event lasts while arrivals exceed the recession threshold.
-    recession = PARAMETERS.flood_recession
+    # an open event lasts while arrivals exceed the region's normal arrivals.
+    tolerance = PARAMETERS.closure_tolerance
     open_events = {event.region: event for event in state.flood_events}
     onsets = set(_onsets(state, plan))
     floods: list[FloodRecord] = []
@@ -848,7 +865,7 @@ def after_ecology(world, acc) -> list:
         excess = cols["flood_excess"][r]
         event = open_events.get(r)
         if event is not None:
-            if arrivals > recession * plan.channel[r]:
+            if arrivals > plan.normal_arrivals[r] * (1.0 + tolerance):
                 flood_events.append(event.model_copy(update={
                     "turns": event.turns + 1, "peak_excess": max(event.peak_excess, excess)}))
             else:
