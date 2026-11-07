@@ -546,6 +546,30 @@ purpose (plus one assertion inside its test module).
 
 ### A3-2 (owned output), with A4-1 in one native build
 
+**Review round (2026-11-07).** Code commit `3b82ca18`, merge `0f384a9b`
+(`main` `bac45cb5`), extension SHA-256
+`5ca9f24e865bb7b0feeba314099c5e4f045431b14d27d327b105fe4f00de28f4` (full record
+in [titled-trade.md](titled-trade.md), "Review round"). A3-1 reproducibility
+against `main` `bac45cb5` (extension `20e77f99`): the rules option absent and
+`--workshop-economics-rules=1` each 205 files, 0 differences. Offline,
+`tests/test_workshop_economics.py` 37: a capability-less extension is refused
+at startup, on resume and when the column is built; the per-turn
+reconciliation raises on a missing or unequal `workshop_owned_outflow` or an
+output not titled whole; the column skips a firm whose site closed; a rules-2
+liquidation records the transfer to the owner. Native: the A3-2 test asserts
+the reconciliation ran on every turn with owned regions; 15 workshop native
+tests passed (134 native in all). Development rerun on this source (same 13
+worlds, 200 turns, rules 2): 104 firms, 11 open at 199, 85 closed idle, 8
+other; 2,606 operating firm-turns; 1,762.24 loads produced and titled (free
+use 0); households bought 1,276.75 loads for 353.87; academies 1,086;
+inputs 1,365.00; no ledger closure failed. Against the first pass (103 firms,
+1,755.50 loads), the difference comes from the closed-site fix (the only
+review change that alters rules-2 outcomes): a firm whose site
+closed no longer keeps its region's output out of the commons (t23 109.33
+loads against 112.8, p21 11 firms against 10).
+
+First pass:
+
 Branch `claude/cw-a4-titled-trade` from `main` `8401aa74`, code commit
 `9c6c66ee`, extension SHA-256 `2ba123ab259b98cb2b2e66edef4852015c40cbc73172a3b6d2d265d9c2aa950b`
 (the full record is in [titled-trade.md](titled-trade.md), "Verification").

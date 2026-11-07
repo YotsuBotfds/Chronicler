@@ -314,6 +314,69 @@ The household-retail reader accepts the three new flow kinds in its closure.
 
 ## Verification
 
+### Review round (2026-11-07)
+
+After the independent review (changes requested, no blocker: M1 commons
+deposits in Phase 2, M2 the A3-2 capability guard and reconciliation, M3 the
+lead's released-carrier rule, minors m1-m7 and the nits), on the branch after
+merging `main` `bac45cb5` (PR #90; `66e1ec40`, PR #89, before it). Code commit
+`3b82ca18`, merge `0f384a9b`. Native extension rebuilt once with every Rust
+change (`CARGO_INCREMENTAL=0 maturin develop --release --locked`, native venv
+`~/.venvs/native-a4`): SHA-256
+`5ca9f24e865bb7b0feeba314099c5e4f045431b14d27d327b105fe4f00de28f4`;
+`check_python_env.py --expect native` PASS; `economy_capabilities()` is
+`[workshop_owned_crafts]`. `main` has no Rust change since `8401aa74`, so its
+side uses extension `20e77f99`.
+
+- **Witness**: `cwa4` regenerated against `main` `bac45cb5` as the last layer
+  (`LAYERS` ends `"cwd2", "cwb2", "cwa4"`), now six pinned paths:
+  `batch_manifest.py` 2 hunks, `tests/test_batch_manifest.py` 1, `economy.rs`
+  7, `ffi/mod.rs` 7 (adds `economy_capabilities`), `merchant.rs` 2 and
+  `src/chronicler/economy.py` 1 (keeps `workshop_owned_outflow`); every hunk
+  read. The witness modules: 40 passed (53 subtests).
+- **Feature-off identity** (`turn_speed_identity.py`, each side its own
+  exported tree and extension; head = `0f384a9b`): against the reference
+  `8abc1acb`, 9 cases, 399 files, 0 differences. Against `main` `bac45cb5`
+  with retail everywhere on `hybrid_s42` and `proc48_hybrid_s42`: titled trade
+  absent and the explicit `--no-titled-trade` each 205 files, 0 differences.
+- **A3-1 reproducibility** against `main` `bac45cb5` (the A3 flags above, the
+  same two cases): the rules option absent and `--workshop-economics-rules=1`
+  each 205 files, 0 differences.
+- **`cargo test --locked --no-fail-fast`** once, without debug info
+  (`CARGO_PROFILE_DEV_DEBUG=0 CARGO_PROFILE_TEST_DEBUG=0`,
+  `CARGO_INCREMENTAL=0`): 1,324 tests in 40 targets (762 library tests)
+  passed, including `transfer` refusing purposes 8, 9 and 10; the target
+  (939 MB) was deleted at once.
+- **Offline**: `tests/test_titled_trade.py` 32 (adds a pool reset and a death
+  inside Phase 2 that reach the batch, a migrated carrier and an occupation
+  change in the tick that return the shipment, title kept, and a later carrier
+  buying a surplus the first could not), `tests/test_money.py` 34 (adds an
+  old-pickle book), `tests/test_workshop_economics.py` 37 (adds the A3-2
+  stale-extension refusal at startup, resume and run time, the per-turn
+  reconciliation, the closed-site column and the liquidation record). The
+  feature-catalog and feature-matrix sentinels stand in for a current
+  extension (A3-2's capability is the build's, not a catalog requirement).
+- **Bounded offline lane** (110-second limit kept): PASS in 281.9 s, 70
+  chunks, slowest `systems-2` 30.2 s; `connected-world-a` 6.1 s (131 tests).
+- **Native** (real extension, 22 modules: titled trade, workshop economics,
+  payroll, workshops, wealth accounting, the three retail modules,
+  recovery skills, apprenticeship (both), attribution records, closure,
+  quarantine (both), recovery crews, relocation, remittances, repair, timber
+  stock and supply, watershed): 134 passed. `test_titled_trade_native.py`
+  adds the M1 check on the real extension (a forced pool reset and a holder's
+  death at `reserve_first` after the batch was built: the batch the economy
+  receives equals the world's commons including the cargo, and differs from
+  the batch as built) and the refused one-sided transfer; exact resume equals
+  the straight run with a shipment in transit at turns 52 (moving), 55 (its
+  carrier changes occupation: `released_returned`) and 59 (its holder dies).
+  The A3-2 native test asserts that `reconcile_owned` ran on every turn with
+  owned regions against `workshop_owned_outflow`.
+- **Viewer**: the full suite (`--maxWorkers=2`): 163 files, 1,614 passed, 2
+  skipped; lint clean; `tsc -b` and the production build succeeded.
+- **Development activation** (below): rerun on this source.
+
+### First pass
+
 On branch `claude/cw-a4-titled-trade` from `main` `8401aa74`, source `9c6c66ee`
 (the code commit; later commits on the branch change tests and documents
 only), native extension built once from this branch (`maturin develop
@@ -400,6 +463,61 @@ ends `trade`.
 
 ## Evidence (development worlds only; not a screen)
 
+### After the review (released carriers return)
+
+Development-only, 2026-11-07: merge `0f384a9b` (review fixes, `main`
+`bac45cb5`), extension `5ca9f24e…`; the same 13 worlds, flags and 200 turns as
+the first-pass table below, `CHRONICLER_CHECK_RESOURCES=1` (no resource
+problem raised). Template runs took 8-10 s, procedural 23-31 s.
+
+| World | Shipments | Delivered / returned / escheated / live at 199 | Routes (cross-civ shipments) | Food bought from owners (paid) | Delivered | Sold to buyers (credited) | Merchants' net money | Income withheld (carrier-turns) | Released and returned | Ledger closures failed |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| t1 | 114 | 75 / 1 / 7 / 2 | 13 (83) | 148.86 (81.55) | 93.72 | 80.72 (121.22) | 39.67 | 1.272 (192) | 29 | 0 |
+| t3 | 123 | 104 / 0 / 1 / 0 | 12 (103) | 138.57 (72.93) | 115.89 | 88.63 (105.49) | 32.56 | 6.821 (183) | 18 | 0 |
+| t7 | 172 | 121 / 3 / 3 / 3 | 23 (122) | 179.77 (93.04) | 127.37 | 109.72 (139.56) | 46.52 | 9.252 (252) | 42 | 0 |
+| t9 | 336 | 260 / 0 / 14 / 4 | 26 (78) | 425.46 (218.98) | 308.82 | 264.21 (278.60) | 59.62 | 31.118 (538) | 58 | 0 |
+| t11 | 151 | 114 / 0 / 2 / 0 | 15 (94) | 188.97 (96.59) | 143.68 | 130.02 (162.40) | 65.81 | 7.862 (242) | 35 | 0 |
+| t23 | 107 | 85 / 0 / 8 / 1 | 14 (106) | 158.06 (84.11) | 119.55 | 106.75 (161.61) | 77.50 | 4.211 (155) | 13 | 0 |
+| t42 | 135 | 110 / 6 / 2 / 0 | 11 (35) | 191.13 (98.02) | 155.41 | 136.80 (165.99) | 67.98 | 0.765 (168) | 17 | 0 |
+| p7 | 711 | 491 / 2 / 31 / 12 | 177 (622) | 856.42 (450.17) | 580.25 | 476.76 (673.55) | 223.39 | 68.247 (1,418) | 175 | 0 |
+| p11 | 660 | 471 / 1 / 25 / 12 | 131 (552) | 834.95 (428.22) | 555.00 | 464.37 (564.43) | 136.21 | 37.061 (1,113) | 151 | 0 |
+| p13 | 1,137 | 736 / 2 / 45 / 28 | 237 (1,026) | 1,662.83 (858.38) | 1,073.74 | 889.04 (1,172.59) | 314.21 | 100.328 (2,127) | 326 | 0 |
+| p17 | 1,016 | 690 / 8 / 37 / 18 | 201 (881) | 1,401.79 (741.41) | 929.56 | 742.52 (916.37) | 174.95 | 57.799 (1,830) | 263 | 0 |
+| p21 | 796 | 540 / 15 / 26 / 17 | 129 (761) | 1,228.01 (635.70) | 812.28 | 688.36 (969.70) | 334.00 | 39.001 (1,493) | 198 | 0 |
+| p31 | 783 | 533 / 15 / 28 / 11 | 161 (554) | 1,083.45 (559.75) | 713.84 | 596.22 (716.77) | 157.02 | 120.366 (1,437) | 196 | 0 |
+| all | 6,241 | 4,330 / 53 / 229 / 108 | 1,150 (5,017) | 8,498.27 (4,418.82) | 5,729.11 | 4,774.11 (6,148.26) | 1,729.43 | 484.103 (11,148) | 1,521 | 0 |
+
+Reading (development-only):
+
+- **The release rule now ends one shipment in four**: 1,521 of 6,241
+  shipments returned to their origin when their carrier left the trade in
+  transit (every release is now a return), against 711 releases that
+  continued unattended in the first pass. 2,013.5 food units went back to the
+  holders' claims at the origins (route returns included); 4,330 shipments
+  were delivered (5,243 in the first pass). Merchants bought more often
+  (6,241 shipments against 5,634: a carrier is free again as soon as its
+  shipment returns).
+- **Margins still exceed the withheld income, by less**: merchants were paid
+  6,148.3 by buyers for cargo bought for 4,418.8 (net +1,729.4; +3,254.5 in
+  the first pass), against 484.1 of model income withheld over 11,148
+  carrier-turns. A returned shipment earns no margin and its holder keeps the
+  food as an ordinary claim at the origin.
+- Returns other than releases: 51 `route_lost`, 2 `destination_conquered`;
+  229 shipments escheated; every A1 ledger closure, including the two new
+  measured closures, held on every observed turn.
+- Releases are endogenous (the withheld income lowers merchant income in the
+  native occupation choice, as declared); whether the release rate is
+  acceptable, or the occupation choice should see the margin, is a modelling
+  question for CW5, not tuned here.
+
+All-on development run after the review (template 7, titled trade with A3-2
+owned output and the A3 academy flags): 145 shipments (116 delivered, 23
+released and returned, 1 escheated, 5 live), 181.4 food bought for 97.1, net
+money +53.5 against 1.2 withheld; 5 firms, 97.3 loads of owned output (free
+use 0), 23.7 of household wares sales; every ledger closure held.
+
+### First pass (before the review)
+
 Development-only, 2026-11-07: source `9c6c66ee` (this branch), extension
 `2ba123ab…`; no preregistration, no held seed, no 7xx/8xx/3xxx seed. One run
 per world, 200 turns, `CHRONICLER_CHECK_RESOURCES=1` (no resource problem was
@@ -455,7 +573,7 @@ Reading (development-only):
   titled trade.
 - **Carriers left their trade in transit 711 times** (mostly occupation
   switches; the native occupation choice sees the withheld income), keeping
-  title; the shipments continued.
+  title; the shipments continued (the rule the review replaced: see above).
 - Every A1 ledger closure held on every observed turn; `cargo_purchase` in =
   out every turn.
 
