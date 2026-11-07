@@ -1,0 +1,62 @@
+{
+  "status": "PASS",
+  "validated_at_utc": "2026-11-07T23:51:10.931678+00:00",
+  "validation_checkout_commit": "a2fff68bdd4392e189eee13160f638b0e653abb0",
+  "documentation": "docs/superpowers/audits/connected-world/rework-cwr1-independent/held-review-2026-11-07.md",
+  "recipe_sha256": "512e96ffc9bd7e531b568631cd74fce3910691e652057c07c9f7e747ab6a534a",
+  "recipe_executed_verbatim_from_document": true,
+  "fresh_stage": "/tmp/cwr1-held-readback.vuAwGD",
+  "stage_creation": "mktemp -d cwr1-held-readback.XXXXXX; no existing directory or output reused",
+  "helper_interpreter_command": "python3 -I",
+  "helper_returncode": 0,
+  "helper_stderr": "",
+  "summary": {
+    "status": "PASS",
+    "rendered_fixed_harm_rows_checked": 242,
+    "counted_core_hours": 0.9291111111111111,
+    "unrecorded_famine_cause_world_arms": 144,
+    "unrecorded_war_cause_world_arms": 144,
+    "unrecorded_forest_world_arms": 17,
+    "review_cpu_seconds": 0.098459
+  },
+  "copies": {
+    "metrics.jsonl": {
+      "staged_name": "metrics.jsonl",
+      "sha256": "6c56e3ffa725848c69aecf6f2edfcdf81adb18e5c5f038562e2c9d3c73ace9e0"
+    },
+    "report.md": {
+      "staged_name": "report.md",
+      "sha256": "e5d64f1658265a64ed100d158d650d29eed1f0247d77ea980599c3a145eaf2c3"
+    },
+    "closure-receipt.json": {
+      "staged_name": "receipt.json",
+      "sha256": "244ac65f49b01a718ff251a13fe93cddc493e9e9f22adb901fb1466e918383eb"
+    },
+    "start.json": {
+      "staged_name": "held-run.json",
+      "sha256": "03fbbe44629521a5a4ae2bb81686ffacddfb7398fc915a7464645081c3721c0d"
+    },
+    "resource-measurement.json": {
+      "staged_name": "resource-measurement.json",
+      "sha256": "5f54a3dfe62857c1d2494510bfc861d3db1e01b1793b21704b83b775682d6023"
+    }
+  },
+  "committed_input_sha256": {
+    "docs/superpowers/audits/connected-world/rework-cwr1-held/metrics.jsonl": "6c56e3ffa725848c69aecf6f2edfcdf81adb18e5c5f038562e2c9d3c73ace9e0",
+    "docs/superpowers/audits/connected-world/rework-cwr1-held/report.md": "e5d64f1658265a64ed100d158d650d29eed1f0247d77ea980599c3a145eaf2c3",
+    "docs/superpowers/audits/connected-world/rework-cwr1-held/closure-receipt.json": "244ac65f49b01a718ff251a13fe93cddc493e9e9f22adb901fb1466e918383eb",
+    "docs/superpowers/audits/connected-world/rework-cwr1-held/start.json": "03fbbe44629521a5a4ae2bb81686ffacddfb7398fc915a7464645081c3721c0d",
+    "docs/superpowers/audits/connected-world/rework-cwr1-held/resource-measurement.json": "5f54a3dfe62857c1d2494510bfc861d3db1e01b1793b21704b83b775682d6023",
+    "docs/superpowers/audits/connected-world/rework-cwr1-held/independent-arithmetic.json": "58ad4c99fb3cee85f49460147a4b699349b8ee16acd8c0f9f1fd18d0e0104b00",
+    "docs/superpowers/audits/connected-world/rework-cwr1-independent/check-held-observations.py": "b99e52f11bda289fd8e85b83147d3b726985822d522a1ff8fde4518bb9c95fee",
+    "docs/superpowers/progress/connected-world-rework-prereg-draft.md": "51b8a336969f48b4beb6f5b3e543062eda71822b98513b337ceb2d010e6efe7a"
+  },
+  "new_readback_sha256": "40a58fbeff690bb5178eb08df191f8aaf0e3dedb342e36bd47ebb6d5e4951039",
+  "new_readback_bytes": 1183863,
+  "input_bytes_unchanged": true,
+  "native_or_simulation_import": false,
+  "producer_or_registry_writes": false,
+  "helper_or_runtime_source_changes": false,
+  "recipe_hash_normalization": "fenced shell text stripped of leading/trailing whitespace",
+  "recipe_execution_scope": "shell commands unchanged; fence markers and surrounding whitespace excluded"
+}
