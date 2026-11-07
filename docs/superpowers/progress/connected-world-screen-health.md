@@ -1,11 +1,19 @@
 # Connected World public-health bounded screen
 
-Status: DRAFT. No held world has been run. Freeze only after strict extractor
-tests, the integrated-source timing/activation pilot and independent review.
+Status: FROZEN. The 200-turn definition was frozen after six successful actual
+pilot runs, strict schema tests and independent source/evidence review. No held
+world had been run at this freeze.
 
 Compute ceiling: 0.75 core-hours
 
 Primary outcomes: health_world_death_rate, health_world_dpi, health_world_arrivals
+
+Freeze receipt: [actual pilot and review](connected-world-screen-health/README.md).
+Pilot source `2dd4af5d544583e22e8416a60bb5131d1bd80674` incorporates the lead's
+immutable runtime `43f02cca`; the reviewed native artifact is `59f536b8f4a6c2bc82c51eeaec55f3aff6b0a1c5c8f1a324049ad15b42c51617`.
+The six actual 200-turn runs took 147.6 simulation-plus-extraction seconds.
+The 36-run held projection is 0.246 core-hours, or 0.369 with the fixed 1.5
+margin, below the unchanged 0.75 ceiling. Execution remains one job at a time.
 
 This screen covers C1.2 named border guards, C2 patient supplies and maintained
 water service, C2 displacement exposure through guarded T-1 X1 reads, and C4
@@ -17,8 +25,8 @@ The standalone definition and strict extractor are
 are six template worlds (3901–3906) and six 32-region, 10-civilization procedural
 worlds (4001–4006), reserved by the lead after reconciling all recovered lane
 registries. The shared timing pilots are template 5 and procedural 19. No pilot
-or held execution is authorized by this draft alone: the lead schedules the
-integrated native runtime and the run concurrency (one or two jobs).
+or held execution uses a reclaimed or assumed native artifact: the lead
+schedules the verified integrated runtime and run concurrency.
 The screen defaults to one job and refuses more than two or duplicate job
 arguments; this avoids inheriting the generic runner's three-job default.
 
@@ -93,14 +101,12 @@ the completed source turn. A null paid worker income deduction remains unknown
 (for example, no wealth-stage row after an earlier death); it is never claimed
 as an observed zero or a complete income total. Missing fields remain malformed.
 
-Run the 200-turn timing/activation pilot on the final integrated source and
-extension, then freeze this definition. A 100-turn length is permitted only if
-the pilot shows adequate activation and full material/guard/report lifecycle
-transitions by turn 100; that decision must be made, recorded and committed
-before held execution, not after seeing held outcomes. The frozen runtime
-projection, including the runner's 1.5 safety margin, must fit 0.75 core-hours.
-The current executable length is 200. If activation is sparse, retain the
-cohort/definitions and report the sparse activation; do not search held worlds.
+The run length remains 200 turns. The actual pilot demonstrated material,
+guard, report, maintained-water and displacement observations without any
+shortening or seed search. The frozen runtime projection includes the runner's
+1.5 safety margin and fits 0.75 core-hours. If held activation is sparse, retain
+the cohort/definitions and report the sparse activation; do not search held
+worlds or change the run length after observing held outcomes.
 
 Reproducible commands (after the lead's integrated-build scheduling):
 
