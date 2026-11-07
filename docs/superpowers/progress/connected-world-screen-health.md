@@ -70,6 +70,7 @@ observations where those fields exist. Added health harms are actual patient
 grain consumed, cash and internal grain allocations shown separately, actual
 care and guard wages, each group's ordinary income withheld and farm time
 removed, gross single L9 care/public-health envelopes, famine region-turns,
+actual whole-coin health cash funding and both wage purposes' prepaid carry changes,
 refused civilian/flight/hunger migration, partner routes removed and partner
 income forgone. Missing required records fail extraction; optional systems
 outside this screen remain explicitly not recorded in the generic harm panel.
@@ -79,6 +80,8 @@ dates/refusals, neutral cost-only benefit factors, T-1 residence/service exposur
 finite factor bounds, real patient grain priced to its controller owner,
 separate local allocations and foreign cash, care + gross supplies + guard wages
 within each single L9 envelope, exact receipt sums against lifetime counters,
+whole-coin care/supply/guard cash within that same envelope and each wage
+purpose's `cash + carry_before = credited + carry_after` closure,
 named full paid guard work before next-turn capacity, and delivered/unexpired
 report IDs for each policy decision. The pilot must validate the actual schemas
 before any held seed is spent; synthetic tests alone are insufficient.
