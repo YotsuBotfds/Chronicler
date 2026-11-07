@@ -17,7 +17,8 @@ Preparation imports no simulation or native module and spends no held seed.
 ## Plan and execution contracts
 
 Planning requires a clean, exact source commit, intended source import path,
-exact imported native artifact SHA256, recorded pilot source identity and
+exact imported compiled native artifact SHA256 (never the package initializer),
+recorded pilot source identity and
 unchanged raw JSON/Arrow inputs. It validates all 120 completed turns, actual
 seed/geography and explicit per-turn A6/health modes, then invokes the real
 strict `cw_rework_screen.extract(..., expected_turns=120)` for AD. Old CW6
@@ -43,7 +44,7 @@ native/BLAS/OpenMP thread. It creates fresh same-source checkpoints, compares
 plain versus checkpoint-writing runs, and resumes each selected checkpoint.
 The adapter never unpickles an old-source checkpoint. Before and after every
 subprocess it rechecks exact source/native/interpreter, tracked input hashes
-and pilot input bytes. A fixed elapsed budget bounds subsequent subprocess
+and pilot input bytes. A finite positive fixed elapsed budget bounds subsequent subprocess
 starts and times out an overrun; it does not alter the offline chunk limit.
 New output paths and at least 3 GiB available disk are required.
 
@@ -87,3 +88,9 @@ categories remain limitations rather than a reason to alter the world or use
 held worlds. Final compact reports and independent readback must be added after
 actual execution; the preparation checks do not establish model or native
 checkpoint correctness, scientific qualification or final CI.
+
+Lead review found the initial package-initializer hash mistake and missing
+NaN/infinity budget refusal before any execution. Both are corrected; the
+retained preparation checks exercise those exact refusals and a positive
+compiled-artifact hash fixture. Constructed bytes are never imported as native
+code. Earlier preparation remains in Git history; no simulation result changed.

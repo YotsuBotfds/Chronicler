@@ -10,6 +10,7 @@ import argparse
 from collections import defaultdict
 import hashlib
 import importlib
+from importlib.machinery import EXTENSION_SUFFIXES
 import json
 import math
 import os
@@ -17,6 +18,7 @@ from pathlib import Path
 import shutil
 import subprocess
 import sys
+import tempfile
 import time
 
 HORIZON = 120
@@ -159,12 +161,24 @@ def load_runtime(root):
     os.chdir(root)
     os.environ["PYTHONPATH"] = str(root / "src")
     sys.path[:0] = [str(root / "src"), str(root / "scripts")]
-    modules = [importlib.import_module(name) for name in ("cw_rework_screen", "checkpoint_identity", "cities_identity", "chronicler", "chronicler_agents")]
+    modules = [importlib.import_module(name) for name in ("cw_rework_screen", "checkpoint_identity", "cities_identity", "chronicler", "chronicler_agents.chronicler_agents")]
     screen, checkpoint, comparator, chronicler, native = modules
     for module in modules[:-1]:
         if not Path(module.__file__).resolve().is_relative_to(root):
             raise ValueError(f"imported wrong source: {module.__name__}: {module.__file__}")
     return screen, checkpoint, comparator, native
+
+
+def native_artifact(native):
+    path = Path(native.__file__).resolve()
+    if not any(str(path).endswith(suffix) for suffix in EXTENSION_SUFFIXES):
+        raise ValueError("native identity must name the compiled extension, not its Python package initializer")
+    return path
+
+
+def validate_budget(seconds):
+    if isinstance(seconds, bool) or not isinstance(seconds, (int, float)) or not math.isfinite(seconds) or seconds <= 0:
+        raise ValueError("a finite positive predeclared wall budget is required")
 
 
 def freeze_identity(root, expected_source, expected_native, screen, native):
@@ -173,7 +187,7 @@ def freeze_identity(root, expected_source, expected_native, screen, native):
         raise ValueError("runtime source commit differs from freeze")
     if git(root, "status", "--porcelain", "--untracked-files=no"):
         raise ValueError("runtime tracked worktree is dirty")
-    native_path = Path(native.__file__).resolve()
+    native_path = native_artifact(native)
     if sha(native_path) != expected_native:
         raise ValueError("runtime native artifact differs from freeze")
     names = git(root, "ls-files", "src/chronicler", "scripts", "chronicler-agents/src", "chronicler-agents/Cargo.toml", "chronicler-agents/Cargo.lock", "chronicler-agents/build.rs", "pyproject.toml", "uv.lock").splitlines()
@@ -234,8 +248,7 @@ def run_plan(args):
     plan = json.loads(Path(args.plan).read_text())
     if plan.get("schema_version") != 1 or plan.get("driver_sha256") != sha(__file__):
         raise ValueError("invalid plan or changed evidence adapter")
-    if args.max_wall_seconds <= 0:
-        raise ValueError("a positive predeclared wall budget is required")
+    validate_budget(args.max_wall_seconds)
     screen, checkpoint, comparator, native = load_runtime(args.source_root)
     expected = plan["source_freeze"]
     def guard():
@@ -365,29 +378,56 @@ def self_check():
     # Exercise source/native/dirty refusals without importing any model module.
     from types import SimpleNamespace
     actual_git = globals()["git"]
-    expected_source, expected_native = "a" * 40, sha(__file__)
+    expected_source = "a" * 40
     screen = SimpleNamespace(SCREEN=None, SR=SimpleNamespace(source_identity=lambda _: ["constructed guard fixture"]))
-    native = SimpleNamespace(__file__=__file__)
     guard_rejections = []
-    try:
-        for label in ("wrong_source", "dirty_source", "wrong_native"):
-            def fake_git(root, *args):
-                if args[:2] == ("rev-parse", "HEAD"):
-                    return "b" * 40 if label == "wrong_source" else expected_source
-                if args[0] == "status":
-                    return " M src/chronicler/fixture.py" if label == "dirty_source" else ""
-                return ""
-            globals()["git"] = fake_git
+    with tempfile.TemporaryDirectory(prefix="cwr-resume-guard-") as fixture_dir:
+        fixture = Path(fixture_dir)
+        compiled = fixture / ("constructed" + EXTENSION_SUFFIXES[0])
+        compiled.write_bytes(b"constructed hash fixture, never imported")
+        initializer = fixture / "__init__.py"
+        initializer.write_text("# constructed package initializer, never imported\n")
+        native = SimpleNamespace(__file__=str(compiled))
+        expected_native = sha(compiled)
+        try:
+            for label in ("wrong_source", "dirty_source", "wrong_native"):
+                def fake_git(root, *args):
+                    if args[:2] == ("rev-parse", "HEAD"):
+                        return "b" * 40 if label == "wrong_source" else expected_source
+                    if args[0] == "status":
+                        return " M src/chronicler/fixture.py" if label == "dirty_source" else ""
+                    return ""
+                globals()["git"] = fake_git
+                try:
+                    freeze_identity(fixture, expected_source,
+                                    "0" * 64 if label == "wrong_native" else expected_native, screen, native)
+                except ValueError:
+                    guard_rejections.append(label)
+                else:
+                    raise AssertionError("source guard negative accepted: " + label)
+            # Even its correct hash cannot bless __init__.py as native code.
             try:
-                freeze_identity(Path(__file__).parent, expected_source,
-                                "0" * 64 if label == "wrong_native" else expected_native, screen, native)
-            except ValueError:
-                guard_rejections.append(label)
+                freeze_identity(fixture, expected_source, sha(initializer), screen,
+                                SimpleNamespace(__file__=str(initializer)))
+            except ValueError as error:
+                assert "compiled extension" in str(error)
+                guard_rejections.append("package_initializer_instead_of_extension")
             else:
-                raise AssertionError("source guard negative accepted: " + label)
-    finally:
-        globals()["git"] = actual_git
-    return {"pass": True, "rejected_declarations": rejected, "rejected_source_guards": guard_rejections, "selection": chosen,
+                raise AssertionError("package initializer accepted as compiled extension")
+            assert native_artifact(native) == compiled
+            assert freeze_identity(fixture, expected_source, expected_native, screen, native)["native_sha256"] == expected_native
+        finally:
+            globals()["git"] = actual_git
+    budget_rejections = []
+    for label, value in (("nan", float("nan")), ("infinity", float("inf")), ("zero", 0), ("negative", -1), ("boolean", True)):
+        try:
+            validate_budget(value)
+        except ValueError:
+            budget_rejections.append(label)
+        else:
+            raise AssertionError("invalid budget accepted: " + label)
+    validate_budget(120)
+    return {"pass": True, "rejected_declarations": rejected, "rejected_source_guards": guard_rejections, "rejected_budgets": budget_rejections, "selection": chosen,
             "runtime_imported": any(name in sys.modules for name in ("chronicler", "chronicler_agents", "cw_rework_screen")),
             "simulation": False, "scope": "adapter declaration/selection negatives only; not full CWR1 scientific extractor or native resume evidence"}
 

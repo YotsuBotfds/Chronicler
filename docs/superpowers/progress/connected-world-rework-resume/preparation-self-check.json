@@ -12,7 +12,15 @@
   "rejected_source_guards": [
     "wrong_source",
     "dirty_source",
-    "wrong_native"
+    "wrong_native",
+    "package_initializer_instead_of_extension"
+  ],
+  "rejected_budgets": [
+    "nan",
+    "infinity",
+    "zero",
+    "negative",
+    "boolean"
   ],
   "selection": {
     "selection_rule": "first real D3 before/after boundaries, then maximum uncovered observed-state coverage; ties earliest; cap12",
