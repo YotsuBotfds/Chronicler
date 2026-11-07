@@ -14,6 +14,7 @@ export function PublicHealth({ bundle, snapshot, currentTurn }: {
     {reading.note && <p role={reading.state === "malformed" ? "alert" : undefined}>{reading.note}</p>}
     {record && <>
       <p>{record.mode === "active" ? "Care and maintained water service" : "Cost control: supplies and wages, no protective effect"} · {record.policy} reports.</p>
+      <p className="systems-note">Observation from simulation turn {record.source_turn}. Additional report delay: {record.report_delay} turns. Advice uses delivered, unexpired reports.</p>
       <p className="systems-note">Regional epidemic observations remain separate from individual injury care. Local public grain is an internal allocation; foreign supplies pay their controller. Decisions use delayed reports and prior observed fatality. Imported-food cost by origin is unavailable; the policy uses a recorded goods-contact proxy.</p>
       <h4>Funding</h4>
       {record.funding_turn === null ? <p>Cash funding not recorded in this observation.</p> : record.funding.length === 0 ? <p>No care or public-health envelope executed.</p> : <ul>{record.funding.map(f => <li key={f.civ}>{civs[f.civ]}: {((f.care_cash_milli + f.supply_cash_milli + f.guard_cash_milli) / 1000).toFixed(3)} cash charged within {(f.envelope_milli / 1000).toFixed(3)} envelope; care carry {(f.care_carry_before / 1000).toFixed(3)} → {(f.care_carry_after / 1000).toFixed(3)}, guard carry {(f.guard_carry_before / 1000).toFixed(3)} → {(f.guard_carry_after / 1000).toFixed(3)}. Local grain value also uses the gross envelope.</li>)}</ul>}
