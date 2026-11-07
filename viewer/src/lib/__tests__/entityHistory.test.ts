@@ -43,6 +43,26 @@ describe("linked histories: natural seed-23 records and labelled constructed var
     expect(read(bundle).find((r) => r.turn === 28 && r.package === "recovery_crews")?.state).toBe("malformed");
     expect(entityHistory(indexEntityHistory(chainBundle()), { kind: "person", id: 999999 }).some((r) => r.package === "household_retail" && r.state === "not_sampled")).toBe(true);
   });
+  it("preserves locale precision and signed zero while refusing nonfinite saved income", () => {
+    // Constructed visibility/value edits; do not alter the wage or its closed books.
+    for (const value of [-0, 0, 0.09490852802991867, 1234.56789, null, NaN, Infinity, -Infinity]) {
+      const bundle = chainBundle();
+      const saved = snapshotOf(bundle, 28) as unknown as {
+        livelihoods: { recovery_crews: { receipts: { members: { agent_id: number; income_replaced: number | null }[] }[] } };
+      };
+      const member = saved.livelihoods.recovery_crews.receipts.flatMap(r => r.members).find(m => m.agent_id === person.id)!;
+      member.income_replaced = value;
+      const rows = entityHistory(indexEntityHistory(bundle), person, 28)
+        .filter(r => r.turn === 28 && r.package === "recovery_crews");
+      if (value !== null && !Number.isFinite(value)) {
+        expect(rows.every(r => r.state === "malformed")).toBe(true);
+      } else {
+        const cost = value === null ? "unknown" : value.toLocaleString(undefined, { maximumFractionDigits: 3 });
+        expect(rows.some(r => r.text.includes(`ordinary income withheld ${cost}`))).toBe(true);
+        expect(rows.some(r => r.state === "recorded")).toBe(true);
+      }
+    }
+  });
   it("does not turn dropped receipts into a recorded zero (constructed cap)", () => {
     const bundle = chainBundle((s) => { s.livelihoods.recovery_crews.rows_dropped = 1; });
     const rows = entityHistory(indexEntityHistory(bundle), { kind: "person", id: 999999 });

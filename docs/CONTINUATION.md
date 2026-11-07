@@ -2257,3 +2257,5 @@ recovery through an environment with working Library downloads, and scoped work
 on the remaining product/native gates. Existing dirty
 source and held experiments remain recoverable; no force-push, deletion, default
 flag activation or merge was performed.
+
+Rework integration checkpoint: #98 merged at `125a69066ea158a973ac5207f393e4eeb330aee8` after exact reviewed-head Tests `42415795157` passed all nine jobs. Main CI must be verified before another feature merge. Backend corrections, full causal evaluation, runtime residual diagnosis and final gates continue on `codex/cw-rework`; the rework board remains active.

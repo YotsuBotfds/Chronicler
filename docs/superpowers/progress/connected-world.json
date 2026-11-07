@@ -855,7 +855,14 @@
       "input_sha256": "f55df55d453ac37694410246c4a9728c56f3f6148f679fde8efc21ffd8775acf",
       "clean_build_seconds": 110
     },
-    "viewer_pr": 98,
+    "viewer_pr": {
+      "pr": 98,
+      "reviewed_head": "093952ebad3d7b45d4d913e2b5f8f3b1bd4e13ed",
+      "premerge_tests": 42415795157,
+      "premerge_all_nine": "passed",
+      "merge": "125a69066ea158a973ac5207f393e4eeb330aee8",
+      "main_ci": "pending; no further feature merge until verified"
+    },
     "held": "CWR1 template4101\u20134106/procedural4201\u20134206 reserved after52refs/13versions collision-free. No held run. Cheap dev smoke caught no_relief extractor assumption; fix before complete timing pilot/freeze."
   }
 }

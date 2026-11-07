@@ -52,8 +52,9 @@ Current checkpoint (2026-11-07): explicit corrected contracts are implemented
 and independently approved, with 39 physical-arrival regressions, 418 scoped
 checks and 1,339 Rust tests passing (two pre-existing manual benches ignored).
 Clean native release is `b1d3ea5a`; all old feature and version defaults remain.
-PR #98 isolates the reviewed formatter optimization and is awaiting exact-head
-CI. Optional gzip transport is independently reviewed and retains every byte;
+PR #98 merged at `125a6906` after all nine Tests jobs passed on reviewed head
+`093952eb` (run `42415795157`). Exact main CI is pending; further feature merges
+remain gated on it. Optional gzip transport is independently reviewed and retains every byte;
 its loader does not reduce decoded memory. Runtime optimization is not yet
 admitted by paired complete-output evidence.
 
