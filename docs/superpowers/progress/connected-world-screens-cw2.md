@@ -1,8 +1,9 @@
 # Connected-world CW2: preregistered held screen for workshop economics and the owned-output rule (slices A3-1, A3-2)
 
-Status: DRAFT, pre-freeze revision 1 (not frozen; the lead freezes it before any held run; see
-"Pre-freeze revision 1" at the end). Written 2026-11-07 by the A4 lane on branch
-`claude/cw-a4-titled-trade` at `21aa48cb`, revised at `a1b61760` (A3-1 merged in PR #88; A3-2, rules 2,
+Status: FROZEN. Frozen by the lead on 2026-11-07 after independent review of the design, extractors and revisions (review record in the program's review notes); code at `60edc6c9`; pilot at `60edc6c9`. No code change after this point except a defect fix recorded as an amendment with a new pilot.
+
+Written 2026-11-07 by the A4 lane on branch
+`claude/cw-a4-titled-trade` at `21aa48cb`, revised at `a1b61760` and `60edc6c9` (A3-1 merged in PR #88; A3-2, rules 2,
 on this branch with its review fixes approved at `d5ccd4d6`, merged with `main` `bac45cb5`).
 Native extension built from this branch, SHA-256
 `43cbd22ac4e7e2c6a77e71781a884be5342f41aa4173ff6f43e0facf0f5e0eb0` (it honours the

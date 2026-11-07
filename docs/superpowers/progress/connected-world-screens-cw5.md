@@ -1,8 +1,9 @@
 # Connected-world CW5: preregistered held screen for titled trade (slice A4-1)
 
-Status: DRAFT, pre-freeze revision 2 (not frozen; the lead freezes it before any held run; see
-"Pre-freeze revision 1" and "Pre-freeze revision 2" at the end). Written 2026-11-07 by the A4
-lane on branch `claude/cw-a4-titled-trade` at `21aa48cb`, revised at `a1b61760` and `55748ec7` (the A4 review fixes approved at
+Status: FROZEN. Frozen by the lead on 2026-11-07 after independent review of the design, extractors and revisions (review record in the program's review notes); code at `60edc6c9`; pilot at `60edc6c9`. No code change after this point except a defect fix recorded as an amendment with a new pilot.
+
+Written 2026-11-07 by the A4
+lane on branch `claude/cw-a4-titled-trade` at `21aa48cb`, revised at `a1b61760`, `55748ec7` and `60edc6c9` (the A4 review fixes approved at
 `d5ccd4d6`, merged with `main` `bac45cb5`, plus the lead's carrier rule at `9591e280`: carriers
 take no native decision while reserved). Native extension built from this branch, SHA-256
 `43cbd22ac4e7e2c6a77e71781a884be5342f41aa4173ff6f43e0facf0f5e0eb0`. No held seed (template
