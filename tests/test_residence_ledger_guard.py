@@ -64,7 +64,7 @@ HOOKS = frozenset({"set_residence_ledger_enabled", "residence_ledger_active", "o
 ACCESSORS = {"read_frame": "aggregate", "own_row": "own_row", "separation": "separation"}
 RECORD_READERS = frozenset({"record_status", "snapshot_summary"})
 CONSTANTS = frozenset({"STAGE", "LABELS", "FRAME_KEYS", "NATIVE", "FAMINE_ONSET_COOLDOWN", "ADULT_AGE",
-                       "RESETTLED_BY", "LedgerReadRefused"})
+                       "LedgerReadRefused"})
 PUBLIC = HOOKS | set(ACCESSORS) | RECORD_READERS | CONSTANTS
 
 #: A6 (``--adaptive-livelihoods``, audit A6 section 7.2): the only modules that

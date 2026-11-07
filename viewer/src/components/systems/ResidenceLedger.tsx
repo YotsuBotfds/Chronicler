@@ -4,7 +4,7 @@ import { readResidenceLedger } from "../../lib/recordReading";
 import { percent, type ResidenceFrame, type ResidenceRegionRow, type SpellEvent } from "../../lib/residenceLedger";
 
 const CLOSURE_LABEL: Record<string, string> = {
-  returned: "returned home", resettled: "resettled (home moved to where they live)", died: "died while displaced",
+  returned: "returned home", resettled: "resettled (settled long enough that home moved to where they live)", died: "died while displaced",
   pool_reset: "closed: the agent pool was rebuilt", unobserved_gap: "closed: turns not observed",
 };
 /** How many recent snapshots the run summary lists. */
@@ -37,7 +37,7 @@ export function ResidenceLedger({ bundle, snapshot, currentTurn, onSelectRegion 
   const frame = record.frame;
   const p = record.parameters as Record<string, number>;
   const intro = <>
-    <p className="systems-note">Simulation turn {record.source_turn}, observed since turn {frame.observed_from} (earlier history is unknown, not zero). Record only: nothing in the simulation reads this panel's numbers. A person is displaced from the move that left home driven by flight (war, battle, conquest or persecution memories, persecution, the safety need) or hunger until they return home, resettle ({p.rehome_turns ?? 20} turns at one residence, or a voluntary move elsewhere) or die. The anchor is the event at home in the {p.anchor_turns ?? 5} turns before leaving: war (a change of ruler, an occupation or a conquest), famine, persecution, or none. A voluntary migrant takes their new region as home at once; enlistment never changes home.</p>
+    <p className="systems-note">Simulation turn {record.source_turn}, observed since turn {frame.observed_from} (earlier history is unknown, not zero). Record only: nothing in the simulation reads this panel's numbers. A person is displaced from the move that left home driven by flight (war, battle, conquest or persecution memories, persecution, the safety need) or hunger until they return home, resettle ({p.rehome_turns ?? 20} turns at one residence; moving on, for any reason, keeps them displaced) or die. The anchor is the event at home in the {p.anchor_turns ?? 5} turns before leaving: war (a change of ruler, an occupation or a conquest), famine, persecution, or none. A voluntary migrant takes their new region as home at once; enlistment never changes home.</p>
   </>;
   if (reading.state === "recorded_zero") {
     return section(turn, <>{intro}<p className="systems-note">{reading.note}.</p>{recent}</>);
@@ -58,7 +58,7 @@ function Frame({ frame, events, dropped, turn, link }: {
   const longest = events.filter((e) => e.kind !== "opened").reduce((m, e) => Math.max(m, e.length), 0);
   return <>
     <p className="systems-note">{t.displaced} of {t.observed} people observed are displaced ({percent(t.displaced, t.observed)}): {t.displaced_flight} fled, {t.displaced_hunger} left hungry. Anchored at home to war {t.displaced_war}, famine {t.displaced_famine}, persecution {t.displaced_persecution}, no event {t.displaced_none}{t.anchor_partial ? ` (${t.anchor_partial} of them left before the ledger had watched their home for the whole window)` : ""}.{t.deferred ? ` ${t.deferred} merchant(s) first seen on a trip are recorded when it ends.` : ""}</p>
-    <p className="systems-note">This turn: {t.moves} moves ({t.moves_flight} flight, {t.moves_hunger} hunger, {t.moves_voluntary} voluntary, {t.moves_other} other); {t.opened} spell(s) opened; {closed.length ? closed.map((k) => `${t[k]} ${CLOSURE_LABEL[k]}`).join(", ") : "no spell closed"}{t.resettled_by_move ? ` (${t.resettled_by_move} resettled by a voluntary move)` : ""}; {t.rehomed} migrant(s) took a new home; {t.deaths} death(s){longest ? `; the longest spell closed lasted ${longest} turns` : ""}.{t.trip_relocations ? ` ${t.trip_relocations} trip(s) ended away from home (an unclassified relocation).` : ""}</p>
+    <p className="systems-note">This turn: {t.moves} moves ({t.moves_flight} flight, {t.moves_hunger} hunger, {t.moves_voluntary} voluntary, {t.moves_other} other); {t.opened} spell(s) opened; {closed.length ? closed.map((k) => `${t[k]} ${CLOSURE_LABEL[k]}`).join(", ") : "no spell closed"}; {t.rehomed} migrant(s) took a new home; {t.deaths} death(s){longest ? `; the longest spell closed lasted ${longest} turns` : ""}.{t.trip_relocations ? ` ${t.trip_relocations} trip(s) ended away from home (an unclassified relocation).` : ""}</p>
     {stock.length ? <div className="systems-table-wrap"><table className="systems-table" aria-label={`Open displacement spells at snapshot ${turn}`}>
       <thead><tr><th>Region</th><th>Residents</th><th>Displaced here (fled · hungry)</th><th>Anchor: war · famine · persecution · none</th><th>Displaced from here</th></tr></thead>
       <tbody>{stock.map((r) => <tr key={r.region}>

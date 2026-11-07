@@ -60,8 +60,7 @@ TOTAL_KEYS: tuple[str, ...] = (
     "displaced_war", "displaced_famine", "displaced_persecution", "displaced_none",
     "anchor_any_war", "anchor_any_famine", "anchor_any_persecution", "anchor_war_or_famine", "anchor_partial",
     "moves", "moves_flight", "moves_hunger", "moves_voluntary", "moves_other",
-    "opened", "returned", "resettled", "resettled_by_move", "died", "pool_reset", "unobserved_gap", "rehomed",
-    "deaths",
+    "opened", "returned", "resettled", "died", "pool_reset", "unobserved_gap", "rehomed", "deaths",
     "attached", "attached_away", "in_transit",
     "new_rows", "newborn_rows", "trip_relocations", "unexplained_relocations", "move_origin_mismatches",
     # Record-only comparisons with the measures the contract replaces (audit section 10).
@@ -150,14 +149,22 @@ class ResidenceLedgerState(BaseModel):
     frame: dict[str, Any] | None = None
     events: list[dict[str, Any]] | None = None
     events_dropped: int = 0
+    #: Per-person state (``exclude=True``): kept in exact checkpoints (the
+    #: pickled world), left out of JSON output (the bundle's world state and the
+    #: state file), which only a legacy resume reads back, and a legacy resume
+    #: rebuilds the pool, which closes every spell anyway (``rows_held``,
+    #: ``open_spells_held`` report what it held).
     #: Observed living people by stable id (ascending).
-    rows: dict[int, ResidenceRow] = Field(default_factory=dict)
+    rows: dict[int, ResidenceRow] = Field(default_factory=dict, exclude=True)
     #: Travellers alive when first seen, waiting for the end of their trip (ascending ids).
-    deferred: list[int] = Field(default_factory=list)
+    deferred: list[int] = Field(default_factory=list, exclude=True)
     #: People on a native trip at the last write (ascending ids): a trip that
     #: ends away from the residence (a native unwind leaves the traveller where
     #: it was) is recognised as such at the next write.
-    travelling: list[int] = Field(default_factory=list)
+    travelling: list[int] = Field(default_factory=list, exclude=True)
+    #: The number of person rows and open spells held after the last write (in JSON too).
+    rows_held: int = 0
+    open_spells_held: int = 0
     #: One watch row per region (list index = region index).
     regions: list[RegionWatch] = Field(default_factory=list)
     #: Closures taken outside the writer in this turn (a pool reset in Phase 2),

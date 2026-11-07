@@ -37,9 +37,13 @@ Definitions (audit 11.1):
   kind kept in ``anchor_kinds``; ``none`` without one. **Displaced** = an open
   spell. Closures: ``returned`` (residence equals home after a move),
   ``resettled`` (home becomes the residence: ``REHOME_TURNS`` at one residence,
-  or a voluntary or unclassified onward move), ``died``, ``pool_reset`` (the
-  native pool was rebuilt) and ``unobserved_gap`` (turns the ledger did not
-  observe, the switch turned off).
+  the only way a spell resettles), ``died``, ``pool_reset`` (the native pool
+  was rebuilt) and ``unobserved_gap`` (turns the ledger did not observe, the
+  switch turned off). Any onward move of a displaced person, voluntary or not,
+  keeps the spell open and home unchanged (``moves`` counts it); only a
+  person without an open spell re-homes at a voluntary or unclassified move
+  (the lead's resolution of an ambiguity in audit 11.1, which reproduces the
+  audit's section 10 measurements).
 * **Separated** (computed on demand by :func:`separation`, never stored): a
   married partner, or a dependent child's parent, alive with a different
   residence or location, with the cause ``trip``, ``attached``, ``displaced``
@@ -110,18 +114,20 @@ LABELS: dict[str, str] = {
     "residence": ("the native region a person lives in after the tick; a merchant on a native trip keeps the "
                   "residence last recorded (the trip is not a migration)"),
     "home": ("where a person belongs: the residence when first observed (the birth region for a person born "
-             "since), changed only by a voluntary or unclassified move (a migrant re-homes at once) or by a "
-             f"displacement spell that resettles after {REHOME_TURNS} turns at one residence; never by enlistment"),
+             "since), changed only by a voluntary or unclassified move of a person who is not displaced (a "
+             f"migrant re-homes at once) or by a displacement spell that resettles after {REHOME_TURNS} turns at "
+             "one residence; never by enlistment"),
     "displaced": ("an open displacement spell: opened by an applied move that left home driven by flight (war, "
                   "battle, conquest or persecution memories, persecution, the safety need) or hunger (food "
-                  "opportunity, material need); a household follower carries its lead's driver"),
+                  "opportunity, material need); a household follower carries its lead's driver; an onward move, "
+                  "voluntary or not, keeps it open"),
     "anchor": (f"the home-region event dated in the {ANCHOR_TURNS} turns before the departure: war (a controller "
                "change, an occupation or a conquest), famine (a famine or dearth report), persecution; the first "
                "present in that order (anchor_any_* counts every kind present); none without one; anchor_partial: "
                "the window reaches before the ledger watched the regions"),
-    "closures": ("returned: back home after a move; resettled: home became the residence (the settling time at "
-                 "one residence, or a voluntary or unclassified onward move); died; pool_reset: the native pool "
-                 "was rebuilt; unobserved_gap: turns the ledger did not observe"),
+    "closures": (f"returned: back home after a move; resettled: {REHOME_TURNS} turns at one residence, which "
+                 "becomes home; died; pool_reset: the native pool was rebuilt; unobserved_gap: turns the ledger did "
+                 "not observe"),
     "attached": ("on an army roster after the rosters were reconciled, counted by home region; attached_away: "
                  "the army is in another region than home. Dissolutions at the end-of-turn sync are seen next turn"),
     "in_transit": "residents physically elsewhere on a merchant trip (location differs from residence)",
@@ -168,13 +174,16 @@ def _log(state: ResidenceLedgerState, turn: int, kind: str, **detail) -> None:
 def _end_epoch(state: ResidenceLedgerState, reason: str) -> int:
     """Close every open spell with ``reason`` (lifetime counters only) and drop
     the person rows; observation restarts at the next write. Returns the number
-    of spells closed."""
-    closed = sum(1 for row in state.rows.values() if row.spell is not None)
+    of spells closed (from the rows; from ``open_spells_held`` when the rows were
+    not kept, as in a state read from JSON)."""
+    closed = sum(1 for row in state.rows.values() if row.spell is not None) if state.rows \
+        else state.open_spells_held
     if closed:
         _bump(state, f"closed_{reason}", closed)
     state.rows = {}
     state.deferred = []
     state.travelling = []
+    state.rows_held = state.open_spells_held = 0
     state.observed_from = None
     return closed
 
@@ -219,17 +228,19 @@ def on_pool_reset(world) -> None:
     close as ``pool_reset`` (reported in this turn's frame) and observation
     restarts; nothing is rebuilt. A no-op in a fresh run (no rows yet)."""
     state = _state(world)
-    if state is None or (not state.rows and not state.deferred):
+    if state is None or (not state.rows and not state.deferred and not state.rows_held):
         return
     turn = int(getattr(world, "turn", 0))
     events = [_event(aid, "pool_reset", row.spell, row.res, turn)
               for aid, row in sorted(state.rows.items()) if row.spell is not None]
-    rows = len(state.rows)
+    kept = bool(state.rows)
+    rows = len(state.rows) if kept else state.rows_held
     closed = _end_epoch(state, "pool_reset")
     _bump(state, "pool_resets")
-    _log(state, turn, "pool_reset", rows=rows, spells_closed=closed,
+    _log(state, turn, "pool_reset", rows=rows, spells_closed=closed, rows_kept=kept,
          reason="native pool rebuilt: saved stable ids name other people")
-    state.pending = {"turn": turn, "events": events}
+    # Spells whose rows were not kept (a state read from JSON) are counted, not listed.
+    state.pending = {"turn": turn, "events": events, "unlisted": closed - len(events)}
 
 
 # ---------------------------------------------------------------------------
@@ -240,9 +251,6 @@ def _event(aid: int, kind: str, spell: Spell, region: int, turn: int) -> dict:
     return {"id": int(aid), "kind": kind, "turn": int(turn), "region": int(region), "start": spell.start,
             "origin": spell.origin, "cause": spell.cause, "anchor": spell.anchor, "length": int(turn) - spell.start}
 
-
-#: How a ``resettled`` closure came about (an event's ``by``).
-RESETTLED_BY: tuple[str, ...] = ("rehome_turns", "move")
 
 
 def _group(code: int | None) -> str:
@@ -345,7 +353,7 @@ def _anchor(t: _Turn, region: int) -> tuple[str, list[str]]:
 
 
 def _close(state: ResidenceLedgerState, t: _Turn, aid: int, row: ResidenceRow, reason: str, region: int,
-           *, by: str | None = None, relocation: bool = False) -> None:
+           *, relocation: bool = False) -> None:
     spell, row.spell = row.spell, None
     t.totals[reason] += 1
     _bump(state, f"closed_{reason}")
@@ -353,9 +361,6 @@ def _close(state: ResidenceLedgerState, t: _Turn, aid: int, row: ResidenceRow, r
     if key is not None:
         t.region[region][key] += 1
     event = _event(aid, reason, spell, region, t.turn)
-    if by is not None:
-        event["by"] = by
-        t.totals["resettled_by_move"] += int(by == "move")
     if relocation:
         event["relocation"] = True       # not an applied migration (a trip that ended away, or unexplained)
     t.event(event)
@@ -384,12 +389,10 @@ def _move(state: ResidenceLedgerState, t: _Turn, aid: int, row: ResidenceRow, fr
     if row.spell is not None:
         if to == row.home:
             _close(state, t, aid, row, "returned", to, relocation=not counted)
-        elif group in CAUSES:
-            row.spell.moves += 1
         else:
-            # A voluntary or unclassified move re-homes at once: the spell resettles there.
-            _close(state, t, aid, row, "resettled", to, by="move", relocation=not counted)
-            row.home, row.home_since = to, turn
+            # Lead's resolution of 11.1: any onward move, voluntary or not, keeps the
+            # spell open and home unchanged (only the residence and its date move).
+            row.spell.moves += 1
     elif group in CAUSES:
         anchor, kinds = _anchor(t, frm)
         row.spell = Spell(start=turn, origin=row.home, cause=group, anchor=anchor, anchor_kinds=kinds,
@@ -437,6 +440,8 @@ def phase10(world, acc, economy_result, agent_bridge):
         for row in pending["events"]:
             t.totals["pool_reset"] += 1
             t.event(row)
+        t.totals["pool_reset"] += pending.get("unlisted", 0)
+        t.dropped += pending.get("unlisted", 0)
     if state.last_turn is not None and state.last_turn != turn - 1:
         # Turns the ledger did not observe: moves and returns may be missing.
         for aid, row in sorted(state.rows.items()):
@@ -533,7 +538,7 @@ def phase10(world, acc, economy_result, agent_bridge):
     # 4. Resettlement after REHOME_TURNS at one residence.
     for aid, row in rows.items():
         if row.spell is not None and turn - row.res_since >= REHOME_TURNS:
-            _close(state, t, aid, row, "resettled", row.res, by="rehome_turns")
+            _close(state, t, aid, row, "resettled", row.res)
             row.home, row.home_since = row.res, turn
 
     # 5. Attachment from the reconciled rosters (enlistment never re-homes).
@@ -585,6 +590,7 @@ def phase10(world, acc, economy_result, agent_bridge):
     if t.dropped:
         _bump(state, "events_dropped", t.dropped)
     state.rows = dict(sorted(rows.items()))
+    state.rows_held, state.open_spells_held = len(rows), totals["displaced"]
     state.deferred = sorted(deferred)
     state.travelling = sorted(trips)
     state.frame = {"turn": turn, "observed_from": state.observed_from, "totals": totals, "regions": regions}

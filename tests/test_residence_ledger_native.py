@@ -89,7 +89,6 @@ def _check_frames(frames):
     previous = None
     for frame, record in frames:
         t, regions = frame["totals"], frame["regions"]
-        assert record["events_dropped"] == 0, frame["turn"]
         assert sum(r["residents"] for r in regions) == t["observed"] == t["alive"] - t["deferred"]
         assert sum(r["displaced"] for r in regions) == t["displaced"] == sum(r["displaced_from"] for r in regions)
         assert sum(t[f"displaced_{c}"] for c in CAUSES) == t["displaced"]
@@ -99,9 +98,10 @@ def _check_frames(frames):
         assert sum(r["attached"] for r in regions) == t["attached"] >= t["attached_away"]
         assert t["unexplained_relocations"] == 0 and t["move_origin_mismatches"] == 0, frame["turn"]
         events = record["events"]
-        assert sum(1 for e in events if e["kind"] == "opened") == t["opened"]
-        for reason in CLOSURES:
-            assert sum(1 for e in events if e["kind"] == reason) == t[reason], (frame["turn"], reason)
+        if record["events_dropped"] == 0:
+            assert sum(1 for e in events if e["kind"] == "opened") == t["opened"]
+            for reason in CLOSURES:
+                assert sum(1 for e in events if e["kind"] == reason) == t[reason], (frame["turn"], reason)
         if previous is not None:
             closed = sum(t[reason] for reason in CLOSURES)
             assert t["displaced"] == previous["displaced"] + t["opened"] - closed, frame["turn"]
@@ -218,8 +218,9 @@ def test_a_legacy_state_file_resume_rebuilds_nothing(tmp_path, monkeypatch):
     first = tmp_path / "first"
     _cli(monkeypatch, first, *HYBRID, *TEMPLATE, "--turns", "12", *LEDGER)
     saved = json.loads((first / "state.json").read_text(encoding="utf-8"))["livelihoods"]["residence_ledger"]
-    open_spells = sum(1 for row in saved["rows"].values() if row.get("spell"))
-    assert saved["last_turn"] == 11 and open_spells > 0
+    assert "rows" not in saved                                          # person rows are not output
+    open_spells = saved["open_spells_held"]
+    assert saved["last_turn"] == 11 and open_spells > 0 and saved["rows_held"] > 0
     resumed = tmp_path / "resumed"
     _cli(monkeypatch, resumed, "--resume", str(first / "state.json"), "--agents", "hybrid", "--simulate-only",
          "--turns", "16")
@@ -229,6 +230,7 @@ def test_a_legacy_state_file_resume_rebuilds_nothing(tmp_path, monkeypatch):
     first_frame, first_record = frames[0]
     assert first_frame["turn"] == 12 and first_frame["observed_from"] == 12
     assert first_frame["totals"]["pool_reset"] == open_spells and first_frame["totals"]["newborn_rows"] == 0
+    assert first_record["events_dropped"] == open_spells                # counted, not listed by person
     assert first_frame["totals"]["displaced"] == first_frame["totals"]["opened"]          # nothing carried over
     assert [e["kind"] for e in first_record["log"]].count("pool_reset") == 1
     assert all(f["observed_from"] == 12 for f, _r in frames)

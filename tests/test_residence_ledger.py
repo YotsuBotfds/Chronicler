@@ -252,23 +252,30 @@ def test_a_follower_carries_the_leads_driver_and_is_displaced_with_it():
     assert _row(world, 1).spell.cause == _row(world, 2).spell.cause == "flight"
 
 
-def test_return_closes_onward_flight_keeps_and_a_voluntary_onward_move_resettles():
+def test_return_closes_and_any_onward_move_keeps_the_spell_open():
+    """The lead's resolution of audit 11.1: a displaced person's onward move,
+    voluntary, unclassified or flight, neither re-homes them nor closes the spell."""
     world, sim = _world(), FakeSim()
-    _population(sim, 3)
+    _population(sim, 4)
     step(world, sim)
-    step(world, sim, moves=[(a, AVALON, BROOK, "famine_memory") for a in (1, 2, 3)])
+    step(world, sim, moves=[(a, AVALON, BROOK, "famine_memory") for a in (1, 2, 3, 4)])
     frame = step(world, sim, moves=[(1, BROOK, AVALON, "opp_satisfaction"), (2, BROOK, CRAG, "safety_need"),
-                                    (3, BROOK, DUN, "wage")])
+                                    (3, BROOK, DUN, "wage"), (4, BROOK, EDGE, "opp_satisfaction")])
     assert _row(world, 1).spell is None and _row(world, 1).home == AVALON            # returned home
-    assert _row(world, 2).spell.moves == 2 and _row(world, 2).home == AVALON           # still displaced
-    assert _row(world, 3).spell is None and _row(world, 3).home == DUN                 # resettled where it chose
-    assert {(e["id"], e["kind"], e.get("by")) for e in _events(world) if e["kind"] != "opened"} == {
-        (1, "returned", None), (3, "resettled", "move")}
+    for aid, region in ((2, CRAG), (3, DUN), (4, EDGE)):                              # still displaced
+        row = _row(world, aid)
+        assert (row.spell.moves, row.spell.origin, row.home, row.res, row.res_since) == (2, AVALON, AVALON, region, 3)
+    assert [(e["id"], e["kind"]) for e in _events(world) if e["kind"] != "opened"] == [(1, "returned")]
     t = frame["totals"]
-    assert (t["returned"], t["resettled"], t["resettled_by_move"], t["displaced"]) == (1, 1, 1, 1)
-    assert _region(frame, AVALON)["returned"] == 1 and _region(frame, DUN)["resettled"] == 1
-    returned = _events(world, "returned")[0]
-    assert (returned["start"], returned["length"], returned["origin"]) == (2, 1, AVALON)
+    assert (t["returned"], t["resettled"], t["rehomed"], t["displaced"]) == (1, 0, 0, 3)
+    assert _region(frame, AVALON)["returned"] == 1 and _region(frame, DUN)["arrivals_displaced"] == 1
+    step(world, sim, moves=[(3, DUN, AVALON, "wage")])                                # home at last
+    assert _row(world, 3).spell is None and _events(world, "returned")[0]["length"] == 2
+    world2, sim2 = _world(), FakeSim()                                               # not displaced: re-homes
+    _population(sim2, 1)
+    step(world2, sim2)
+    step(world2, sim2, moves=[(1, AVALON, DUN, "wage")])
+    assert (_row(world2, 1).home, _row(world2, 1).spell) == (DUN, None)
 
 
 def test_a_spell_resettles_after_rehome_turns_at_one_residence():
@@ -282,7 +289,7 @@ def test_a_spell_resettles_after_rehome_turns_at_one_residence():
     frame = step(world, sim)
     row = _row(world, 1)
     assert row.spell is None and row.home == BROOK and row.home_since == 2 + REHOME_TURNS
-    assert _events(world, "resettled")[0]["by"] == "rehome_turns" and frame["totals"]["resettled_by_move"] == 0
+    assert frame["totals"]["resettled"] == 1 and _region(frame, BROOK)["resettled"] == 1
     assert _events(world, "resettled")[0]["length"] == REHOME_TURNS
 
 
@@ -414,18 +421,22 @@ def test_a_trip_that_ends_away_from_home_is_an_unclassified_relocation():
     sim.add(1, AVALON)
     sim.add(2, AVALON)
     sim.add(3, BROOK)
+    sim.add(4, AVALON)
     step(world, sim)
-    step(world, sim, moves=[(2, AVALON, CRAG, "battle_memory")])
-    sim.trips = {1, 2}
+    step(world, sim, moves=[(2, AVALON, CRAG, "battle_memory"), (4, AVALON, EDGE, "battle_memory")])
+    sim.trips = {1, 2, 4}
     sim.people[1]["region"] = EDGE
     sim.people[2]["region"] = DUN
+    sim.people[4]["region"] = AVALON
     step(world, sim)
     sim.trips = set()
-    frame = step(world, sim)                                            # both stay where the trip stopped
-    assert (_row(world, 1).home, _row(world, 1).res, _row(world, 1).spell) == (EDGE, EDGE, None)
-    assert (_row(world, 2).home, _row(world, 2).res, _row(world, 2).spell) == (DUN, DUN, None)   # resettled
-    assert [(e["id"], e["kind"], e["by"], e["relocation"]) for e in _events(world)] == [(2, "resettled", "move", True)]
-    assert frame["totals"]["trip_relocations"] == 2 and frame["totals"]["unexplained_relocations"] == 0
+    frame = step(world, sim)                                            # each stays where its trip stopped
+    assert (_row(world, 1).home, _row(world, 1).res, _row(world, 1).spell) == (EDGE, EDGE, None)   # re-homed
+    row = _row(world, 2)
+    assert (row.home, row.res, row.spell.moves) == (AVALON, DUN, 2)     # displaced: the spell stays open
+    assert (_row(world, 4).home, _row(world, 4).spell) == (AVALON, None)                          # back home
+    assert [(e["id"], e["kind"], e["relocation"]) for e in _events(world)] == [(4, "returned", True)]
+    assert frame["totals"]["trip_relocations"] == 3 and frame["totals"]["unexplained_relocations"] == 0
     assert frame["totals"]["moves"] == 0                                # not applied migrations
     sim.people[3]["region"] = CRAG                                      # no trip, no event
     frame = step(world, sim)
@@ -450,6 +461,28 @@ def test_a_rebuilt_pool_closes_spells_and_restarts_observation_rebuilding_nothin
     fresh = _world()
     RL.on_pool_reset(fresh)                                             # a fresh run: no-op, no log
     assert not _state(fresh).log[1:] and _state(fresh).pending is None
+
+
+def test_a_legacy_resume_of_a_json_state_counts_the_spells_it_did_not_keep():
+    world, sim = _world(), FakeSim()
+    _population(sim, 3)
+    step(world, sim)
+    step(world, sim, moves=[(1, AVALON, BROOK, "battle_memory"), (2, AVALON, CRAG, "opp_food")])
+    from chronicler.models import WorldState
+    loaded = WorldState.model_validate_json(world.model_dump_json())                   # a state file
+    state = loaded.livelihoods.residence_ledger
+    assert state.rows == {} and (state.rows_held, state.open_spells_held) == (3, 2)
+    loaded.agent_mode = "hybrid"
+    RL.on_pool_reset(loaded)                                                           # the rebuilt pool
+    assert state.counters["closed_pool_reset"] == 2 and state.observed_from is None
+    assert state.log[-1].detail["rows_kept"] is False and state.log[-1].detail["rows"] == 3
+    LV.phase10(loaded, agent_bridge=FakeBridge(sim))
+    frame = state.frame
+    assert frame["totals"]["pool_reset"] == 2 and state.events_dropped == 2 and frame["observed_from"] == 3
+    assert frame["totals"]["newborn_rows"] == 0 and frame["totals"]["displaced"] == 0
+    loaded.turn += 1
+    status, _f = RL.record_status(LV.livelihoods_snapshot_fields(loaded))
+    assert status == "recorded"
 
 
 def test_a_gap_closes_spells_as_unobserved():
@@ -629,11 +662,15 @@ def test_the_state_round_trips_json_and_pickle():
     place_army(world, "A", "Crag", 1, "A|B", roster=[(3, AVALON)])
     step(world, sim, moves=[(1, AVALON, BROOK, "battle_memory")])
     state = _state(world)
-    back = LivelihoodsState.model_validate_json(world.livelihoods.model_dump_json())
-    assert back.residence_ledger == state and list(back.residence_ledger.rows) == [1, 2, 3]
-    assert pickle.loads(pickle.dumps(world.livelihoods)).residence_ledger == state
-    dumped = json.loads(world.livelihoods.model_dump_json())["residence_ledger"]["rows"]["2"]
-    assert set(dumped) == {"home", "home_since", "res", "res_since", "first_seen"}      # empty fields omitted
+    # Exact checkpoints (pickle) keep everything, person rows included.
+    copy = pickle.loads(pickle.dumps(world.livelihoods)).residence_ledger
+    assert copy == state and list(copy.rows) == [1, 2, 3] and copy.rows[3].army == "army-1"
+    # JSON output (the bundle's world state, the state file) leaves the person rows out.
+    dumped = json.loads(world.livelihoods.model_dump_json())["residence_ledger"]
+    assert not {"rows", "deferred", "travelling"} & set(dumped)
+    assert (dumped["rows_held"], dumped["open_spells_held"]) == (3, 1)
+    back = LivelihoodsState.model_validate_json(world.livelihoods.model_dump_json()).residence_ledger
+    assert back.rows == {} and back.frame == state.frame and back.counters == state.counters
 
 
 def test_rows_and_events_are_bounded(monkeypatch):

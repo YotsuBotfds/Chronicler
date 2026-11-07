@@ -37,8 +37,7 @@ export const TOTAL_KEYS = [
   "displaced_war", "displaced_famine", "displaced_persecution", "displaced_none",
   "anchor_any_war", "anchor_any_famine", "anchor_any_persecution", "anchor_war_or_famine", "anchor_partial",
   "moves", "moves_flight", "moves_hunger", "moves_voluntary", "moves_other",
-  "opened", "returned", "resettled", "resettled_by_move", "died", "pool_reset", "unobserved_gap", "rehomed",
-  "deaths",
+  "opened", "returned", "resettled", "died", "pool_reset", "unobserved_gap", "rehomed", "deaths",
   "attached", "attached_away", "in_transit",
   "new_rows", "newborn_rows", "trip_relocations", "unexplained_relocations", "move_origin_mismatches",
   "recent_movers_native", "away_from_birth_region",
@@ -64,8 +63,6 @@ export interface ResidenceFrame {
 export interface SpellEvent {
   id: number; kind: "opened" | Closure; turn: number; region: number;
   start: number; origin: number; cause: Cause; anchor: Anchor; length: number;
-  /** A resettlement: after the settling time at one residence, or by a voluntary or unclassified move. */
-  by?: "rehome_turns" | "move";
   /** Not an applied migration (a trip that ended away from home, or unexplained). */
   relocation?: boolean;
 }
@@ -92,7 +89,6 @@ function validEvent(e: unknown, regions: number, source: number): boolean {
   return count(e.id) && among(kinds, e.kind) && e.turn === source && count(e.region) && e.region < regions
     && count(e.start) && e.start <= source && count(e.origin) && e.origin < regions && among(CAUSES, e.cause)
     && among(ANCHORS, e.anchor) && e.length === source - (e.start as number)
-    && (e.by === undefined || (e.kind === "resettled" && among(["rehome_turns", "move"], e.by)))
     && (e.relocation === undefined || e.relocation === true);
 }
 
