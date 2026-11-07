@@ -1,0 +1,6 @@
+{
+  "kind": "orchestration_failure",
+  "failure": "First baseline journey command raced the initial tsc/Vite build and exited ENOENT for viewer/dist before opening a browser. An attempted poll also used an unavailable process handle.",
+  "resolution": "Waited for actual dist/index.html, verified immutable baseline build against the successful browser receipt, then ran journey-v2. No performance sample began or was discarded due to a product failure. All48 declared repeated measurements retained.",
+  "source_unchanged": true
+}

@@ -1,0 +1,23 @@
+{
+  "file": "/workspace/evidence/cw6/pilot-final/runs/FULL-p19/chronicle_bundle.json",
+  "index_sha256": "ff4554e9f262cc6804e1c8a04c478ede21c3bb5aa19fb95b120d363e83b21e0d",
+  "queries_sha256": "5ff2f7d87680485c92943995777884d1aee494fc28673cc6c1d00b4f71c7e3b7",
+  "timings": {
+    "read": 95.86390300000001,
+    "JSON.parse": 642.897992,
+    "decode": 1021.310028,
+    "indexEntityHistory": 4869.795786,
+    "availableEntities": 147.64363400000002,
+    "entityHistory person13": 20.358205999999882,
+    "entityHistory region3": 19.352020999999695
+  },
+  "formatCount": 203160,
+  "formatMs": 4114.001056999754,
+  "snapshots": 120,
+  "observations": 190555,
+  "entities": 3279,
+  "available": 3279,
+  "personRows": 5852,
+  "regionRows": 4913,
+  "rss": 599126016
+}
