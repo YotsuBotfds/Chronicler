@@ -109,7 +109,7 @@ from __future__ import annotations
 import math
 
 from chronicler.infrastructure_condition_state import (
-    COUNTERS, KINDS, MAX_CLOSED, MAX_DAMAGES, MAX_HISTORY, MAX_TERMINAL, MODES, WORK_MODES,
+    COUNTERS, KINDS, MAX_CLOSED, MAX_DAMAGES, MAX_HISTORY, MAX_TERMINAL, MAX_TIMBER_NEEDS, MODES, WORK_MODES,
     InfraAsset, InfraDamage, InfrastructureConditionState, InfraWork, SkippedDamage, UnmetWork, WorkReceipt,
     WorksLedger,
 )
@@ -943,6 +943,86 @@ def rollback_phase2(world) -> None:
 
 
 # ---------------------------------------------------------------------------
+# PL1 seam: the works' timber need, served after RS2's (``timber_supply``)
+# ---------------------------------------------------------------------------
+
+def timber_wants(world) -> list[tuple[int, float, list[int]]]:
+    """PL1 seam (``timber_supply._plan_launches``, after RS2's need rows): per
+    region, ascending, ``(region, want, wids)``: the timber the region's open
+    works could use in one turn at their per-turn cap, ``min(WORK_PER_TURN,
+    remaining) x TIMBER_PER_WORK`` (PL1's horizon for RS2's projects: one turn
+    at the caps). Only works already opened by the declared lifecycle ask,
+    never an asset that has not opened one (no speculative demand). A work
+    asks nothing when a rule known at this Phase 10 says it cannot use timber
+    next Phase 2: its record is not in service or its region has no
+    controller; or its region had no farmer after this turn's agent tick
+    (RS2's observed count, as PL1 skips RS2 granaries without farm labour).
+    With L9 a work is funded only through the works' own proposal, so it asks
+    only when that proposal could name it: an irrigation work (roads are
+    never awarded an envelope) whose region's storage is not set to ask for
+    work (the proposal's ``granary_first`` screen, the same prediction); the
+    proposal's ``no_timber`` screen is what this supply relieves. Without L9
+    the treasury decides at Phase 2 and storage's actual request decides
+    ``granary_first`` (it depends on storage's own inputs, so no prediction
+    screens the need); a work that stalls there keeps its delivered timber in
+    the store. Empty unless the works are on (``repair`` or ``cost_only``)."""
+    state = _state(world)
+    if not _works_on(world, state) or not state.works:
+        return []
+    from chronicler import repair_projects as R
+    from chronicler.local_budgets import envelope
+    rs2 = R._state(world)
+    seen = getattr(rs2, "_labour", None) if rs2 is not None else None
+    labour = seen[1] if seen is not None and seen[0] == world.turn and seen[1] is not None else None
+    rs2_regions = R.storage_suspended_regions(world)
+    out: dict[int, tuple[float, list[int]]] = {}
+    for w in sorted(state.works, key=_order):
+        asset = _asset(state, w.aid)
+        remaining = max(0.0, w.scope - w.delivered)
+        payer = _controller(world, w.region)
+        if asset is None or remaining <= DONE or payer < 0 or not _in_service(world, asset):
+            continue
+        if labour is not None and labour[w.region] == 0:
+            continue
+        if envelope(world, payer, BUDGET_SERVICE) is not None and (
+                w.kind != "irrigation" or (w.region not in rs2_regions and _storage_policy_works(world, w.region))):
+            continue
+        want, wids = out.get(w.region, (0.0, []))
+        out[w.region] = (want + min(WORK_PER_TURN, remaining) * TIMBER_PER_WORK[w.kind], [*wids, w.wid])
+    return [(rid, want, wids) for rid, (want, wids) in sorted(out.items())]
+
+
+def timber_regions(world) -> frozenset[int]:
+    """PL1 seam (its store release): regions with an open work while the works
+    are on; PL1 keeps a store there for the works instead of releasing it."""
+    state = _state(world)
+    if not _works_on(world, state):
+        return frozenset()
+    return frozenset(w.region for w in state.works)
+
+
+def record_timber_needs(world, rows) -> None:
+    """PL1 seam: record this Phase 10's works' timber need rows (``TimberNeed``),
+    at most ``MAX_TIMBER_NEEDS`` (drops counted)."""
+    state = _state(world)
+    if state is None:
+        return
+    rows = list(rows)
+    for row in rows:
+        _bump(state, "timber_need_rows")
+        _bump(state, "timber_want", row.want)
+        _bump(state, "timber_gap", row.gap)
+        if row.reason is not None:
+            _bump(state, f"timber_refused_{row.reason}")
+        _bump(state, f"timber_need_{row.status}")
+    dropped = max(0, len(rows) - MAX_TIMBER_NEEDS)
+    if dropped:
+        _bump(state, "timber_needs_dropped", dropped)
+    state.timber_needs, state.timber_needs_dropped = rows[:MAX_TIMBER_NEEDS], dropped
+    state.timber_needs_turn = world.turn
+
+
+# ---------------------------------------------------------------------------
 # L9: the works' own proposal (``BUDGET_PROVIDER``)
 # ---------------------------------------------------------------------------
 
@@ -1288,6 +1368,9 @@ def snapshot_summary(world) -> dict:
         "receipts": [r.model_dump() for r in state.receipts] if fresh and state.receipts is not None else None,
         "ledger": [r.model_dump() for r in state.ledger] if fresh and state.ledger is not None else None,
         "unmet": [u.model_dump() for u in state.unmet] if fresh else None,
+        # Only in a turn PL1 planned the works' timber need (records without it read as before).
+        **({"timber_needs": [r.model_dump() for r in state.timber_needs],
+            "timber_needs_dropped": state.timber_needs_dropped} if state.timber_needs_turn == source else {}),
         "shared": list(state.shared) if fresh else None,
         "prepaid": {str(civ): amount for civ, amount in sorted(state.prepaid.items())},
         "sink_milli": int(state.book.sinks.get(SINK, 0)),

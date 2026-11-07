@@ -66,6 +66,10 @@ ABANDON_REASONS: tuple[str, ...] = ("asset_lost", "no_controller", "switched_off
 REASONS: tuple[str, ...] = ("no_timber", "no_coins", "no_labor", "no_envelope", "granary_first")
 #: Why an asset below the opening threshold has no work.
 UNMET_REASONS: tuple[str, ...] = ("no_controller",)
+#: What PL1 (``--timber-supply``) did about a region's works' timber need, and
+#: why it launched nothing (PL1's own ``NEED_STATUSES`` and ``REFUSALS``).
+TIMBER_NEED_STATUSES: tuple[str, ...] = ("supplied", "expedition", "launched", "refused")
+TIMBER_REFUSALS: tuple[str, ...] = ("no_forest", "too_far", "forest_depleted", "forest_busy", "no_crew", "no_coins")
 
 #: Every lifetime counter name; ``infrastructure_condition._bump`` refuses
 #: any other, so a renamed counter cannot silently read as zero.
@@ -89,6 +93,9 @@ COUNTERS: frozenset[str] = frozenset({
     *(f"abandoned_{r}" for r in ABANDON_REASONS),
     *(f"{p}_{r}" for p in ("stalled", "limited") for r in REASONS),
     *(f"unmet_{r}" for r in UNMET_REASONS),
+    "timber_need_rows", "timber_want", "timber_gap", "timber_needs_dropped",
+    *(f"timber_need_{s}" for s in TIMBER_NEED_STATUSES),
+    *(f"timber_refused_{r}" for r in TIMBER_REFUSALS),
 })
 
 MAX_CLOSED = 16
@@ -96,6 +103,12 @@ MAX_CLOSED = 16
 MAX_DAMAGES = 32
 MAX_TERMINAL = 32
 MAX_HISTORY = 16
+#: Works' timber need rows kept for one Phase 10 (PL1's ``MAX_NEEDS``; drops are counted).
+MAX_TIMBER_NEEDS = 128
+
+
+def _empty(value) -> bool:
+    return not value
 
 
 class InfraAsset(BaseModel):
@@ -242,6 +255,28 @@ class WorksLedger(BaseModel):
     rs2_charged: int = 0
 
 
+class TimberNeed(BaseModel):
+    """A region whose open works asked PL1 for timber at this turn's Phase 10,
+    after RS2's need rows: the works' one-turn want at their caps, RS2's want
+    in the region (served first), the free timber RS2 sees and the cargo on
+    its way, the gap left after RS2's want and what PL1 did about it.
+    ``gap = max(0, want - max(0, free + in_transit - rs2_want))``."""
+
+    region: int
+    civ: int
+    #: The asking works (``wid``), ascending in the split order.
+    works: list[int] = Field(default_factory=list)
+    want: float
+    rs2_want: float = 0.0
+    free: float
+    in_transit: float
+    gap: float
+    status: Literal["supplied", "expedition", "launched", "refused"]
+    reason: str | None = None
+    #: The region's live expedition (``expedition``) or the one launched.
+    eid: int | None = None
+
+
 class UnmetWork(BaseModel):
     aid: int
     kind: Literal["irrigation", "roads"]
@@ -285,6 +320,12 @@ class InfrastructureConditionState(BaseModel):
     #: The payment seam's book (``chronicler.money``): settled keys and flows.
     book: MoneyBook = Field(default_factory=MoneyBook)
     counters: dict[str, float] = Field(default_factory=dict)
+    #: The works' timber need rows of the last Phase 10 PL1 planned them
+    #: (``timber_needs_turn``); absent from the record and the state until the
+    #: works first asked PL1 for timber (a record without it reads as before).
+    timber_needs: list[TimberNeed] = Field(default_factory=list, exclude_if=_empty)
+    timber_needs_dropped: int = Field(default=0, exclude_if=_empty)
+    timber_needs_turn: int | None = Field(default=None, exclude_if=lambda v: v is None)
     # Transient, within one turn (Phase 2 -> Phase 10); never serialized.
     _turn: object | None = PrivateAttr(default=None)
     # Transient, within one Phase 10: (turn, farmers per region) observed

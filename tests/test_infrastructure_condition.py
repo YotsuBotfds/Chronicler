@@ -1007,3 +1007,194 @@ def test_the_cw3b_screen_is_declared_with_its_cohort_and_reads_the_record():
     assert cws.cw3b_activation(bundle, flags) == (False, "no irrigation asset in the run")
     m2, problems2 = cws.cw3b_extract(bundle, flags)
     assert m2["irrigation_serving_share"] is None and problems2 == []
+
+
+# ---------------------------------------------------------------------------
+# PL1: the works' timber need, served after RS2's (``--timber-supply``)
+# ---------------------------------------------------------------------------
+
+def _pl1_people():
+    from tests.test_timber_supply import _people
+    people = _people()
+    people.update({a: [2, 0, 30, 0] for a in range(30, 36)})     # six adult farmers in region 2
+    return people
+
+
+def _pl1_world(*, rs2_region=None, work_region=0, mode="repair", timber=0.0, condition=0.2, switch=True,
+               kind=IRR):
+    """PL1's constructed line (region 0 - forest 1 - region 2, the forest the
+    only timber slot) with B3: one record in ``work_region``, worn to
+    ``condition`` with its work opened at the Phase 10 before; RS2's granary
+    project opens in ``rs2_region`` (None: no RS2 need)."""
+    from tests.test_timber_supply import _world as pl1_world
+    w = pl1_world(granary=1.0, timber=timber)
+    if rs2_region is not None:
+        w.grain_reserves.storage.assets[rs2_region].condition = 0.5
+    civ = w.civilizations[0]
+    for r in w.regions:
+        r.infrastructure = []
+        r.pending_build = None
+    w.regions[work_region].infrastructure.append(Infrastructure(type=kind, builder_civ=civ.name, built_turn=1))
+    if switch:
+        IC.set_infrastructure_condition_enabled(w, True, args=SimpleNamespace(infrastructure_condition_mode=mode))
+        w.turn = 4
+        IC.reconcile(w)
+        for a in _state(w).assets:
+            a.condition = condition
+        IC.phase10_before_reserves(w, None, None, None)
+        IC.phase10(w, None, None, None)
+        w.turn = 5
+    return w
+
+
+def test_the_works_timber_need_is_served_after_every_rs2_need():
+    from tests.test_timber_supply import _Sim, _phase10
+    # The works ask in region 0, RS2's granary project in region 2, one forest (region 1) between them.
+    world = _pl1_world(rs2_region=2, work_region=0)
+    (work,) = _state(world).works
+    _phase10(world, _Sim(_pl1_people()))
+    ts = world.livelihoods.timber_supply
+    (rs2_row,) = ts.needs
+    assert (rs2_row.region, rs2_row.want, rs2_row.status) == (2, 4.0, "launched")
+    (exp,) = ts.expeditions
+    assert (exp.home, exp.forest, exp.crew) == (2, 1, [30, 31, 32, 33])
+    (row,) = _state(world).timber_needs
+    assert (row.region, row.works, row.want, row.rs2_want, row.gap) == (0, [work.wid], 1.0, 0.0, 1.0)
+    assert (row.status, row.reason, row.eid) == ("refused", "forest_busy", None)
+    assert _state(world).counters["timber_refused_forest_busy"] == 1
+    snap = IC.snapshot_summary(_advanced(world))
+    assert snap["timber_needs"][0]["reason"] == "forest_busy" and snap["timber_needs_dropped"] == 0
+    # Alone, the same need launches the woodcutters from region 0 (PL1's crew rule and wages).
+    alone = _pl1_world(work_region=0)
+    _phase10(alone, _Sim(_pl1_people()))
+    ts = alone.livelihoods.timber_supply
+    (exp,) = ts.expeditions
+    assert (exp.home, exp.forest, exp.crew, exp.need) == (0, 1, [1, 2, 3, 4], 1.0)
+    (row,) = _state(alone).timber_needs
+    assert (row.status, row.eid) == ("launched", exp.eid)
+    assert ts.needs == [] and ts.counters["launched"] == 1 and "need_rows" not in ts.counters
+    # In RS2's own region the works' want counts after RS2's: one expedition serves the region.
+    shared = _pl1_world(rs2_region=0, work_region=0)
+    _phase10(shared, _Sim(_pl1_people()))
+    (exp,) = shared.livelihoods.timber_supply.expeditions
+    (row,) = _state(shared).timber_needs
+    assert (row.rs2_want, row.gap, row.status, row.eid) == (4.0, 1.0, "expedition", exp.eid)
+
+
+def _advanced(world):
+    w = copy.deepcopy(world)
+    w.turn += 1
+    return w
+
+
+def test_the_works_ask_only_for_open_works_that_can_use_timber_next_phase2(monkeypatch):
+    world = _pl1_world(work_region=0)
+    assert IC.timber_wants(world) == [(0, 1.0, [0])]
+    # Nothing for a region without a farmer after the tick (RS2's observed count).
+    world.livelihoods.repair_projects._labour = (world.turn, [0, 2, 6])
+    assert IC.timber_wants(world) == []
+    world.livelihoods.repair_projects._labour = None
+    # Without L9 storage's actual request decides granary_first at Phase 2: no prediction screens the need.
+    roads = _pl1_world(work_region=0, kind=ROADS)
+    S.set_storage_policy(world, 0, "expand", 4.0)
+    assert IC.timber_wants(world) == [(0, 1.0, [0])] and IC.timber_wants(roads) == [(0, 2.0, [0])]
+    # With L9 a work asks only when its own proposal could name it: irrigation,
+    # not predicted granary_first (the proposal's screen); a road never.
+    import chronicler.local_budgets as LB
+    monkeypatch.setattr(LB, "envelope", lambda *a, **k: 0)
+    assert IC.timber_wants(world) == [] and IC.timber_wants(roads) == []
+    S.set_storage_policy(world, 0, "maintain", 4.0)
+    assert IC.timber_wants(world) == [(0, 1.0, [0])]
+    monkeypatch.undo()
+    # Never an asset without an open work, never in a mode without works.
+    assert IC.timber_wants(_pl1_world(work_region=0, condition=0.9)) == []
+    for mode in ("record_only", "wear_only"):
+        assert IC.timber_wants(_pl1_world(work_region=0, mode=mode)) == []
+        assert IC.timber_regions(_pl1_world(work_region=0, mode=mode)) == frozenset()
+
+
+def _pl1_run(world, turns):
+    from tests.test_timber_supply import _Sim, _phase10, _turn as pl1_turn
+    sim = _Sim(_pl1_people())
+    _phase10(world, sim)
+    world.turn += 1
+    stores = []
+    for _ in range(turns):
+        pl1_turn(world, sim)
+        stores.append([r.model_dump() for r in world.livelihoods.timber_supply.stores])
+    return sim, stores
+
+
+@pytest.mark.parametrize("case", ["no_work", "supplied", "record_only", "wear_only"])
+def test_rs2_and_its_woodcutters_are_unchanged_when_the_works_ask_for_nothing(case):
+    """RS2's project in region 0; the works in region 2 have no open work, or
+    their own stockpile covers them (``supplied``), or the mode has no works."""
+    def world(switch):
+        w = _pl1_world(rs2_region=0, work_region=2, switch=switch, condition=0.9 if case == "no_work" else 0.2,
+                       mode=case if case in ("record_only", "wear_only") else "repair")
+        w.regions[2].stockpile.goods["timber"] = 50.0
+        return w
+    on, off = world(True), world(False)
+    _pl1_run(on, 8)
+    _pl1_run(off, 8)
+    assert on.livelihoods.timber_supply.model_dump() == off.livelihoods.timber_supply.model_dump()
+    rp_on, rp_off = on.livelihoods.repair_projects, off.livelihoods.repair_projects
+    assert [p.model_dump() for p in rp_on.projects] == [p.model_dump() for p in rp_off.projects]
+    assert [p.model_dump() for p in rp_on.closed] == [p.model_dump() for p in rp_off.closed]
+    assert rp_on.closed or rp_on.projects
+    state = _state(on)
+    if case == "supplied":
+        assert all(r.status == "supplied" for r in state.timber_needs) and state.timber_needs
+        assert sum(w.timber_used for w in state.works + state.closed) > 0
+    else:
+        assert state.timber_needs == [] and "timber_needs" not in state.model_dump()
+        assert "timber_needs" not in IC.snapshot_summary(on)
+
+
+def test_the_works_timber_comes_only_from_the_woodcutters_store_exactly_once():
+    # Region 2 has no stockpile and no forest: every load the works use was cut by PL1's crew.
+    world = _pl1_world(work_region=2)
+    ts = world.livelihoods.timber_supply
+    _sim, stores = _pl1_run(world, 14)
+    rows = [r for turn in stores for r in turn if r["region"] == 2]
+    delivered = sum(r["delivered"] for r in rows)
+    held = sum(r["held"] for r in rows)
+    returned = sum(r["returned"] for r in rows)
+    released = sum(r["released"] for r in rows)
+    state = _state(world)
+    used = sum(w.timber_used for w in state.works + state.closed)
+    (work,) = state.closed
+    assert work.status == "completed" and used == pytest.approx(work.scope * IC.TIMBER_PER_WORK["irrigation"])
+    assert used == pytest.approx(held - returned) and delivered > used
+    assert delivered == pytest.approx(used + ts.store.get(2, 0.0) + released)
+    # The store was kept for the open work, released only once it completed.
+    assert released == pytest.approx(delivered - used) and ts.store.get(2, 0.0) == 0.0
+    for e in ts.closed + ts.expeditions:
+        assert e.cut == pytest.approx(e.cargo + e.delivered + e.lost + e.abandoned)
+    (exp,) = ts.closed
+    assert exp.home == 2 and exp.status == "delivered" and exp.wages_milli > 0
+    assert state.counters["timber_need_launched"] == 1 and state.counters["timber_need_expedition"] >= 1
+
+
+def test_exact_resume_with_an_outstanding_timber_order_matches_the_straight_run():
+    from tests.test_timber_supply import _Sim, _phase10, _turn as pl1_turn
+    a = _pl1_world(rs2_region=0, work_region=2)
+    sim_a = _Sim(_pl1_people())
+    _phase10(a, sim_a)
+    a.turn += 1
+    # RS2's crew takes the one forest first; the works' crew goes once it is free.
+    for _ in range(8):
+        pl1_turn(a, sim_a)
+        if any(e.home == 2 and e.stage == "cutting" for e in a.livelihoods.timber_supply.expeditions):
+            break
+    (exp,) = [e for e in a.livelihoods.timber_supply.expeditions if e.home == 2]
+    assert [r.reason for r in _state(a).timber_needs] in (["forest_busy"], [None])
+    assert _state(a).counters["timber_refused_forest_busy"] >= 1 and _state(a).works
+    b, sim_b = pickle.loads(pickle.dumps(a)), copy.deepcopy(sim_a)
+    b.livelihoods._pool_sim = id(sim_b)                       # an exact load re-binds the same pool
+    for _ in range(8):
+        pl1_turn(a, sim_a)
+        pl1_turn(b, sim_b)
+    assert a.model_dump(mode="json") == b.model_dump(mode="json")
+    assert any(w.timber_used > 0 for w in _state(a).works + _state(a).closed)
+    json.dumps(IC.snapshot_summary(a))
