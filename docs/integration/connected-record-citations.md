@@ -44,3 +44,24 @@ labels are observations, not treatment effects, qualification or proof of
 safety. It writes no simulation fields and invokes no narrator/model. The
 source run's command, source commit and extension identity must be recorded
 separately; a saved bundle alone does not establish those generation facts.
+
+Before accepting natural examples, create a receipt with the production strict
+readers:
+
+```
+PYTHONPATH=src node viewer/scripts/validate-connected-records.mjs --bundle BUNDLE --python PY --out validation.json
+PYTHONPATH=src PY scripts/connected_world_examples.py BUNDLE --validation validation.json --output examples.json
+```
+
+The receipt binds the exact bundle bytes and bundled reader source by SHA-256.
+Only an `observed` package can supply a story fact. Absent, disabled, malformed,
+unobserved or unavailable validation is listed as skipped; the finder does not
+promote it into natural activation. A receipt for different bundle bytes is
+rejected. Viewer development dependencies are required for the Node validation
+step; unavailable validation remains an honest missing-evidence result.
+
+Constructed saved demonstrations use the canonical optional
+`metadata.constructed = {from: <64-hex source bundle SHA-256>, edits: [<nonempty edit descriptions>]}`.
+The loader validates it and the viewer displays a visible "Constructed
+demonstration" notice on the loaded app. Natural bundles without this explicit
+marker receive no notice. Filenames, seeds and modes do not imply construction.

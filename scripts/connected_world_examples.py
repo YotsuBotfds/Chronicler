@@ -47,10 +47,10 @@ RULES = (
  ("guild_leagues",("frame","payouts"),"mixed","claim paid only in part",lambda r:0<r.get("paid_milli",0)<r.get("loss_milli",0),("league","city","kind","loss_milli","paid_milli","event_id")),
 )
 
-def collect_examples(bundle: dict) -> dict:
+def collect_examples(bundle: dict, validation: dict | None = None) -> dict:
     """Return independent story entries and explicit empty categories, without mutation."""
     examples = {f"{package}:{category}": {"found":False,"selection_rule":rule} for package,_path,category,rule,_predicate,_fields in RULES}
-    errors=[]; entries=[]
+    errors=[]; entries=[]; skipped=set()
     for snapshot in bundle.get("history") or []:
         turn=snapshot.get("turn"); lh=snapshot.get("livelihoods") or {}
         if not isinstance(lh,dict) or lh.get("schema_version")!=1: continue
@@ -59,6 +59,10 @@ def collect_examples(bundle: dict) -> dict:
             if examples[key]["found"]: continue
             record=lh.get(package)
             if not isinstance(record,dict) or record.get("source_turn")!=turn-1: continue
+            accepted = (validation or {}).get("snapshots",{}).get(str(turn),{}).get(package)
+            if accepted != "observed":
+                skipped.add((package,accepted or "validation unavailable"))
+                continue
             rows=record
             for field in path: rows=rows.get(field) if isinstance(rows,dict) else None
             if not isinstance(rows,list): continue
@@ -77,17 +81,21 @@ def collect_examples(bundle: dict) -> dict:
                 prov={"v":1,"narrator":"mechanical","as_of":turn-1,"facts":[fid],"names":[],"spans":[[0,len(text),[fid]]]}
                 entry={"narrative":text,"provenance":prov}
                 entries.append(entry)
-                individual=any(field in values for field in ("holder","owner","id","a","army"))
+                individual=any(field in values for field in ("holder","owner","id","a","army","wid","aid"))
                 examples[key]={"found":True,"selection_rule":rule,"snapshot":turn,"source_turn":resolved.source_turn,"join":"id" if individual else "region_or_institution_context","fact_id":fid,"pointer":resolved.pointer,"values":values,"story_entry":entry}
                 break
     # Audit a derived object, never mutate or narrate the simulation bundle.
     story_bundle={**bundle,"chronicle_entries":entries}
     audit=audit_bundle(story_bundle)
-    return {"constructed":(bundle.get("metadata") or {}).get("constructed"),"selection":"first matching saved row per declared rule; labels are observations, not efficacy or qualification","examples":examples,"schema_errors":errors,"story_audit":audit.to_dict()}
+    return {"constructed":(bundle.get("metadata") or {}).get("constructed"),"selection":"first matching saved row per declared rule; labels are observations, not efficacy or qualification","examples":examples,"schema_errors":errors,"skipped_validation":[{"package":package,"state":state} for package,state in sorted(skipped)],"validation_reader_sha256":(validation or {}).get("reader_bundle_sha256"),"story_audit":audit.to_dict()}
 
 def main():
-    parser=argparse.ArgumentParser(description=__doc__);parser.add_argument("bundle",type=Path);parser.add_argument("--output",type=Path)
-    args=parser.parse_args();data=args.bundle.read_bytes();bundle=load_bundle(args.bundle);report=collect_examples(bundle)
+    parser=argparse.ArgumentParser(description=__doc__);parser.add_argument("bundle",type=Path);parser.add_argument("--output",type=Path);parser.add_argument("--validation",type=Path,help="required strict production-reader receipt bound to these bundle bytes")
+    args=parser.parse_args();data=args.bundle.read_bytes();bundle=load_bundle(args.bundle)
+    validation=json.loads(args.validation.read_text()) if args.validation else None
+    if validation is not None and validation.get("bundle_sha256")!=hashlib.sha256(data).hexdigest():
+        parser.error("validation receipt does not identify these exact bundle bytes")
+    report=collect_examples(bundle,validation)
     report={"bundle":str(args.bundle.resolve()),"bundle_sha256":hashlib.sha256(data).hexdigest(),**report}
     encoded=json.dumps(report,indent=2,sort_keys=True)+"\n"
     if args.output: args.output.parent.mkdir(parents=True,exist_ok=True);args.output.write_text(encoded)
