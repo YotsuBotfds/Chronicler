@@ -121,6 +121,9 @@ def _cash_due(value, carry):
 
 
 def _envelope_value(world, civ):
+    pending = getattr(world.livelihoods.epidemic_care, "_turn", None)
+    if pending is not None and pending.turn == world.turn:
+        return pending.cash_envelopes.get(civ, 0)
     from chronicler.epidemic_care import _envelopes
     return sum(c.amount for c in _envelopes(world) if c.civ == civ) * 1000
 
@@ -128,7 +131,7 @@ def _envelope_value(world, civ):
 def _care_due(world, civ):
     care = getattr(world.livelihoods, "epidemic_care", None)
     pending = getattr(care, "_turn", None)
-    return sum(x.wage_due_milli for r in getattr(pending, "receipts", ()) if r.civ == civ for x in r.carers)
+    return pending.wages_planned.get(civ, 0) if pending is not None and pending.turn == world.turn else 0
 
 
 def guard_cash_reserve(world, civ):
@@ -146,8 +149,11 @@ def care_cash_available(world, civ):
     if state is None or not state.enabled:
         return None
     care = world.livelihoods.epidemic_care
-    cash = max(0, _envelope_value(world, civ) - guard_cash_reserve(world, civ))
-    return max(0, care.book.carry.get(f"{civ}:care_wage", 0) + cash - _care_due(world, civ))
+    pending = care._turn
+    if civ not in pending.health_cash_limits:
+        cash = max(0, _envelope_value(world, civ) - guard_cash_reserve(world, civ))
+        pending.health_cash_limits[civ] = care.book.carry.get(f"{civ}:care_wage", 0) + cash
+    return max(0, pending.health_cash_limits[civ] - _care_due(world, civ))
 
 
 def care_bill_fits(world, civ, total):
