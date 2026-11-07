@@ -215,7 +215,10 @@ open questions follow each summary.
      option, so forwarding, manifest, resume conflicts and the catalog's symmetric exclusion
      reuse the tested framework (a recorded deviation).
   2. **Funding (Q-C5, decided): one authority**, an L9 provider `epidemic_care` appended to
-     `local_budgets.PROVIDERS` (group `relief`); C2 requires `--local-budgets`; wages are
+     `local_budgets.PROVIDERS` (group `relief`; one divisible proposal per civ for all its
+     outbreak regions, rounded up once to L9's coin, after review m1); C2 requires
+     `--local-budgets`; each civ's wage bill is quoted at payment before any income is withheld
+     (review m2); wages are
      transfers through `money.py` (purpose `care_wage`, appended; exactly once per (turn,
      purpose, batch)); no treasury authority of its own, no flat charge. B3's L9 proposal
      appends after or before it, whichever merges second.
@@ -239,8 +242,13 @@ open questions follow each summary.
   12. A1 (`--wealth-accounting`) and C2 exclude each other until the ledger itemizes care
       wages and withheld care income (an A1 frame change the lead integrates). The
       Python-only lane rides `care_wage` on the native purpose `repair_wage` (batches from
-      `0xC2000`) and reserves carers under the registry's `repair` category: a native build
-      may append dedicated codes later.
+      `0xC2000`) and reserves carers under the registry's `repair` category (the shared query
+      labels them `registry_care`): a native build may append dedicated codes later. Open
+      items: A1 itemization of `care_wage` and `withheld_care`; per-pathogen care reductions.
+  13. Review of `3e5ee44d` (approve with changes; deviations accepted): the CW5c
+      preregistration was redesigned before the freeze (primaries unconditioned or on the
+      cost-only arm's cells; the own-covered ratio a mechanism check; reach and attenuation
+      reported) and the code findings m1-m8 and nits n1-n9 addressed.
 
 ### 5.4 D institutions, war, attribution and the owned-stock lifecycle ([audit](../audits/connected-world/audit-d-institutions-war-owned-stock.md))
 
