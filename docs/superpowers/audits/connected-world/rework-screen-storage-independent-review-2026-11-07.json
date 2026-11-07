@@ -1,0 +1,128 @@
+{
+  "review": "Independent CWR1 extractor/control/protocol and lossless archive source review; scoped pre-pilot approval",
+  "root_head_at_review": "09403c15070ddab4977ae8b2e65c336238468447",
+  "evaluation_head_at_review": "c97bb26fcde34b5f4e33da4d671c3ab0618e64ef",
+  "evaluation_three_file_fix_reviewed_while_uncommitted": true,
+  "source_files": {
+    "scripts/cw_rework_screen.py": {
+      "review_checkout": "/workspace/cwr-evaluation",
+      "sha256": "f8409b1b76be49dbff968323f9eee2f65229e5c1280e0c349fe2e2a3927e4fef"
+    },
+    "tests/test_cw_rework_screen.py": {
+      "review_checkout": "/workspace/cwr-evaluation",
+      "sha256": "63224e39e317d79e30c35842332a28ea967e6c03bc64827b31c2e8b8945e0b7d"
+    },
+    "docs/superpowers/progress/connected-world-rework-prereg-draft.md": {
+      "review_checkout": "/workspace/cwr-evaluation",
+      "sha256": "e4d2f73789d0cd438fe0004f54229facdf30c5cb61cb5b1f5816c6d655e90f9e"
+    },
+    "scripts/screen_runner.py": {
+      "review_checkout": "/workspace/Chronicler",
+      "sha256": "5ded5f3548bb6403b1df25e9d31e5c5ce638631aa5fd1b4fabdcfb8510b5cadb"
+    },
+    "scripts/cw_integrated_screen.py": {
+      "review_checkout": "/workspace/Chronicler",
+      "sha256": "45827afb49817bdba4ce272a5ceecd8f57ad2c9cd9a455cfed2f630365a2ddd9"
+    },
+    "src/chronicler/bundle_codec.py": {
+      "review_checkout": "/workspace/Chronicler",
+      "sha256": "4960fc650bb6f8cb0a0573ffbc51c12bf655b9e14154891d6a4afd7600d7148d"
+    },
+    "scripts/cw_bundle_archive.py": {
+      "review_checkout": "/workspace/Chronicler",
+      "sha256": "a1cf40611bb0b584ffb3dd2d8995aead879e06854b61f69d3824b58a9041c79d"
+    },
+    "tests/test_bundle_codec.py": {
+      "review_checkout": "/workspace/Chronicler",
+      "sha256": "957054bc7cb79294857db9361ef1ff755a1700d2da7aac0e385d74cae2db1c21"
+    },
+    "docs/superpowers/progress/connected-world-rework-storage/README.md": {
+      "review_checkout": "/workspace/Chronicler",
+      "sha256": "7e3bbf7d158cbdc0ddb7ae100031b96477c41002d44d7ceafb0efb4cfed86c03"
+    }
+  },
+  "screen_review": {
+    "original_implementation_commits": [
+      "dab25646",
+      "396033ff"
+    ],
+    "reviewer_test_result": "48 passed, 0 failed, in 0.13s; CPython3.13.16; actual root production imports; no native imports or simulation",
+    "controls": "All 12 arms keep A6 rules3 and active independent D3; personal record_only and component deletions do not remove D3. Density versus legacy is additional PH multiplier only. PH cost_only retains cost rules and chosen crowding basis; realized spending may differ. Retail no_relief is joint theta1/L2 free-pool allocation without retail means testing, not zero free rations.",
+    "review_findings_fixed": [
+      "Missing/negative/fractional/Boolean food native_count no longer makes unobserved food access appear as complete recorded zero.",
+      "Missing public grain observation now fails extraction instead of reporting public relief zero.",
+      "Positive free_given in no_relief is accepted according to existing native authority; mode1 and absent retail-priority branch are checked."
+    ],
+    "held_gate": "Not granted by review. Protocol remains DRAFT; clean source-bound schema smoke and complete 24-run timing pilot, independent readback, exact source/native receipt and freeze required before held execution.",
+    "source_binding_limit": "Inherited runner records HEAD, tracked dirty count, native/module/runner/registry hashes at start; it does not lock mutable production files. Commit clean source before pilot and hold production/runner files immutable through a cohort. Docs-only source deltas must be explicitly compared by inherited load_pilot gate.",
+    "no_activation_conditioning": true,
+    "undefined_access_and_ratios_preserved": true,
+    "full_qualification_run": false
+  },
+  "historical_review": {
+    "rows": 60,
+    "horizon": 120,
+    "arithmetic": "PASS",
+    "independent_contrasts_equal_committed": true,
+    "report_rows_checked": {
+      "primary": 6,
+      "secondary": 256,
+      "fixed_harm": 88
+    },
+    "metrics_sha256": "b8365bf868b7cfdfa88740304a669429be2bff52d1000c9f0cd7b039eb0fba45",
+    "food_FULL_minus_A6R_means": {
+      "template": 1110.364818,
+      "procedural": 1254.741389
+    },
+    "epidemic_FULL_minus_A6R_means": {
+      "template": 22.166667,
+      "procedural": 151.333333
+    },
+    "all_twelve_worlds_adverse_on_both": true,
+    "cause_specific_famine_and_war": "null/unrecorded in all60, not zero",
+    "source_hashes_and_document_only_freeze_runtime_delta": "PASS",
+    "reviewer_raw_simulation_or_historical_native_builds": 0,
+    "raw_bundle_readback": "Separate retained evaluation-owner and historical independent-review receipts; not re-executed by this reviewer."
+  },
+  "reservation_review": {
+    "recorded_git_source_objects": 52,
+    "distinct_registry_versions": 13,
+    "sha256_mismatches": [],
+    "candidate_collisions": []
+  },
+  "archive_review": {
+    "implementation": "4634a69d",
+    "source_and_evidence_reviewer": "/root/rework_review/archive_review",
+    "focused_result": "48 passed in1.94s",
+    "input_pairs_rehashed_and_decompressed": 4,
+    "representation_reductions_percent": [
+      75.0791,
+      75.5856,
+      75.5331,
+      84.5053
+    ],
+    "rejected_encoder_cpu_medians_seconds": [
+      8.921817939,
+      8.884201716
+    ],
+    "rejected_encoder_difference_percent": 0.42162,
+    "findings_resolved_by": "b5d4c66e; parent reviewer independently read final README wording",
+    "limits": "Finalized source required; source_unchanged describes final validation boundary, not a lock. Postpublication directory-fsync failure can leave complete verified destination. No loading/RSS/model qualification improvement claim."
+  },
+  "viewer_gzip_review": {
+    "implementation": "5e41223b",
+    "reviewer": "/root/rework_review/archive_review",
+    "focused_tests": 78,
+    "existing_hook_codec_tests": 52,
+    "complete_equivalence": {
+      "snapshots": 120,
+      "events": 6663,
+      "named_events": 357,
+      "observations": 190555,
+      "entities": 3279
+    },
+    "desktop_and_phone_recorded_journeys": "16checks each; source/assets/input hashes independently reconciled; journeys not rerun by this reviewer",
+    "result": "APPROVED: complete inflation verified before parse or parts; uploaded archive byte identity preserved; JSON/BOM/version6/checkpoint paths retained."
+  },
+  "approval": "No remaining source-semantic blocker at these reviewed bytes. Clean source freeze, actual all-arm schema/timing pilot, held protocol freeze, enabled resume, feature-off identities, browser/performance integration and exact-head/main CI remain separate lead-owned gates."
+}
