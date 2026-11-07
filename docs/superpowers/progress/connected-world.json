@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "board_version": 21,
+  "board_version": 22,
   "title": "Connected-world program (A livelihoods and trade, B watersheds and infrastructure, C public health, D institutions and war, E stories and evidence) operational board",
   "plan": "docs/superpowers/roadmaps/connected-world-program.md",
   "owner_instruction": "2026-11-06 (after #82): own the A-E program end to end with parallel workers, integrating and evaluating each slice and continuing across slice boundaries; merges of this program authorized after independent review, green premerge Tests on the reviewed head and verified main CI; new systems opt-in and off by default; no default promotion; full 200-seed and procedural qualification gates restricted; bounded held screens (procedural included) authorized; no purchases, paid credits, paid narration APIs, deployments, credential or sharing changes. Amendment (same day): tiers sequence work and are not stopping points; failures block the affected merge, not the program; pin 8abc1acb as the original reference; default-path changes behind a switch or rules version.",
@@ -12,7 +12,7 @@
   },
   "durable_location": {
     "branch": "main (merged slices) plus the lane and integration branches listed in lanes",
-    "base": "f76436ae37c735b2b856caf98033122798ac88d2 (#95); main CI42386261493 pending"
+    "base": "f76436ae37c735b2b856caf98033122798ac88d2 (#95); main Tests42386261493 all nine verified success"
   },
   "status_values": [
     "proposed",
@@ -190,7 +190,7 @@
       "id": "D1",
       "branch": "claude/cw-d1-institutions",
       "scope": "--reform-services (poor relief buys real food) and --guild-leagues (cross-border guild leagues, real purse transfers)",
-      "status": "merged (#95); main CI pending",
+      "status": "merged (#95); main CI all nine verified green",
       "integration_branch": "codex/cw-d1",
       "fresh_cohort": {
         "template": [
@@ -219,11 +219,12 @@
       "id": "A-E-final",
       "branch": "codex/cw-lead",
       "scope": "A1-2, A4-2/3, A6 full choices, B3 named crews/road funding, B4/B5, C2 supplies/sanitation/crowding, C4/named guards, D1c, D2 works attribution, D3/D4, E linked histories/provenance/examples",
-      "status": "PR #96 draft; source frozen43f02cca; final evidence/review active",
+      "status": "PR #96 draft; all source blockers reviewed fixed; final bounded held/resume/identity/offline evidence active",
       "native_source": "9e0017017245870affa0401714d14cddccf98ff7",
       "native_sha256": "59f536b8f4a6c2bc82c51eeaec55f3aff6b0a1c5c8f1a324049ad15b42c51617",
       "native_inputs_sha256": "38b21020673a028ce6bcd76e19fb3e0c01eed5893b89f1ce6ff6eda6cf8925a2",
-      "limitations": "No port service consumer; wealth remains single spendable but not globally conserved cash; native Soldier ordinary income remains modeled; irrigation is explicit sanitation proxy; unknown A6 migration attribution is measurement loss, not less displacement."
+      "limitations": "No port service consumer; wealth remains single spendable but not globally conserved cash; native Soldier ordinary income remains modeled; irrigation is explicit sanitation proxy; unknown A6 migration attribution is measurement loss, not less displacement.",
+      "runtime": "eaa4a5d3e1cb5c958b5e32719601c28986c9f6ac (valid runtime); startup guards c13768f6 reject only invalid configurations"
     }
   ],
   "recorded_limits": [
@@ -618,12 +619,12 @@
       "reviewed_head": "11467a46b957a364b3d4d4ba2ba1a4326adcc6c3",
       "premerge_run": 42384860718,
       "main_run": 42386261493,
-      "main_status": "pending",
+      "main_status": "success (all nine jobs verified)",
       "date": "2026-11-07",
       "verification": "Independent exact-head approval; all nine premerge Tests jobs success; merge tree equals reviewed head. CW6D1 60/60 completed, sparse relief activation suppresses summary, leagues mixed."
     }
   ],
-  "next": "Verify #95 main Tests42386261493 (all9) before next feature merge. Finish fresh CW6/health development pilots after schema/payment repairs, freeze preregistrations and bounded held runs only after timing/strict-reader checks. Complete final feature-off identities versus8abc and #95 tree, active lifecycle exact resumes, full offline/native/Rust/viewer/browser/provenance/examples and declared-scale profile; independent #96 source/inverse review then exact-head green CI/merge/main CI. No default promotion or restricted qualification.",
+  "next": "Finish all60 CW6 heldruns under unchanged1corehcap plus active union22resume branches, exactfinalsourceboth-referencefeatureoff identity and fullV3offline; retain completed14case declaredscale profile/materialcosts, acceptedEexamples/browser andhealth36held. Final independent evidence/sourcehead review, exact-head allninePR96Tests, authorizedmerge and verifiedmainCI. No defaultpromotion/fullqualification.",
   "baseline": {
     "oracle_lane": "PASS, 63 chunks, 295.5 s, slowest 32.4 s of 110 s",
     "native_check": "check_python_env --expect native PASS (101a4cd5)",
@@ -645,7 +646,10 @@
     "army_movement": "Actual native source confirms enlisted people can migrate; service attachment is not residence. No teleport; Phase2 census freezes work/food exclusion and meal authority; late recruits start service nextturn.",
     "infrastructure_labor": "Original B3 anonymous/unpaid fallback remains honestly labeled. With recovery_crews, named adult farmer labor uses actual wage/material bills and one finite L9 works envelope including roads; no fake road food relief.",
     "historical_bound": "D1 lower delivery benefit cannot be proved without gross outbound food. Historical raw retained, current lower null; upper remains conditional.",
-    "inverse": "Append-only cwcomplete exact inverse to reviewed11467a46 tree,37hunks7files independently byte-verified; historical fixtures untouched."
+    "inverse": "Append-only cwcomplete exact inverse to reviewed11467a46 tree,37hunks7files independently byte-verified; historical fixtures untouched.",
+    "return_home": "D3 stores first personally known priorOwnRowhome/source and allwitnessedwarinstances; X1unknownmove rehoming neveroverwritesmemory. Latepriorreadrefusal keepsunknown, neverreadsT.",
+    "a4_wares": "Unimplemented unadopted A4-W auditproposal; adoptedroadmap5.7 coversfood+timber. No ownedwarescrossborderclaim. Separate futurecontract, nottechnicalportdependency.",
+    "performance": "Accept substantial measured FULLCPU/RSS/artifactoverhead asoptinexperimental cost, with actualcounts/ratios/latency; never defaultpromotion orperformancequalification. Proposed25%/2x/500MiB flags remainvisible."
   },
   "screens": {
     "CW4": {
@@ -728,14 +732,19 @@
       "page": "docs/superpowers/progress/connected-world-screens-cw6d1/README.md"
     },
     "CW6": {
-      "status": "fresh10case200T development pilot running43f02cca; held unspent",
-      "cohort": "781–786template/881–886procedural",
-      "failure": "Priorccc pilot7paymentprotocol failures/3success; preserved; fixed legal unary purposes506498df. No held touched."
+      "status": "FROZEN5ec73003; fresh60held120T1job running; active exactresume separatelyrunning immutableeaa",
+      "cohort": "781–786template/881–886procedural;120T pre-heldamendment recorded",
+      "failure": "Priorccc pilot7paymentprotocol failures/3success; preserved; fixed legal unary purposes506498df. No held touched.",
+      "runtime": "eaa4a5d3e1cb5c958b5e32719601c28986c9f6ac",
+      "pilot": "10/10strictPASS312.2s; marginprojection.7805coreh<1cap; original200T rejectedforbudgetbeforeanyheld"
     },
     "CW-health": {
-      "status": "6case200T development pilot; extractor repairs before final timing freeze",
+      "status": "complete36/36 strictPASS; independent final evidence approved",
       "cohort": "3901–3906template/4001–4006procedural; reserved, unspent",
-      "failure": "First pilot simulation succeeded but strict extractor mismatched actual ordered quarantine channels and missing deceased-worker income row; preserved unknown, not zero."
+      "failure": "First pilot simulation succeeded but strict extractor mismatched actual ordered quarantine channels and missing deceased-worker income row; preserved unknown, not zero.",
+      "frozen": "8d38f8b49e2db7635ee9ba074edde1d422fbc030",
+      "held": "200T,820s(.22778coreh) below.75cap; fullfresh12worldcohort; noqualification",
+      "results": "PA-PC death-rate means lower t/p; raw epidemic deaths proceduralmean+2.833 and foodshortfall higherbothstrata; PA-PS arrivalsprocedural+20.833 (4/6higher,max+102). Unknown deductions explicitlyretained, no universalbenefit."
     }
   },
   "events": [
