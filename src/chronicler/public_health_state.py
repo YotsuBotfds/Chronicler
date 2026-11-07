@@ -62,6 +62,8 @@ class PublicHealthState(BaseModel):
     guards: list[dict] = Field(default_factory=list)
     guard_capacity_turn: int | None = None
     guard_capacity: list[tuple[int, int]] = Field(default_factory=list)
+    funding_turn: int | None = None
+    funding: list[dict] = Field(default_factory=list)
     _guard_tick: object | None = PrivateAttr(default=None)
 
     def __getstate__(self):

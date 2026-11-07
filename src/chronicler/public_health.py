@@ -115,6 +115,80 @@ def supply_for_work(world, region: int, share: float) -> int:
     return math.ceil(share * PATIENTS_PER_CARER * _ration(world) * state.prices.get(region, 1000))
 
 
+def _cash_due(value, carry):
+    """Whole-unit fresh funding after spending this purpose's prepaid carry."""
+    return (max(0, int(value) - int(carry)) + 999) // 1000 * 1000
+
+
+def _envelope_value(world, civ):
+    from chronicler.epidemic_care import _envelopes
+    return sum(c.amount for c in _envelopes(world) if c.civ == civ) * 1000
+
+
+def _care_due(world, civ):
+    care = getattr(world.livelihoods, "epidemic_care", None)
+    pending = getattr(care, "_turn", None)
+    return sum(x.wage_due_milli for r in getattr(pending, "receipts", ()) if r.civ == civ for x in r.carers)
+
+
+def guard_cash_reserve(world, civ):
+    state = _state(world)
+    if state is None or not state.enabled:
+        return 0
+    value = (sum(m["wage_due_milli"] for r in state.guards if r["civ"] == civ for m in r["members"])
+             if state.guard_turn == world.turn else guard_reserve(world, civ))
+    return _cash_due(value, state.book.carry.get(f"{civ}:guard_wage", 0))
+
+
+def care_cash_available(world, civ):
+    """Maximum new care credit after prior care shares and guard cash reserve."""
+    state = _state(world)
+    if state is None or not state.enabled:
+        return None
+    care = world.livelihoods.epidemic_care
+    cash = max(0, _envelope_value(world, civ) - guard_cash_reserve(world, civ))
+    return max(0, care.book.carry.get(f"{civ}:care_wage", 0) + cash - _care_due(world, civ))
+
+
+def care_bill_fits(world, civ, total):
+    state = _state(world)
+    if state is None or not state.enabled:
+        return True
+    carry = world.livelihoods.epidemic_care.book.carry.get(f"{civ}:care_wage", 0)
+    return _cash_due(total, carry) + guard_cash_reserve(world, civ) <= _envelope_value(world, civ)
+
+
+def note_care_funding(world, care_turn, ledger):
+    """Retain exact cash and prepaid carry beside the separate gross value cap."""
+    state = _state(world)
+    if state is None or not state.enabled:
+        return
+    if state.funding_turn == world.turn:
+        raise RuntimeError("public-health care funding already recorded")
+    by_civ = {r.civ: r for r in ledger}
+    state.funding_turn, state.funding = world.turn, []
+    for civ, amount in sorted(care_turn.envelopes.items()):
+        care = by_civ[civ]
+        guard_carry = state.book.carry.get(f"{civ}:guard_wage", 0)
+        state.funding.append({"turn": world.turn, "civ": civ, "envelope_milli": amount * 1000,
+                              "care_paid_milli": care.paid_milli, "care_cash_milli": care.treasury_units * 1000,
+                              "care_carry_before": care.carry_before, "care_carry_after": care.carry_after,
+                              "supply_cash_milli": 0, "guard_cash_milli": 0, "guard_paid_milli": 0,
+                              "guard_carry_before": guard_carry, "guard_carry_after": guard_carry})
+        _bump(state, "care_cash_milli", care.treasury_units * 1000)
+
+
+def _funding(world, civ):
+    state = _state(world)
+    if state.funding_turn != world.turn:
+        raise RuntimeError("public-health funding requires current care settlement")
+    return next((row for row in state.funding if row["civ"] == civ), None)
+
+
+def _cash_remaining(row):
+    return row["envelope_milli"] - row["care_cash_milli"] - row["supply_cash_milli"] - row["guard_cash_milli"]
+
+
 def guard_regions(world, civ):
     """Own customs regions on a ledger edge to an advised foreign polity."""
     state = _state(world)
@@ -228,7 +302,11 @@ def supply_care(world, care_turn, capacity, economy_result, acc):
             if price is None:
                 row.reason = "price_unobserved"
                 continue
-            budget = min(budgets.get(care.civ, 0), money._civ_budget(world, care.civ, acc) * 1000)
+            budget = budgets.get(care.civ, 0)
+            funding = _funding(world, care.civ)
+            if seller != care.civ:
+                cash = max(0, _cash_remaining(funding) - guard_cash_reserve(world, care.civ))
+                budget = min(budget, cash, money._civ_budget(world, care.civ, acc) * 1000)
             # A treasury pays whole units. A partial purchase never exceeds the
             # gross envelope, even where the owner and buyer are the same.
             affordable = (budget // 1000) * 1_000_000 // price
@@ -245,6 +323,8 @@ def supply_care(world, care_turn, capacity, economy_result, acc):
                 if not got.ok:
                     row.reason = "payment_refused:" + str(got.reason)
                     continue
+                funding["supply_cash_milli"] += charged
+                _bump(state, "supply_cash_milli", charged)
             region = world.regions[source]
             before = float(region.stockpile.goods.get("grain", 0.0))
             region.stockpile.goods["grain"] = before - food / 1000
@@ -361,11 +441,18 @@ def prepare_phase2(world, region_input, agent_bridge, snapshot, acc):
     for r in getattr(getattr(care, "_turn", None), "receipts", []):
         envelopes[r.civ] = max(0, envelopes.get(r.civ, 0) - r.wages_due_milli
                                - supply_for_work(world, r.region, r.care_time))
+    cash_credits = {}
+    for civ in envelopes:
+        care_carry = care.book.carry.get(f"{civ}:care_wage", 0)
+        care_cash = _cash_due(_care_due(world, civ), care_carry)
+        guard_carry = state.book.carry.get(f"{civ}:guard_wage", 0)
+        cash_credits[civ] = guard_carry + max(0, _envelope_value(world, civ) - care_cash)
     reserve, removal = [], {}
     for plan in state.guard_plan:
         civ, target = plan["civ"], plan["target"]
         need, members = GUARDS_PER_PAIR, []
-        budget = min(envelopes.get(civ, 0), _civ_budget(world, civ, acc) * 1000)
+        budget = min(envelopes.get(civ, 0), cash_credits.get(civ, 0),
+                     _civ_budget(world, civ, acc) * 1000 + state.book.carry.get(f"{civ}:guard_wage", 0))
         eligible_regions = guard_regions(world, civ)
         for rid in eligible_regions:
             for aid, occupation, settlement in people.residents(rid):
@@ -389,6 +476,7 @@ def prepare_phase2(world, region_input, agent_bridge, snapshot, acc):
                 need -= share
                 budget -= wage
                 envelopes[civ] -= wage
+                cash_credits[civ] -= wage
                 if need <= 1e-6:
                     break
             if need <= 1e-6:
@@ -425,6 +513,12 @@ def finish_phase2(world, economy_result, agent_bridge, acc):
                                                                for m in members),
                           regions=tuple(m["region"] for m in members))
         quote = money.quote(world, bill, turn=world.turn, book=state.book, acc=acc, sim=sim)
+        funding = _funding(world, civ)
+        cash_due = _cash_due(quote.total, state.book.carry.get(f"{civ}:guard_wage", 0))
+        if funding is None or cash_due > _cash_remaining(funding):
+            for r in teams:
+                r["payment"] = "refused:cash_envelope"
+            continue
         if not quote.ok:
             for r in teams:
                 r["payment"] = "refused:" + str(quote.reason)
@@ -433,6 +527,12 @@ def finish_phase2(world, economy_result, agent_bridge, acc):
         got = money.pay(world, bill, turn=world.turn, book=state.book, acc=acc, sim=sim)
         if not got.ok:
             raise RuntimeError("quoted guard wage bill failed at settlement")
+        funding["guard_cash_milli"] += -got.treasury_units * 1000
+        funding["guard_paid_milli"] += got.applied
+        funding["guard_carry_after"] = state.book.carry.get(f"{civ}:guard_wage", 0)
+        if _cash_remaining(funding) < 0:
+            raise RuntimeError("public-health cash funding exceeded its single envelope")
+        _bump(state, "guard_cash_milli", -got.treasury_units * 1000)
         flows = {int(f.payee[1]): f for f in got.flows}
         for m in members:
             flow = flows[m["agent_id"]]
@@ -478,6 +578,7 @@ def rollback_phase2(world):
     state = _state(world)
     if state is not None:
         state._guard_tick = None
+        state.funding_turn, state.funding = None, []
 
 
 def rollback_agent_tick(world, agent_bridge):
@@ -636,6 +737,8 @@ def snapshot_summary(world):
             "guards": state.guards if state.guard_turn == source else [],
             "guard_capacity_turn": state.guard_capacity_turn,
             "guard_capacity": state.guard_capacity,
+            "funding_turn": state.funding_turn if state.funding_turn == source else None,
+            "funding": state.funding if state.funding_turn == source else [],
             "totals": dict(state.totals), "parameters": {"sanitation_reduction": SANITATION_REDUCTION,
             "displacement_crowding": DISPLACEMENT_CROWDING, "life_value": LIFE_VALUE,
             "report_lifetime": REPORT_LIFETIME}}

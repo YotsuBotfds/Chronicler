@@ -401,3 +401,104 @@ def test_adaptive_unpaid_care_records_zero_payment_and_zero_service_withheld(mon
     assert work
     assert all(values["paid_milli"] == 0 and values["withheld_milli"] == 0
                and values["title_forgone_milli"] is None for _aid, _kind, values in work)
+
+
+def test_one_coin_envelope_cannot_prefund_two_separate_wage_purposes():
+    w, st = _enabled()
+    _guard_plan(w, st)
+    _outbreak(w, 0, burden=.0125)  # half care worker would cost 250 milli
+    _envelope(w, 0, 1)
+    sim = _Sim(_people())
+    bridge = _Bridge(sim)
+    before = w.civilizations[0].treasury
+    batch = EC.prepare_phase2(w, _batch(w, sim), bridge, sim.get_snapshot(), None)
+    assert not any(r.carers for r in w.livelihoods.epidemic_care._turn.receipts)
+    PH.prepare_phase2(w, batch, bridge, sim.get_snapshot(), None)
+    EC.finish_phase2(w, SimpleNamespace(market_prices={}), bridge, None)
+    PH.finish_phase2(w, SimpleNamespace(), bridge, None)
+    assert before - w.civilizations[0].treasury == 1
+    assert st.guards[0]["staffed"]
+    row = st.funding[0]
+    assert row["care_cash_milli"] == 0 and row["guard_cash_milli"] == 1000
+    assert row["guard_paid_milli"] == 500 and row["guard_carry_after"] == 500
+    assert PH._cash_remaining(row) == 0
+
+
+def test_existing_purpose_carry_is_used_before_new_cash_and_both_wages_fit():
+    w, st = _enabled()
+    st.prices = {rid: 100 for rid in st.prices}
+    _guard_plan(w, st)
+    _outbreak(w, 0, burden=.0125)
+    _envelope(w, 0, 1)
+    w.livelihoods.epidemic_care.book.carry["0:care_wage"] = 250
+    st.book.carry["0:guard_wage"] = 500
+    sim = _Sim(_people())
+    bridge = _Bridge(sim)
+    before = w.civilizations[0].treasury
+    batch = EC.prepare_phase2(w, _batch(w, sim), bridge, sim.get_snapshot(), None)
+    PH.prepare_phase2(w, batch, bridge, sim.get_snapshot(), None)
+    EC.finish_phase2(w, SimpleNamespace(market_prices={}), bridge, None)
+    PH.finish_phase2(w, SimpleNamespace(), bridge, None)
+    assert w.civilizations[0].treasury == before
+    row = st.funding[0]
+    assert row["care_paid_milli"] == 250 and row["guard_paid_milli"] == 500
+    assert row["care_cash_milli"] == row["guard_cash_milli"] == 0
+    assert row["care_carry_before"] == 250 and row["guard_carry_before"] == 500
+    assert row["care_carry_after"] == row["guard_carry_after"] == 0
+    assert st.guards[0]["staffed"]
+
+
+def test_actual_cash_quote_refuses_late_guard_when_care_prefunding_used_one_coin():
+    w, st = _enabled()
+    st.prices = {rid: 100 for rid in st.prices}
+    _outbreak(w, 0, burden=.0125)
+    _envelope(w, 0, 1)
+    sim = _settle(w)  # 250-milli care bill debits one coin, leaves 750 care carry
+    assert st.funding[0]["care_paid_milli"] == 250 and st.funding[0]["care_cash_milli"] == 1000
+    # An extra guard offer cannot use that other purpose's prepaid remainder.
+    sim.reserve_work(w.turn, 3, [(6, 1.0)])
+    st._guard_tick = (w.turn, sim)
+    st.guard_turn = w.turn
+    st.guards = [{"turn": w.turn, "civ": 0, "target": 1, "need": 1, "work": 1,
+                  "staffed": False, "payment": "pending", "members": [{"agent_id": 6, "region": 0,
+                    "share": 1, "wage_due_milli": 500, "wage_paid_milli": 0, "wage_residual_milli": 0,
+                    "income_withheld": None}]}]
+    PH.finish_phase2(w, SimpleNamespace(), _Bridge(sim), None)
+    assert st.guards[0]["payment"] == "refused:cash_envelope"
+    assert not st.guards[0]["staffed"] and st.guard_capacity == []
+    assert sim.paid is not None and 6 not in sim.paid
+
+
+def test_local_public_grain_uses_value_envelope_without_charging_own_treasury():
+    w, st = _enabled()
+    w.civilizations[0].treasury = 0
+    _outbreak(w, 0, burden=.0125)
+    _envelope(w, 0, 2)
+    w.livelihoods.epidemic_care.book.carry["0:care_wage"] = 500
+    _settle(w)
+    assert sum(r.food_milli for r in st.supplies) > 0
+    assert sum(r.internal_milli for r in st.supplies) == 1000
+    assert st.funding[0]["care_cash_milli"] == st.funding[0]["supply_cash_milli"] == 0
+    assert w.civilizations[0].treasury == 0
+
+
+def test_foreign_patient_purchase_cannot_spend_reserved_guard_prefunding():
+    w, st = _enabled()
+    st.prices = {rid: 100 for rid in st.prices}
+    _guard_plan(w, st)
+    _outbreak(w, 0, burden=.0125)
+    _envelope(w, 0, 2)
+    w.regions[0].stockpile.goods["grain"] = 0
+    w.regions[0].adjacencies = [w.regions[2].name]
+    sim = _Sim(_people())
+    bridge = _Bridge(sim)
+    before = w.civilizations[0].treasury
+    batch = EC.prepare_phase2(w, _batch(w, sim), bridge, sim.get_snapshot(), None)
+    PH.prepare_phase2(w, batch, bridge, sim.get_snapshot(), None)
+    EC.finish_phase2(w, SimpleNamespace(market_prices={}), bridge, None)
+    PH.finish_phase2(w, SimpleNamespace(), bridge, None)
+    assert sum(r.food_milli for r in st.supplies) == 0
+    assert st.funding[0]["care_paid_milli"] == 250 and st.funding[0]["guard_paid_milli"] == 500
+    assert st.funding[0]["care_cash_milli"] == st.funding[0]["guard_cash_milli"] == 1000
+    assert st.funding[0]["supply_cash_milli"] == 0
+    assert before - w.civilizations[0].treasury == 2

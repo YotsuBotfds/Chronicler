@@ -5,6 +5,27 @@ epidemic care, local budgets (through care), infrastructure condition, the resid
 ledger and quarantine rules in `closure` or `cost_only` mode. No new mortality
 authority or native field is introduced.
 
+Public health enforces **both** a gross value cap and a whole-coin cash cap
+inside the one L9 care/public-health envelope. Gross retained care wages,
+guard wages and patient grain (including local allocation value) must fit the
+envelope. Separately, fresh care-wage prefunding, foreign grain payments and
+fresh guard-wage prefunding must fit its actual cash. Each wage purpose spends
+its own existing prepaid carry first; a care-purpose remainder cannot pay a
+guard-purpose bill. The planner reserves guard cash before offering care,
+reserves the reciprocal care cash before offering guard work, and quotes again
+at settlement. A late guard offer is refused before installing paid work if
+the envelope cannot fund it. In particular, 250 milli of care plus 500 milli
+of guards cannot debit two whole coins from a one-coin envelope. With enough
+existing purpose-specific carry, both wages can be paid without fresh cash.
+
+Dated `funding` rows expose the envelope, care/supply/guard cash charged, actual
+care/guard credits and each wage purpose's carry before/after. They close as
+`cash + carry_before = credited + carry_after`. Local patient grain consumes
+gross value and actual stock without a self-payment or a cash charge; a foreign
+purchase requires cash remaining after both wage purposes. An unfunded or
+partially credited guard creates no staffed closure capacity. The previous C2
+prepaid rule remains unchanged when public health is off.
+
 With adaptive livelihoods rules 2 enabled, a new care or border-guard offer
 consults that person's dated work experience after excluding existing labour
 holders and resolving a positive feasible share. Refusing an offer never ends
