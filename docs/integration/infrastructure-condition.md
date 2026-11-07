@@ -222,7 +222,10 @@ proposal**:
   failure**, as soon as service would fall within the horizon (condition below `0.5 + horizon x
   0.01`, 0.6 with the default horizon);
 - Phase 2: with L9 an irrigation work spends **only within its own envelope** (and the treasury
-  after RS2's planned charge); a road has no envelope and stalls `no_envelope`. The envelope
+  after RS2's planned charge), and only when its region is one of the commitment's recipients:
+  an award funds only the works it names, so a work the proposal screened out gets nothing even
+  if its constraint has cleared by Phase 2 (the reviewer found 7 of 73 envelope-funded receipts
+  outside the awarded regions before this rule); a road has no envelope and stalls `no_envelope`. The envelope
   settles from the works' own ledger and irrigation receipts (`spent` = the works' charge,
   `spent <= amount` checked on every ledger row); RS2's proposal, settlement, reservation and the
   maintenance obligation are main's code, unchanged by B3.
@@ -252,7 +255,8 @@ Completed-turn observations dated by `source_turn`: `assets` (serving and failed
 `condition`, the applied `service` and `condition_service = min(1, condition / 0.5)`, status,
 responsible civ, lifetime wear, damage and credit, `failed_turn`, `food_at_risk` and a bounded
 dated history), `terminal` (the last 32 ended assets), `works` (open), `closed` (last 16),
-`damages` (last 32), `receipts`/`ledger`/`unmet`/`shared` (all null when the turn had no settled
+`damages` (last 32, a declared bound: drops are counted in `damages_dropped` and, for a record no
+work had taken, `damages_dropped_unattached`), `receipts`/`ledger`/`unmet`/`shared` (all null when the turn had no settled
 Phase 2 in a work mode: unknown, not zero; receipts and ledger are always null in
 `record_only`/`wear_only`, which have no works), `prepaid`, `sink_milli`, `counters` (declared set)
 and `parameters`. The strict viewer reader keeps disabled, absent, malformed, unsettled, no-works and

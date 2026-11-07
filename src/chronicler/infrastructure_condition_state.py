@@ -74,7 +74,7 @@ COUNTERS: frozenset[str] = frozenset({
     "responsibility_moved", "wear", "damages", "damage", "cap_waste",
     "progress_turns", "stalled_turns", "work_delivered", "work_credited", "timber_used",
     "charged", "coin_cost_milli", "prepaid_written_off_milli", "settled_turns", "inherited",
-    "shared_regions",
+    "shared_regions", "damages_dropped", "damages_dropped_unattached",
     *(f"assets_opened_{k}" for k in KINDS),
     *(f"assets_failed_{k}" for k in KINDS),
     *(f"{k}_work" for k in KINDS),
@@ -91,6 +91,7 @@ COUNTERS: frozenset[str] = frozenset({
 })
 
 MAX_CLOSED = 16
+#: Recent damage records kept (a declared bound; drops are counted).
 MAX_DAMAGES = 32
 MAX_TERMINAL = 32
 MAX_HISTORY = 16

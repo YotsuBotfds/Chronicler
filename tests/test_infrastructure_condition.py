@@ -504,6 +504,61 @@ def test_the_works_spend_only_their_own_envelope_never_rs2s():
     assert treasury - world.civilizations[0].treasury == rs2_row.charged + row.charged
 
 
+def test_an_award_funds_only_the_works_it_names():
+    """A work the proposal did not name (screened out, here in region 2) gets
+    nothing from the envelope even when its constraint has cleared by Phase 2."""
+    world = _world(mode="repair", infrastructure=((1, IRR), (2, IRR)))
+    lb = world.livelihoods.local_budgets = LocalBudgetState()
+    lb.enabled = True
+    lb.open = [_envelope_row(IC.BUDGET_SERVICE, "infrastructure:0", 5, [1], 4.0)]
+    _worn(world)
+    _turn(world, _Sim())
+    receipts = {r.region: r for r in _state(world).receipts}
+    assert receipts[1].status == "progress" and receipts[1].delivered == pytest.approx(4.0)
+    assert receipts[2].status == "stalled" and receipts[2].reasons == ["no_envelope"] and receipts[2].envelope == 0
+    (row,) = _state(world).ledger
+    assert row.charged <= 5 and row.envelope == 5
+
+
+def test_the_proposal_screen_reuses_rs2s_farm_labour_of_the_same_snapshot(monkeypatch):
+    world = _world(mode="repair", infrastructure=((0, IRR),))
+    world.livelihoods.local_budgets = LocalBudgetState()
+    world.livelihoods.local_budgets.enabled = True
+    IC.reconcile(world)
+
+    class _Bridge:
+        def __init__(self):
+            self.calls = 0
+
+        def get_snapshot(self):
+            self.calls += 1
+            return "snapshot"
+
+    monkeypatch.setattr(RP, "_farm_labour", lambda world, snapshot: [3, 0, 2] if snapshot == "snapshot" else None)
+    bridge = _Bridge()
+    RP.phase10_before_reserves(world, None, None, bridge)          # RS2 observes the post-tick farmers once
+    assert world.livelihoods.repair_projects._labour == (world.turn, [3, 0, 2]) and bridge.calls == 1
+    IC.phase10_before_reserves(world, None, None, bridge)          # B3 reuses it: no second snapshot read
+    assert _state(world)._labour == (world.turn, [3, 0, 2]) and bridge.calls == 1
+    world.livelihoods.repair_projects._labour = None               # without RS2's value B3 reads the same
+    world.turn += 1
+    IC.phase10_before_reserves(world, None, None, bridge)
+    assert _state(world)._labour == (world.turn, [3, 0, 2]) and bridge.calls == 2
+
+
+def test_damage_records_beyond_the_declared_bound_drop_and_are_counted():
+    from chronicler.infrastructure_condition_state import MAX_DAMAGES
+    world = _world(mode="wear_only", rs2=False, infrastructure=tuple((i % 3, IRR) for i in range(1)))
+    IC.reconcile(world)
+    state = _state(world)
+    for turn in range(MAX_DAMAGES + 3):
+        world.turn = 10 + turn
+        _asset(world, 0, "irrigation").condition = 1.0
+        IC.flood_damage(world, 0, 0.1, ref=f"flood:0:{world.turn}")
+    assert len(state.damages) == MAX_DAMAGES
+    assert state.counters["damages_dropped"] == 3 and state.counters["damages_dropped_unattached"] == 3
+
+
 def test_pending_bills_add_the_two_separately_rounded_charges():
     """The reviewer's probe: RS2 plans 500 milli and the works 500 milli; the
     two are charged separately (1 + 1), so later planners must see 2."""
@@ -878,3 +933,31 @@ def test_the_payment_is_registered_with_the_seam():
     tree = ast.parse((ROOT / "src/chronicler/infrastructure_condition.py").read_text(encoding="utf-8"))
     assert not any(isinstance(n, ast.Attribute) and n.attr == "treasury" and isinstance(n.ctx, ast.Store)
                    for n in ast.walk(tree))           # the treasury moves only through the seam
+
+
+def test_the_cw3b_screen_is_declared_with_its_cohort_and_reads_the_record():
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("cws", ROOT / "scripts/connected_world_screens.py")
+    cws = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(cws)
+    screen = cws.SCREENS["CW3b"]
+    assert screen.ready and screen.root == "B" and set(screen.arms) == {"B", "R", "W", "C", "W_T", "C_T"}
+    assert screen.held == {"template": tuple(range(3501, 3507)), "procedural": tuple(range(3601, 3607))}
+    assert [o.id for o in screen.outcomes if o.primary] == ["cw3b_service_l9", "cw3b_food_l9", "cw3b_service_treasury"]
+    # The extractor on records of a constructed world (wear_only, 21 snapshots).
+    world = _world(mode="wear_only", infrastructure=((0, IRR), (1, IRR)))
+    history = []
+    for _ in range(21):
+        _turn(world, _Sim())
+        history.append({"turn": world.turn, "livelihoods": {"schema_version": 1,
+                                                            "infrastructure_condition": IC.snapshot_summary(world)}})
+        _asset(world, 0, "irrigation").condition = max(0.0, _asset(world, 0, "irrigation").condition - 0.05)
+    bundle = {"history": history, "world_state": {"regions": [{"name": r.name} for r in world.regions]}}
+    flags = list(screen.base) + list(screen.arms["W_T"][0])
+    m, problems = cws.cw3b_extract(bundle, flags)
+    assert m["irrigated_regions"] == 2 and 0 < m["irrigation_serving_share"] < 1
+    assert m["rs2_work_delivered"] is None and m["l9_awards_infrastructure_works"] is None   # not recorded, not zero
+    assert problems == ["food in the irrigated regions could not be measured"]                # no food accounts here
+    acted, text = cws.cw3b_activation(bundle, flags)
+    assert acted is True and "below full service" in text
+    assert cws.cw3b_activation(bundle, list(screen.base) + list(screen.arms["B"][0]))[0] is None

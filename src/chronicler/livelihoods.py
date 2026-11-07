@@ -53,7 +53,8 @@ The connected-world program appends:
 * ``--infrastructure-condition`` (B3): condition, service and repair of
   irrigation works and roads; mode ``record_only`` changes nothing outside its
   record, ``wear_only`` is the no-repair control, ``repair`` and ``cost_only``
-  repair through RS2's Phase 2 (labour column, timber, one ``repairs`` budget).
+  repair inside RS2's Phase 2 (its labour column and timber holds, after RS2's
+  planned charge; under L9 only within their own ``infrastructure_works`` envelope).
 * ``--attribution-records`` (D2): observation-only records of actor, victim and
   cause (granary seizures, casualties by cause, restored-civ identity reuse,
   burdens per actor -> victim pair); inserted after A3 and before the wealth ledger,
@@ -402,7 +403,8 @@ _HELP = {
         "and take war damage at conquest and sack; condition 0 fails a work until it is repaired; "
         "irrigation's arable-capacity bonus scales with service and its native flag and roads' two-hop "
         "trade range need service >= 0.5; works repair them with anonymous farm labour, timber and "
-        "treasury coins inside RS2's repairs budget; requires --agents hybrid (default off)"
+        "treasury coins planned after RS2's repairs (under --local-budgets only within their own envelope); "
+        "requires --agents hybrid (default off)"
     ),
     "infrastructure_condition_mode": (
         "repair (default; requires --repair-projects): works repair condition; record_only: condition is "

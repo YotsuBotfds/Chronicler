@@ -284,8 +284,8 @@ def check_request(world, value: bool | None, args=None, *, agent_mode=None, rs2:
         raise ValueError("--infrastructure-condition requires --agents hybrid" + tail)
     effective = mode or (state.mode if state is not None else MODES[0])
     if effective in WORK_MODES and not rs2:
-        raise ValueError(f"--infrastructure-condition-mode {effective} requires --repair-projects (its works use "
-                         "RS2's labour, timber and repairs budget; record_only and wear_only need only "
+        raise ValueError(f"--infrastructure-condition-mode {effective} requires --repair-projects (its works run "
+                         "inside RS2's Phase 2: its labour column and timber holds; record_only and wear_only need only "
                          "--agents hybrid)" + tail)
 
 
@@ -476,7 +476,13 @@ def _damage(world, state, asset: InfraAsset, event: str, amount: float, key, sta
             work.war_key, work.war_start_turn = key, start
         _note(work, turn, f"damage_{event}", work.controller, round(record.amount * MILLI))
     state.damages.append(record)
-    del state.damages[:-MAX_DAMAGES]
+    if len(state.damages) > MAX_DAMAGES:
+        # A declared bound: the oldest records drop (counted); one not yet taken
+        # by a work would let that asset's next work open as ``wear``.
+        dropped = state.damages[:-MAX_DAMAGES]
+        _bump(state, "damages_dropped", len(dropped))
+        _bump(state, "damages_dropped_unattached", sum(1 for d in dropped if d.work is None))
+        del state.damages[:-MAX_DAMAGES]
     _bump(state, "damages")
     _bump(state, f"damages_{event}")
     _bump(state, "damage", round(before - after, 9))
@@ -652,10 +658,13 @@ def plan_phase2(world, rs2, region_input, snapshot, acc, commitments):
         p = _Plan(work, payer, float(asset.condition))
         t.plans.append(p)
         rid = work.region
-        # The works' own L9 envelope (None without L9: the treasury rule). Only
-        # irrigation is proposed; with L9 a road has no envelope.
+        # The works' own L9 envelope (None without L9: the treasury rule). An award
+        # funds only the works it names: irrigation works in the commitment's
+        # recipient regions (the proposed works); a road, or a work the proposal
+        # screened out, has no envelope even if its constraint has cleared since.
         env = envelope(world, payer, BUDGET_SERVICE)
-        if env is not None and work.kind != "irrigation":
+        if env is not None and (work.kind != "irrigation"
+                                or not envelope(world, payer, BUDGET_SERVICE, region=rid)):
             env = 0
         p.envelope = env
         if storage_on and rid not in rs2_regions and float(column[rid]) > 0.0:
@@ -924,7 +933,7 @@ def rollback_phase2(world) -> None:
 
 
 # ---------------------------------------------------------------------------
-# L9: the works' part of RS2's ``repairs`` proposal
+# L9: the works' own proposal (``BUDGET_PROVIDER``)
 # ---------------------------------------------------------------------------
 
 def food_at_risk_relieved(world, region: int, condition: float, amount: float, horizon: float,
@@ -1160,9 +1169,19 @@ def phase10_before_reserves(world, acc, economy_result, agent_bridge):
     if _works_on(world, state) and getattr(world.livelihoods, "local_budgets", None) is not None:
         # Farmers per region after this turn's agent tick (the pool the next
         # Phase 2 reads), for the L9 proposal's screen; None when unreadable.
-        from chronicler.repair_projects import _farm_labour
-        getter = getattr(agent_bridge, "get_snapshot", None) if agent_bridge is not None else None
-        state._labour = (turn, _farm_labour(world, getter()) if callable(getter) else None)
+        # RS2 observed exactly this in its own Phase 10 hook just before
+        # (``repair_projects._observed_labour``: the same farm-labour count of the
+        # same post-tick snapshot; farmer counts change only in the native tick),
+        # so its stored value is reused; read here only when RS2 has none
+        # (grain storage off).
+        rs2 = world.livelihoods.repair_projects
+        seen = getattr(rs2, "_labour", None) if rs2 is not None else None
+        if seen is not None and seen[0] == turn and seen[1] is not None:
+            state._labour = (turn, list(seen[1]))
+        else:
+            from chronicler.repair_projects import _farm_labour
+            getter = getattr(agent_bridge, "get_snapshot", None) if agent_bridge is not None else None
+            state._labour = (turn, _farm_labour(world, getter()) if callable(getter) else None)
     if _works_on(world, state):
         for work in list(state.works):
             if _asset(state, work.aid) is None:

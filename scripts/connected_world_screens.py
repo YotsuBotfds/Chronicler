@@ -1373,6 +1373,249 @@ SCREENS["CW3"] = SR.Screen(
     activation=cw3_activation, extract=cw3_extract, ready=True, module=MODULE)
 
 
+# --- CW3b: infrastructure condition and repair (slice B3) --------------------------
+#
+# Does funded repair keep irrigation serving, and does that keep food in irrigated
+# regions, against the same wear with nothing repaired? And what do the works cost the
+# repairs budget RS2 also draws on? Arms (root B): B the L9 + RS2 baseline without the
+# condition switch; R the condition switch in record_only (measures condition, changes
+# nothing: the measurement control, B's twin except its record); W wear_only (condition
+# and service act, nothing repairs: the underfunded public works counterfactual, every
+# work refused); C repair (works funded through their own L9 proposal); W_T and C_T the
+# same pair without L9 and the maintenance obligation (works funded from the treasury
+# alone: does repair keep service when it is paid for?). Every arm: hybrid, grain
+# reserves, grain storage and RS2 repair projects. Snapshot s records world turn s - 1.
+# The irrigated-region set is fixed at snapshot CW3B_FIXED (pre-treatment: no work
+# can open before an asset wears below 0.75, 25 turns after its build, and no service is
+# lost before condition falls below 0.5, 50 turns after; a war-damage work opened before
+# it is counted in ``early_war_works``).
+
+CW3B_IC = ("livelihoods", "infrastructure_condition")
+CW3B_RS2 = ("livelihoods", "repair_projects")
+CW3B_LB = ("livelihoods", "local_budgets")
+#: Service at or above which an irrigation work serves (B3's gate).
+CW3B_GATE = 0.5
+#: The snapshot that fixes the irrigated-region set.
+CW3B_FIXED = 20
+#: A stalled work counts in the underfunded-works story after this many stall turns.
+CW3B_STORY_STALLS = 20
+
+
+def _cw3b_mode(flags) -> str | None:
+    flags = list(flags)
+    if "--infrastructure-condition" not in flags:
+        return None
+    return _flag(flags, "--infrastructure-condition-mode", "repair")
+
+
+def cw3b_activation(bundle: dict, flags) -> tuple[bool | None, str]:
+    """R: assets registered. W, W_T: an irrigation work's service fell below 1. C, C_T: a
+    work delivered work. The root B is not judged."""
+    mode = _cw3b_mode(flags)
+    if mode is None:
+        return None, "the root arm is not judged"
+    records = _cw3_records(bundle, CW3B_IC)
+    if not records:
+        return None, "no infrastructure condition record"
+    counters = records[-1][1].get("counters") or {}
+    opened = counters.get("assets_opened")
+    if not SR._num(opened):
+        return None, "counters lack assets_opened"
+    if mode == "record_only":
+        return opened > 0, f"{int(opened)} assets registered (record only)"
+    lost = sum(1 for _s, r in records for a in r.get("assets") or []
+               if a.get("kind") == "irrigation" and SR._num(a.get("service")) and a["service"] < 1.0)
+    if mode == "wear_only":
+        return lost > 0, f"{lost} irrigation asset-turns below full service"
+    delivered = counters.get("work_delivered", 0.0)
+    if not SR._num(delivered):
+        return None, "counters lack work_delivered"
+    return delivered > 0, f"{delivered:.3f} work delivered by the works; {lost} irrigation asset-turns below full service"
+
+
+def cw3b_extract(bundle: dict, flags) -> tuple[dict, list[str]]:
+    """Irrigation service, food in the fixed irrigated regions, the works and their
+    funding, RS2's delivery (the budget displaced), coins destroyed and the
+    underfunded-works story. Arm B carries no record: its condition measures are None
+    (not recorded), never zero."""
+    problems: list[str] = []
+    m: dict = {}
+    mode = _cw3b_mode(flags)
+    history = bundle.get("history") or []
+    records = _cw3_records(bundle, CW3B_IC)
+    if mode is None:
+        if records:
+            problems.append("an infrastructure condition record without the switch")
+    elif not records:
+        return m, ["no infrastructure condition record"]
+    for s, r in records:
+        if r.get("source_turn") != s.get("turn", 0) - 1 or r.get("mode") != mode:
+            problems.append(f"infrastructure record of snapshot {s.get('turn')} misdated or not in mode {mode}")
+            break
+    # The irrigated-region set: regions with an active irrigation record at snapshot CW3B_FIXED,
+    # read from the world's regions where the record is absent (B): every arm, the same rule.
+    fixed = next((s for s in history if s.get("turn") == CW3B_FIXED), None)
+    names = [r.get("name") for r in (bundle.get("world_state") or {}).get("regions") or []]
+    irrigated: list[int] = []
+    if mode is not None:
+        rec = SR._get(fixed, CW3B_IC) if fixed is not None else None
+        if not isinstance(rec, dict):
+            problems.append(f"no infrastructure record at snapshot {CW3B_FIXED}")
+        else:
+            irrigated = sorted({a["region"] for a in rec.get("assets") or [] if a.get("kind") == "irrigation"})
+    else:
+        infra = (fixed or {}).get("infrastructure") if fixed is not None else None
+        irrigated = sorted(i for i, name in enumerate(names)
+                           if any(x.get("type") in ("irrigation", "IRRIGATION") and x.get("active")
+                                  for x in ((infra or {}).get(name) or []))) if isinstance(infra, dict) else []
+    m["irrigated_regions"] = len(irrigated)
+    share, met, turns = _cw3_food(bundle, irrigated) if irrigated else (None, None, 0)
+    m["food_shortfall_irrigated"], m["food_met_irrigated"] = share, met
+    m["food_shortfall_all"] = _cw3_food(bundle, list(range(len(names))))[0] if names else None
+    # Irrigation service (condition_service, the same in every mode: R records what W would read).
+    serving = total = 0
+    for _s, r in records:
+        for a in r.get("assets") or []:
+            if a.get("kind") != "irrigation" or not SR._num(a.get("condition_service")):
+                continue
+            total += 1
+            serving += a["condition_service"] >= CW3B_GATE
+    m["irrigation_asset_turns"] = total if mode is not None else None
+    m["irrigation_serving_share"] = (serving / total if total else None) if mode is not None else None
+    last = records[-1][1] if records else {}
+    c = last.get("counters") or {}
+    for key in ("assets_opened", "assets_failed", "assets_restored", "wear", "damage", "work_delivered",
+                "work_credited", "charged", "progress_turns", "stalled_turns", "completed", "damages_flood",
+                "damages_conquest", "damages_sack"):
+        m[f"ic_{key}"] = c.get(key, 0) if mode is not None else None
+    for reason in ("no_timber", "no_coins", "no_labor", "no_envelope", "granary_first"):
+        m[f"ic_stalled_{reason}"] = c.get(f"stalled_{reason}", 0) if mode is not None else None
+    m["coins_destroyed"] = (last.get("sink_milli", 0) / 1000.0) if mode is not None else None
+    m["early_war_works"] = (sum(1 for w in (last.get("works") or []) + (last.get("closed") or [])
+                                if w.get("cause") == "war" and w.get("opened_turn", 99) < CW3B_FIXED)
+                            if mode is not None else None)
+    # The underfunded public works story: a work stalled at least CW3B_STORY_STALLS turns on
+    # an asset that failed (directly recorded; the viewer's story).
+    failed = {a["aid"] for _s, r in records for a in (r.get("assets") or []) + (r.get("terminal") or [])
+              if a.get("failed_turn") is not None}
+    works = {w["wid"]: w for _s, r in records for w in (r.get("works") or []) + (r.get("closed") or [])}
+    m["story_works"] = (sum(1 for w in works.values() if w.get("stalled_turns", 0) >= CW3B_STORY_STALLS
+                            and w.get("aid") in failed) if mode in ("repair", "cost_only") else None)
+    # RS2's delivery (the repairs budget the works may displace) and L9's awards.
+    rs2 = _cw3_records(bundle, CW3B_RS2)
+    rc = rs2[-1][1].get("counters") or {} if rs2 else {}
+    m["rs2_work_delivered"] = rc.get("work_delivered") if rs2 else None
+    m["rs2_charged"] = rc.get("charged") if rs2 else None
+    awards = {"repairs": 0, "infrastructure_works": 0}
+    awarded_coins = {"repairs": 0, "infrastructure_works": 0}
+    for _s, r in _cw3_records(bundle, CW3B_LB):
+        for d in r.get("decisions") or []:
+            amounts = {a.get("pid"): a.get("amount", 0) for a in d.get("awards") or []}
+            for p in d.get("proposals") or []:
+                if p.get("service") in awards and p.get("pid") in amounts:
+                    awards[p["service"]] += 1
+                    awarded_coins[p["service"]] += amounts[p["pid"]]
+    l9 = "--local-budgets" in list(flags)
+    for svc in awards:
+        m[f"l9_awards_{svc}"] = awards[svc] if l9 else None
+        m[f"l9_award_coins_{svc}"] = awarded_coins[svc] if l9 else None
+    # Stability (mean over living civs at the end), beside the harm panel's treasury.
+    stats = (history[-1].get("civ_stats") if history else None) or {}
+    vals = [v.get("stability") for v in (stats.values() if isinstance(stats, dict) else stats)
+            if isinstance(v, dict) and SR._num(v.get("stability")) and (v.get("population") or 0) > 0]
+    m["stability_end"] = sum(vals) / len(vals) if vals else None
+    if mode is not None and m["irrigation_serving_share"] is None:
+        problems.append("no irrigation asset-turns recorded")
+    if share is None and irrigated:
+        problems.append("food in the irrigated regions could not be measured")
+    return m, problems
+
+
+_CW3B_BASE = ("--turns", "200", "--agents", "hybrid", "--simulate-only", "--grain-reserves", "--grain-storage",
+              "--repair-projects")
+_CW3B_L9 = ("--local-budgets", "--maintenance-obligation")
+_CW3B_IC = "--infrastructure-condition"
+_CW3B_MODE = "--infrastructure-condition-mode"
+
+
+def _cw3b_outcomes() -> tuple[SR.Outcome, ...]:
+    service, food = _m("irrigation_serving_share"), _m("food_shortfall_irrigated")
+    return (
+        # Primaries: does funded repair keep irrigation serving and food in the irrigated regions
+        # (C - W: works funded through their own L9 proposal against every work refused), and does
+        # repair keep service when the treasury pays (C_T - W_T: the funding counterfactual).
+        SR.Outcome("cw3b_service_l9", "Irrigation asset-turns at service >= 0.5, share (C - W: works funded "
+                   "through L9 against none)", "C", "W", service, primary=True),
+        SR.Outcome("cw3b_food_l9", "Food shortfall share after relief in the regions irrigated at snapshot 20 "
+                   "(C - W)", "C", "W", food, primary=True),
+        SR.Outcome("cw3b_service_treasury", "Irrigation asset-turns at service >= 0.5, share (C_T - W_T: works "
+                   "funded by the treasury against none)", "C_T", "W_T", service, primary=True),
+        SR.Outcome("cw3b_food_treasury", "Food shortfall share in the irrigated regions (C_T - W_T)", "C_T", "W_T",
+                   food),
+        SR.Outcome("cw3b_service_wear", "Irrigation serving share (W - R: what wear alone costs in service)",
+                   "W", "R", service),
+        SR.Outcome("cw3b_food_wear", "Food shortfall share in the irrigated regions (W - R: wear alone)", "W", "R",
+                   food),
+        SR.Outcome("cw3b_food_met_l9", "Demand-weighted mean of min(1, sufficiency) in the irrigated regions (C - W)",
+                   "C", "W", _m("food_met_irrigated")),
+        SR.Outcome("cw3b_failed_l9", "Assets failed over the run (C - W)", "C", "W", _m("ic_assets_failed")),
+        SR.Outcome("cw3b_failed_treasury", "Assets failed over the run (C_T - W_T)", "C_T", "W_T",
+                   _m("ic_assets_failed")),
+        # The works and their funding (activation detail; the underfunded public works story).
+        SR.Outcome("cw3b_works_delivered", "Work the works delivered (C alone; the farm time removed)", "C", None,
+                   _m("ic_work_delivered")),
+        SR.Outcome("cw3b_works_delivered_t", "Work the works delivered (C_T alone)", "C_T", None,
+                   _m("ic_work_delivered")),
+        SR.Outcome("cw3b_works_awards", "L9 awards to the works' own proposal (C alone)", "C", None,
+                   _m("l9_awards_infrastructure_works")),
+        SR.Outcome("cw3b_stalled_envelope", "Work-turns stalled without an envelope (C alone)", "C", None,
+                   _m("ic_stalled_no_envelope")),
+        SR.Outcome("cw3b_stalled_timber", "Work-turns stalled without timber (C alone)", "C", None,
+                   _m("ic_stalled_no_timber")),
+        SR.Outcome("cw3b_story", "Works stalled 20+ turns on an asset that failed (C alone: the underfunded public "
+                   "works story)", "C", None, _m("story_works")),
+        # Fixed harm panel (the runner's panel shows each arm against its control beside these).
+        SR.Outcome("cw3b_h_rs2_displaced", "RS2 repair work delivered (C - W: the L9 envelope displacement)", "C",
+                   "W", _m("rs2_work_delivered")),
+        SR.Outcome("cw3b_h_rs2_displaced_t", "RS2 repair work delivered (C_T - W_T)", "C_T", "W_T",
+                   _m("rs2_work_delivered")),
+        SR.Outcome("cw3b_h_farm_time", "Farm time removed by the works, work units (C alone)", "C", None,
+                   _m("ic_work_delivered")),
+        SR.Outcome("cw3b_h_coins_destroyed", "Coins destroyed by the public-works sink (C alone)", "C", None,
+                   _m("coins_destroyed")),
+        SR.Outcome("cw3b_h_coins_destroyed_t", "Coins destroyed by the public-works sink (C_T alone)", "C_T", None,
+                   _m("coins_destroyed")),
+        SR.Outcome("cw3b_h_treasury", "Treasury at the end (C - W)", "C", "W", lambda r: SR.harm_value(r, "treasury")),
+        SR.Outcome("cw3b_h_stability", "Mean stability of living civs at the end (C - W)", "C", "W",
+                   _m("stability_end")),
+        SR.Outcome("cw3b_h_food_shortfall", "Food shortfall after relief over the run, world (C - W)", "C", "W",
+                   lambda r: SR.harm_value(r, "food_shortfall")),
+        SR.Outcome("cw3b_h_population", "Population at the end (C - W)", "C", "W",
+                   lambda r: SR.harm_value(r, "population")),
+        SR.Outcome("cw3b_h_food_shortfall_t", "Food shortfall after relief, world (C_T - W_T)", "C_T", "W_T",
+                   lambda r: SR.harm_value(r, "food_shortfall")),
+        SR.Outcome("cw3b_h_population_t", "Population at the end (C_T - W_T)", "C_T", "W_T",
+                   lambda r: SR.harm_value(r, "population")),
+        SR.Outcome("cw3b_h_record_only", "Food shortfall after relief, world (R - B: the record changes nothing; "
+                   "structurally 0)", "R", "B", lambda r: SR.harm_value(r, "food_shortfall")),
+    )
+
+
+SCREENS["CW3b"] = SR.Screen(
+    name="CW3b", title="S3 infrastructure condition and repair (B3)",
+    preregistration=PROGRESS / "connected-world-screens-cw3b.md",
+    base=_CW3B_BASE,
+    arms={"B": (_CW3B_L9, None),
+          "R": (_CW3B_L9 + (_CW3B_IC, _CW3B_MODE, "record_only"), "B"),
+          "W": (_CW3B_L9 + (_CW3B_IC, _CW3B_MODE, "wear_only"), "R"),
+          "C": (_CW3B_L9 + (_CW3B_IC,), "W"),
+          "W_T": ((_CW3B_IC, _CW3B_MODE, "wear_only"), "W"),
+          "C_T": ((_CW3B_IC,), "W_T")},
+    root="B", pilot=PILOT, held={"template": tuple(range(3501, 3507)), "procedural": tuple(range(3601, 3607))},
+    outcomes=_cw3b_outcomes(),
+    activation=cw3b_activation, extract=cw3b_extract, ready=True, module=MODULE)
+
+
 # --- DEV: the development smoke screen ---------------------------------------------
 
 def _timber_activation(bundle: dict, flags) -> tuple[bool | None, str]:

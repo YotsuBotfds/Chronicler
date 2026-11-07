@@ -1043,8 +1043,12 @@ def test_mark_run_records_a_stratum_without_a_cohort_as_unused_by_design(SR, reg
 def test_the_registry_content_hash_is_the_one_every_recorded_identity_used(SR, registry):
     """CW3's mark-run first wrote its note into ``use`` (registry content 95e3bdea for one
     commit); the note is a run-record field now, and the content hash is again the one CW1,
-    CW4, CW4b and CW3 recorded."""
-    assert SR.registry_content_sha256(registry) == "a703a8502cb688181662d323ff482822a3fec6df292d23ebccc42f05751b2cfe"
+    CW4, CW4b and CW3 recorded. CW3b's cohort reservation (slice B3, two new entries) is the only
+    change since: without it the hash is exactly theirs."""
+    assert SR.registry_content_sha256(registry) == "3b50508764cfea7d70bb9432560bf8d85ecdb5edba7c4cd3ca697955dd733ccf"
+    before_cw3b = copy.deepcopy(registry)
+    before_cw3b["entries"] = [e for e in before_cw3b["entries"] if not e["id"].startswith("cw3b-")]
+    assert SR.registry_content_sha256(before_cw3b) == "a703a8502cb688181662d323ff482822a3fec6df292d23ebccc42f05751b2cfe"
     bad = copy.deepcopy(registry)
     next(e for e in bad["entries"] if e["id"] == "cw3-held-t")["unused"]["reason"] = ""
     assert any("unused is a" in p for p in SR.validate_registry(bad))
