@@ -118,6 +118,38 @@
           "new": "        result.conservation[\"in_transit_delta\"] = pylist(conservation_batch.column(\"in_transit_delta\"))[0]\n    if \"woodcut_outflow\" in schema_names(conservation_batch):   # PL1: crews' harvest, never stocked\n        result.conservation[\"woodcut_outflow\"] = pylist(conservation_batch.column(\"woodcut_outflow\"))[0]\n    if \"workshop_owned_outflow\" in schema_names(conservation_batch):   # A3-2: firms' own output\n        result.conservation[\"workshop_owned_outflow\"] = pylist(conservation_batch.column(\"workshop_owned_outflow\"))[0]\n\n    # --- M58b: Oracle shadow imports (nullable columns, zero when no oracle) ---\n    if \"oracle_imports_food\" in schema_names(observability_batch):\n"
         }
       ]
+    },
+    "chronicler-agents/src/tick.rs": {
+      "sha256": "e5da0d5da6fb6ff332d802fa83c58b9fceb10995e7c0aa9a20c9b8683430eaa9",
+      "current_sha256": "36c306ea15cfe306d3ba86bf2f71bb4c7c32444fbb28f155e4391ccfe5d0ff0a",
+      "patches": [
+        {
+          "old": "    } else {\n        DECISION_STREAM_OFFSET\n    };\n    let pending_decisions_with_threat: Vec<_> = {\n        let pool_ref = &*pool;\n        let stats_ref = &stats;\n",
+          "new": "    } else {\n        DECISION_STREAM_OFFSET\n    };\n    // A4 titled trade: this turn's carriers (`trade` reservations) take no\n    // decision, as merchants on a native trip. Empty without titled trade.\n    let trade_carriers = crate::workshop_work::trade_holders(pool, turn);\n    let trade_carriers = (!trade_carriers.is_empty()).then_some(&trade_carriers);\n    let pending_decisions_with_threat: Vec<_> = {\n        let pool_ref = &*pool;\n        let stats_ref = &stats;\n"
+        },
+        {
+          "old": "                let (pending, changed) = crate::behavior::evaluate_region_decisions_with_delivery(\n                    pool_ref, slots, regions, &regions[region_id], stats_ref, region_id,\n                    &mut rng, id_to_slot_ref,\n                    DecisionOptions { ablation, community_anchoring: options.community_anchoring },\n                    &mut observer,\n                );\n                (pending, changed, observer)\n",
+          "new": "                let (pending, changed) = crate::behavior::evaluate_region_decisions_with_delivery(\n                    pool_ref, slots, regions, &regions[region_id], stats_ref, region_id,\n                    &mut rng, id_to_slot_ref,\n                    DecisionOptions { ablation, community_anchoring: options.community_anchoring, trade_carriers },\n                    &mut observer,\n                );\n                (pending, changed, observer)\n"
+        },
+        {
+          "old": "                        region_id,\n                        &mut rng,\n                        id_to_slot_ref,  // M57b\n                        DecisionOptions { ablation, community_anchoring: options.community_anchoring },\n                    )\n                })\n                .collect()\n",
+          "new": "                        region_id,\n                        &mut rng,\n                        id_to_slot_ref,  // M57b\n                        DecisionOptions { ablation, community_anchoring: options.community_anchoring, trade_carriers },\n                    )\n                })\n                .collect()\n"
+        }
+      ]
+    },
+    "chronicler-agents/src/household.rs": {
+      "sha256": "8cfbe21af826cb26522b797e31048d7914b45e2bc6041dd40e63a9f71a1191e5",
+      "current_sha256": "ce75a9538db4c803767d5feaf4843dbadcb3991b73c2c978ae20237e9f187869",
+      "patches": [
+        {
+          "old": "            }\n            if let Some(spouse_id) = relationships::get_spouse_id(pool, slot) {\n                if let Some(spouse_slot) = id_to_slot.slot_of(spouse_id) {\n                    // M58a: Don't follow a spouse who is on a trade trip\n                    if pool.is_on_trip(spouse_slot) {\n                        continue;\n                    }\n                    if pool.is_alive(spouse_slot)\n",
+          "new": "            }\n            if let Some(spouse_id) = relationships::get_spouse_id(pool, slot) {\n                if let Some(spouse_slot) = id_to_slot.slot_of(spouse_id) {\n                    // M58a: Don't follow a spouse who is on a trade trip. A4: nor\n                    // a titled carrier, which this region's decisions skipped.\n                    if pool.is_on_trip(spouse_slot) || bucket.trade_carriers.contains(&spouse_slot) {\n                        continue;\n                    }\n                    if pool.is_alive(spouse_slot)\n"
+        },
+        {
+          "old": "            loyalty_drifts_damped_by_rally: p.loyalty_drifts_damped_by_rally,\n            migration_drivers: p.migration_drivers.clone(),\n            migration_dominant: p.migration_dominant.clone(), migration_followers: p.migration_followers.clone(),\n        }).collect()\n    }\n\n",
+          "new": "            loyalty_drifts_damped_by_rally: p.loyalty_drifts_damped_by_rally,\n            migration_drivers: p.migration_drivers.clone(),\n            migration_dominant: p.migration_dominant.clone(), migration_followers: p.migration_followers.clone(),\n            trade_carriers: p.trade_carriers.clone(),\n        }).collect()\n    }\n\n"
+        }
+      ]
     }
   }
 }

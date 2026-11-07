@@ -2,11 +2,13 @@
 
 Development world only (template seed 1, household retail in every region,
 titled trade, the A1 ledger): merchants first buy owners' surplus food at
-turn 51; shipments travel one to three hops, carriers released in transit
-(snapshots 55, 56 and 61: occupation changes and a migration) return their
-shipments to the origin at once (review M3), a holder dies in transit
-(snapshot 60: cargo escheated where it stood), and deliveries become
-holders' retail claims that households buy. Every pairwise payment is checked against the live pool, a
+turn 51; shipments travel one to three hops; a reserved carrier takes no
+native decision (lead decision after the review: no occupation switch or
+migration while it carries, as a merchant on a native trip), so no carrier
+is released on this world; holders die in transit (snapshots 81 and 85:
+cargo escheated where it stood), a route is lost (snapshot 86: returned to
+the origin), and deliveries become holders' retail claims that households
+buy. Every pairwise payment is checked against the live pool, a
 repeated key is refused unchanged, carriers are never planned on native trips
 (titled trade raises otherwise) and exact resumes inside live shipments equal
 the straight run.
@@ -80,7 +82,7 @@ def test_merchants_buy_carry_and_sell_owned_food_with_exact_books(tmp_path, monk
     original = TT._native
     monkeypatch.setattr(TT, "_native", lambda bridge: _CheckedSim(original(bridge), seen))
     monkeypatch.setenv("CHRONICLER_CHECK_RESOURCES", "1")
-    _cli(monkeypatch, tmp_path, "--seed", "1", "--turns", "80", *BASE)
+    _cli(monkeypatch, tmp_path, "--seed", "1", "--turns", "90", *BASE)
     bundle = load_bundle(tmp_path / "chronicle_bundle.json")
     paid = withheld_rows = delivered = 0
     outcomes = {}
@@ -142,8 +144,8 @@ def _resume_identical(tmp_path, monkeypatch, flags, turns, k):
 
 @pytest.mark.parametrize("k, turns, expect", [
     (52, 55, "moved"),            # a shipment halfway along its two-hop route
-    (55, 58, "released_returned"),  # carriers in transit switch occupation: their shipments return
-    (59, 62, "escheated"),        # the holder dies in the next tick
+    (80, 83, "escheated"),        # the holder dies in the next tick
+    (85, 88, "returned"),         # the route is lost on the last hop: back to the origin
 ])
 def test_exact_resume_with_a_shipment_in_transit(tmp_path, monkeypatch, k, turns, expect):
     a = _resume_identical(tmp_path, monkeypatch, BASE, turns, k)
@@ -151,6 +153,62 @@ def test_exact_resume_with_a_shipment_in_transit(tmp_path, monkeypatch, k, turns
     events = [e["event"] for snap in a["history"][k + 1:]
               for e in (snap["livelihoods"]["titled_trade"]["frame"] or {}).get("events", [])]
     assert expect in events
+
+
+def test_a_reserved_carrier_takes_no_decision_and_is_free_again_after_its_shipment(tmp_path, monkeypatch):
+    """Lead decision after the review (the release rate): a carrier holding this
+    turn's ``trade`` reservation takes no native decision, exactly as a merchant
+    on a native trip: it neither switches occupation nor migrates, not even as a
+    migrating spouse's follower. Only this turn's carriers hold ``trade``, so a
+    carrier is free again (and decides again) once its shipment closes; a
+    carrier still dies, and its cargo escheats."""
+    import chronicler.titled_trade as TT
+    real_reserve, real_after = TT.reserve_first, TT.after_agent_tick
+    seen = {"reserved": 0, "changed": [], "died": 0, "free_changed": 0, "freed": 0}
+    held, former = {}, {}
+
+    def reserve(world, agent_bridge, snapshot):
+        real_reserve(world, agent_bridge, snapshot)
+        st = TT._state(world)
+        t = st._turn
+        people = TT._people(snapshot)
+        carriers = {st.shipment(sid).carrier for sid in t.reserved}
+        trade = {aid for aid, cat, _f in t.sim.work_reservations(int(world.turn)) if cat == TT.CATEGORY_TRADE}
+        assert trade == carriers                      # only this turn's carriers hold ``trade``
+        for aid in set(held) - carriers:              # carried last turn, not now: free again
+            if aid in people:
+                former[aid] = people[aid][:2]
+                seen["freed"] += 1
+        held.clear()
+        held.update({aid: people[aid][:2] for aid in carriers})
+        for aid in carriers:
+            former.pop(aid, None)
+        seen["reserved"] += len(carriers)
+
+    def after(world, agent_bridge):
+        people = TT._people(agent_bridge._sim.get_snapshot())
+        for aid, was in held.items():
+            now = people.get(aid)
+            if now is None:
+                seen["died"] += 1
+            elif now[:2] != was:
+                seen["changed"].append((int(world.turn), aid, was, now[:2]))
+        for aid, was in list(former.items()):
+            now = people.get(aid)
+            if now is not None and now[:2] != was:
+                seen["free_changed"] += 1
+                del former[aid]
+        return real_after(world, agent_bridge)
+
+    monkeypatch.setattr(TT, "reserve_first", reserve)
+    monkeypatch.setattr(TT, "after_agent_tick", after)
+    _cli(monkeypatch, tmp_path, "--seed", "1", "--turns", "200", *BASE)
+    from chronicler.bundle_codec import load_bundle
+    counters = load_bundle(tmp_path / "chronicle_bundle.json")["history"][-1]["livelihoods"]["titled_trade"]["counters"]
+    assert seen["reserved"] > 100 and seen["changed"] == []
+    assert counters.get("carriers_released", 0) == 0
+    assert seen["died"] >= 1 and counters["escheated"] >= seen["died"]
+    assert seen["freed"] > 10 and seen["free_changed"] >= 1      # former carriers decide again
 
 
 def test_the_one_sided_transfer_refuses_the_pairwise_purposes(tmp_path, monkeypatch):

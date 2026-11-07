@@ -372,8 +372,9 @@ pub(crate) fn consolidate_household_migrations_with_groups<
             }
             if let Some(spouse_id) = relationships::get_spouse_id(pool, slot) {
                 if let Some(spouse_slot) = id_to_slot.slot_of(spouse_id) {
-                    // M58a: Don't follow a spouse who is on a trade trip
-                    if pool.is_on_trip(spouse_slot) {
+                    // M58a: Don't follow a spouse who is on a trade trip. A4: nor
+                    // a titled carrier, which this region's decisions skipped.
+                    if pool.is_on_trip(spouse_slot) || bucket.trade_carriers.contains(&spouse_slot) {
                         continue;
                     }
                     if pool.is_alive(spouse_slot)
@@ -746,6 +747,7 @@ mod delivery_tests {
             loyalty_drifts_damped_by_rally: p.loyalty_drifts_damped_by_rally,
             migration_drivers: p.migration_drivers.clone(),
             migration_dominant: p.migration_dominant.clone(), migration_followers: p.migration_followers.clone(),
+            trade_carriers: p.trade_carriers.clone(),
         }).collect()
     }
 
