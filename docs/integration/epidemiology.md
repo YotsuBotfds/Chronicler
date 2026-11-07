@@ -110,6 +110,10 @@ Region identity is the index in `world.regions`, civ identity the index in
 * Famine (`famine_cooldown > 0`): susceptibility +0.2 and CFR x1.25.
   Crowding: susceptibility `+0.5 x clamp(pop / carrying_capacity - 0.8, 0, 1)`.
   Both are read only; nothing in ecology or the economy is changed.
+* **Care** (opt-in `--epidemic-care`, [epidemic care](epidemic-care.md)): carers named in
+  the previous turn's Phase 2, as dated capacity, multiply a region's CFR by
+  `1 - 0.3 x coverage` with practised medicine under one floor (`max(CFR_FLOOR, techniques
+  x care)`); deaths are still drawn here.
 * **Virgin soil.** A population that never had an epidemic of the pathogen
   (`seen`) has no immunity, so its attack rate is the full SEIR final size,
   and its fatality is x1.5 for that first outbreak. Homelands start with half

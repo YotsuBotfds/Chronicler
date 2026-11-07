@@ -304,6 +304,12 @@ Registered providers, all in `local_budgets.py`, use this interface:
 - `TEACHING`: L6a firm purchases are bargained; academy market procurement is reserved;
 - `WARDENS`: L8.
 
+Registered from other modules (appended in order): RS5's clearing wardens, PL3's
+maintenance obligation and C2's `chronicler.epidemic_care:BUDGET_PROVIDER` (service
+`epidemic_care`, group `relief`, one divisible envelope per region with a reported outbreak;
+the commons' relief is the deaths care would avert valued in food units;
+[epidemic care](epidemic-care.md)).
+
 Keeping the providers in `local_budgets.py` keeps the hooks in the services' own modules to
 a single envelope read each.
 

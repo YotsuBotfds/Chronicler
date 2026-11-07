@@ -534,6 +534,13 @@ def tick_epidemics(world: "WorldState", acc=None) -> list["Event"]:
     n_regions = len(regions)
     events: list[Event] = []
 
+    care = None
+    if getattr(getattr(world, "livelihoods", None), "epidemic_care", None) is not None:
+        # --epidemic-care (connected-world C2): the carers named last turn, as
+        # dated capacity, against the infectious people of the last tick (read
+        # before population change is absorbed); None leaves this tick unchanged.
+        from chronicler.epidemic_care import care_factors
+        care = care_factors(world, state.rows)
     rows: dict[tuple[int, int], RegionInfection] = {}
     for row in state.rows:
         if row.region >= n_regions:
@@ -547,6 +554,14 @@ def tick_epidemics(world: "WorldState", acc=None) -> list["Event"]:
         # --techniques: practised medicine lowers case fatality region by region.
         from chronicler.techniques import epidemic_cfr_factors
         factors = epidemic_cfr_factors(world)
+        if care is not None:
+            # C2 care multiplies the same factor under one floor.
+            from chronicler.epidemic_care import combine
+            factors = combine(factors, care)
+        mods = [(susc, cfr * factors[i], famine) for i, (susc, cfr, famine) in enumerate(mods)]
+    elif care is not None:
+        from chronicler.epidemic_care import combine
+        factors = combine(None, care)
         mods = [(susc, cfr * factors[i], famine) for i, (susc, cfr, famine) in enumerate(mods)]
     from chronicler.cities_state import cities_on
     if cities_on(world):

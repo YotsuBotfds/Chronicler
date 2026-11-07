@@ -57,6 +57,8 @@
       "tests/test_economy_bridge.py",
       "tests/test_economy_coupling.py",
       "tests/test_elite_metrics.py",
+      "tests/test_epidemic_care.py",
+      "tests/test_epidemic_care_native.py",
       "tests/test_epidemiology.py",
       "tests/test_events.py",
       "tests/test_evidence_admission.py",

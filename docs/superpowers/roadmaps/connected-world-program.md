@@ -208,6 +208,39 @@ open questions follow each summary.
   mortality authority. Armies and hostages are not restricted by a closure (intentional boundary);
   the legacy multiplier stays the default reference until an owner promotion decision; C2's
   funding authority and C1b's gate placement are decided when those slices start.
+- **C2 decisions (lead, 2026-11-07; [epidemic care](../../integration/epidemic-care.md)):**
+  1. Switch `--epidemic-care` with mode `care`/`cost_only`, omitted = off and byte-identical;
+     hybrid only, refused elsewhere; registered in the catalog. *As implemented:* the
+     livelihoods convention (a boolean switch and `--epidemic-care-mode`), not one choice
+     option, so forwarding, manifest, resume conflicts and the catalog's symmetric exclusion
+     reuse the tested framework (a recorded deviation).
+  2. **Funding (Q-C5, decided): one authority**, an L9 provider `epidemic_care` appended to
+     `local_budgets.PROVIDERS` (group `relief`); C2 requires `--local-budgets`; wages are
+     transfers through `money.py` (purpose `care_wage`, appended; exactly once per (turn,
+     purpose, batch)); no treasury authority of its own, no flat charge. B3's L9 proposal
+     appends after or before it, whichever merges second.
+  3. Carers: named adult farmers in sorted stable-id order (no draw); farm time out in Phase 2
+     through `farm_labor_factor` (`recovery_crews.remove_farm_time`); one labour reservation
+     across health care rows, the native work registry (workshop, learning, apprentice and
+     repair crews, woodcutters, carers), trips, the enlisted and seated mentors
+     (`labour_reservations.booked`, read-only, for D3 to reuse).
+  4. Capacity applies to the next tick only, as dated checkpointed state; a stale or future
+     row is refused, never applied.
+  5. Effect: `c = min(1, capacity / infectious)`, `CFR x (1 - 0.3 c)` in the tick's modifier
+     list under one floor with practised medicine; deaths only through `_apply_deaths`;
+     endemic (M35b) mortality untouched. Constants declared in the integration page.
+  6. `cost_only`: the same carers, wages and farm time, no effect (the cost control).
+  7. Supplies (C2b): **deferred** (a real food cost needs its own receipts and buyer).
+  8. Open items: **sanitation (C2c)** waits for B3's infrastructure service level;
+     **crowding/displacement** waits for the lead's displacement contract (D3, A6).
+  9. C3 invariants are tests (`tests/test_epidemic_care.py`).
+  10. Viewer: the Epidemics panel's care record (six reading states).
+  11. Pinned files: `batch_manifest.py` and its test only; layer `cwc2`.
+  12. A1 (`--wealth-accounting`) and C2 exclude each other until the ledger itemizes care
+      wages and withheld care income (an A1 frame change the lead integrates). The
+      Python-only lane rides `care_wage` on the native purpose `repair_wage` (batches from
+      `0xC2000`) and reserves carers under the registry's `repair` category: a native build
+      may append dedicated codes later.
 
 ### 5.4 D institutions, war, attribution and the owned-stock lifecycle ([audit](../audits/connected-world/audit-d-institutions-war-owned-stock.md))
 
@@ -320,6 +353,13 @@ open questions follow each summary.
 
 Maintained as slices land.
 
+| Step | Slice | Owner |
+| --- | --- | --- |
+| Phase 1 epidemic tick, before population change is absorbed: consume care capacity dated T - 1 (CFR factor, one floor with techniques) | C2 | `epidemic_care.care_factors` |
+| Phase 2, after every other package's `prepare_phase2`: name and reserve carers, lower `farm_labor_factor` | C2 | `epidemic_care.prepare_phase2` (livelihoods order: before D2 and A1) |
+| Phase 2 after the economy tick: withhold income share, pay wages (`care_wage`), date capacity T | C2 | `epidemic_care.finish_phase2` |
+| Phase 10: L9 settles care envelopes, then proposes T + 1's from T's reported outbreaks | C2 / L9 | `local_budgets.phase10` with `epidemic_care.BUDGET_PROVIDER` |
+
 ## 7. Seeds
 
 Development worlds (inspected freely) are unchanged: template 1, 3, 7, 9, 11, 23, 42;
@@ -337,6 +377,7 @@ before each run.
 | CW3: S3 watershed and infrastructure (procedural stratum; template refused) | 751–756 | 851–856 |
 | CW4: S3 quarantine and public health | 761–766 | 861–866 |
 | CW5: S4 trade, forest and water, care, attribution, requisition | 771–776 | 871–876 |
+| CW5c: S4 epidemic care (C2), its own fresh cohort | 3301–3306 | 3401–3406 |
 | CW6: S5 adaptive decisions, cross-border organization, war; the integrated evaluation | 781–786 | 881–886 |
 | Reserve (a held-run failure needs a new cohort) | 791–796 | 891–896 |
 
