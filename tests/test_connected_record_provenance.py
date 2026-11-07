@@ -54,3 +54,22 @@ def test_exact_citations_keep_future_and_date_mismatch_checks(bundle):
 @pytest.mark.parametrize("args", [(0,"recovery_crews"), (True,"recovery_crews"), (28,"with.dot"), (28,"recovery_crews",-1), (28,"recovery_crews",True)])
 def test_builder_refuses_ambiguous_pointer_tokens(args):
     with pytest.raises(ValueError): livelihood_fact_id(*args)
+
+@pytest.mark.parametrize("join", ["region", "inferred"])
+def test_regional_or_inferred_cooccurrence_cannot_be_told_as_a_cause(bundle, join):
+    a = livelihood_fact_id(28,"recovery_crews","receipts",0,"members",0)
+    b = livelihood_fact_id(28,"repair_projects","projects",0)
+    text = "The crew was paid because the project existed."
+    bundle["chronicle_entries"] = [{"narrative":text,"provenance":{"v":1,"narrator":"mechanical","as_of":27,"facts":[a,b],"names":[],"spans":[[0,len(text),[a,b]]],"record_links":[{"from":a,"to":b,"join":join}]}}]
+    assert "unsupported_record_cause" in {f.kind for f in audit_bundle(bundle).flags}
+
+def test_declared_id_cause_requires_actual_equal_stable_keys(bundle):
+    snap = next(s for s in bundle["history"] if s["turn"] == 28)
+    snap["livelihoods"]["constructed_contract"] = {"schema_version":1,"source_turn":27,"left":{"agent_id":13},"right":{"holder":13}}
+    a,b = [livelihood_fact_id(28,"constructed_contract",key) for key in ("left","right")]
+    text = "These rows name the same person, so participation can be joined."
+    prov = {"v":1,"narrator":"mechanical","as_of":27,"facts":[a,b],"names":[],"spans":[[0,len(text),[a,b]]],"record_links":[{"from":a,"to":b,"join":"id","left_key":"agent_id","right_key":"holder","value":13}]}
+    bundle["chronicle_entries"] = [{"narrative":text,"provenance":prov}]
+    assert audit_bundle(bundle).flags == []
+    prov["record_links"][0]["value"] = 999
+    assert "unsupported_record_cause" in {f.kind for f in audit_bundle(bundle).flags}

@@ -24,3 +24,12 @@ unknown. An array pointer cannot establish identity across pool rebuilding.
 No paid narration is required to exercise this: the focused tests resolve
 natural template-23 recovery receipts and audit explicitly labelled
 constructed missing/date/future variants.
+
+Exact-record spans using a causal connector (`because`, `so`, `led to`) need an
+explicit `record_links` provenance row with `from`/`to` fact ids, `join: "id"`,
+`left_key`, `right_key`, and the shared `value`. The audit resolves both actual
+objects and verifies the declared stable identity occurs in both named keys.
+A regional or inferred join cannot authorize causal language and produces
+`unsupported_record_cause`. This is a narrow structural safeguard, not a claim
+that every same-id participation link establishes a real-world mechanism.
+Default historical spans do not enter this new reserved-format check.

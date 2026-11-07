@@ -52,7 +52,7 @@ from chronicler.narration_provenance import STRAY_ID, EntityUniverse, expand_ent
 FLAG_KINDS = (
     "unsupplied_citation", "unknown_citation", "future_citation", "future_supplied",
     "unsupplied_name", "stray_marker", "unresolved_fact", "date_mismatch", "bad_span",
-    "uncited_sentence", "uncovered_text",
+    "uncited_sentence", "uncovered_text", "unsupported_record_cause",
 )
 
 _SENTENCE = re.compile(r"[^.!?\n]+[.!?]*")
@@ -277,6 +277,32 @@ def audit_entry(index: int, entry: dict, records: BundleRecords | None,
         last_end = max(last_end, e)
         if narrator == "mechanical" and not ids and narrative[s:e].strip():
             add("uncited_sentence", f"mechanical text without facts: {narrative[s:e][:80]!r}", [], [s, e])
+        # Exact program-record prose gets an explicit join check. Historical
+        # prose retains its existing audit contract and default output identity.
+        record_ids = [fid for fid in ids if re.match(r"s[0-9]+\.lh\.", fid)]
+        if record_ids and re.search(r"\b(?:because|so|led to)\b", narrative[s:e], re.IGNORECASE):
+            linked = False
+            if records is not None:
+                for link in prov.get("record_links") or []:
+                    if not isinstance(link, dict) or link.get("join") != "id":
+                        continue
+                    left, right = link.get("from"), link.get("to")
+                    if left not in ids or right not in ids or left == right:
+                        continue
+                    a = resolve_record_pointer(records.bundle, left) if isinstance(left, str) else None
+                    b = resolve_record_pointer(records.bundle, right) if isinstance(right, str) else None
+                    if a is None or b is None or not isinstance(a.value, dict) or not isinstance(b.value, dict):
+                        continue
+                    lk, rk = link.get("left_key"), link.get("right_key")
+                    value = link.get("value")
+                    # A declared stable identity must actually occur in both
+                    # cited objects. Equal regional aggregates are not ids.
+                    allowed = {"id", "agent_id", "holder", "owner", "carrier", "pid", "eid", "order", "shipment", "army"}
+                    if lk in allowed and rk in allowed and value is not None and not isinstance(value, (bool, list, dict)) and a.value.get(lk) == value == b.value.get(rk):
+                        linked = True
+                        break
+            if not linked:
+                add("unsupported_record_cause", "causal prose over exact program records lacks an explicit, validated stable-id join; region and inferred joins are co-occurrence only", record_ids, [s, e])
         for fid in ids:
             if fid not in cited:
                 cited.append(fid)
