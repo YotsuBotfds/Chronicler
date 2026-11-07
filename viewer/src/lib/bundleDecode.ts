@@ -3,7 +3,8 @@
  *
  * Parsing a bundle file and expanding its version-6 history take hundreds
  * of milliseconds for a large run, which froze the page while it loaded.
- * A file of `WORKER_MIN_BYTES` or more is handed to a dedicated worker
+ * A file of `WORKER_MIN_BYTES` or more, or an archive hint that may expand
+ * beyond that size, is handed to a dedicated worker
  * (`bundleDecode.worker.ts`) as the `File` itself (a cheap handle; the
  * worker reads the bytes): the worker reads, parses, checks and decodes it
  * (`bundleFile.decodeBundleBytes`, the same code as the main thread) and
@@ -29,7 +30,7 @@
  */
 import type { Bundle } from "../types";
 import { identifyArtifact } from "./artifactIdentity";
-import { decodeBundleBytes, parseBundleBytes, type DecodedBundleFile } from "./bundleFile";
+import { decodeBundleBytes, parseUploadedBundleBytes, type DecodedBundleFile } from "./bundleFile";
 
 /** Files at least this large are decoded in a worker (smaller ones decode faster than a worker starts). */
 export const WORKER_MIN_BYTES = 1024 * 1024;
@@ -146,7 +147,9 @@ export async function answerDecodeRequest(
     }
     // The hash runs alongside the parse; it is kept only for a bundle (as decodeBundleBytes does).
     const hashing = identifyArtifact(request.file.name ?? "", bytes);
-    const parsed = parseBundleBytes(bytes);
+    // Includes optional gzip inflation in the decode interval. Hashing still
+    // consumes the original uploaded bytes, never their expanded encoding.
+    const parsed = await parseUploadedBundleBytes(bytes);
     const identity = parsed.bundle ? await hashing : null;
     const timings = { startedAt, read: read - started, decode: performance.now() - read };
     if (!parsed.bundle) {
@@ -204,7 +207,10 @@ export function setDecodeWorkerFactory(factory: WorkerFactory | undefined): void
  */
 export function decodeInWorker(file: File): DecodeJob | null {
   const factory = workerFactory === undefined ? defaultWorkerFactory() : workerFactory;
-  if (!factory || file.size < WORKER_MIN_BYTES) {
+  // A small archive may expand to a large world. This is only an offload hint;
+  // the decoder still recognizes gzip by magic, not name or MIME type.
+  const archiveHint = /\.gz$/i.test(file.name) || ["application/gzip", "application/x-gzip"].includes(file.type);
+  if (!factory || file.size < WORKER_MIN_BYTES && !archiveHint) {
     return null;
   }
   let worker: Worker;
