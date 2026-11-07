@@ -4,8 +4,9 @@ Status: DRAFT (not frozen; the lead reviews the screen and freezes this page bef
 
 Written 2026-11-07 by the B3 lane on branch `claude/cw-b3-infrastructure` (main bac45cb5 merged;
 B3 reviewed and approved at `10d73230`; the flow x condition integration at `c5593e81`, approved at
-`453d307c`; the screen declared at `80966420` and revised before any freeze at `7364c643`, on which
-the timing pilot below ran, clean tree; the revisions are listed at the end). Native extension `20e77f9945efa71d597c142e99069337586cc865ddee7a17c6d20948a2c0c1ca`
+`453d307c`; the screen declared at `80966420` and revised before any freeze at `7364c643`; the
+works' timber need connected to PL1 at `733e5e08`/`9daaec56` and the screen revised again at
+`d5834d07`, on which the timing pilot below ran, clean tree; the revisions are listed at the end). Native extension `20e77f9945efa71d597c142e99069337586cc865ddee7a17c6d20948a2c0c1ca`
 (`~/.venvs/native-a3`, built from main's Rust). No held seed (template 3501-3506, procedural
 3601-3606) has been run. Code may change before the held run only to fix a defect, recorded as an
 amendment below with a new pilot; no arm, outcome, region set or parameter changes in response to
@@ -61,10 +62,11 @@ treasury, coins destroyed by the public-works sink, food and population world-wi
   harvest-limited stock) and the timber supply (PL1: paid woodcutting expeditions feeding a store)
   give the works' materials a real supply, so the screen does not mostly measure timber starvation;
   their prerequisites (`--timber-supply` needs hybrid, `--repair-projects` and `--timber-stock`;
-  `--timber-stock` an agent economy) are all in the base, so they alter no arm. One design
-  consequence: PL1 dispatches expeditions for RS2's projects' needs, not the works'; the works use
-  the store and the stockpile after RS2's holds. Timber stalls stay a secondary. Every other switch
-  at its default.
+  `--timber-stock` an agent economy) are all in the base, so they alter no arm. PL1 serves RS2's
+  needs first, then, in the repair arms (C, C_T), the open works' timber need under its own forest,
+  crew, wage and reservation rules (integration page, section 5; revision 8); the delivered timber
+  reaches the works through RS2's holds on the store. In R, W and W_T nothing of PL1 changes. Timber
+  stalls stay a secondary. Every other switch at its default.
 - **Arms** (root B):
 
   | Arm | Flags (added to the base) | Control | Role |
@@ -129,7 +131,9 @@ primaries (every snapshot, every world); what wear alone costs (W - R: service, 
 assets failed (C - W, C_T - W_T); works opened on irrigation assets, the works' delivered work (C,
 C_T), L9 awards to the works' proposal (C), stall turns without an envelope and without timber (C,
 C_T), the underfunded public works story count (C: works stalled 20 or more turns on an asset that
-failed) and the timber the woodcutters delivered (C).
+failed), the timber the woodcutters delivered (C), and the works' timber link: expeditions PL1
+launched for the works' need (C, C_T), their woodcutter person-turns (C) and the works' need rows PL1
+refused (C).
 
 ## Fixed harm panel (beside every comparison)
 
@@ -137,7 +141,11 @@ The runner's panel (population, treasury, food shortfall world-wide, out-migrati
 and death rows "not recorded" where their system is off) for every arm against its control, and
 these screen harms: **the L9 envelope displacement** (RS2 repair work delivered, C - W and C_T - W_T:
 the integration page found the works' own proposal lowered RS2's and the works' delivery against
-the pooled design, 53 -> 10 and 303 -> 191 work units on development worlds), **farm time removed**
+the pooled design, 53 -> 10 and 303 -> 191 work units on development worlds), **RS2's timber
+displacement** (RS2 work-turns stalled without timber, C - W and C_T - W_T: forests and crews a
+works' expedition still holds when RS2 next needs them; RS2 is served first within each turn),
+**woodcutter time** (person-turns away from home over every expedition, C - W and C_T - W_T),
+**farm time removed**
 (the works' delivered work, C), **treasury** and **mean stability of living civs** at the end (C - W),
 **coins destroyed** by the public-works sink (C, C_T), **food shortfall world-wide** and **population**
 (C - W, C_T - W_T), the **timber stand** at the end (C - W), and R - B world food shortfall
@@ -158,15 +166,21 @@ in service bought with a world-wide food or population loss is reported as such.
 
 ## Compute ceiling (from the timing pilot)
 
-Pilot at `7364c643` (the revised screen, clean tree), `--jobs 2`, 12 runs, 0 failed, every arm
-activated, every world passing the pre-treatment check in every arm (the pairs share their sets),
-165 s of simulation and extraction (0.046 core-hours); per run, template 6.9-7.6 s and procedural
-18.7-22.1 s. The runner's projection for the held run (72 runs) is 0.275 core-hours, x1.5 = 0.413,
-under the **ceiling of 0.50 core-hours** (the line above, read by the runner). Even with the timber
-supply, timber stalls dominate the works (1,232 and 3,101 work-turns in arm C on the pilot worlds;
-PL1 delivered 21.9 and 492.5 loads, for RS2's needs first). The superseded first pilot (`dda1be4b`,
-before the revisions) took 168 s. Pilot evidence: `/home/user/evidence/b3/cw3b/`
-(`pilot/metrics.jsonl`, `pilot/source.txt`, `pilot-report.txt`; outside the repository).
+Pilot at `d5834d07` (revision 8, clean tree), `--jobs 1`, 12 runs, 0 failed, every arm activated,
+every world passing the pre-treatment check in every arm (each pair shares its set; procedural 19's
+treasury pair has a larger set than its L9 pair, as the arms differ before snapshot 28), 177 s of
+simulation and extraction (0.049 core-hours); per run, template 7.1-8.4 s and procedural
+19.9-24.1 s. The runner's projection for the held run (72 runs) is 0.295 core-hours, x1.5 = 0.442,
+under the **ceiling of 0.50 core-hours** (the line above, read by the runner; unchanged). With the
+works' need in PL1, timber stalls still dominate the works: arm C 1,232 (template 5) and 2,896
+(procedural 19) work-turns, against 1,232 and 3,101 at `7364c643`; C_T 1,307 and 2,445 (1,306 and
+2,450). PL1 launched 0 and 3 expeditions for the works in C (0 and 16 in C_T) and refused 526 and
+933 of the works' need rows in C, mostly `no_forest` and `forest_depleted` (the development
+re-measure in the integration page, section 8, shows the same). The works delivered 0 and 221.1 work
+units in C (0 and 122.3 before) and 36.9 and 372.6 in C_T (27.1 and 253.8). Superseded pilots:
+`7364c643` (165 s, `--jobs 2`, projection 0.275 x1.5 = 0.413) and `dda1be4b` (168 s). Pilot evidence:
+`/home/user/evidence/b3/cw3b/` (`pilot2/metrics.jsonl`, `pilot2/source.txt`, `pilot2-report.txt`;
+the superseded `pilot/` and `pilot-report.txt`; outside the repository).
 
 ## Failure handling
 
@@ -190,7 +204,8 @@ its stall causes, funding and the asset's failure. Worlds that show one:
   Its works never win an envelope and never progress; six irrigation and road assets fail by turn
   190 (`viewer/src/__fixtures__/infrastructure_records.json` keeps 12 of its snapshots).
 - **Pilot worlds (never evidence):** arm C on template 5 (6 works stalled 20+ turns on failed assets)
-  and procedural 19 (23), reproducible with `run OUT --screen CW3b --cohort pilot --arms C`.
+  and procedural 19 (17 at `d5834d07`; 23 before revision 8), reproducible with
+  `run OUT --screen CW3b --cohort pilot --arms C`.
 
 ## Pre-freeze revisions (before any freeze or held run; the lead's decisions on the delta review)
 
@@ -211,6 +226,18 @@ its stall causes, funding and the asset's failure. Worlds that show one:
 6. **Timber supply in the base** (`--timber-stock --timber-supply`), so materials come from real
    supply rather than the screen measuring timber starvation (the development finding).
 7. **Re-pilot** at the revised head, with the ceiling recomputed (below).
+8. **The works' timber need enters PL1** (lead decision, 2026-11-07, after the `7364c643` pilot
+   showed timber stalls dominating because PL1 served only RS2's needs). Reason: the owner's B3 text
+   requires repair connected to real workers, materials and budgets through existing authorities,
+   and a held screen that mostly measured a supply link B3 never made would waste the cohort. In the
+   repair modes the open works' one-turn timber need enters PL1's planner after every RS2 need row
+   of the turn, under PL1's forests, crews, wages and the one work reservation (no new labour
+   authority, no free timber); `record_only`, `wear_only` and the switch off are unchanged (the
+   identity record in the integration page). The screen gains secondaries (the works' expeditions,
+   their woodcutter person-turns, refused need rows) and two harm rows (RS2 timber stalls and
+   woodcutter time, each pair); the timber stall turns stay secondaries, RS2's delivery stays in the
+   harm panel. Arms, primaries, cohort and parameters are unchanged; no constant was tuned. Re-pilot
+   at `d5834d07` (above).
 
 ## Amendments
 
