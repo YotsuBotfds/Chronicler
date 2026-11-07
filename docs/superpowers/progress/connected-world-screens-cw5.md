@@ -2,7 +2,7 @@
 
 Status: DRAFT, pre-freeze revision 2 (not frozen; the lead freezes it before any held run; see
 "Pre-freeze revision 1" and "Pre-freeze revision 2" at the end). Written 2026-11-07 by the A4
-lane on branch `claude/cw-a4-titled-trade` at `21aa48cb`, revised at `a1b61760` and `99d48901` (the A4 review fixes approved at
+lane on branch `claude/cw-a4-titled-trade` at `21aa48cb`, revised at `a1b61760` and `55748ec7` (the A4 review fixes approved at
 `d5ccd4d6`, merged with `main` `bac45cb5`, plus the lead's carrier rule at `9591e280`: carriers
 take no native decision while reserved). Native extension built from this branch, SHA-256
 `43cbd22ac4e7e2c6a77e71781a884be5342f41aa4173ff6f43e0facf0f5e0eb0`. No held seed (template
@@ -10,7 +10,7 @@ take no native decision while reserved). Native extension built from this branch
 change before the held run only to fix a defect, recorded as an amendment with a new pilot; no
 arm, outcome, set or parameter changes in response to held outcomes.
 
-Compute ceiling: 0.65 core-hours
+Compute ceiling: 0.45 core-hours
 
 Primary outcomes: cw5_food_in_deficit, cw5_shortfall_deficit
 
@@ -80,11 +80,14 @@ equals R until f, so the window is pre-treatment by construction. Classified **r
 **Minimum window 5 turns:** a world with f < 5 is left out of every set-based outcome (primaries
 included) and listed, never imputed. **Pairing:** one run's extraction cannot see the other arm,
 so the extractor keeps per-region vectors (the window's per-turn production and demand; the run's
-shortfall terms, native and titled trade, retail prices and priced-out persons) and the report
-pairs R's and T's rows of each world (`cw5_pair`, called from the report's window table): it
-computes R's sets over T's window, fills the set-based measures of both rows from those sets, and
-checks as validation that R's and T's window records are identical (the per-turn vectors and the
-sets; a world where they differ is excluded and listed). Classification never uses R's realised
+shortfall terms, native and titled trade, retail prices and priced-out persons), and every
+set-based outcome reads both arms' rows of a world through the runner's paired reading
+(`Outcome.pair(arm row, control row) -> (T value, R value)`; the field and design mirror lane
+C2's on `claude/cw-c2-care` at `dbbd64e2`, applied verbatim to `scripts/screen_runner.py` so the
+two branches reconcile to one mechanism). The pairing (`cw5_world`, pure: no row is changed)
+computes R's sets over T's window, both arms' measures over those sets, and checks as validation
+that R's and T's window records are identical (the per-turn vectors and the sets; a world where
+they differ is excluded). The report's window table lists every world with its status. Classification never uses R's realised
 production after the window.
 
 **Sensitivity lines (never primary):** the turn-0 sets (production below demand at world turn 0;
@@ -139,8 +142,8 @@ returned + deposited`); one paid-work receipt row per carrier-turn (`receipt_row
 carrier_turns`); every A1 ledger closure true on every observed frame (including the measured
 `cargo_purchase` closures); titled trade recorded only in T and dated s - 1 (the runner's package
 check); the window's food accounts present. Structural `None`: titled measures in R; set-based
-measures on a world excluded by the window (and before the report pairs the rows: they are
-computed from the per-region vectors only then). A missing measure is a problem, never a zero.
+measures on a world excluded by the window (they exist only as paired readings of both rows,
+computed from the per-region vectors). A missing measure is a problem, never a zero.
 
 ## Primary outcomes (two since revision 1)
 
@@ -208,18 +211,19 @@ reported.
 
 ## Extractor validation (the shared pilot, before the freeze)
 
-Revision 2 (source `99d48901`):
+Revision 2 (source `55748ec7`):
 
 - Offline tests `tests/test_cw5_screen.py`: the window sets over a row's vectors (a region at
-  the world ratio is a surplus region); the report pairing R and T and filling the set measures
-  over T's window (f = 20: turns 0-19; f = 12: turns 0-11); a world with f = 3 excluded (window of
+  the world ratio is a surplus region); the pairing of R and T over T's window (f = 20: turns
+  0-19; f = 12: turns 0-11) without changing the rows; the runner's `paired_values` reading a
+  primary through `Outcome.pair` (and `unknown` on an excluded world); a world with f = 3 excluded (window of
   3 turns) while the turn-0 sensitivity line stays; differing window records excluded; the R
   whole-run sensitivity; the merchants' balance; R's titled vectors zero.
 - On the four kept pilot bundles, by hand (not importing the screen module): T's first purchase
   is in world turn 18 on template 5 (window 0-17, 18 turns) and 7 on procedural 19 (window 0-6, 7
   turns); R's per-turn production and demand over each window equal T's exactly; the hand
   classification gives `D:0,5,7|S:1,2,3,4` (template 5) and `D:1,3,7,8,9,21,26,31|S:11,12,13,16,17,18,24`
-  (procedural 19), the digests the report's pairing wrote into both rows; food into the deficit
+  (procedural 19), the digests `cw5_world` returns for the pilot rows; food into the deficit
   regions (T 58.0467 and R -0.0173; T -177.044 and R 0.0) and their shortfall shares (T 0.108876
   and R 0.130463; T 0.101368 and R 0.116273) equal the report's T - R values. Both worlds are valid.
   The raw runs were then deleted. `check --screen CW5 --metrics PILOT/metrics.jsonl --cohort pilot`
@@ -249,21 +253,23 @@ identical in R and T on both worlds; an independent recomputation matched.
 
 ## Timing pilot (the shared pilot)
 
-`run PILOT --screen CW5 --cohort pilot --jobs 2` on `99d48901` (revision 2; clean tree;
-`source.txt`: dirty 0, dirty-code 0; extension `43cbd22a…`): 4 runs, 0 failed, every outcome
-extracted; 194 s of simulation and extraction **on a loaded machine** (load average about 10 on 4
-cores from other lanes). Seconds per run: R template 24.1, procedural 65.0; T template 16.5,
-procedural 88.1. T activated on both worlds; both windows valid. **Projected held run: 0.323
-core-hours for 24 runs** (x1.5 = 0.484); the revision-1 pilot on a less loaded machine projected
-0.126. The pilot's `metrics.jsonl`, `source.txt` and `report.md` are retained in
-`connected-world-screens-cw5/pilot/` (the held run's `--pilot`). The report prints the pilot's
-outcomes; they were not used to choose any definition.
+`run PILOT --screen CW5 --cohort pilot --jobs 2` on `55748ec7` (revision 2 with the paired
+readings; clean tree; `source.txt`: dirty 0, dirty-code 0; extension `43cbd22a…`): 4 runs, 0
+failed, every outcome extracted; 91 s of simulation and extraction (load average about 5 on 4
+cores from other lanes). Seconds per run: R template 9.0, procedural 33.3; T template 10.1,
+procedural 38.4. T activated on both worlds; both windows valid (template 5: f = 18, 18 turns;
+procedural 19: f = 7, 7 turns). **Projected held run: 0.151 core-hours for 24 runs** (x1.5 =
+0.227). An earlier revision-2 pilot (`99d48901`, the same simulations, the report-hook version of
+the pairing) ran under a load average of about 10 and projected 0.323. The pilot's
+`metrics.jsonl`, `source.txt` and `report.md` are retained in `connected-world-screens-cw5/pilot/`
+(the held run's `--pilot`). The report prints the pilot's outcomes; they were not used to choose
+any definition.
 
 ## Budget and stopping rules
 
-- **Compute ceiling 0.65 core-hours** (the line above, read by the runner: the loaded
-  revision-2 pilot's projection 0.323 x 2, so that it passes the runner's x1.5 check; held runs
-  will see similar shared load; 0.30 at revision 1, 0.25 before). Run with
+- **Compute ceiling 0.45 core-hours** (the line above, read by the runner: about 3 times the
+  pilot's projection 0.151, covering the 0.323 the same runs took under a load average of about
+  10, since held runs will see similar shared load; 0.30 at revision 1, 0.25 before). Run with
   `--jobs 2` (other lanes share the 4 cores). The runner refuses a held run whose pilot
   projection x 1.5 exceeds the ceiling and starts no run that would pass it; runs not started are
   reported as `not run` (exit code 4), never as zeros. Raising the ceiling needs the lead's
@@ -336,7 +342,7 @@ extraction cannot see the other arm.
 
 ## Pre-freeze revision 2 (2026-11-07, before any held run; the lead's decision on the window)
 
-Made at `99d48901` (screen module and tests; this page):
+Made at `55748ec7` (screen module, the runner's `Outcome.pair`, tests; this page):
 
 1. **Per-world window** world turns 0 .. min(19, f - 1), f being T's first titled purchase turn:
    pre-treatment by construction (T equals R until f); the identity of R's and T's window records
@@ -344,10 +350,11 @@ Made at `99d48901` (screen module and tests; this page):
    from turn 18 and turn 7).
 2. **Minimum window 5 turns**: a world with f < 5 is excluded from the set-based outcomes and
    listed, never imputed.
-3. **Sets paired in the report**: R's sets over T's window, filled into both rows from per-region
-   vectors the extractor keeps.
+3. **Sets paired across arms**: R's sets over T's window and both arms' measures over them, read
+   through `Outcome.pair` (lane C2's runner field, mirrored verbatim) from per-region vectors the
+   extractor keeps; no row is changed.
 4. **Sensitivity lines** (never primary): the turn-0 sets and R's whole-run region-level ratio,
    with its regression-to-the-mean risk stated.
 5. **Two primaries stand**; the merchant and farmer counts are recorded as a missing record for a
    later slice.
-6. **Ceiling** 0.65 core-hours from the loaded revision-2 pilot.
+6. **Ceiling** 0.45 core-hours (above).

@@ -1,9 +1,9 @@
 # CW5: S4 titled trade (A4-1)
 
-Cohort pilot. Runs: 4; failed: 0 (missing outcomes: 0); simulation and extraction seconds 194 (0.054 core-hours)
-Projected held run time from this pilot: 0.323 core-hours (x1.5 = 0.484) for 24 runs
+Cohort pilot. Runs: 4; failed: 0 (missing outcomes: 0); simulation and extraction seconds 91 (0.025 core-hours)
+Projected held run time from this pilot: 0.151 core-hours (x1.5 = 0.227) for 24 runs
 
-Identity digests: 10e50af11af27d575307d1d9ee97b8cc7f89f138dc2253d4b238dd7d08c1bf3d (source.txt holds the lines)
+Identity digests: 3732071a8aab8360ef8e753be14ccc84b971a2b1d0837c776cfc1492ae5a3a00 (source.txt holds the lines)
 Schema versions read: {"bundle": 6, "livelihoods": [1], "packages": {"food_allocation": [1], "household_retail": [1], "titled_trade": [1], "wealth_accounting": [1]}, "records": {"food_accounting": [1], "regional_population": [1]}}; {"bundle": 6, "livelihoods": [1], "packages": {"food_allocation": [1], "household_retail": [1], "wealth_accounting": [1]}, "records": {"food_accounting": [1], "regional_population": [1]}}
 
 ## Activation per world (before any effect)
@@ -41,10 +41,10 @@ Schema versions read: {"bundle": 6, "livelihoods": [1], "packages": {"food_alloc
 | cw5_held_returned: Titled food returned to origins, at purchase cost (T) | p | 19: +7.871 | +7.871 [+7.871, +7.871] | 1 / 0 / 0 | n/a (no control) |
 | cw5_held_aboard: Titled food aboard at the end, at purchase cost (T) | t | 5: +0 | +0 [+0, +0] | 0 / 0 / 1 | n/a (no control) |
 | cw5_held_aboard: Titled food aboard at the end, at purchase cost (T) | p | 19: +4.814 | +4.814 [+4.814, +4.814] | 1 / 0 / 0 | n/a (no control) |
-| cw5_titled_delivered_deficit: Titled food delivered into the deficit regions, food units (T) | t | 5: +69.17 | +69.17 [+69.17, +69.17] | 1 / 0 / 0 | n/a (no control) |
-| cw5_titled_delivered_deficit: Titled food delivered into the deficit regions, food units (T) | p | 19: +217.9 | +217.9 [+217.9, +217.9] | 1 / 0 / 0 | n/a (no control) |
-| cw5_titled_net_deficit: Titled food into less out of the deficit regions (T) | t | 5: +58.06 | +58.06 [+58.06, +58.06] | 1 / 0 / 0 | n/a (no control) |
-| cw5_titled_net_deficit: Titled food into less out of the deficit regions (T) | p | 19: -177 | -177 [-177, -177] | 0 / 1 / 0 | n/a (no control) |
+| cw5_titled_delivered_deficit: Titled food delivered into the deficit regions, food units (T - R; R has none by construction) | t | 5: +69.17 | +69.17 [+69.17, +69.17] | 1 / 0 / 0 | 2/2 as extreme; means [-69.17, +69.17] |
+| cw5_titled_delivered_deficit: Titled food delivered into the deficit regions, food units (T - R; R has none by construction) | p | 19: +217.9 | +217.9 [+217.9, +217.9] | 1 / 0 / 0 | 2/2 as extreme; means [-217.9, +217.9] |
+| cw5_titled_net_deficit: Titled food into less out of the deficit regions (T - R; R has none by construction) | t | 5: +58.06 | +58.06 [+58.06, +58.06] | 1 / 0 / 0 | 2/2 as extreme; means [-58.06, +58.06] |
+| cw5_titled_net_deficit: Titled food into less out of the deficit regions (T - R; R has none by construction) | p | 19: -177 | -177 [-177, -177] | 0 / 1 / 0 | 2/2 as extreme; means [-177, +177] |
 | cw5_native_net_deficit: Native commons trade into the deficit regions (T - R) | t | 5: +0 | +0 [+0, +0] | 0 / 0 / 1 | 2/2 as extreme; means [+0, +0] |
 | cw5_native_net_deficit: Native commons trade into the deficit regions (T - R) | p | 19: +0 | +0 [+0, +0] | 0 / 0 / 1 | 2/2 as extreme; means [+0, +0] |
 | cw5_met_deficit: Deficit regions' demand-weighted min(1, sufficiency) (T - R) | t | 5: +0.02159 | +0.02159 [+0.02159, +0.02159] | 1 / 0 / 0 | 2/2 as extreme; means [-0.02159, +0.02159] |
@@ -143,7 +143,7 @@ Schema versions read: {"bundle": 6, "livelihoods": [1], "packages": {"food_alloc
 
 | Arm | t | p |
 | --- | --- | --- |
-| R | 24.1 [24.1, 24.1] | 65.0 [65.0, 65.0] |
-| T | 16.5 [16.5, 16.5] | 88.1 [88.1, 88.1] |
+| R | 9.0 [9.0, 9.0] | 33.3 [33.3, 33.3] |
+| T | 10.1 [10.1, 10.1] | 38.4 [38.4, 38.4] |
 
 Descriptive only: the sign-flip column counts the 2^n sign assignments whose mean is at least as far from zero as the observed mean, with the range of those means; it is not a significance test.
