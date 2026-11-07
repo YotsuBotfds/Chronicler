@@ -57,7 +57,8 @@ def extract(bundle: dict, flags) -> tuple[dict, list[str]]:
                       "advised_closures", "unfunded_guard_teams", "migrants_blocked", "flight_blocked",
                       "hunger_blocked", "dearth_region_turns", "famine_region_turns"), 0)
     m.update(dict.fromkeys(("care_cash_milli", "supply_cash_milli", "guard_cash_milli", "health_cash_milli",
-                           "care_carry_change_milli", "guard_carry_change_milli"), 0))
+                           "care_carry_change_milli", "guard_carry_change_milli",
+                           "care_income_unknown_person_turns", "guard_income_unknown_person_turns"), 0))
     seen_turns = set()
     sums = dict.fromkeys(("food_consumed_milli", "gross_supplies_milli", "internal_supplies_milli",
                           "guard_farm_time", "guard_wages_milli", "guard_income_withheld", "care_cash_milli",
@@ -168,8 +169,11 @@ def extract(bundle: dict, flags) -> tuple[dict, list[str]]:
             m["care_farm_time"] += amount(row, "farm_time_removed", where)
             for carer in rows(row, "carers", where):
                 # A refused wage bill installs no paid-work share, so this
-                # service withholds zero; null on a paid share is unobserved.
-                if carer.get("income_withheld") is None and row.get("paid") is False:
+                # service withholds zero. A paid share may have no native
+                # wealth-stage row (e.g. death before that stage): preserve
+                # that explicit unknown instead of inventing a zero deduction.
+                if "income_withheld" in carer and carer["income_withheld"] is None:
+                    m["care_income_unknown_person_turns"] += row.get("paid") is not False
                     continue
                 m["care_income_withheld"] += amount(carer, "income_withheld", where)
         for field in ("report", "environment", "supply", "guard"):
@@ -252,8 +256,11 @@ def extract(bundle: dict, flags) -> tuple[dict, list[str]]:
             for member in members:
                 paid += amount(member, "wage_paid_milli", where)
                 no_paid_work = str(row.get("payment", "")).startswith("refused:")
-                withheld = 0 if member.get("income_withheld") is None and no_paid_work \
-                    else amount(member, "income_withheld", where)
+                if "income_withheld" in member and member["income_withheld"] is None:
+                    m["guard_income_unknown_person_turns"] += not no_paid_work
+                    withheld = 0  # observed subtotal; unknown count remains separate
+                else:
+                    withheld = amount(member, "income_withheld", where)
                 sums["guard_income_withheld"] += withheld
                 m["guard_income_withheld"] += withheld
             spent[row.get("civ")] = spent.get(row.get("civ"), 0) + paid
@@ -319,13 +326,14 @@ def extract(bundle: dict, flags) -> tuple[dict, list[str]]:
             problems.append(f"{where}: cash funding does not cover exactly the executed care envelopes")
         m["l9_envelope_milli"] += sum(budgets.values())
         rules = epi.get("quarantine_rules")
-        if not isinstance(rules, dict) or rules.get("mode") != "closure" or rules.get("channels") != "trade,migration":
+        if not isinstance(rules, dict) or rules.get("schema_version") != 1 or rules.get("mode") != "closure" \
+                or rules.get("channels") != ["trade", "migration"]:
             problems.append(f"{where}: staffed closure/migration rules absent")
         else:
             last_rules = rules
             receipt = rules.get("receipt")
-            if not isinstance(receipt, dict):
-                problems.append(f"{where}: quarantine receipt missing")
+            if not isinstance(receipt, dict) or receipt.get("turn") != turn:
+                problems.append(f"{where}: quarantine receipt missing or misdated")
             else:
                 for key, dest in (("migrants_blocked", "migrants_blocked"),
                                   ("migrants_blocked_flight", "flight_blocked"),
@@ -422,9 +430,11 @@ SCREEN = SR.Screen(
                   ("supplies_cash_milli", "Patient supply cash paid (milli-units)"),
                   ("supplies_internal_milli", "Local patient grain allocated at dated prices (milli-units)"),
                   ("care_paid_milli", "Care wages paid (milli-units)"),
-                  ("care_income_withheld", "Ordinary carer income withheld"),
+                  ("care_income_withheld", "Observed ordinary carer income withheld subtotal"),
+                  ("care_income_unknown_person_turns", "Paid carer person-turns without an income deduction observation"),
                   ("guard_paid_milli", "Guard wages paid (milli-units)"),
-                  ("guard_income_withheld", "Ordinary guard income withheld"),
+                  ("guard_income_withheld", "Observed ordinary guard income withheld subtotal"),
+                  ("guard_income_unknown_person_turns", "Paid guard person-turns without an income deduction observation"),
                   ("care_farm_time", "Carer farm time removed"), ("guard_farm_time", "Guard farm time removed"),
                   ("l9_envelope_milli", "Gross single care/public-health envelopes (milli-units)"),
                   ("health_cash_milli", "Actual whole-coin health cash funding (milli-units)"),

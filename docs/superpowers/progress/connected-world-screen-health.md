@@ -70,7 +70,8 @@ The fixed harm panel includes the runner's food shortfall, priced-out person-
 and child-turns, population, treasury, migration, wealth inequality and forest
 observations where those fields exist. Added health harms are actual patient
 grain consumed, cash and internal grain allocations shown separately, actual
-care and guard wages, each group's ordinary income withheld and farm time
+care and guard wages, each group's observed ordinary income withheld subtotal
+and explicit count of paid person-turns with unknown income deductions, farm time
 removed, gross single L9 care/public-health envelopes, famine region-turns,
 actual whole-coin health cash funding and both wage purposes' prepaid carry changes,
 refused civilian/flight/hunger migration, partner routes removed and partner
@@ -87,6 +88,10 @@ purpose's `cash + carry_before = credited + carry_after` closure,
 named full paid guard work before next-turn capacity, and delivered/unexpired
 report IDs for each policy decision. The pilot must validate the actual schemas
 before any held seed is spent; synthetic tests alone are insufficient.
+Quarantine channels are the actual saved ordered list, and receipts must name
+the completed source turn. A null paid worker income deduction remains unknown
+(for example, no wealth-stage row after an earlier death); it is never claimed
+as an observed zero or a complete income total. Missing fields remain malformed.
 
 Run the 200-turn timing/activation pilot on the final integrated source and
 extension, then freeze this definition. A 100-turn length is permitted only if
