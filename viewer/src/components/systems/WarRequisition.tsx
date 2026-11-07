@@ -4,7 +4,7 @@ const show = (n: number) => n.toLocaleString(undefined, { maximumFractionDigits:
 const money = (n: number) => show(n / 1000);
 /** Physical sources and liabilities remain distinct from food creation and spendable cash. */
 export function WarRequisition({ bundle, snapshot, onSelectRegion }: SystemPanelProps) {
-  const regions = bundle.world_state.regions, r = warRequisitionAt(snapshot, regions.length, bundle.world_state.civilizations.length);
+  const regions = bundle.world_state.regions, r = warRequisitionAt(snapshot, regions.length, bundle.world_state.civilizations?.length ?? 0);
   if (r.status === "absent") return null;
   const link = (id: number) => <button type="button" className="systems-link" onClick={() => onSelectRegion(regions[id].name)}>{regions[id].name}</button>;
   const f = r.record?.frame;

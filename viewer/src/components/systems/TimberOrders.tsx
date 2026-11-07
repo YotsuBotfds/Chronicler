@@ -3,7 +3,7 @@ import { timberOrdersAt } from "../../lib/timberOrders";
 const show = (n: number) => (n / 1000).toLocaleString(undefined, { maximumFractionDigits: 3 });
 /** Real cargo and escrow, never inferred from demand or budget envelopes. */
 export function TimberOrders({ bundle, snapshot, onSelectRegion }: SystemPanelProps) {
-  const regions = bundle.world_state.regions, r = timberOrdersAt(snapshot, regions.length, bundle.world_state.civilizations.length);
+  const regions = bundle.world_state.regions, r = timberOrdersAt(snapshot, regions.length, bundle.world_state.civilizations?.length ?? 0);
   if (r.status === "absent") return null;
   const link = (id: number) => <button type="button" className="systems-link" onClick={() => onSelectRegion(regions[id].name)}>{regions[id].name}</button>;
   return <section className="systems-section" aria-label="Timber orders"><h3>Timber orders</h3>

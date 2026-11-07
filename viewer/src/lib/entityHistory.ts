@@ -44,7 +44,9 @@ const num = (n: number) => n.toLocaleString(undefined, { maximumFractionDigits: 
 /** Parse once per bundle, through the producers' strict readers. Does not read final-state histories. */
 export function indexEntityHistory(bundle: Bundle): EntityHistoryIndex {
   const history = Array.isArray(bundle.history) ? bundle.history : [];
-  const regions = bundle.world_state.regions.length, civs = bundle.world_state.civilizations.length;
+  // Missing polity metadata grants no valid polity references. Pure regional
+  // records and absent optional packages still have their own valid meaning.
+  const regions = bundle.world_state.regions.length, civs = bundle.world_state.civilizations?.length ?? 0;
   // A non-exact continuation cannot certify that reused pool ids name the
   // previous people. Preserve separate identity segments without rewriting ids.
   const boundaries = new Set<number>();

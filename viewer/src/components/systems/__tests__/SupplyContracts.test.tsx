@@ -2,6 +2,7 @@ import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
 import { TimberOrders } from "../TimberOrders";
 import { WarRequisition } from "../WarRequisition";
+import { EntityHistory } from "../EntityHistory";
 import { timber, requisition, supplySnapshot } from "../../../lib/__tests__/supplyContractsFixture";
 import type { SystemPanelProps } from "../../../lib/systems";
 afterEach(cleanup);
@@ -19,5 +20,18 @@ it("shows original due, actually paid and remaining without making claims cash",
 it("rejects broken books without displaying their numbers", () => {
   render(<TimberOrders {...props("timber_orders", { ...timber, source_turn: 99 })}/>);
   expect(screen.getByText(/Rejected timber order record/)).toBeInTheDocument();
+  expect(screen.queryByRole("table")).not.toBeInTheDocument();
+});
+it("self-gates absent optional packages before requiring legacy polity metadata",()=>{
+  const p=props("unused",null);
+  delete (p.bundle.world_state as unknown as Record<string,unknown>).civilizations;
+  const {container}=render(<><WarRequisition {...p}/><TimberOrders {...p}/><EntityHistory {...p}/></>);
+  expect(container).toBeEmptyDOMElement();
+});
+it.each([["timber_orders",timber],["war_requisition",requisition]])("missing polity metadata validates no referenced polity in %s",(key,record)=>{
+  const p=props(String(key),record);
+  delete (p.bundle.world_state as unknown as Record<string,unknown>).civilizations;
+  render(key==="timber_orders"?<TimberOrders {...p}/>:<WarRequisition {...p}/>);
+  expect(screen.getByText(/Rejected .* record/)).toBeInTheDocument();
   expect(screen.queryByRole("table")).not.toBeInTheDocument();
 });
