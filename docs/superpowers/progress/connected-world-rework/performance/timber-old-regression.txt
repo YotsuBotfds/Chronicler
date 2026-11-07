@@ -1,0 +1,38 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+_ test_unknown_market_candidates_preserve_refusals_without_population_rescans __
+
+lane = (namespace(civilizations=[namespace(name='C0', treasury=50), namespace(name='C1', treasury=50)], turn=2, agent_mode='h... flows_turn=None, flows=[], flows_dropped=0, totals=[])), <test_timber_orders.CarrierSim object at 0x7f6990b91010>, {})
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f69880dcc30>
+
+    def test_unknown_market_candidates_preserve_refusals_without_population_rescans(lane, monkeypatch):
+        world, state, sim, _ = lane
+        sim.wealth = {aid: 10.0 for aid in range(100)}
+        memory = world.livelihoods.adaptive_livelihoods = NS(
+            enabled=True, rules="2", mode="adapt", trade_experience=[], counters={})
+        sim.usable_trade_destinations = lambda ids, turn: [(aid, []) for aid in ids]
+        _plan_needs(world, state, monkeypatch, [(1, 1, 2.0)])
+        calls, original = [], TT._people
+    
+        def measured(snapshot):
+            calls.append(snapshot.num_rows)
+            return original(snapshot)
+    
+        monkeypatch.setattr(TT, "_people", measured)
+        T.phase10_before_reserves(world, None, None, NS(_sim=sim))
+        assert memory.counters["trade_unknown_destination"] == 100
+        assert not state.orders and not state.book.settled
+        assert sim.wealth == {aid: 10.0 for aid in range(100)}
+        assert [c.treasury for c in world.civilizations] == [50, 50]
+        assert world.regions[0].stockpile.goods["timber"] == 10.0
+        # Measured production hotspot: the old planner rebuilt the full population
+        # once for each rejected candidate (101 reads here).  This bound permits
+        # one initial and one post-arrival refresh, not an O(candidates*people) scan.
+>       assert len(calls) <= 2
+E       assert 101 <= 2
+E        +  where 101 = len([100, 100, 100, 100, 100, 100, ...])
+
+tests/test_timber_orders.py:395: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_timber_orders.py::test_unknown_market_candidates_preserve_refusals_without_population_rescans
+1 failed in 0.24s

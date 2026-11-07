@@ -1,0 +1,27 @@
+{
+  "source": "/workspace/evidence/final-program/profile-eaa4a5d3/proc32_s19-full/chronicle_bundle.json",
+  "source_sha256": "7db87b132bca1603a78163153b57a8fb522699fafdb389ad85586c0ea7263445",
+  "note": "Static artifact experiment only; no production-format change or run-time speedup claim",
+  "rows": [
+    {
+      "compression": "gzip",
+      "level": 1,
+      "source_bytes": 71441011,
+      "encoded_bytes": 17441926,
+      "ratio": 0.24414444526827875,
+      "compression_cpu_seconds": 0.591343995,
+      "decompression_cpu_seconds": 0.276685321,
+      "exact_byte_roundtrip": true
+    },
+    {
+      "compression": "gzip",
+      "level": 6,
+      "source_bytes": 71441011,
+      "encoded_bytes": 13908635,
+      "ratio": 0.19468698448290436,
+      "compression_cpu_seconds": 2.1876051690000002,
+      "decompression_cpu_seconds": 0.21615764700000017,
+      "exact_byte_roundtrip": true
+    }
+  ]
+}
