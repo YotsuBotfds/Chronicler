@@ -100,9 +100,11 @@ PURPOSE_WORKSHOP_WAGE = 0
 _FULL_CREW = 8
 
 # ``stipends`` (RS1 apprentice stipends, :func:`pay_from_firm`) is absent from
-# every firm unless apprenticeship paid one, so it reads as 0 otherwise.
+# every firm unless apprenticeship paid one, so it reads as 0 otherwise; so are
+# A3's ``capital``, ``inputs``, ``household_sales`` and ``household_delivered``
+# (``--workshop-economics``).
 _TOTAL_KEYS = ("sales", "wages", "distributed", "written_off", "titled", "delivered", "worn", "returned",
-               "stipends")
+               "stipends", "capital", "inputs", "household_sales", "household_delivered")
 
 
 class _Work:
@@ -161,6 +163,15 @@ def workshop_payroll_active(world) -> bool:
     return workshops_active(world) and _workshops(world).mode == "operate"
 
 
+def _economics(world):
+    """A3 seam (``--workshop-economics``): its module while it is active, else
+    None (never imported for a world that never enabled it)."""
+    if getattr(getattr(world, "livelihoods", None), "workshop_economics", None) is None:
+        return None
+    from chronicler import workshop_economics
+    return workshop_economics if workshop_economics.workshop_economics_active(world) else None
+
+
 def _firm(state: WorkshopPayrollState, site: int) -> WorkshopFirm | None:
     return next((f for f in state.firms if f.site == site), None)
 
@@ -171,7 +182,11 @@ def crew_terms(world, site: int) -> tuple[int, float]:
     if state is None or not workshop_payroll_active(world):
         return _FULL_CREW, 1.0
     firm = _firm(state, site)
-    return (firm.crew_cap, firm.hours) if firm is not None else (_FULL_CREW, 1.0)
+    terms = (firm.crew_cap, firm.hours) if firm is not None else (_FULL_CREW, 1.0)
+    economics = _economics(world)
+    if economics is not None:            # A3: the crew its affordable inputs occupy
+        return economics.crew_terms(world, site, *terms)
+    return terms
 
 
 def _controller(world, region: int) -> int | None:
@@ -228,10 +243,11 @@ def _budget(world, civ: int, acc) -> int:
 def check_firm(firm: WorkshopFirm) -> None:
     """Exact integer closure of the firm's cash and inventory accounts."""
     t = {k: firm.totals.get(k, 0) for k in _TOTAL_KEYS}
-    if firm.cash != (t["sales"] - t["wages"] - t["distributed"] - t["written_off"] - t["stipends"]) \
-            or firm.cash < 0:
+    if firm.cash != (t["capital"] + t["sales"] + t["household_sales"] - t["inputs"] - t["wages"]
+                     - t["distributed"] - t["written_off"] - t["stipends"]) or firm.cash < 0:
         raise RuntimeError(f"workshop firm {firm.site} cash does not close")
-    if firm.inventory != t["titled"] - t["delivered"] - t["worn"] - t["returned"] or firm.inventory < 0:
+    if firm.inventory != (t["titled"] - t["delivered"] - t["household_delivered"] - t["worn"] - t["returned"]) \
+            or firm.inventory < 0:
         raise RuntimeError(f"workshop firm {firm.site} inventory does not close")
 
 
@@ -389,6 +405,9 @@ def _liquidate(world, state, firm: WorkshopFirm, t: _Turn, reason: str, acc, pha
     state.closed.append(firm)
     del state.closed[:-MAX_CLOSED]
     _bump(state, f"closed_{reason}")
+    economics = _economics(world)
+    if economics is not None:
+        economics.on_closed(world, firm, reason, t.turn)
 
 
 # ---------------------------------------------------------------------------
@@ -422,6 +441,7 @@ def finish_phase2(world, economy_result, agent_bridge, acc):
     if ws.frame_turn != world.turn:
         raise RuntimeError("workshop receipts missing for this turn")
     t = _Turn(world.turn, sim)
+    economics = _economics(world)
     commitments = None
     plans, rows = [], []
     orders = None
@@ -429,6 +449,8 @@ def finish_phase2(world, economy_result, agent_bridge, acc):
         if not receipt.allocated or not receipt.crew:
             continue
         order = None
+        if _firm(state, receipt.site) is None and economics is not None:
+            continue                                # A3: firms open with owner capital (Phase 10)
         if _firm(state, receipt.site) is None:
             # A firm opens around an actual order: an academy of the region's
             # ruler whose last procurement left need it could pay for.
@@ -485,6 +507,8 @@ def finish_phase2(world, economy_result, agent_bridge, acc):
             _bump(state, "titled", titled)
             _material(t, firm, "title", ("region_market", firm.region), ("workshop_inventory", firm.site),
                       titled, "phase2")
+    if economics is not None:                     # A3: charge the inputs used, observe prices
+        economics.charge_inputs(world, t, acc, economy_result)
     open_sites = {s.site for s in ws.sites}
     reasons = {s.site: s.closed_reason for s in ws.closed}
     for firm in list(state.firms):
@@ -501,6 +525,9 @@ def rollback_phase2(world) -> None:
         if t.installed and t.sim is not None:
             t.sim.cancel_paid_work()
         state._turn = None
+    if getattr(getattr(world, "livelihoods", None), "workshop_economics", None) is not None:
+        from chronicler.workshop_economics import rollback
+        rollback(world)
 
 
 def on_pool_reset(world) -> None:
@@ -658,9 +685,12 @@ def phase10(world, acc, economy_result, agent_bridge):
     if t.installed and t.receipt is None:
         sim.cancel_paid_work()               # no wealth phase took it: unknown, not zero
     customers = _customers(world) if state.mode != "no_customer" else []
+    economics = _economics(world)
     for firm in list(state.firms):
         row = _row(t, firm)
         _sell(world, state, firm, t, customers, acc)
+        if economics is not None:               # A3: then the region's households
+            economics.sell_to_households(world, firm, t, customers, acc, sim)
         work = t.work.get(firm.site)
         due = {o.agent_id: o.amount for o in firm.owed}
         if work is not None:
@@ -703,15 +733,26 @@ def phase10(world, acc, economy_result, agent_bridge):
                 continue
         else:
             firm.insolvent_run = 0
+            if economics is not None and economics.idle_close(world, firm, t):
+                _liquidate(world, state, firm, t, "idle", acc, "phase10", pay_owed=True)
+                from chronicler.workshops import close_site
+                close_site(world, firm.site, "idle")
+                continue
             hours = min(1.0, firm.hours + HOURS_STEP)
             cap = min(_FULL_CREW, firm.crew_cap + 1)
             if (hours, cap) != (firm.hours, firm.crew_cap) and firm.cash >= _bill(firm, cap, hours):
                 firm.hours, firm.crew_cap = hours, cap
                 _note(firm, t.turn, "recovered", firm.crew_cap)
             reserve = RESERVE_TURNS * _bill(firm, _FULL_CREW, 1.0) if state.mode != "unpaid_labor" else 0
+            if economics is not None:            # A3: keep the inputs' reserve too
+                reserve += economics.input_reserve(world, firm)
             if firm.cash > reserve:
                 _distribute(world, state, firm, t, firm.cash - reserve, acc, "phase10", write_rest=False)
         check_firm(firm)
+        if economics is not None:
+            economics.check_firm(world, firm)
+    if economics is not None:                   # A3: sites without a firm may open one
+        economics.open_firms(world, t, acc)
     receipts = []
     for site, row in sorted(t.rows.items()):
         firm = _firm(state, site) or next(f for f in state.closed if f.site == site)
@@ -727,6 +768,8 @@ def phase10(world, acc, economy_result, agent_bridge):
     state.last_payroll_turn = t.turn
     state._turn = None
     _bump(state, "payroll_turns")
+    if economics is not None:
+        economics.commit_frame(world, t)
     return []
 
 
