@@ -154,11 +154,13 @@ def extract(bundle: dict, flags) -> tuple[dict, list[str]]:
         for row in rows(care, "ledger", where):
             if row.get("turn") != turn or not integer(row.get("civ")):
                 problems.append(f"{where}: care envelope missing payer or source date")
+                continue
             civ = row.get("civ")
             budgets[civ] = budgets.get(civ, 0) + 1000 * amount(row, "envelope_coins", where)
         for row in rows(care, "frame", where):
-            if row.get("turn") != turn:
-                problems.append(f"{where}: care receipt misdated")
+            if row.get("turn") != turn or not integer(row.get("civ")):
+                problems.append(f"{where}: care receipt missing payer or source date")
+                continue
             paid = amount(row, "wages_paid_milli", where)
             spent[row.get("civ")] = spent.get(row.get("civ"), 0) + paid
             care_paid[row.get("civ")] = care_paid.get(row.get("civ"), 0) + paid
@@ -217,6 +219,7 @@ def extract(bundle: dict, flags) -> tuple[dict, list[str]]:
         for row in rows(ph, "supplies", where):
             if row.get("turn") != turn or not integer(row.get("civ")):
                 problems.append(f"{where}: supply missing payer or source date")
+                continue
             food = amount(row, "food_milli", where)
             cash = amount(row, "charged_milli", where)
             internal = amount(row, "internal_milli", where)
@@ -240,6 +243,7 @@ def extract(bundle: dict, flags) -> tuple[dict, list[str]]:
         for row in rows(ph, "guards", where):
             if row.get("turn") != turn or not integer(row.get("civ")) or not integer(row.get("target")):
                 problems.append(f"{where}: guard receipt missing payer, target or source date")
+                continue
             work = amount(row, "work", where)
             sums["guard_farm_time"] += work
             m["guard_farm_time"] += work
@@ -280,6 +284,7 @@ def extract(bundle: dict, flags) -> tuple[dict, list[str]]:
             civ = row.get("civ")
             if row.get("turn") != turn or not integer(civ) or civ >= len(civ_names) or civ in funding_civs:
                 problems.append(f"{where}: cash funding has invalid or duplicate payer/date")
+                continue
             if integer(civ):
                 funding_civs.add(civ)
             envelope = amount(row, "envelope_milli", where)

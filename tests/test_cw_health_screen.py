@@ -110,6 +110,8 @@ def test_material_paid_guard_and_single_envelope_closure(CW):
     (lambda b: _ph(b)["totals"].__setitem__("food_consumed_milli", 100), "receipt sum"),
     (lambda b: _ph(b)["funding"][0].__setitem__("care_carry_after", 500), "cash + carry"),
     (lambda b: _ph(b).__setitem__("funding_turn", -1), "cash funding"),
+    (lambda b: _care(b)["ledger"][0].__setitem__("civ", {}), "missing payer"),
+    (lambda b: _ph(b)["funding"][0].__setitem__("civ", {}), "invalid or duplicate payer"),
 ])
 def test_invalid_records_fail_visibly(CW, mutation, reason):
     b = _bundle()
