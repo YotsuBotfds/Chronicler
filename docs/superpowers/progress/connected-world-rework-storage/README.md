@@ -55,7 +55,7 @@ slower in three cases, and decoded-memory peaks are effectively unchanged.
 The same authoritative expanded history still has to exist. These are single
 bounded observations on the shared host, not throughput qualification.
 
-The120T [timing pilot](pilot120.json) took 11.30 seconds wall for archive and
+The 120T [timing pilot](pilot120.json) took 11.30 seconds wall for archive and
 both fresh-process loads, including verification fingerprints. Scaling its
 time by the remaining input sizes projected about 41 seconds; a fixed 90-second
 elapsed cap was chosen before those three cases. They completed in 38.65 seconds,
@@ -74,8 +74,8 @@ The main `2726bf44` procedural19/200T cProfile attributes 41.75 instrumented sec
 A proposed shortcut returned changed scalar replacements directly before
 container dispatch, avoiding a reserved-key traversal that does nothing for a
 scalar. Three alternating exact-data trials retained the same 71,441,011-byte
-encoded SHA256 on every trial. Old CPU was 8.922/9.091/8.898seconds; candidate
-8.984/8.884/8.815seconds. The median difference is about 0.4%, with overlapping
+encoded SHA256 on every trial. Old CPU was 8.922/9.091/8.898 seconds; candidate
+8.984/8.884/8.815 seconds. The median difference is about 0.4%, with overlapping
 ranges. **It was not admitted.** The encoder and all patch/size decisions are
 unchanged. [Raw probe receipt](encoder-probe.json), [output](encoder-probe.log)
 and [frozen-source reproducer](probe_encoder.py) retain the null result.
@@ -86,7 +86,8 @@ The existing enrolled codec test module passes **48 tests**, including six old
 layout versions, signed zero/type/order/null round trips, corrupt/truncated
 gzip, preserved existing patch errors, deterministic headers, source changes,
 concurrent destination creation, disk-write failure and CLI behavior:
-[focused test log](focused-tests.log). Existing standard test fixtures include
+[focused test log](focused-tests.log). The wider codec/bundle/analytics suite passed
+139 tests with 2 skips: [relevant suite log](relevant-tests.log). Existing standard test fixtures include
 a short Python-only run; no new evaluation or held simulation was performed.
 Viewer gzip upload/worker behavior is a separate integration/review gate.
 Full exact-head CI and feature-off checks belong to the lead's integrated PR.
