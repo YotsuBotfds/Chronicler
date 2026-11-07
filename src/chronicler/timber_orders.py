@@ -427,9 +427,9 @@ def phase10(world, acc, economy_result, agent_bridge):
     state.frame_turn = int(world.turn)
     state.frame = {"turn": world.turn, "events": t.events, "events_dropped": t.dropped, "withheld": t.withheld,
                    "dispatched": dict(t.dispatched), "spent": dict(t.spent)}
-    # L9 decides after this frame closes: retain uncapped per-region arrivals
-    # while netting its pre-arrival PL1 observations. _begin clears them next
-    # turn; checkpoint serialization excludes all private turn state.
+    # Retain uncapped per-region arrivals through L9's observation of the
+    # pre-arrival PL1 needs. _begin clears them next turn; checkpoint
+    # serialization excludes all private turn state.
     return []
 
 

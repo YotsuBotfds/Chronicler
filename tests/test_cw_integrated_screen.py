@@ -25,7 +25,8 @@ def bundle():
               "regions": [], "typed": [{"channel": "care_wage", "in_milli": 100}], "closures": [], "withheld": {},
               "treasury": {}, "native": {"source_turn": 0, "observed_complete": True, "balance_closure": 0,
                                          "totals": {"income_gross": 3, "income_applied": 1, "withheld_paid_work": 2}}}
-    a6 = {"turn": 0, "rows_installed": 0, "rows_dropped": 0, "rows_total": 0, "rows": [], "known_destinations": [], "information_gate_installed": True,
+    a6 = {"turn": 0, "rows_installed": 0, "rows_dropped": 0, "rows_total": 0, "rows": [], "known_destinations": [],
+          "known_destinations_dropped": 0, "known_destinations_total": 0, "information_gate_installed": True,
           "receipt": [0, [], 0, 0], "refusals_total": 0, "refusals": [], "work": [], "work_dropped": 0, "offers": []}
     d4 = {"turn": 0, "events_dropped": 0, "events": [
         {"source_turn": 0, "kind": "refill", "army": "a", "removed_milli": 1000, "credited_rations": 2},
@@ -125,8 +126,9 @@ def test_preregistered_serial_runtime_does_not_inherit_three_job_default(CW):
 def test_signed_war_scores_are_valid_but_unknown_personal_net_is_not_invented(CW):
     b = bundle()
     frame = b["history"][0]["livelihoods"]["adaptive_livelihoods"]["frame"]
-    frame.update(rows=[[7, 1, .2]], rows_total=1, rows_installed=1, known_destinations=[[7, 1, 3]])
-    frame["work"] = [{"turn": 0, "paid_milli": 100, "withheld_milli": 20, "title_forgone_milli": None, "net_milli": None}]
+    frame.update(rows=[[7, 1, .2]], rows_total=1, rows_installed=1, known_destinations=[[7, 1, 3]], known_destinations_total=1)
+    frame["work"] = [{"turn": 0, "id": 7, "kind": "repair", "progress": None, "source": "exact personal receipt",
+                      "paid_milli": 100, "withheld_milli": 20, "title_forgone_milli": None, "net_milli": None}]
     assert CW.extract(b, CW.ARMS["FULL"][0])[1] == []
     frame["work"][0]["net_milli"] = 80
     assert any("unknown personal cost" in p for p in CW.extract(b, CW.ARMS["FULL"][0])[1])
@@ -134,6 +136,25 @@ def test_signed_war_scores_are_valid_but_unknown_personal_net_is_not_invented(CW
     assert CW.extract(b, CW.ARMS["FULL"][0])[1] == []
     frame["rows"][0][2] = .31
     assert any("signed score sample" in p for p in CW.extract(b, CW.ARMS["FULL"][0])[1])
+
+
+@pytest.mark.parametrize("bad", ["score_cap", "information_cap", "information_total", "work_id", "work_kind", "work_progress", "work_source", "boolean_net"])
+def test_personal_sample_bounds_and_types_fail_visibly(CW, bad):
+    b = bundle()
+    f = b["history"][0]["livelihoods"]["adaptive_livelihoods"]["frame"]
+    if bad == "score_cap":
+        f.update(rows=[[7, 1, .2]] * 257, rows_total=257, rows_installed=257)
+    elif bad == "information_cap":
+        f.update(known_destinations=[[7, 1, 1]] * 257, known_destinations_total=257)
+    elif bad == "information_total":
+        f["known_destinations_total"] = 1
+    else:
+        work = {"turn": 0, "id": 7, "kind": "repair", "progress": None, "source": "receipt",
+                "paid_milli": 1, "withheld_milli": 0, "title_forgone_milli": 0, "net_milli": 1}
+        key = {"work_id": "id", "work_kind": "kind", "work_progress": "progress", "work_source": "source", "boolean_net": "net_milli"}[bad]
+        work[key] = 1 if bad == "work_progress" else True
+        f["work"] = [work]
+    assert CW.extract(b, CW.ARMS["FULL"][0])[1]
 
 
 def test_sidecar_counts_untruncated_migrations_and_unknown_provenance(CW, tmp_path):

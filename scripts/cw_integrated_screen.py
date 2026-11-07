@@ -188,7 +188,7 @@ def extract(bundle, flags):
         m["a6_input_rows"] += finite(af.get("rows_installed"), "A6 installed rows")
         m["dropped_a6_rows"] += finite(af.get("rows_dropped", 0), "A6 dropped rows")
         score_rows = af.get("rows")
-        if not isinstance(score_rows, list) or not all(isinstance(row, (list, tuple)) and len(row) == 3
+        if not isinstance(score_rows, list) or len(score_rows) > 256 or not all(isinstance(row, (list, tuple)) and len(row) == 3
                 and type(row[0]) is int and row[0] >= 0 and type(row[1]) is int and 0 <= row[1] < nregions
                 and SR._num(row[2]) and abs(row[2]) <= .30 for row in score_rows):
             problems.append(f"A6 signed score sample malformed at {turn}")
@@ -198,10 +198,13 @@ def extract(bundle, flags):
         if af.get("rows_installed") != (0 if a6_mode == "record_only" else af.get("rows_total")):
             problems.append(f"A6 installed score count differs from control at {turn}")
         information = af.get("known_destinations")
-        if not isinstance(information, list) or not all(isinstance(row, (list, tuple)) and len(row) == 3
+        if not isinstance(information, list) or len(information) > 256 or not all(isinstance(row, (list, tuple)) and len(row) == 3
                 and type(row[0]) is int and row[0] >= 0 and type(row[1]) is int and 0 <= row[1] < nregions
                 and type(row[2]) is int and 0 < row[2] <= 7 for row in information):
             problems.append(f"A6 information provenance sample malformed at {turn}")
+            information = []
+        if len(information) + finite(af.get("known_destinations_dropped"), "A6 information dropped") != af.get("known_destinations_total"):
+            problems.append(f"A6 information sample/total does not close at {turn}")
         receipt = af.get("receipt")
         if not isinstance(receipt, (list, tuple)) or len(receipt) != 4 or receipt[0] != turn:
             problems.append(f"A6 native receipt absent or misdated at {turn}")
@@ -216,7 +219,12 @@ def extract(bundle, flags):
             past_refused.add(key)
         for work in rows(af, "work", "A6"):
             components = [work.get(key) for key in ("paid_milli", "withheld_milli", "title_forgone_milli")]
-            if work.get("turn") != turn or not all(value is None or (type(value) is int and value >= 0) for value in components):
+            if work.get("turn") != turn or type(work.get("id")) is not int or work["id"] < 0 \
+                    or not isinstance(work.get("kind"), str) or not work["kind"] \
+                    or (work.get("progress") is not None and type(work["progress"]) is not bool) \
+                    or (work.get("source") is not None and not isinstance(work["source"], str)) \
+                    or (work.get("net_milli") is not None and type(work["net_milli"]) is not int) \
+                    or not all(value is None or (type(value) is int and value >= 0) for value in components):
                 problems.append(f"A6 personal work receipt malformed or misdated at {turn}")
             elif all(value is not None for value in components):
                 if work.get("net_milli") != components[0] - components[1] - components[2]:

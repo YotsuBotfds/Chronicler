@@ -86,7 +86,10 @@ PYTHON_PURPOSES: tuple[str, ...] = ("firm_capital", "firm_input_purchase", "infr
 #: is per turn, code and batch); the seam's own book keys it by its own name.
 #: ``care_wage`` (C2): treasury -> epidemic carers, under ``repair_wage`` (as
 #: PL1 woodcut and PL3 granary crew wages are), batches ``epidemic_care.CARE_WAGE_BATCH + civ``.
-NATIVE_ALIASES: dict[str, str] = {"care_wage": "repair_wage", "relief_purchase": "food_procurement", "guard_wage": "repair_wage", "timber_purchase": "cargo_purchase", "timber_freight": "cargo_sale", "infrastructure_wage": "repair_wage", "branch_dues": "remittance"}
+#: Timber collections and escrow credits are UNARY transfers, not native
+#: pairwise cargo payments. Their high batches (timber_orders.BATCH + id)
+#: are separate from workshop site purchases and remittance/branch dues.
+NATIVE_ALIASES: dict[str, str] = {"care_wage": "repair_wage", "relief_purchase": "food_procurement", "guard_wage": "repair_wage", "timber_purchase": "wares_purchase", "timber_freight": "remittance", "infrastructure_wage": "repair_wage", "branch_dues": "remittance"}
 #: Every registered purpose -> its native code (None: Python accounts only).
 PURPOSES: dict[str, int | None] = {
     **{name: code for code, name in enumerate(NATIVE_PURPOSES)},

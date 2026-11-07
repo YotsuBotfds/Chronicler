@@ -428,7 +428,7 @@ def resolve_record_pointer(bundle: dict, fid: str) -> ResolvedRecordPointer | No
     if isinstance(source, bool) or not isinstance(source, int) or source != snapshot_turn - 1:
         return None
     value: Any = package
-    for token in tokens[1:]:
+    for position, token in enumerate(tokens[1:], start=1):
         if isinstance(value, dict) and token in value:
             value = value[token]
         elif isinstance(value, list) and token.isascii() and token.isdigit() and int(token) < len(value):
@@ -437,9 +437,24 @@ def resolve_record_pointer(bundle: dict, fid: str) -> ResolvedRecordPointer | No
             return None
         if isinstance(value, dict) and "source_turn" in value:
             nested = value["source_turn"]
-            if isinstance(nested, bool) or not isinstance(nested, int) or not 0 <= nested <= source:
+            if isinstance(nested, bool) or not isinstance(nested, int):
                 return None
-            source = nested
+            # C2's applied row combines a prior capacity input with current
+            # tick outcomes; its source_turn dates only that capacity. A
+            # refused row likewise records a CURRENT refusal of an input
+            # whose date may itself be stale, invalid or future.
+            care_input = (tokens[0] == "epidemic_care" and position == 3
+                          and tokens[1] == "tick" and tokens[2] in ("applied", "refused"))
+            if care_input and tokens[2] == "refused":
+                continue
+            if not 0 <= nested <= source:
+                return None
+            exposure_input = (tokens[0] == "public_health" and position == 2 and tokens[1] == "environment")
+            earlier_leaf = ((care_input and len(tokens) == 5 and tokens[4] in ("patients", "source_turn"))
+                            or (exposure_input and len(tokens) == 4 and tokens[3] in
+                                ("source_turn", "displaced_share", "water_service", "crowding_factor", "residence_observed", "sanitation_observed")))
+            if (not care_input and not exposure_input) or earlier_leaf:
+                source = nested
     if isinstance(value, float) and not math.isfinite(value):
         return None
     return ResolvedRecordPointer(fid, f"/history/{i}/livelihoods/" + "/".join(tokens), source, value)

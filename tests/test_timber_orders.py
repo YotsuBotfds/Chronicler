@@ -260,7 +260,7 @@ def test_actual_arrival_is_not_immediately_reordered_from_prearrival_need(lane):
     T._close(world,state,state._turn,order,"delivered",sim)
     assert store=={1:2.0} and _measured_needs(world)==[]
     T.phase10(world,None,None,NS(_sim=sim))
-    assert _measured_needs(world)==[]  # L9 runs after the frame has closed.
+    assert _measured_needs(world)==[]  # Closing a frame cannot erase arrival relief.
     assert pickle.loads(pickle.dumps(state))._turn is None
 
 
