@@ -1,6 +1,6 @@
 # Connected-world CW5c: preregistered held screen for bounded epidemic care capacity (slice C2)
 
-Status: DRAFT, revision 3, for the lead's freeze (not frozen; no held run is allowed until the lead marks this page FROZEN after an independent review of the code and this page)
+Status: FROZEN. Frozen by the lead on 2026-11-07 after independent review of the design, extractors and revisions (review record in the program's review notes); code at `c854215a9b4a42ecbd2b8178800df61c103da6aa`; pilot at `25c6d84aa4d1637337f3e85e121f9373e0f72377`. No code change afterwards except a defect fix recorded as an amendment with a new pilot.
 
 Written 2026-11-07 by the C2 lane on branch `claude/cw-c2-care` (from `main` `bac45cb5`, PR #90).
 Revision 1 was reviewed at `3e5ee44d` ("approve with changes"); revision 2 answers that review
