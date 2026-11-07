@@ -311,3 +311,117 @@ ends `trade`.
   --grain-storage --workshops --workshop-payroll --workshop-economics` on the
   same two cases: the rules option absent and the explicit
   `--workshop-economics-rules=1` each 205 files, 0 differences.
+- **Rust** (in the one `cargo test --locked` run below): `settle_pairs`
+  (validation before mutation: purpose, payer = payee, repeated pair, an id on
+  both sides, range, repeated or older key; the payer limited at its wealth;
+  the payee's ceiling refused back to the payer; dead and unknown parties
+  ABSENT; parties on a merchant trip paid; each net change applied once
+  without f32 drift; conservation), the category list and `trade_holders`, and
+  the planner skip (reserved merchants never planned; other turns' reservations
+  and other categories leave the planner bit-identical).
+- **Offline** (no native extension): `tests/test_titled_trade.py` (27: the
+  registry, invalid combinations refused before any change, a saved world's
+  refused resume, feature-off, surplus-only pro rata purchases at the local
+  price paid by id, the margin bisection, no cash/no offer, title and custody
+  exactly once through purchase, transit, delivery and sale with the holder
+  credited by id, goods closure every turn, exact withholding of the carrier's
+  income, each declared outcome once (conquest, death, quarantine closure, a
+  lost route and a released carrier, pool reset, switch-off), sea loss and a
+  refused claim, never-reused ids, repeated Phase 10/settlement and key
+  refused, the ledger's identity and closures with and without A4, exact
+  pickle/JSON round trips with a shipment in transit continuing identically,
+  the dated record); `tests/test_money.py` (33, eleven for pairwise bills);
+  with the ledger, retail, workshop, feature-catalog, feature-matrix,
+  batch-manifest, shard and witness modules: 624 passed.
+- **Native** (real extension): `tests/test_titled_trade_native.py` (template
+  seed 1, retail everywhere, 80 turns, `CHRONICLER_CHECK_RESOURCES=1`: every
+  pairwise payment checked against the live pool and its repeated key refused
+  unchanged; every shipment's cargo closes; one outcome per shipment; every
+  carrier-turn one receipt row at share 1.0; carriers never planned on native
+  trips; every ledger closure held; exact resume equals the straight run at
+  turns 52 (a shipment halfway along two hops), 55 (carriers in transit
+  released the next turn) and 61 (the holder dies in the next tick)), with the
+  workshop-economics, wealth-accounting, retail, recovery-skills,
+  apprenticeship, relocation, remittance, timber-supply, closure, payroll,
+  repair, recovery-crew and quarantine native modules: 121 tests, 120 passed
+  and 1 failed (`test_workshop_payroll_native.py` used purpose code 9 as the
+  unknown code; 9 is now `cargo_sale`: changed to 10, then passed).
+- **Viewer**: the full suite with `--maxWorkers=2` on a loaded machine: 1,594
+  passed, 2 skipped, 4 failed on the 5-second test timeout (two `AppShell` and
+  two feature-option files); those four files rerun with `--maxWorkers=1`: 44
+  passed. Lint clean; `tsc -b` and the production build succeeded.
+- **Bounded offline lane** (110-second limit kept, default output directory,
+  commit `f37308a9`): PASS in 326.1 s, 69 chunks, slowest `systems-2` 36.9 s;
+  `connected-world-a` 7.2 s (121 tests).
+- **Not run**: a held screen (CW5, template 771-776 and procedural 871-876,
+  reserved), a `record_only` mode (not built in A4-1: a later control arm), a
+  browser journey, `checkpoint_identity.py` all-switch cases (exact resume is
+  covered by the native CLI tests above), the 200-seed and procedural
+  qualification gates (restricted), profiling at the declared scale, PR CI.
+
+## Evidence (development worlds only; not a screen)
+
+Development-only, 2026-11-07: source `9c6c66ee` (this branch), extension
+`2ba123ab…`; no preregistration, no held seed, no 7xx/8xx/3xxx seed. One run
+per world, 200 turns, `CHRONICLER_CHECK_RESOURCES=1` (no resource problem was
+raised), flags `--agents hybrid --grain-reserves --public-grain-shipments
+--food-allocation --household-retail --household-retail-boundary all
+--titled-trade --wealth-accounting`; procedural worlds add `--worldgen
+procedural --regions 32 --civs 10`. This describes activation, not an effect
+(no arm without titled trade was compared). Template runs took 11-14 s,
+procedural 32-38 s (4 shared cores under other lanes' load). Food in food
+units; money in units of a person's wealth. "Net money" is what holders were
+credited for selling delivered cargo less what they paid owners; "income
+withheld" is the model merchant income the carriers did not receive while
+carrying.
+
+| World | Shipments | Delivered / returned / escheated / live at 199 | Routes (cross-civ shipments) | Food bought from owners (paid) | Delivered | Sold to buyers (credited) | Merchants' net money | Income withheld (carrier-turns) | Carriers released | Ledger closures failed |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| t1 | 101 | 90 / 4 / 3 / 4 | 13 (72) | 138.21 (73.63) | 121.30 | 111.91 (181.97) | 108.34 | 1.782 (173) | 14 | 0 |
+| t3 | 202 | 194 / 0 / 6 / 2 | 15 (156) | 231.21 (124.40) | 206.57 | 163.22 (198.17) | 73.77 | 12.113 (290) | 14 | 0 |
+| t7 | 93 | 88 / 0 / 4 / 1 | 26 (80) | 95.17 (51.76) | 86.67 | 70.49 (98.49) | 46.73 | 6.967 (153) | 15 | 0 |
+| t9 | 279 | 264 / 0 / 12 / 3 | 28 (68) | 344.14 (182.64) | 314.44 | 252.87 (278.81) | 96.17 | 24.189 (408) | 20 | 0 |
+| t11 | 90 | 86 / 0 / 4 / 0 | 5 (42) | 90.29 (46.02) | 82.78 | 75.70 (91.21) | 45.19 | 1.672 (119) | 11 | 0 |
+| t23 | 115 | 108 / 1 / 4 / 2 | 11 (115) | 174.26 (90.74) | 159.51 | 151.32 (228.98) | 138.24 | 1.519 (175) | 9 | 0 |
+| t42 | 165 | 151 / 12 / 2 / 0 | 9 (36) | 219.21 (111.73) | 188.08 | 160.10 (195.04) | 83.31 | 0.429 (195) | 3 | 0 |
+| p7 | 700 | 646 / 11 / 34 / 9 | 182 (565) | 938.70 (491.28) | 830.97 | 702.43 (980.03) | 488.75 | 67.245 (1,288) | 91 | 0 |
+| p11 | 635 | 598 / 5 / 20 / 12 | 147 (551) | 875.04 (456.43) | 778.68 | 651.41 (781.87) | 325.44 | 46.046 (1,158) | 72 | 0 |
+| p13 | 1,074 | 1,007 / 6 / 44 / 17 | 212 (956) | 1,577.44 (812.02) | 1,416.12 | 1,180.42 (1,490.23) | 678.21 | 92.263 (2,025) | 171 | 0 |
+| p17 | 796 | 728 / 22 / 32 / 14 | 172 (687) | 1,107.93 (590.84) | 962.84 | 747.75 (915.57) | 324.73 | 74.143 (1,452) | 104 | 0 |
+| p21 | 649 | 601 / 7 / 28 / 13 | 135 (572) | 958.49 (490.24) | 843.90 | 716.77 (947.38) | 457.14 | 56.536 (1,235) | 86 | 0 |
+| p31 | 735 | 682 / 9 / 26 / 18 | 181 (596) | 1,049.62 (547.17) | 914.46 | 746.36 (935.59) | 388.43 | 127.851 (1,378) | 101 | 0 |
+| all | 5,634 | 5,243 / 77 / 219 / 95 | 1,136 (4,496) | 7,799.72 (4,068.89) | 6,906.33 | 5,730.75 (7,323.35) | 3,254.45 | 512.755 (10,049) | 711 | 0 |
+
+Reading (development-only):
+
+- **Activation in every world** (13 of 13): owned food moved owner ->
+  merchant -> buyers across regions, 80% of shipments between polities. Of
+  7,799.7 food units bought from owners, 6,906.3 were delivered as holders'
+  claims, 331.5 decayed in transit, 113.2 returned to origins, 302.6 went to
+  commons (escheat or refused claims) and the rest was aboard at turn 199;
+  holders sold 5,730.8 to the destinations' households (granaries bought from
+  holders for 2.0 units credited; 0.54 of the sales credits were attribution
+  approximations).
+- **Every return but one was a lost route** (76 `route_lost`, 1
+  `destination_conquered`); no quarantine closure arose (epidemics on, no
+  `--quarantine-mode closure`). 219 shipments ended because their holder died
+  in transit; war reached the regions shipments stood in on 24 shipment-turns
+  (no loss in A4-1, counted).
+- **Margins replaced the model income and exceeded it**: merchants were paid
+  7,323.4 by buyers for cargo they bought for 4,068.9 (net +3,254.5), against
+  512.8 of model income withheld over 10,049 carrier-turns. The merchants'
+  model income is small under retail everywhere (native food trade nearly
+  stops), so the withheld share is small. This is a development observation,
+  not an effect estimate; the CW5 screen measures it against arms without
+  titled trade.
+- **Carriers left their trade in transit 711 times** (mostly occupation
+  switches; the native occupation choice sees the withheld income), keeping
+  title; the shipments continued.
+- Every A1 ledger closure held on every observed turn; `cargo_purchase` in =
+  out every turn.
+
+An all-on development run (template 7, titled trade with A3-2 owned output
+and the A3 academy flags): 166 shipments (161 delivered, 2 escheated), 190.7
+food bought for 102.6, net money +89.4 against 7.8 withheld; 4 firms, 77.6
+loads of owned output (free use 0), 25.0 of household wares sales; every
+ledger closure held.

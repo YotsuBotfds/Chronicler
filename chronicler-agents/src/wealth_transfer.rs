@@ -681,7 +681,7 @@ mod tests {
     fn each_key_applies_once_and_bad_rows_change_nothing() {
         let mut pool = pool_with(&[1.0, 1.0]);
         let (a, b) = (pool.ids[0], pool.ids[1]);
-        assert!(transfer(&mut pool, 5, 9, 0, &[(a, 1)]).is_err());
+        assert!(transfer(&mut pool, 5, 10, 0, &[(a, 1)]).is_err());
         assert!(transfer(&mut pool, 5, 0, 0, &[(a, 1), (a, 2)]).is_err());
         assert!(transfer(&mut pool, 5, 0, 0, &[(a, MAX_ROW_MILLIS + 1)]).is_err());
         assert_eq!((pool.wealth[0], pool.wealth[1]), (1.0, 1.0));
@@ -756,7 +756,7 @@ mod tests {
         assert_eq!((milli(&pool, 0), milli(&pool, 1), milli(&pool, 2)), (6000, 2500, 4500));
         // The key settles once; an older turn is refused; another batch or turn is its own key.
         assert!(settle_pairs(&mut pool, 4, PURPOSE_CARGO_PURCHASE, 3, &[(m, a, 1)]).is_err());
-        assert!(settle_pairs(&mut pool, 3, PURPOSE_CARGO_PURCHASE, 9, &[(m, a, 1)]).is_err());
+        assert!(settle_pairs(&mut pool, 3, PURPOSE_CARGO_PURCHASE, 3, &[(m, a, 1)]).is_err());
         assert!(settle_pairs(&mut pool, 4, PURPOSE_CARGO_SALE, 3, &[(m, a, 1)]).is_ok());
         assert!(settle_pairs(&mut pool, 4, PURPOSE_CARGO_PURCHASE, 4, &[(m, a, 1)]).is_ok());
     }
