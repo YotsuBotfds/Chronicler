@@ -1,7 +1,8 @@
 # Connected-world CW2: preregistered held screen for workshop economics and the owned-output rule (slices A3-1, A3-2)
 
-Status: DRAFT (not frozen; the lead freezes it before any held run). Written 2026-11-07 by the A4
-lane on branch `claude/cw-a4-titled-trade` at `21aa48cb` (A3-1 merged in PR #88; A3-2, rules 2,
+Status: DRAFT, pre-freeze revision 1 (not frozen; the lead freezes it before any held run; see
+"Pre-freeze revision 1" at the end). Written 2026-11-07 by the A4 lane on branch
+`claude/cw-a4-titled-trade` at `21aa48cb`, revised at `a1b61760` (A3-1 merged in PR #88; A3-2, rules 2,
 on this branch with its review fixes approved at `d5ccd4d6`, merged with `main` `bac45cb5`).
 Native extension built from this branch, SHA-256
 `43cbd22ac4e7e2c6a77e71781a884be5342f41aa4173ff6f43e0facf0f5e0eb0` (it honours the
@@ -10,9 +11,9 @@ Native extension built from this branch, SHA-256
 change before the held run only to fix a defect, recorded as an amendment with a new pilot; no
 arm, outcome or parameter changes in response to held outcomes.
 
-Compute ceiling: 0.50 core-hours
+Compute ceiling: 1.05 core-hours
 
-Primary outcomes: cw2_active_share, cw2_wages, cw2_served
+Primary outcomes: cw2_active_share, cw2_wages, cw2_wares_sold
 
 ## Purpose and limits
 
@@ -58,7 +59,7 @@ treasuries and population?** It also reports the input cost (free inputs) and a 
 | P | the base: the L6a payroll status quo (no workshop economics) | (root) |
 | E1 | P + `--workshop-economics` (rules 1, mode `market`: A3-1) | P |
 | E2 | P + `--workshop-economics --workshop-economics-rules 2` (A3-2) | E1 |
-| E2f | E2 + `--workshop-economics-mode free_inputs` (the input-cost control: every rule as E2, inputs recorded and not charged) | E2 |
+| E2f | E2 + `--workshop-economics-mode free_inputs` (a **diagnostic cost control only; free inputs are not a supported feature**: every rule as E2, inputs recorded and not charged) | E2 |
 | E2a | E2 + `--workshop-economics-mode academy_only` (the demand collapse: no household customers; academies only) | E2 |
 
   The demand collapse is arranged by an existing mode, not fabricated: households cannot buy
@@ -130,8 +131,10 @@ turn).
    share and the E2 - P active firm-turn count are secondaries).
 2. `cw2_wages` (E2 - P): workshop wages credited to households over the run: the money the A3
    package as it now stands pays households compared with the status quo.
-3. `cw2_served` (E2 - E1): wares delivered to households by sale over the run: whether owned
-   output changes the real (non-academy) demand served, against A3-1's free use.
+3. `cw2_wares_sold` (E2 - E1; `cw2_served` before revision 1): wares sold to households over the
+   run. It counts sales only: in E1 the people also draw part of the firm's output free from the
+   commons before title, so E2 - E1 is partly mechanical; E1's free-use upper bound is reported
+   beside it (`cw2_free_use_e1`).
 
 Signs are not forced. Prediction (inferred from the development comparison in
 workshop-economics.md, never evidence): under rules 2 households buy slightly fewer loads for
@@ -143,8 +146,11 @@ much less money, firms operate fewer turns and close idle more often.
   active firm-turns, wages, firms opened, net household income, academy sales.
 - A3-2 against A3-1 (E2 - E1): wages, households' money paid and price per load, firms opened,
   firms closed idle.
-- The input cost (E2f - E2): active share, firms opened, closed idle, wares served, wages,
-  treasury.
+- The input cost (E2f - E2): active share, firms opened, closed idle, wares sold, wages,
+  treasury. **E2f is a decomposition arm: its results are never read as an option** (free inputs
+  are not a supported feature; the mode exists as the lead-approved A3-1 cost control).
+- E1's free-use upper bound (E1 alone): firm output the people could draw free from the commons
+  before title (none in E2).
 - The demand collapse (E2a - E2): active share, closed idle, wages, unsold inventory at the end,
   wares handed to the owner at liquidation.
 - E2 alone: the producing, selling, idle and closed shares; closures idle, insolvent and by city
@@ -159,7 +165,9 @@ children and the timber stand read `not recorded` (household retail and the timb
 off); deaths by famine and by war need slice extractors. The screen adds the CW2 panel as E2 - P
 rows: food shortfall, wages due but not paid, asset arrears at the end, unsold inventory at the
 end, farm time diverted, treasury, mean stability at the end and population; inputs bought from
-the commons' owner (never free in E2) is an E2 row.
+the commons' owner (never free in E2) is an E2 row; household-turns priced out of firm wares
+(the economics counter `priced_out_households`, revision 1) is an E2 - E1 and an E2 row (P has no
+household customers, so nothing is recorded there).
 
 ## Analysis plan
 
@@ -171,6 +179,18 @@ at most 4/64; otherwise as no consistent effect. A world where a measure is unde
 is shown as such and left out of that comparison. Secondaries and harms are descriptive.
 
 ## Extractor validation (the shared pilot, before the freeze)
+
+Revision 1 (source `a1b61760`): the offline tests cover the renamed primary, E1's free-use upper
+bound and the priced-out households (and their absence in P). On the ten revision-1 pilot bundles
+every outcome extracted with no problem, and an independent recomputation from kept bundles (P,
+E1 and E2 on template 5; E1, E2 and E2a on procedural 19; E1 and E2a on template 5 for the new
+measures), not importing the screen module, matched the extractor on the active share, the wages
+(payroll receipts equal to the ledger channel), the wares sold (economics receipts), E1's
+free-use upper bound (1.344 and 16.156 loads, summed from the economics receipts; 0 in E2) and the
+priced-out households. The raw runs were then deleted. `check --screen CW2 --metrics PILOT/metrics.jsonl
+--cohort pilot` passes (10 runs complete, every outcome extracted).
+
+Before revision 1:
 
 - Offline tests `tests/test_cw2_screen.py` (oracle chunk `connected-world-e`): the arms and
   primaries; firm-turn states (closed turns counted against the firm), closures, wages, net
@@ -193,18 +213,24 @@ is shown as such and left out of that comparison. Secondaries and harms are desc
 
 ## Timing pilot (the shared pilot)
 
-`run PILOT --screen CW2 --cohort pilot --jobs 2` on `21aa48cb` (clean tree; `source.txt`: dirty 0,
-dirty-code 0; extension `43cbd22a…`): 10 runs, 0 failed, every outcome extracted; 139 s of
-simulation and extraction. Seconds per run (template, procedural): P 7.1, 18.3; E1 7.8, 21.7; E2
-6.8, 20.8; E2f 7.5, 21.6; E2a 7.6, 20.0. E1, E2, E2f and E2a activated on both worlds. **Projected
-held run: 0.232 core-hours for 60 runs** (x1.5 = 0.348). The pilot's `metrics.jsonl`, `source.txt`
-and `report.md` are retained in `connected-world-screens-cw2/pilot/` (the held run's `--pilot`).
-The report prints the pilot's outcomes; they were not used to choose any definition.
+`run PILOT --screen CW2 --cohort pilot --jobs 2` on `a1b61760` (revision 1; clean tree;
+`source.txt`: dirty 0, dirty-code 0; extension `43cbd22a…`): 10 runs, 0 failed, every outcome
+extracted; 307 s of simulation and extraction **on a loaded machine** (load average about 7 on 4
+cores from other lanes). Seconds per run (template, procedural): P 7.5, 58.5; E1 15.8, 61.4; E2
+11.7, 50.6; E2f 12.2, 49.1; E2a 10.2, 30.4. E1, E2, E2f and E2a activated on both worlds.
+**Projected held run: 0.512 core-hours for 60 runs** (x1.5 = 0.768). The earlier pilot on
+`21aa48cb`, on a quieter machine, ran the same arms in 139 s and projected 0.232 core-hours. The
+revision-1 pilot's `metrics.jsonl`, `source.txt` and `report.md` are retained in
+`connected-world-screens-cw2/pilot/` (the held run's `--pilot`). The report prints the pilot's
+outcomes; they were not used to choose any definition.
 
 ## Budget and stopping rules
 
-- **Compute ceiling 0.50 core-hours** (the line above, read by the runner: the pilot projection
-  0.232 x 2.15, leaving room for runs about 1.5 times slower on a loaded machine). Run with
+- **Compute ceiling 1.05 core-hours** (the line above, read by the runner: the loaded
+  revision-1 pilot's projection 0.512 x 2.05, so that the retained pilot passes the runner's x1.5
+  check; 0.50 before revision 1, from the quieter pilot's 0.232). A pilot re-run on a quieter
+  machine before the freeze may replace it, with the ceiling set again at about twice its
+  projection. Run with
   `--jobs 2`. The runner refuses a held run whose pilot projection x 1.5 exceeds the ceiling and
   starts no run that would pass it; runs not started are reported as `not run` (exit code 4).
   Raising the ceiling needs the lead's amendment before any held outcome is read.
@@ -233,3 +259,20 @@ households for 0.073 and paid its crew 0.3 in wages. Over its life it operated 3
 paid 6.319 units for inputs, titled 15.959 loads (none free-used), sold 14.35 loads to households
 for 2.299, paid 4.9 in wages, distributed 11.0 to its owner's treasury and lost 1.609 loads to
 wear; it closed in world turn 91 when its city fell (`closed_city_fell`).
+
+## Pre-freeze revision 1 (2026-11-07, before any held run; the lead's decisions after the delta review)
+
+The delta review approved the code at `347621e7` (its independent spot-check on development
+template 1 matched the extractor for P, E1 and E2) and asked for changes before the freeze. Made at
+`a1b61760`:
+
+1. **The third primary is renamed** `cw2_wares_sold`, "wares sold to households" (was
+   `cw2_served`): it counts sales only, and in E1 the people also draw part of the output free
+   from the commons, so E2 - E1 is partly mechanical. **E1's free-use upper bound** is added as a
+   secondary (`cw2_free_use_e1`; no record exposes the wares the people actually consumed free).
+2. **Harm panel:** the economics counter `priced_out_households` (E2 - E1 and E2).
+3. **E2f is labelled a diagnostic cost control only; free inputs are not a supported feature**
+   (the CLI help of `--workshop-economics-mode` and the mode table in
+   docs/integration/workshop-economics.md say so). E2f is a decomposition arm, and its results
+   are never read as an option.
+4. **Ceiling** 1.05 core-hours from the revision-1 pilot, which ran under load (above).

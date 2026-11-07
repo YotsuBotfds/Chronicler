@@ -1,9 +1,9 @@
 # CW2: S2 workshop economics and the owned-output rule (A3-1, A3-2)
 
-Cohort pilot. Runs: 10; failed: 0 (missing outcomes: 0); simulation and extraction seconds 139 (0.039 core-hours)
-Projected held run time from this pilot: 0.232 core-hours (x1.5 = 0.348) for 60 runs
+Cohort pilot. Runs: 10; failed: 0 (missing outcomes: 0); simulation and extraction seconds 307 (0.085 core-hours)
+Projected held run time from this pilot: 0.512 core-hours (x1.5 = 0.768) for 60 runs
 
-Identity digests: e251c4286d26e1e1f493e6f0eeef4ecf11cf4654230cd4de3eec9015a1316cb1 (source.txt holds the lines)
+Identity digests: f0d08bbcb6a5272750db5bfa8a06079314f4e49f652bfe3d62035958fb592ceb (source.txt holds the lines)
 Schema versions read: {"bundle": 6, "livelihoods": [1], "packages": {"wealth_accounting": [1], "workshop_economics": [1], "workshop_payroll": [1], "workshops": [1]}, "records": {"food_accounting": [1], "regional_population": [1]}}; {"bundle": 6, "livelihoods": [1], "packages": {"wealth_accounting": [1], "workshop_payroll": [1], "workshops": [1]}, "records": {"food_accounting": [1], "regional_population": [1]}}
 
 ## Activation per world (before any effect)
@@ -27,13 +27,15 @@ Schema versions read: {"bundle": 6, "livelihoods": [1], "packages": {"wealth_acc
 | cw2_active_share: Share of firm-turns since opening in which the firm produced or sold (idle and closed turns count against it) (E2 - E1) | p | 19: +0.0704 | +0.0704 [+0.0704, +0.0704] | 1 / 0 / 0 | 2/2 as extreme; means [-0.0704, +0.0704] |
 | cw2_wages: Workshop wages credited to households over the run, units (A1 ledger) (E2 - P) | t | 5: +2.825 | +2.825 [+2.825, +2.825] | 1 / 0 / 0 | 2/2 as extreme; means [-2.825, +2.825] |
 | cw2_wages: Workshop wages credited to households over the run, units (A1 ledger) (E2 - P) | p | 19: +123.5 | +123.5 [+123.5, +123.5] | 1 / 0 / 0 | 2/2 as extreme; means [-123.5, +123.5] |
-| cw2_served: Wares delivered to households by sale over the run, loads (E2 - E1) | t | 5: -29.29 | -29.29 [-29.29, -29.29] | 0 / 1 / 0 | 2/2 as extreme; means [-29.29, +29.29] |
-| cw2_served: Wares delivered to households by sale over the run, loads (E2 - E1) | p | 19: +2.429 | +2.429 [+2.429, +2.429] | 1 / 0 / 0 | 2/2 as extreme; means [-2.429, +2.429] |
+| cw2_wares_sold: Wares sold to households over the run, loads (E2 - E1) | t | 5: -29.29 | -29.29 [-29.29, -29.29] | 0 / 1 / 0 | 2/2 as extreme; means [-29.29, +29.29] |
+| cw2_wares_sold: Wares sold to households over the run, loads (E2 - E1) | p | 19: +2.429 | +2.429 [+2.429, +2.429] | 1 / 0 / 0 | 2/2 as extreme; means [-2.429, +2.429] |
 
 ## Secondary outcomes (arm minus control on each world; non-activated worlds excluded)
 
 | Outcome | Stratum | Per world (seed: value) | Mean [min, max] | >0 / <0 / =0 | Sign-flip |
 | --- | --- | --- | --- | --- | --- |
+| cw2_free_use_e1: Firm output the people could draw free from the commons before title, upper bound, loads (E1; rules 1 only, none in E2) | t | 5: +1.344 | +1.344 [+1.344, +1.344] | 1 / 0 / 0 | n/a (no control) |
+| cw2_free_use_e1: Firm output the people could draw free from the commons before title, upper bound, loads (E1; rules 1 only, none in E2) | p | 19: +16.16 | +16.16 [+16.16, +16.16] | 1 / 0 / 0 | n/a (no control) |
 | cw2_active_share_p: Active share of firm-turns (E2 - P; worlds where L6a opens a firm) | t | 5: -0.05187 | -0.05187 [-0.05187, -0.05187] | 0 / 1 / 0 | 2/2 as extreme; means [-0.05187, +0.05187] |
 | cw2_active_share_p: Active share of firm-turns (E2 - P; worlds where L6a opens a firm) | p | 19: unknown | n/a | 0 / 0 / 0 | n/a |
 | cw2_active_turns: Active firm-turns, produced or sold (E2 - P; defined on every world) | t | 5: +22 | +22 [+22, +22] | 1 / 0 / 0 | 2/2 as extreme; means [-22, +22] |
@@ -64,8 +66,8 @@ Schema versions read: {"bundle": 6, "livelihoods": [1], "packages": {"wealth_acc
 | cw2_cost_firms: Firms opened (E2f - E2) | p | 19: -6 | -6 [-6, -6] | 0 / 1 / 0 | 2/2 as extreme; means [-6, +6] |
 | cw2_cost_closed_idle: Firms closed idle (E2f - E2) | t | 5: -2 | -2 [-2, -2] | 0 / 1 / 0 | 2/2 as extreme; means [-2, +2] |
 | cw2_cost_closed_idle: Firms closed idle (E2f - E2) | p | 19: -5 | -5 [-5, -5] | 0 / 1 / 0 | 2/2 as extreme; means [-5, +5] |
-| cw2_cost_served: Wares delivered to households (E2f - E2) | t | 5: +40.77 | +40.77 [+40.77, +40.77] | 1 / 0 / 0 | 2/2 as extreme; means [-40.77, +40.77] |
-| cw2_cost_served: Wares delivered to households (E2f - E2) | p | 19: +80.77 | +80.77 [+80.77, +80.77] | 1 / 0 / 0 | 2/2 as extreme; means [-80.77, +80.77] |
+| cw2_cost_sold: Wares sold to households (E2f - E2; diagnostic) | t | 5: +40.77 | +40.77 [+40.77, +40.77] | 1 / 0 / 0 | 2/2 as extreme; means [-40.77, +40.77] |
+| cw2_cost_sold: Wares sold to households (E2f - E2; diagnostic) | p | 19: +80.77 | +80.77 [+80.77, +80.77] | 1 / 0 / 0 | 2/2 as extreme; means [-80.77, +80.77] |
 | cw2_cost_wages: Workshop wages credited (E2f - E2) | t | 5: +20 | +20 [+20, +20] | 1 / 0 / 0 | 2/2 as extreme; means [-20, +20] |
 | cw2_cost_wages: Workshop wages credited (E2f - E2) | p | 19: -31.05 | -31.05 [-31.05, -31.05] | 0 / 1 / 0 | 2/2 as extreme; means [-31.05, +31.05] |
 | cw2_cost_treasury: Treasury at the end (E2f - E2) | t | 5: -134 | -134 [-134, -134] | 0 / 1 / 0 | 2/2 as extreme; means [-134, +134] |
@@ -108,6 +110,10 @@ Schema versions read: {"bundle": 6, "livelihoods": [1], "packages": {"wealth_acc
 | cw2_h_asset_arrears: Workshop asset arrears at the end (E2 - P) | p | 19: +0 | +0 [+0, +0] | 0 / 0 / 1 | 2/2 as extreme; means [+0, +0] |
 | cw2_h_unsold: Unsold firm inventory at the end, loads (E2 - P) | t | 5: -0.182 | -0.182 [-0.182, -0.182] | 0 / 1 / 0 | 2/2 as extreme; means [-0.182, +0.182] |
 | cw2_h_unsold: Unsold firm inventory at the end, loads (E2 - P) | p | 19: +12.12 | +12.12 [+12.12, +12.12] | 1 / 0 / 0 | 2/2 as extreme; means [-12.12, +12.12] |
+| cw2_h_priced_out: Household-turns priced out of firm wares (E2 - E1; none recorded in P) | t | 5: +0 | +0 [+0, +0] | 0 / 0 / 1 | 2/2 as extreme; means [+0, +0] |
+| cw2_h_priced_out: Household-turns priced out of firm wares (E2 - E1; none recorded in P) | p | 19: +0 | +0 [+0, +0] | 0 / 0 / 1 | 2/2 as extreme; means [+0, +0] |
+| cw2_h_priced_out_e2: Household-turns priced out of firm wares (E2) | t | 5: +0 | +0 [+0, +0] | 0 / 0 / 1 | n/a (no control) |
+| cw2_h_priced_out_e2: Household-turns priced out of firm wares (E2) | p | 19: +0 | +0 [+0, +0] | 0 / 0 / 1 | n/a (no control) |
 | cw2_h_farm_time: Farm time diverted to crews, work units (E2 - P) | t | 5: -92.13 | -92.13 [-92.13, -92.13] | 0 / 1 / 0 | 2/2 as extreme; means [-92.13, +92.13] |
 | cw2_h_farm_time: Farm time diverted to crews, work units (E2 - P) | p | 19: -74.36 | -74.36 [-74.36, -74.36] | 0 / 1 / 0 | 2/2 as extreme; means [-74.36, +74.36] |
 | cw2_h_treasury: Treasury at the end (E2 - P) | t | 5: -13 | -13 [-13, -13] | 0 / 1 / 0 | 2/2 as extreme; means [-13, +13] |
@@ -236,10 +242,10 @@ Schema versions read: {"bundle": 6, "livelihoods": [1], "packages": {"wealth_acc
 
 | Arm | t | p |
 | --- | --- | --- |
-| P | 7.1 [7.1, 7.1] | 18.3 [18.3, 18.3] |
-| E1 | 7.8 [7.8, 7.8] | 21.7 [21.7, 21.7] |
-| E2 | 6.8 [6.8, 6.8] | 20.8 [20.8, 20.8] |
-| E2f | 7.5 [7.5, 7.5] | 21.6 [21.6, 21.6] |
-| E2a | 7.6 [7.6, 7.6] | 20.0 [20.0, 20.0] |
+| P | 7.5 [7.5, 7.5] | 58.5 [58.5, 58.5] |
+| E1 | 15.8 [15.8, 15.8] | 61.4 [61.4, 61.4] |
+| E2 | 11.7 [11.7, 11.7] | 50.6 [50.6, 50.6] |
+| E2f | 12.2 [12.2, 12.2] | 49.1 [49.1, 49.1] |
+| E2a | 10.2 [10.2, 10.2] | 30.4 [30.4, 30.4] |
 
 Descriptive only: the sign-flip column counts the 2^n sign assignments whose mean is at least as far from zero as the observed mean, with the range of those means; it is not a significance test.
