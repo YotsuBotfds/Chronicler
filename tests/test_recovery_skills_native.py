@@ -27,10 +27,11 @@ def test_the_extension_is_the_compiled_build_with_the_rs0_methods():
     for name in ("extend_paid_work", "install_paid_work", "plan_workshop_crews", "reserve_work"):
         assert callable(getattr(AgentSimulator, name)), name
     # Append-only: household retail (L6b) appended food_purchase and food_procurement,
-    # workshop economics (A3) wares_purchase, titled trade (A4) cargo_purchase and cargo_sale.
+    # workshop economics (A3) wares_purchase, titled trade (A4) cargo_purchase/cargo_sale,
+    # then D4 restitution. Historical codes keep their exact positions.
     assert AgentSimulator.wealth_transfer_purposes() == [
         "workshop_wage", "relocation_fare", "apprentice_stipend", "repair_wage", "remittance",
-        "food_purchase", "food_procurement", "wares_purchase", "cargo_purchase", "cargo_sale"]
+        "food_purchase", "food_procurement", "wares_purchase", "cargo_purchase", "cargo_sale", "restitution"]
 
 
 @pytest.fixture
