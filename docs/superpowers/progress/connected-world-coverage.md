@@ -1,5 +1,7 @@
 # Connected World A–E coverage and recovery audit
 
+This is the historical initial inventory. The [final matrix](connected-world-final-coverage.md) and [final report](connected-world-final-report.md) supersede its remaining-work and reservation statuses; recovery facts and historical source identities below remain unchanged.
+
 Read-only reconstruction on 2026-11-07. This is a scope/evidence inventory, not a
 completion declaration. Source inspected: fetched `origin/main`
 `e3bce686df1fe2e73a4ee7378c36f2e2647826bb`. The plan of record is
