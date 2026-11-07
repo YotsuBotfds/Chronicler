@@ -473,6 +473,10 @@ def storage_suspended_regions(world) -> frozenset[int]:
     return frozenset(p.region for p in state.projects if p.kind == "granary")
 
 
+def _infrastructure_on(world) -> bool:
+    return getattr(getattr(world, "livelihoods", None), "infrastructure_condition", None) is not None
+
+
 def pending_bills(world) -> list[int]:
     """Whole units each civ's planned, not yet charged repair work will cost
     (``workshops._pending_storage_bills`` adds them for later planners)."""
@@ -485,7 +489,13 @@ def pending_bills(world) -> list[int]:
     for w in t.work.values():
         if 0 <= w.payer < len(milli):
             milli[w.payer] += w.planned_milli
-    return [-(-m // MILLI) for m in milli]
+    out = [-(-m // MILLI) for m in milli]
+    if _infrastructure_on(world):
+        # B3: the infrastructure works planned inside this turn, rounded on
+        # their own (they are charged separately, each to whole units).
+        from chronicler.infrastructure_condition import pending_milli
+        out = [a + -(-b // MILLI) for a, b in zip(out, pending_milli(world), strict=True)]
+    return out
 
 
 def _begin(world, state, sim) -> _Turn:
@@ -699,7 +709,11 @@ def granary_seized(world, region, taken: float) -> None:
 
 def region_conquered(world, region, attacker: str | None, defender: str | None) -> None:
     """``action_engine.apply_region_conquest`` hook: the region's granary and
-    workshop site are damaged (no-op unless active)."""
+    workshop site are damaged (no-op unless active). B3's irrigation works and
+    roads of the region take their damage at the same event."""
+    if _infrastructure_on(world):
+        from chronicler.infrastructure_condition import war_damage
+        war_damage(world, region, "conquest", attacker, defender)
     state = _state(world)
     if state is None or not repair_projects_active(world):
         return
@@ -715,7 +729,11 @@ def region_conquered(world, region, attacker: str | None, defender: str | None) 
 
 def city_sacked(world, settlement_id: int, region: int, sacker: str | None, victim: str | None) -> None:
     """``cities._sack`` hook (a real plunder, after the sack cooldown): the
-    city's workshop site and its region's granary are damaged."""
+    city's workshop site and its region's granary are damaged. B3's
+    irrigation works and roads of the region take their damage too."""
+    if _infrastructure_on(world):
+        from chronicler.infrastructure_condition import war_damage
+        war_damage(world, region, "sack", sacker, victim)
     state = _state(world)
     if state is None or not repair_projects_active(world):
         return
@@ -919,6 +937,13 @@ def prepare_phase2(world, region_input, agent_bridge, snapshot, acc):
         if removal:
             from chronicler.recovery_crews import remove_farm_time
             region_input = remove_farm_time(world, region_input, snapshot, removal, sim=sim)
+    if _infrastructure_on(world):
+        # B3: the infrastructure works plan after RS2's projects, in the same
+        # labour column and timber holds, against the treasury after RS2's
+        # planned charge (their own L9 envelope).
+        from chronicler.infrastructure_condition import plan_phase2
+        region_input = plan_phase2(world, t, region_input, snapshot, acc,
+                                   commitments if (granaries or t.work) else None)
     if any(v > 0 for v in t.holds.values()):
         import pyarrow as pa
         names = region_input.schema.names
@@ -972,10 +997,18 @@ def finish_phase2(world, economy_result, agent_bridge, acc):
     from chronicler.mutual_aid import _treasury_budget
     delivered = getattr(economy_result, "granary_work_delivered", None) or {}
     per_condition, _per_turn, timber_rate, _coins = _storage_rules()
+    shared = {}
+    if _infrastructure_on(world):
+        # B3: a region's column may also carry infrastructure work; the granary
+        # takes its own request first (granary -> irrigation -> roads).
+        from chronicler.infrastructure_condition import shares
+        shared = shares(world)
     work: dict[int, float] = {}
     for pid, w in sorted(t.work.items()):
         if w.kind == "granary":
             got = float(delivered.get(w.region, 0.0)) if w.request > 0 else 0.0
+            if shared.get(w.region):
+                got = min(got, w.request)
             if not (math.isfinite(got) and 0.0 <= got <= w.request):
                 raise RuntimeError("granary repair work beyond its request")
             if w.request > 0 and got < w.request and "no_labor" not in w.reasons:
@@ -1145,6 +1178,10 @@ def finish_phase2(world, economy_result, agent_bridge, acc):
             raise RuntimeError("repair spending beyond the civ's repairs envelope")
     t.receipts, t.ledger = receipts, out
     t.finished = True
+    if _infrastructure_on(world):
+        # B3: the infrastructure works settle after RS2 charged.
+        from chronicler.infrastructure_condition import settle_phase2
+        settle_phase2(world, t, economy_result, acc)
     if crews:
         from chronicler.recovery_crews import finish_turn
         finish_turn(world, sim)

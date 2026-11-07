@@ -109,6 +109,8 @@
       "tests/test_information_candidate_witness.py",
       "tests/test_information_qualification_witness.py",
       "tests/test_infrastructure.py",
+      "tests/test_infrastructure_condition.py",
+      "tests/test_infrastructure_condition_native.py",
       "tests/test_infrastructure_legacy_migration.py",
       "tests/test_integration_snapshot_lifecycle.py",
       "tests/test_intelligence.py",

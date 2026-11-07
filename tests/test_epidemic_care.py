@@ -560,8 +560,10 @@ def test_settlement_reads_the_turns_frame():
 
 
 def test_the_provider_is_appended_and_inactive_without_the_switch():
-    assert LB.PROVIDERS[-1] == "chronicler.epidemic_care:BUDGET_PROVIDER"
-    assert LB.PROVIDERS[:-1] == (
+    # Appended after every earlier provider; B3's works proposal (landed later) follows it.
+    assert LB.PROVIDERS[-2:] == ("chronicler.epidemic_care:BUDGET_PROVIDER",
+                                 "chronicler.infrastructure_condition:BUDGET_PROVIDER")
+    assert LB.PROVIDERS[:-2] == (
         "chronicler.local_budgets:RELIEF", "chronicler.local_budgets:GRANARY", "chronicler.local_budgets:WORKSHOP",
         "chronicler.local_budgets:TEACHING", "chronicler.local_budgets:WARDENS", "chronicler.local_budgets:RELOCATION",
         "chronicler.clearing_protection:BUDGET_PROVIDER", "chronicler.local_budgets:REPAIRS",

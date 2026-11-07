@@ -168,6 +168,10 @@ REQUIREMENTS: dict[str, tuple[dict, ...]] = {
     "workshop_economics": (_HYBRID, _feature("workshop_payroll")),
     "titled_trade": (_HYBRID, _feature("household_retail"), _choice("household_retail_mode", "retail", "no_relief"),
                      _choice("household_retail_rules", "2")),
+    # B3: every mode needs hybrid; the work modes (repair, the default, and
+    # cost_only) repair through RS2.
+    "infrastructure_condition": (_HYBRID, _any(_choice("infrastructure_condition_mode", "record_only", "wear_only"),
+                                              _feature("repair_projects"))),
     # C2: L9 funds the carers; the epidemic model and its ledger are the effect's
     # authority; the A1 ledger does not itemize care wages (mutual exclusion).
     "epidemic_care": (_HYBRID, _feature("local_budgets"), _setting("epidemiology"), _excludes("wealth_accounting")),
