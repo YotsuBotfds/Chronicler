@@ -650,7 +650,7 @@
       "verification": "Independent actual source/native/inverse/evidence/test-contract reviews; all nine premerge Tests success; tree equals reviewed head; all nine exact main Tests success."
     }
   ],
-  "next": "Execute reviewed CWR1 fresh12-world/144case120T held screen on immutable frozen source, cap2corehours. Complete active exact resumes concurrently; independently audit all held worlds/contrasts; final review/CI/merge/main verification.",
+  "next": "Continue the existing CWR1 held run at exact frozen b45 source (resume sameoutput/identity ifinterrupted; no automatic restart promise); complete template active resume350s; audit all144rows/contrasts; markregistry ONCE afterclosure; finalreview/CI/merge/main.",
   "baseline": {
     "oracle_lane": "PASS, 63 chunks, 295.5 s, slowest 32.4 s of 110 s",
     "native_check": "check_python_env --expect native PASS (101a4cd5)",
@@ -842,13 +842,13 @@
     "final_documentation_policy": "The completion-ledger PR changes documentation only; its exact-head premerge and final main Tests are verified separately. The authoritative later ledger result is the GitHub Tests push run for current main HEAD, linked in the completion PR."
   },
   "rework": {
-    "status": "frozen_held_ready",
+    "status": "held_running",
     "instruction": "Correctness, causal evaluation and practical performance; no favorable-result target; preserve default-off/restricted gates",
     "base": "2726bf449d0e4d581a72034000ee0861a58ee439",
     "base_main_run": 42397121718,
     "ledger": "docs/superpowers/progress/connected-world-rework.md",
     "branch": "codex/cw-rework",
-    "next": "Execute reviewed CWR1 fresh12-world/144case120T held screen on immutable frozen source, cap2corehours. Complete active exact resumes concurrently; independently audit all held worlds/contrasts; final review/CI/merge/main verification.",
+    "next": "Continue the existing CWR1 held run at exact frozen b45 source (resume sameoutput/identity ifinterrupted; no automatic restart promise); complete template active resume350s; audit all144rows/contrasts; markregistry ONCE afterclosure; finalreview/CI/merge/main.",
     "correctness": "Explicit rules3/density_only implemented and independently reviewed; legacy defaults unchanged.41 physical-arrival/downstream epidemic testsPASS; old reader fails at susceptibility2.1875 vs1.75. Initial scoped418PASS, extractor48PASS, Rust1339PASS/2existingmanualbenchesignored. Broad execution/CI gates continue.",
     "native": {
       "sha256": "b1d3ea5ac858681960b2cb880c534164905501f6ab4f6f3c94f7c9b5f66196cd",
@@ -864,7 +864,17 @@
       "main_ci": "passed all nine jobs",
       "main_tests": 42417310582
     },
-    "held": "CWR1 template4101\u20134106/procedural4201\u20134206 reserved after52refs/13versions collision-free. No held run. Cheap dev smoke caught no_relief extractor assumption; fix before complete timing pilot/freeze.",
+    "held": {
+      "status": "running; treat ALL reserved CWR1 seeds as potentially spent; never start a fresh cohort run",
+      "source": "b45c1e99572d4d6a60fb01fbd75cb7688aa54e93",
+      "started": "2026-11-07T22:41:33Z",
+      "identity": "98c7bb2accb18b04e68f0585780ba58f85f03ece77c987d82ff67ceb7d9370a8",
+      "output": "/workspace/evidence/cwr-evaluation/held-cwr1-b45c1e99-v1",
+      "source_ref": "origin/codex/cwr-held-runtime",
+      "ledger": "/workspace/cwr-held-runtime/output/held-runs/ledger.jsonl",
+      "start_record": "docs/superpowers/progress/connected-world-rework/held/start.json",
+      "registry": "Reserved until one standard mark-run afterclosure; active startledger alreadyconsumes cohort. Do not mark twice. Root owns registry."
+    },
     "development_schema": {
       "source": "09403c15070ddab4977ae8b2e65c336238468447",
       "cases": 13,
@@ -931,7 +941,7 @@
       "cohort": "template4101\u20134106/procedural4201\u20134206",
       "turns": 120,
       "arms": 12,
-      "held_started": false
+      "held_started": true
     },
     "code_ci": {
       "head": "4502fdc1f915d3fe1717c9f8f31a28464f7e7459",

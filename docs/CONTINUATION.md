@@ -2259,3 +2259,12 @@ source and held experiments remain recoverable; no force-push, deletion, default
 flag activation or merge was performed.
 
 Rework integration checkpoint: #98 merged at `125a69066ea158a973ac5207f393e4eeb330aee8` after exact reviewed-head Tests `42415795157` passed all nine jobs. Main CI must be verified before another feature merge. Backend corrections, full causal evaluation, runtime residual diagnosis and final gates continue on `codex/cw-rework`; the rework board remains active.
+
+Active rework checkpoint2026-11-07T22:41:33Z: CWR1fresh held cohort HAS STARTED
+on published`codex/cwr-held-runtime`=`b45c1e99` (runtime-equivalent8792be88).
+Read the current rework board/startledger before any seed action. All12seeds
+are potentiallyspent evenwhile registry saysreserved; standardmark-run is
+reservedforclosure. Continue existingoutput/identity, never launchfresh; no
+automaticrestart/containerretention promise. Main125a6906 and codehead4502fdc1
+passedallnineCIjobs. Remaining:144-row evaluation, templateexactresume, independent
+resultsreview, finalheadCI/merge/mainverification.

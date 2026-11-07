@@ -115,3 +115,17 @@ source must be immutable, production-equivalent to8792be88, and pass freshlive
 registry/source/pilot gates before first held world. Next: execute144 bounded
 held cases, finish enabled active resumes, audit every pair, finalreview/CI and
 merge/mainverification. No restricted qualification/defaultpromotion.
+
+Held screen STARTED2026-11-07T22:41:33Z, immutable`b45c1e99`, identity
+`98c7bb2a`, output`/workspace/evidence/cwr-evaluation/held-cwr1-b45c1e99-v1`.
+All4101–4106/4201–4206 seeds are now potentiallyspent. Do not launch a new
+cohort run. Existing same-output/same-identity recovery is the only continuation;
+container recovery/restart is not promised. Genericstartledger is retained
+under`held/start.json`. The lead will perform standard registry mark-run once
+afterclosure; its current reserved label does not mean fresh/unspent.
+
+Procedural active exactresume passed six checkpoints with16files/0differences
+each, plus unchanged plain/checkpoint output and eight rawArrow hashes matching
+the pilot;387.03s within600s cap. Template5 has eight realselected checkpoints
+and a predeclared350s cap. Natural movingtimber/positivecare do notactivate in
+template5; procedural19 covers both.
