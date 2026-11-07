@@ -64,6 +64,14 @@ def test_three_fresh_arms_three_unconditioned_primaries(CW):
     assert "--public-health-mode" not in s.base
 
 
+def test_runtime_does_not_inherit_three_job_default(CW):
+    assert CW.resource_args(["run", "out"])[-2:] == ["--jobs", "1"]
+    assert CW.resource_args(["run", "out", "--jobs=2"])[-1] == "--jobs=2"
+    for args in (["--jobs", "3"], ["--jobs", "1", "--jobs=2"]):
+        with pytest.raises(ValueError, match="one or two"):
+            CW.resource_args(["run", "out", *args])
+
+
 def test_all_enrolled_worlds_even_unactivated_have_outcomes(CW):
     b = _bundle()
     m, problems = CW.extract(b, ())
