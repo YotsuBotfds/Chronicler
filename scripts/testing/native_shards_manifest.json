@@ -39,6 +39,7 @@
       "tests/test_connected_record_provenance.py",
       "tests/test_connected_world_examples.py",
       "tests/test_connected_world_native_contracts.py",
+      "tests/test_connected_world_startup_guards.py",
       "tests/test_convert_events_columnar.py",
       "tests/test_crisis_candidate_witness.py",
       "tests/test_crisis_distribution_summary.py",
