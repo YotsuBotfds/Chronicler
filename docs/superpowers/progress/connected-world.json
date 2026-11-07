@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "board_version": 18,
+  "board_version": 19,
   "title": "Connected-world program (A livelihoods and trade, B watersheds and infrastructure, C public health, D institutions and war, E stories and evidence) operational board",
   "plan": "docs/superpowers/roadmaps/connected-world-program.md",
   "owner_instruction": "2026-11-06 (after #82): own the A-E program end to end with parallel workers, integrating and evaluating each slice and continuing across slice boundaries; merges of this program authorized after independent review, green premerge Tests on the reviewed head and verified main CI; new systems opt-in and off by default; no default promotion; full 200-seed and procedural qualification gates restricted; bounded held screens (procedural included) authorized; no purchases, paid credits, paid narration APIs, deployments, credential or sharing changes. Amendment (same day): tiers sequence work and are not stopping points; failures block the affected merge, not the program; pin 8abc1acb as the original reference; default-path changes behind a switch or rules version.",
@@ -12,12 +12,21 @@
   },
   "durable_location": {
     "branch": "main (merged slices) plus the lane and integration branches listed in lanes",
-    "base": "main at 66e1ec40 (#89)"
+    "base": "e3bce686df1fe2e73a4ee7378c36f2e2647826bb (#93), verified live 2026-11-07"
   },
-  "status_values": ["proposed", "ready", "active", "blocked", "integrated", "evaluated", "merged", "deferred"],
+  "status_values": [
+    "proposed",
+    "ready",
+    "active",
+    "blocked",
+    "integrated",
+    "evaluated",
+    "merged",
+    "deferred"
+  ],
   "machine": {
-    "cores": 4,
-    "memory_gb": 15,
+    "cores": 5,
+    "memory_gb": 17,
     "writable_disk_gb": 30
   },
   "slices": [
@@ -153,8 +162,9 @@
       "id": "B3",
       "branch": "claude/cw-b3-infrastructure",
       "scope": "--infrastructure-condition: irrigation then roads; sibling record infrastructure_works; money.py; one L9 envelope",
-      "status": "approved; CW3b run and checked; main 4ecfb54d merged; merge check running",
-      "head": "83abd666"
+      "status": "recovered; integrating X1; fresh verification pending",
+      "head": "83abd666",
+      "integration_branch": "codex/cw-b3"
     },
     {
       "id": "C2",
@@ -167,20 +177,32 @@
       "id": "X1",
       "branch": "claude/cw-x1-residence",
       "scope": "--residence-ledger: the lead-owned displacement contract (record-only; home, residence, attachment, spells)",
-      "status": "approved (review + re-check + merge check); PR",
-      "head": "6619ceac"
+      "status": "merged (#93)",
+      "head": "e39673c0"
     },
     {
       "id": "D1",
       "branch": "claude/cw-d1-institutions",
       "scope": "--reform-services (poor relief buys real food) and --guild-leagues (cross-border guild leagues, real purse transfers)",
-      "status": "implemented (e12ba7ec); review running"
+      "status": "recovered; review/evidence in progress",
+      "integration_branch": "codex/cw-d1",
+      "fresh_cohort": {
+        "template": [
+          3701,
+          3706
+        ],
+        "procedural": [
+          3801,
+          3806
+        ]
+      }
     },
     {
       "id": "D4",
       "branch": "claude/cw-d4-requisition",
       "scope": "--war-requisition transfer|cost_only (requisitioned food to army rations, minted refill reduced), restitution (native purpose 10), A4-2 cargo in war; settles the soldier-movement discrepancy",
-      "status": "active"
+      "status": "reconstructing from durable audits; remote branch absent and no accessible original worktree found",
+      "integration_branch": "codex/cw-d4"
     }
   ],
   "recorded_limits": [
@@ -243,53 +265,208 @@
   ],
   "seeds": {
     "development": {
-      "template": [1, 3, 7, 9, 11, 23, 42],
-      "procedural": [7, 11, 13, 17, 21, 31, 302, 303]
+      "template": [
+        1,
+        3,
+        7,
+        9,
+        11,
+        23,
+        42
+      ],
+      "procedural": [
+        7,
+        11,
+        13,
+        17,
+        21,
+        31,
+        302,
+        303
+      ]
     },
     "viewer_qa": {
-      "template": [12, 13, 14]
+      "template": [
+        12,
+        13,
+        14
+      ]
     },
     "pilot": {
-      "template": [5],
-      "procedural": [19]
+      "template": [
+        5
+      ],
+      "procedural": [
+        19
+      ]
     },
     "held": {
       "CW1": {
-        "template": [731, 732, 733, 734, 735, 736],
-        "procedural": [831, 832, 833, 834, 835, 836]
+        "template": [
+          731,
+          732,
+          733,
+          734,
+          735,
+          736
+        ],
+        "procedural": [
+          831,
+          832,
+          833,
+          834,
+          835,
+          836
+        ]
       },
       "CW2": {
-        "template": [741, 742, 743, 744, 745, 746],
-        "procedural": [841, 842, 843, 844, 845, 846]
+        "template": [
+          741,
+          742,
+          743,
+          744,
+          745,
+          746
+        ],
+        "procedural": [
+          841,
+          842,
+          843,
+          844,
+          845,
+          846
+        ]
       },
       "CW3": {
-        "template": [751, 752, 753, 754, 755, 756],
-        "procedural": [851, 852, 853, 854, 855, 856],
+        "template": [
+          751,
+          752,
+          753,
+          754,
+          755,
+          756
+        ],
+        "procedural": [
+          851,
+          852,
+          853,
+          854,
+          855,
+          856
+        ],
         "note": "procedural stratum only (watershed refuses template worlds)"
       },
       "CW4": {
-        "template": [761, 762, 763, 764, 765, 766],
-        "procedural": [861, 862, 863, 864, 865, 866]
+        "template": [
+          761,
+          762,
+          763,
+          764,
+          765,
+          766
+        ],
+        "procedural": [
+          861,
+          862,
+          863,
+          864,
+          865,
+          866
+        ]
       },
       "CW5": {
-        "template": [771, 772, 773, 774, 775, 776],
-        "procedural": [871, 872, 873, 874, 875, 876]
+        "template": [
+          771,
+          772,
+          773,
+          774,
+          775,
+          776
+        ],
+        "procedural": [
+          871,
+          872,
+          873,
+          874,
+          875,
+          876
+        ]
       },
       "CW6": {
-        "template": [781, 782, 783, 784, 785, 786],
-        "procedural": [881, 882, 883, 884, 885, 886]
+        "template": [
+          781,
+          782,
+          783,
+          784,
+          785,
+          786
+        ],
+        "procedural": [
+          881,
+          882,
+          883,
+          884,
+          885,
+          886
+        ]
       },
       "reserve": {
-        "template": [791, 792, 793, 794, 795, 796],
-        "procedural": [891, 892, 893, 894, 895, 896]
+        "template": [
+          791,
+          792,
+          793,
+          794,
+          795,
+          796
+        ],
+        "procedural": [
+          891,
+          892,
+          893,
+          894,
+          895,
+          896
+        ]
       },
       "CW4b": {
-        "template": [3101, 3102, 3103, 3104, 3105, 3106],
-        "procedural": [3201, 3202, 3203, 3204, 3205, 3206],
+        "template": [
+          3101,
+          3102,
+          3103,
+          3104,
+          3105,
+          3106
+        ],
+        "procedural": [
+          3201,
+          3202,
+          3203,
+          3204,
+          3205,
+          3206
+        ],
         "note": "reserved for the C1b migration-closure screen"
+      },
+      "CWD1": {
+        "template": [
+          3701,
+          3702,
+          3703,
+          3704,
+          3705,
+          3706
+        ],
+        "procedural": [
+          3801,
+          3802,
+          3803,
+          3804,
+          3805,
+          3806
+        ]
       }
     },
-    "status": "reserved 2026-11-06 against the audit E registry (none run)"
+    "status": "Consult scripts/seed_registry.json authoritative run/reservation entries; historical CW3 failure preserved."
   },
   "merges": [
     {
@@ -392,9 +569,18 @@
       "main_run": 42350879411,
       "date": "2026-11-07",
       "native": "43cbd22a"
+    },
+    {
+      "pr": 93,
+      "slice": "X1 record-only residence/displacement ledger",
+      "merge_commit": "e3bce686df1fe2e73a4ee7378c36f2e2647826bb",
+      "reviewed_head": "e39673c0",
+      "main_run": 42354356085,
+      "date": "2026-11-07",
+      "verification": "main exact-head Tests success, nine jobs"
     }
   ],
-  "next": "Merge X1, then B3 (re-merges main); review D1 and assign its cohort; D4 (native purpose 10); then E linked histories, A1-2 native observer, D3 and A6-1 (one native build, reading the residence ledger), C4.",
+  "next": "Integrate and independently review B3 against X1, fresh gates and PR; D1 review/fresh CW-D1 screen in parallel; reconstruct D4; complete coverage matrix and implement remaining A1-2/A4-3/B4-B5/C2 follow-ons/C4/D1c/D3/A6/E. Checkpoints are not completion.",
   "baseline": {
     "oracle_lane": "PASS, 63 chunks, 295.5 s, slowest 32.4 s of 110 s",
     "native_check": "check_python_env --expect native PASS (101a4cd5)",
@@ -486,6 +672,15 @@
       "page": "docs/superpowers/progress/connected-world-screens-cw3b.md"
     }
   },
-  "events": ["2026-11-07 ~00:10Z: container restart stopped lanes A3, B2, D2 mid-task; all resumed from saved transcripts with no work lost; shared native venv rebuilt from main ae94bca6 (e724072d).", "2026-11-07 ~04:40Z: second container restart stopped lanes X1, B3 and the C2/A4 reviews; all resumed from saved transcripts, no work lost; native venvs intact.", "2026-11-07: held runs serialized with a shared lock (the runner charges elapsed seconds against each ceiling)."],
-  "defects_for_owner": ["seven decision sites read causal provenance (4 default-path: cities, diplomacy, epidemiology, nomads; 3 behind --scholarship); recorded by D2, not changed", "merchant income computed by origin but paid by current region", "natural deaths booked as army casualties (17% of soldier deaths on development worlds)"]
+  "events": [
+    "2026-11-07 ~00:10Z: container restart stopped lanes A3, B2, D2 mid-task; all resumed from saved transcripts with no work lost; shared native venv rebuilt from main ae94bca6 (e724072d).",
+    "2026-11-07 ~04:40Z: second container restart stopped lanes X1, B3 and the C2/A4 reviews; all resumed from saved transcripts, no work lost; native venvs intact.",
+    "2026-11-07: held runs serialized with a shared lock (the runner charges elapsed seconds against each ceiling).",
+    "2026-11-07 Codex recovery: clean sole checkout e3bce686; fetched all remote branches, B3 83abd666 and D1 e12ba7ec recovered into isolated worktrees; D4 remote absent, no original worktree accessible. Main Tests 42354356085 green. Reconciled all remote CW seed registries: appended CW3b, preserved CW3 disk failure; CW5c 3301/3401 used, D1 reserved 3701/3801."
+  ],
+  "defects_for_owner": [
+    "seven decision sites read causal provenance (4 default-path: cities, diplomacy, epidemiology, nomads; 3 behind --scholarship); recorded by D2, not changed",
+    "merchant income computed by origin but paid by current region",
+    "natural deaths booked as army casualties (17% of soldier deaths on development worlds)"
+  ]
 }

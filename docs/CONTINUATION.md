@@ -1,3 +1,9 @@
+# 2026-11-07 — Codex live recovery (program continues)
+
+Fetched main is `e3bce686` after #93; exact-head Tests `42354356085` passed all nine jobs. X1 is merged. Original feature-off reference remains `8abc1acb`. Clean accessible checkout had one worktree; recovered B3 `83abd666` and D1 `e12ba7ec` into isolated worktrees. D4 remote branch is absent and no original D4 worktree was accessible in the bounded workspace search; reconstruction follows durable contracts, without a claim that unpublished work was lost. Board now names live next tasks. Registry reconciled across all fetched CW branches: CW3b 3501/3601 used, CW5c 3301/3401 used, fresh D1 3701/3801 reserved; historical CW3 disk failure retained.
+
+Six isolated workers own B3, D1, D4, independent coverage/evidence, health follow-ons and linked histories. Lead owns shared schemas/native/FFI, registry and integration. Actual resources: 5 CPUs, 17 GiB RAM, 30 GiB free disk; two native builds maximum. Superseding stale next/status fields below does not supersede dated historical evidence.
+
 # Current continuation — connected-world program (A–E), 2026-11-06
 
 ## Connected-world program: slice S0 (plan, audits, tooling) and the first lanes
