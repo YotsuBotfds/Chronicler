@@ -43,13 +43,19 @@ from chronicler.money import MoneyBook
 #: ``pool_reset``: a rebuilt native pool (ids name strangers); cargo to the
 #: commons where it stood; ``switched_off``: ``--no-titled-trade``, cargo to
 #: the commons where it stood.
-OUTCOMES: tuple[str, ...] = ("delivered", "returned", "escheated", "pool_reset", "switched_off")
+#: ``released_returned`` (lead decision M3): the carrier was released (it
+#: migrated, changed occupation, enlisted, went on a native trip or held other
+#: work), so the shipment halted and returned to its origin at once, at full
+#: value, as the holder's claim there: no cargo travels without a reserved
+#: carrier, and no holder's new income stacks with a margin.
+OUTCOMES: tuple[str, ...] = ("delivered", "returned", "escheated", "pool_reset", "switched_off",
+                             "released_returned")
 #: Why a shipment returned (append only).
 RETURN_CAUSES: tuple[str, ...] = (
     "destination_conquered", "quarantine_closure", "route_lost", "destination_left_pilot",
 )
-#: Why a carrier stopped being reserved while its shipment continued (the
-#: holder keeps title; append only).
+#: Why a carrier was released, which returns its shipment to the origin
+#: (outcome ``released_returned``; the holder keeps title; append only).
 RELEASE_REASONS: tuple[str, ...] = ("migrated", "occupation", "enlisted", "on_trip", "other_work")
 #: Why cargo went to a commons instead of a claim (append only).
 DEPOSIT_REASONS: tuple[str, ...] = (
@@ -82,6 +88,11 @@ COUNTERS: tuple[str, ...] = (
     "income_withheld_micro", "receipt_rows", "plans_no_margin", "plans_no_offer", "plans_no_cash",
     "plans_no_destination", "shipments_capped", "cargo_sold_milli", "cargo_sales_credited_milli",
     "cargo_sales_inexact_milli", "holder_procurement_credited_milli",
+    # Review M3: a released carrier's shipment returns to its origin at once.
+    "released_returned", "released_returned_migrated", "released_returned_occupation",
+    "released_returned_enlisted", "released_returned_on_trip", "released_returned_other_work",
+    # Review nit: delivered lots beyond MAX_LOTS are not tracked for sales attribution.
+    "lots_untracked_milli",
 )
 
 

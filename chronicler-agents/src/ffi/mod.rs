@@ -960,6 +960,14 @@ impl AgentSimulator {
         Ok(out.into_iter().map(|r| (r.sender, r.recipient, r.sent, r.fee, r.credited, r.refunded, r.status)).collect())
     }
 
+    /// Optional economy inputs this extension honours (connected-world):
+    /// `workshop_owned_crafts` (A3-2), so Python refuses a feature the build
+    /// would silently ignore. Append only.
+    #[staticmethod]
+    pub fn economy_capabilities() -> Vec<&'static str> {
+        vec!["workshop_owned_crafts"]
+    }
+
     /// A4 titled trade (`wealth_transfer::settle_pairs`): (payer, payee,
     /// amount) milli-unit rows under a pairwise purpose (8 `cargo_purchase`,
     /// 9 `cargo_sale`), once per (turn, purpose, batch), no fee and no trip

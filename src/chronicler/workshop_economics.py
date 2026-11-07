@@ -155,6 +155,8 @@ class _Turn:
         self.turn = turn
         self.plans: dict[int, _Plan] = {}
         self.rows: dict[int, dict] = {}
+        #: A3-2: region -> firm site of the regions this turn's batch marked owned.
+        self.owned: dict[int, int] | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -222,17 +224,42 @@ def owned_output(world) -> bool:
     return state is not None and state.rules_version >= 2
 
 
-def owned_column(world) -> list[float | None] | None:
-    """A3-2: the native ``workshop_owned_crafts`` values (each firm region's
-    inventory at opening in loads; None elsewhere), or None when no region
-    has a firm or the rules are version 1."""
+def owned_supported(sim) -> bool:
+    """The extension honours the A3-2 column (``economy_capabilities``)."""
+    caps = getattr(sim, "economy_capabilities", None) if sim is not None else None
+    return callable(caps) and OWNED_COLUMN in list(caps())
+
+
+def native_owned_supported() -> bool:
+    """Startup and resume check (no simulator yet): the installed extension's
+    ``AgentSimulator.economy_capabilities`` names the A3-2 column. False when
+    the extension is missing or predates it."""
+    try:
+        from chronicler_agents import AgentSimulator
+    except ImportError:
+        return False
+    return owned_supported(AgentSimulator)
+
+
+def owned_column(world, open_sites=None) -> list[float | None] | None:
+    """A3-2: the native ``workshop_owned_crafts`` values (the inventory at
+    opening, in loads, of each firm whose site is open and planned this turn,
+    ``open_sites``; None elsewhere, including a firm whose site just closed),
+    or None when no such firm exists or the rules are version 1. Records the
+    owned regions for this turn's reconciliation (``reconcile_owned``)."""
     if not owned_output(world):
         return None
     payroll = _payroll(world)
     values: list[float | None] = [None] * len(world.regions)
+    owned: dict[int, int] = {}
     for firm in payroll.firms:
+        if open_sites is not None and firm.site not in open_sites:
+            continue
         values[firm.region] = (values[firm.region] or 0.0) + firm.inventory / MILLI
-    return values if any(v is not None for v in values) else None
+        owned[firm.region] = firm.site
+    t = _turn(_state(world), world)
+    t.owned = owned
+    return values if owned else None
 
 
 def _terms(state: WorkshopEconomicsState, firm: int) -> FirmTerms | None:
@@ -475,6 +502,8 @@ def charge_inputs(world, pt, acc, economy_result) -> None:
     from chronicler.workshop_payroll import _add, _row as payroll_row, _total
     firms = {f.site: f for f in payroll.firms}
     receipts = {r.site: r for r in ws.frame} if ws.frame_turn == world.turn else {}
+    if t.owned:
+        reconcile_owned(world, t, pt, economy_result)
     for site, plan in sorted(t.plans.items()):
         receipt = receipts.get(site)
         spend = sum((receipt.paid or {}).values()) if receipt is not None and receipt.paid else 0
@@ -562,6 +591,30 @@ def charge_inputs(world, pt, acc, economy_result) -> None:
         if terms is not None:
             terms.totals["inputs"] = terms.totals.get("inputs", 0) + cost
     observe_prices(world, economy_result)
+
+
+def reconcile_owned(world, t: _Turn, pt, economy_result) -> None:
+    """A3-2, after payroll's title: the native economy honoured the owned
+    column (it reported ``workshop_owned_outflow``), its outflow is every owned
+    region's craft output, and each owned region's output was titled whole by
+    its firm (none destroyed, none duplicated in the commons). Raises otherwise."""
+    conservation = getattr(economy_result, "conservation", None) or {}
+    if "workshop_owned_outflow" not in conservation:
+        raise RuntimeError("the native economy ignored the workshop_owned_crafts column (no "
+                           "workshop_owned_outflow): rebuild chronicler-agents")
+    outflow = float(conservation["workshop_owned_outflow"])
+    crafted = getattr(economy_result, "craft_output", {}) or {}
+    total = 0.0
+    for region, site in sorted(t.owned.items()):
+        output = float(crafted.get(world.regions[region].name, 0.0))
+        total += output
+        work = pt.work.get(site)
+        titled = int(work.titled) if work is not None else 0
+        if titled != math.floor(output * MILLI):
+            raise RuntimeError(f"workshop region {region}: owned output {output} was not titled whole by "
+                               f"firm {site} (titled {titled} milli-loads)")
+    if abs(outflow - total) > 1e-6 * max(1.0, abs(total)):
+        raise RuntimeError(f"native owned-output outflow {outflow} differs from the owned regions' output {total}")
 
 
 def rollback(world) -> None:
@@ -798,8 +851,16 @@ def on_closed(world, firm, reason: str, turn: int) -> None:
     del state.closed[:-8]
     _bump(state, "closed_idle" if reason == "idle" else "closed_insolvent" if reason == "insolvent"
           else "closed_other")
+    extra = {}
+    if state.rules_version >= 2:
+        # A3-2: liquidation hands the unsold wares to the region's ruler as owner
+        # of the commons (recorded: a transfer of inventory, not a free release).
+        returned = int(firm.totals.get("returned", 0))
+        if returned:
+            _bump(state, "liquidation_to_owner", returned)
+        extra = {"inventory_to_owner": returned, "owner": _controller(world, firm.region)}
     _log(state, turn, "closed", firm.site, reason=reason, capital=terms.capital, turns=terms.turns,
-         operating_turns=terms.operating_turns)
+         operating_turns=terms.operating_turns, **extra)
     if state._turn is not None and state._turn.turn == turn and firm.site in state._turn.rows:
         state._turn.rows[firm.site]["event"] = f"closed_{reason}"
 

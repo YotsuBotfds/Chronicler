@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { TurnSnapshot } from "../../types";
 import { titledTradeAt, tradeFunnel } from "../titledTrade";
-import { delivered, frame, live, purchase, returned, trade } from "./titledTradeFixture";
+import { delivered, frame, live, purchase, releasedReturned, returned, trade, tradeReleased } from "./titledTradeFixture";
 
 const snap = (livelihoods: unknown, turn = 5) => ({ turn, livelihoods } as unknown as TurnSnapshot);
 const with4 = (titled_trade: unknown, turn = 5) =>
@@ -41,6 +41,8 @@ describe("titled trade reader", () => {
       { ...delivered, outcome: null },                                // closed without an outcome
       { ...delivered, cargo: [10, 0, 0, 0, 0], cargo_open: [1010, 0, 0, 0, 0] },   // closed with cargo aboard
       { ...returned, cause: "bad_luck" },                             // undeclared cause
+      { ...releasedReturned, cause: "destination_conquered" },        // a release names its reason
+      { ...releasedReturned, returned: 700 },                         // the closure fails
       { ...delivered, delivered: 949 },                               // the closure fails
     ]) expect(titledTradeAt(with4({ ...trade, closed: [bad] }), 3).status).toBe("malformed");
     expect(titledTradeAt(with4({ ...trade, closed: [delivered, { ...returned, id: 1 }] }), 3).status)
@@ -52,6 +54,7 @@ describe("titled trade reader", () => {
       { ...frame, withheld: [{ ...frame.withheld[0], share: 0.5 }] },  // a carrier's whole income
       { ...frame, withheld_total: 0.3 },
       { ...frame, events: [{ shipment: 3, event: "teleported", region: 1 }] },
+      { ...frame, events: [{ shipment: 3, event: "carrier_released", region: 1 }] },   // a release is an outcome
       { ...frame, sales: [{ ...frame.sales[0], cargo_sold: 501 }] },
     ]) expect(titledTradeAt(with4({ ...trade, frame: bad }), 3).status).toBe("malformed");
   });
@@ -63,5 +66,14 @@ describe("titled trade reader", () => {
     expect(f.paid).toBe(2.56);
     expect(f.netMoney).toBeCloseTo(0.6 - 2.56);
     expect(f.withheld).toBeCloseTo(0.4);
+    expect([f.releasedReturned, f.releasedBy.occupation]).toEqual([0, 0]);
+  });
+
+  it("reads a carrier released in transit as one returned-to-origin outcome", () => {
+    const got = titledTradeAt(with4(tradeReleased), 3);
+    expect(got.status).toBe("observed");
+    expect(got.record?.closed.map((s) => s.outcome)).toEqual(["delivered", "returned", "released_returned"]);
+    const f = tradeFunnel(got.record!);
+    expect([f.releasedReturned, f.releasedBy.occupation, f.carriersReleased, f.returned]).toEqual([1, 1, 1, 1]);
   });
 });

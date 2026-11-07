@@ -138,10 +138,17 @@ pub(crate) fn floor_millis(value: f32) -> i64 {
 }
 
 /// Apply `rows` (stable id, signed milli-units) once for `(turn, purpose, batch)`.
+/// The pairwise purposes ([`PAIRWISE_PURPOSES`]) are refused: they are paid
+/// only through [`settle_pairs`].
 pub fn transfer(pool: &mut AgentPool, turn: u32, purpose: u8, batch: u32, rows: &[(u32, i64)])
     -> Result<TransferReceipt, &'static str> {
     if purpose as usize >= PURPOSES.len() {
         return Err("unknown wealth transfer purpose");
+    }
+    if PAIRWISE_PURPOSES.contains(&purpose) {
+        // A4: payments between people are paid only pairwise (settle_pairs),
+        // so a one-sided credit can never mint wealth under these purposes.
+        return Err("a pairwise wealth transfer purpose is paid only through settle_pairs");
     }
     let mut seen = std::collections::HashSet::with_capacity(rows.len());
     for &(id, amount) in rows {
@@ -737,12 +744,17 @@ mod tests {
         let mut pool = pool_with(&[1.0]);
         let a = pool.ids[0];
         for purpose in [PURPOSE_APPRENTICE_STIPEND, PURPOSE_REPAIR_WAGE, PURPOSE_REMITTANCE,
-                        PURPOSE_FOOD_PURCHASE, PURPOSE_FOOD_PROCUREMENT, PURPOSE_WARES_PURCHASE,
-                        PURPOSE_CARGO_PURCHASE, PURPOSE_CARGO_SALE] {
+                        PURPOSE_FOOD_PURCHASE, PURPOSE_FOOD_PROCUREMENT, PURPOSE_WARES_PURCHASE] {
             transfer(&mut pool, 2, purpose, 0, &[(a, 100)]).unwrap();
         }
-        assert!(transfer(&mut pool, 2, 10, 0, &[(a, 100)]).is_err());
-        assert!((pool.wealth[0] - 1.8).abs() < 1e-5);
+        // The pairwise purposes are refused by the one-sided transfer (only
+        // settle_pairs pays them), as is any unknown code.
+        for purpose in [PURPOSE_CARGO_PURCHASE, PURPOSE_CARGO_SALE, 10] {
+            assert!(transfer(&mut pool, 2, purpose, 0, &[(a, 100)]).is_err());
+            assert!(transfer(&mut pool, 2, purpose, 0, &[(a, -100)]).is_err());
+        }
+        assert!((pool.wealth[0] - 1.6).abs() < 1e-5);
+        assert!(pool.wealth_transfer_log.iter().all(|&(_, p, _)| !PAIRWISE_PURPOSES.contains(&p)));
     }
 
     #[test]

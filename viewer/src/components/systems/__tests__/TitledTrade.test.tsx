@@ -2,7 +2,7 @@ import { afterEach, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import type { Bundle, TurnSnapshot } from "../../../types";
 import { TitledTrade } from "../TitledTrade";
-import { frame, trade } from "../../../lib/__tests__/titledTradeFixture";
+import { frame, trade, tradeReleased } from "../../../lib/__tests__/titledTradeFixture";
 afterEach(cleanup);
 
 function props(livelihoods: unknown, turn = 5) {
@@ -27,10 +27,19 @@ it("shows shipments in transit, purchases from owners, outcomes and the funnel",
   expect(screen.getByText(/returned to the origin at full value, because the destination conquered/)).toBeInTheDocument();
   expect(screen.getByText(/91 sold 0.5 at Third for 0.6/)).toBeInTheDocument();
   const funnel = within(screen.getByRole("table", { name: "Titled trade funnel to snapshot 5" }));
-  expect(funnel.getByRole("row", { name: /Shipments bought/ })).toHaveTextContent("4 · 1 · 1 · 0 · 0");
+  expect(funnel.getByRole("row", { name: /Shipments bought/ })).toHaveTextContent("4 · 1 · 1 · 0 · 0 · 0");
   expect(funnel.getByRole("row", { name: /net money/ })).toHaveTextContent("-1.96");
   fireEvent.click(screen.getAllByRole("button", { name: "Oldmere" })[0]);
   expect(p.onSelectRegion).toHaveBeenCalledWith("Oldmere");
+});
+
+it("shows a carrier released in transit as a return to the origin with its reason", () => {
+  render(<TitledTrade {...props(a4(tradeReleased))} />);
+  expect(screen.getByText(/Shipment #5: carrier released in transit: returned to the origin at full value, the holder keeps title, because the carrier changed occupation at/)).toBeInTheDocument();
+  const funnel = within(screen.getByRole("table", { name: "Titled trade funnel to snapshot 5" }));
+  expect(funnel.getByRole("row", { name: /Shipments bought/ })).toHaveTextContent("4 · 1 · 1 · 1 · 0 · 0");
+  expect(funnel.getByRole("row", { name: /Carrier released because/ })).toHaveTextContent("changed occupation 1");
+  expect(screen.getByText(/#5 Oldmere → Third: released_returned \(changed occupation\), turn 4/)).toBeInTheDocument();
 });
 
 it("keeps disabled, unobserved, malformed, absent and a recorded zero distinct", () => {

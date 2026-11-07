@@ -18,12 +18,14 @@ import type { TurnSnapshot } from "../types";
  */
 export type TitledTradeStatus = "absent" | "disabled" | "malformed" | "unobserved" | "observed";
 
-export const OUTCOMES = ["delivered", "returned", "escheated", "pool_reset", "switched_off"] as const;
+/** ``released_returned``: the carrier was released in transit, so the shipment went back to its
+ * origin at once (the holder keeps title there; its cause is the release reason). */
+export const OUTCOMES = ["delivered", "returned", "escheated", "pool_reset", "switched_off", "released_returned"] as const;
 export const RETURN_CAUSES = ["destination_conquered", "quarantine_closure", "route_lost",
   "destination_left_pilot"] as const;
 export const RELEASE_REASONS = ["migrated", "occupation", "enlisted", "on_trip", "other_work"] as const;
 export const DEPOSIT_REASONS = ["claims_refused", "not_pilot", "holder_died", "pool_reset", "switched_off"] as const;
-const EVENTS = ["moved", "carrier_released", ...OUTCOMES];
+const EVENTS = ["moved", ...OUTCOMES];
 export const GOODS = ["grain", "fish", "salt", "botanicals", "exotic"] as const;
 
 export interface ShipmentRecord {
@@ -93,7 +95,8 @@ function validShipment(x: unknown, regions: number, live: boolean): boolean {
   if (live) return x.status === "moving" && x.outcome === null;
   // A closed shipment has exactly one outcome and nothing aboard.
   return x.status === "closed" && OUTCOMES.includes(x.outcome as typeof OUTCOMES[number]) && sum(x.cargo) === 0
-    && (x.outcome !== "returned" || RETURN_CAUSES.includes(x.cause as typeof RETURN_CAUSES[number]));
+    && (x.outcome !== "returned" || RETURN_CAUSES.includes(x.cause as typeof RETURN_CAUSES[number]))
+    && (x.outcome !== "released_returned" || RELEASE_REASONS.includes(x.cause as typeof RELEASE_REASONS[number]));
 }
 
 function validFrame(x: unknown, source: number): boolean {
@@ -146,7 +149,9 @@ export const units = (milli: number) => milli / 1000;
 
 export interface TradeFunnel {
   dispatched: number; delivered: number; returned: number; escheated: number; ended: number;
-  returnedBy: Record<string, number>; bought: number; paid: number; transitDecay: number; seaLoss: number;
+  /** Shipments whose carrier was released in transit: returned to the origin at once. */
+  releasedReturned: number;
+  returnedBy: Record<string, number>; releasedBy: Record<string, number>; bought: number; paid: number; transitDecay: number; seaLoss: number;
   consigned: number; returnedFood: number; deposited: number; cargoSold: number; salesCredited: number;
   salesInexact: number; withheld: number; carrierTurns: number; carriersReleased: number;
   /** Merchants' realized sales credits less what they paid owners (wealth units), and the model
@@ -159,9 +164,11 @@ export function tradeFunnel(record: TitledTradeRecord): TradeFunnel {
   const c = (key: string) => record.counters[key] ?? 0;
   const returnedBy: Record<string, number> = {};
   for (const cause of RETURN_CAUSES) returnedBy[cause] = c(`returned_${cause}`);
+  const releasedBy: Record<string, number> = {};
+  for (const reason of RELEASE_REASONS) releasedBy[reason] = c(`released_returned_${reason}`);
   return {
     dispatched: c("dispatched"), delivered: c("delivered"), returned: c("returned"), escheated: c("escheated"),
-    ended: c("pool_reset") + c("switched_off"), returnedBy, bought: units(c("bought_milli")), paid: units(c("paid_milli")),
+    ended: c("pool_reset") + c("switched_off"), releasedReturned: c("released_returned"), returnedBy, releasedBy, bought: units(c("bought_milli")), paid: units(c("paid_milli")),
     transitDecay: units(c("transit_decay_milli")), seaLoss: units(c("sea_loss_milli")),
     consigned: units(c("consigned_milli")), returnedFood: units(c("returned_milli")), deposited: units(c("deposited_milli")),
     cargoSold: units(c("cargo_sold_milli")), salesCredited: units(c("cargo_sales_credited_milli")),

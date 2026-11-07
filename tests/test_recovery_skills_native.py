@@ -70,9 +70,12 @@ def test_appended_categories_share_the_registry_and_purposes_transfer(live):
     with pytest.raises(ValueError, match="category"):
         sim.reserve_work(t, 5, [(c, 0.1)])
     assert sim.work_reservation_conflicts(t) == []
-    for purpose in (2, 3, 4, 5, 6, 7, 8, 9):       # 5-6 household retail (L6b), 7 A3, 8-9 A4
+    for purpose in (2, 3, 4, 5, 6, 7):             # 5-6 household retail (L6b), 7 A3
         out = sim.transfer_wealth(t, purpose, 0, [(c, 10)])
         assert out[0][2] == 10 and out[0][4] == 0
+    for purpose in (8, 9):                         # A4's pairwise purposes: settle_pairs only
+        with pytest.raises(ValueError, match="pairwise"):
+            sim.transfer_wealth(t, purpose, 0, [(c, 10)])
     with pytest.raises(ValueError, match="purpose"):
         sim.transfer_wealth(t, 10, 0, [(c, 10)])
 

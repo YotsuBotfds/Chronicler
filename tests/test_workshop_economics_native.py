@@ -165,8 +165,18 @@ def test_owned_output_rules_title_the_whole_output_and_sell_it_only_by_sale(tmp_
     firm region's crafted wares out of the commons; payroll titles the whole
     output (no same-tick free use), the ceiling stays within the inventory room
     and the wares reach households only by sale. Development world only."""
+    import chronicler.workshop_economics as WE
     from chronicler import workshop_payroll as P
     from chronicler.bundle_codec import load_bundle
+    from chronicler_agents import AgentSimulator
+    assert "workshop_owned_crafts" in AgentSimulator.economy_capabilities()
+    reconciled = []
+    real_reconcile = WE.reconcile_owned
+
+    def spy(world, t, pt, economy_result):
+        real_reconcile(world, t, pt, economy_result)     # review M2: raises unless the column was honoured
+        reconciled.append((len(t.owned), economy_result.conservation["workshop_owned_outflow"]))
+    monkeypatch.setattr(WE, "reconcile_owned", spy)
     monkeypatch.setenv("CHRONICLER_CHECK_RESOURCES", "1")
     _cli(monkeypatch, tmp_path, "--seed", "1", "--turns", "122", *BASE, *ACADEMY, "--workshop-economics-rules", "2",
          "--wealth-accounting")
@@ -194,6 +204,8 @@ def test_owned_output_rules_title_the_whole_output_and_sell_it_only_by_sale(tmp_
     counters = bundle["history"][-1]["livelihoods"]["workshop_economics"]["counters"]
     assert titled > 0 and counters["owned_output"] == titled and counters.get("free_use_upper_bound", 0) == 0
     assert household > 0 and counters["household_delivered"] == household
+    # Every turn with an open firm reconciled the native outflow with the titled output.
+    assert any(n for n, _ in reconciled) and sum(o for _, o in reconciled) * 1000 >= titled > 0
 
 
 def test_exact_resume_at_a_live_firm_under_owned_output_rules(tmp_path, monkeypatch):

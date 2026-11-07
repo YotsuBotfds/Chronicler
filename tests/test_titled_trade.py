@@ -140,9 +140,11 @@ class TradeSim(FakeSim):
         rows = []
         for aid in sorted(self.people):
             p = self.people[aid]
-            if p["occupation"] != MERCHANT:
-                continue
             share = paid[1].get(aid, 0.0) if paid is not None and paid[0] == world.turn else 0.0
+            if p["occupation"] != MERCHANT:
+                if share:                                # a paid share on no merchant income
+                    rows.append((aid, share, 0.0, 0.0))
+                continue
             if share:
                 rows.append((aid, share, MERCHANT_INCOME, MERCHANT_INCOME * share))
             p["wealth"] = min(MAX_WEALTH, p["wealth"] + MERCHANT_INCOME * (1.0 - share))
@@ -367,22 +369,44 @@ def test_title_and_custody_pass_exactly_once_through_purchase_transit_delivery_a
     assert h.sim.people[90]["wealth"] > wealth          # sales credits arrived (net of any new purchase)
 
 
-def test_goods_close_across_pools_cargo_commons_and_declared_losses_every_turn():
+def test_goods_close_across_pools_cargo_commons_and_declared_losses_every_turn(monkeypatch):
+    """Every titled-trade step conserves commons + owned pools + cargo, less
+    the declared losses (transit decay, sea loss) of that step."""
     h = TradeHarness()
     _market(h)
+    checked = []
+
+    def total():
+        commons, owned, cargo = _goods_total(h)
+        return commons + owned + cargo
+
+    def wrap(name):
+        real = getattr(TT, name)
+
+        def step(world, *args):
+            lost0 = h.tt.counters.get("transit_decay_milli", 0) + h.tt.counters.get("sea_loss_milli", 0)
+            start = total()
+            out = real(world, *args)
+            lost = h.tt.counters.get("transit_decay_milli", 0) + h.tt.counters.get("sea_loss_milli", 0) - lost0
+            assert abs(total() - (start - lost)) <= 3, (name, start, total(), lost)    # milli rounding of the commons
+            checked.append(name)
+            return out
+        monkeypatch.setattr(TT, name, step)
+    wrap("retail_phase10")
+    wrap("after_agent_tick")
     for _ in range(6):
-        commons0, owned0, cargo0 = _goods_total(h)
+        cargo0 = _goods_total(h)[2]
         h.turn({VERDANT: {"grain": 30.0}})
-        commons1, owned1, cargo1 = _goods_total(h)
+        cargo1 = _goods_total(h)[2]
         flows = {}
         for f in h.state.frame:
             for k, v in f.flows.items():
                 flows[k] = flows.get(k, 0) + v
-        # A4's moves between pools and cargo net to its declared losses.
         lost = sum(e.get("losses", {}).get("transit_decay", 0) for e in h.tt.frame["events"]
                    if e["event"] in OUTCOMES)
         moved = flows.get("sold_merchant", 0) - flows.get("consigned_in", 0) - flows.get("returned_in", 0)
         assert cargo1 - cargo0 == moved - lost
+    assert checked.count("retail_phase10") == 6 and checked.count("after_agent_tick") == 6
     for ship in h.tt.closed:
         assert sum(ship.cargo_open) == sum(ship.losses.values()) + ship.delivered + ship.returned + ship.deposited
 
@@ -425,22 +449,61 @@ def test_a_conquest_of_the_destination_returns_the_shipment_to_its_origin_once()
     assert sum(1 for e in h.tt.frame["events"] if e["shipment"] == ship.id and e["event"] == "returned") == 1
 
 
+def _commons(h, rid):
+    return [float(h.world.regions[rid].stockpile.goods.get(g, 0.0)) for g in RETAIL_GOODS]
+
+
 def test_the_holders_death_escheats_the_cargo_to_the_commons_where_it_stands():
     h = TradeHarness()
     _market(h)
     _run_until_dispatch(h)
     ship = h.tt.shipments[0]
     cargo = list(ship.cargo)
-    commons = {g: h.world.regions[VERDANT].stockpile.goods.get(g, 0.0) for g in RETAIL_GOODS}
+    seen = {}
     h.sim.die_after.add(90)                              # dies in the tick
-    h.turn({VERDANT: {"grain": 30.0}})
+    h.turn({VERDANT: {"grain": 30.0}}, between=lambda: seen.update(commons=_commons(h, VERDANT)))
     closed = next(s for s in h.tt.closed if s.id == ship.id)
     assert closed.outcome == "escheated" and closed.deposit_reason == "holder_died"
     assert closed.deposited == sum(cargo) and closed.closed_region == VERDANT and closed.cursor == 0
     assert h.tt.counters["escheated"] == 1 and h.tt.counters.get("delivered", 0) == 0
-    # The cargo reached the origin commons (where it stood), on top of whatever else moved.
-    grain = h.world.regions[VERDANT].stockpile.goods.get("grain", 0.0)
-    assert grain >= commons["grain"] - 1e-9 or cargo[0] == 0
+    # Exactly the cargo reached the origin commons after the tick (nothing else touches them then).
+    assert _commons(h, VERDANT) == pytest.approx([c + v / 1000 for c, v in zip(seen["commons"], cargo)], abs=1e-9)
+
+
+def test_a_pool_reset_inside_phase_2_puts_the_cargo_into_that_turns_economy_batch():
+    """Review M1: a deposit made while Phase 2 is prepared (after the batch was
+    built) must reach the economy: retail patches the batch with it."""
+    h = TradeHarness()
+    _market(h)
+    _run_until_dispatch(h)
+    ship = h.tt.shipments[0]
+    rid, cargo = ship.region(), list(ship.cargo)
+    before = _commons(h, rid)
+    owned = list(h.state.region(rid).goods)               # retail's own reset sends these to the commons too
+    h.world.livelihoods._pool_sim = -1                    # the next turn binds another pool: a reset
+    h.turn({VERDANT: {"grain": 30.0}})
+    closed = next(s for s in h.tt.closed if s.id == ship.id)
+    assert closed.outcome == "pool_reset" and closed.deposited == sum(cargo)
+    batch = h.region_inputs[-1]
+    got = [batch.column(f"stockpile_{g}").to_pylist()[rid] for g in RETAIL_GOODS]
+    assert got == pytest.approx([b + (o + v) / 1000 for b, o, v in zip(before, owned, cargo)], abs=1e-4)
+
+
+def test_a_death_seen_at_reserve_first_puts_the_cargo_into_that_turns_economy_batch(monkeypatch):
+    h = TradeHarness()
+    _market(h)
+    _run_until_dispatch(h)
+    ship = h.tt.shipments[0]
+    rid, cargo = ship.region(), list(ship.cargo)
+    before = _commons(h, rid)
+    real = TT._people
+    monkeypatch.setattr(TT, "_people", lambda snap: {k: v for k, v in real(snap).items() if k != 90})
+    h.turn({VERDANT: {"grain": 30.0}})
+    closed = next(s for s in h.tt.closed if s.id == ship.id)
+    assert closed.outcome == "escheated" and closed.closed_turn == h.world.turn - 1
+    batch = h.region_inputs[-1]
+    got = [batch.column(f"stockpile_{g}").to_pylist()[rid] for g in RETAIL_GOODS]
+    assert got == pytest.approx([b + v / 1000 for b, v in zip(before, cargo)], abs=1e-4)
 
 
 def test_a_quarantine_closure_of_the_route_returns_the_shipment(monkeypatch):
@@ -459,22 +522,57 @@ def test_a_quarantine_closure_of_the_route_returns_the_shipment(monkeypatch):
     assert h.tt.counters["returned_quarantine_closure"] == 1
 
 
-def test_a_lost_route_returns_and_a_migrated_carrier_is_released_with_title_kept():
+def test_routes_take_the_lowest_shortest_path_and_the_narrowest_legs_capacity():
     edges = {(0, 1): (False, -1.0), (1, 2): (False, -1.0), (0, 3): (False, -1.0), (3, 2): (False, -1.0)}
     assert TT._bfs(edges, 0)[2] == [0, 1, 2]             # ties to the lower region
     assert TT._capacity(edges, [0, 1, 2]) == TT.LAND_CAP
     assert TT._capacity({(0, 1): (True, -1.0)}, [0, 1]) == TT.RIVER_CAP
     assert TT._capacity({(0, 1): (False, 0.1)}, [0, 1]) == TT.SEA_CAP
+
+
+def _released(h, ship):
+    closed = next(s for s in h.tt.closed if s.id == ship.id)
+    assert closed.outcome == "released_returned" and closed.holder == 90 and closed.cursor == 0
+    assert closed.returned == sum(closed.cargo_open) and not closed.losses and closed.delivered == 0
+    assert not any(e[1] == "moved" for e in closed.history)               # it never moved unattended
+    assert h.tt.counters["released_returned"] == 1
+    return closed
+
+
+def test_a_migrated_carrier_returns_its_shipment_to_the_origin_at_once_with_title_kept():
+    """Lead decision M3: no cargo travels without a reserved carrier, and the
+    holder's new income never stacks with a margin."""
     h = TradeHarness()
     _market(h)
     _run_until_dispatch(h)
     ship = h.tt.shipments[0]
+    claim = h.state.region(VERDANT).claims.get(90, 0)
     h.sim.people[90]["region"] = FROST                   # migrated before Phase 2
     h.turn({VERDANT: {"grain": 30.0}})
-    closed = next(s for s in h.tt.closed if s.id == ship.id)
-    assert closed.released == "migrated" and closed.carrier is None and closed.holder == 90
-    assert closed.outcome == "delivered" and closed.withheld_turns == 0
+    closed = _released(h, ship)
+    assert closed.released == "migrated" and closed.cause == "migrated" and closed.closed_turn == h.world.turn - 1
+    # The holder's claim at the origin took the whole cargo (then the turn's decay fell on it).
+    assert next(f for f in h.state.frame if f.region == VERDANT).flows["returned_in"] == closed.returned
+    assert claim < h.state.region(VERDANT).claims.get(90, 0) <= claim + closed.returned
+    assert h.tt.counters["released_returned_migrated"] == 1
+    # Never reserved nor withheld once released, and no other shipment is live for it.
     assert not [r for r in h.tt.frame["withheld"] if r["shipment"] == ship.id]
+    assert not any((90, 1.0) in rows for t, rows in h.sim.extend_calls if t == h.world.turn - 1)
+
+
+def test_a_carrier_changing_occupation_in_the_tick_returns_its_shipment_instead_of_moving():
+    h = TradeHarness()
+    _market(h, origin=FROST, dest=OBSIDIAN, owners=(11, 12, 13), buyers=(61, 62, 63, 64, 65), merchant=90)
+    _run_until_dispatch(h, production={FROST: {"grain": 30.0}})
+    ship = h.tt.shipments[0]
+
+    def switch():                                        # after Phase 2: the change lands in the tick
+        h.sim.people[90]["occupation"] = 0
+    h.turn({FROST: {"grain": 30.0}}, between=switch)
+    closed = _released(h, ship)
+    assert closed.released == "occupation" and closed.closed_region == FROST
+    # It was reserved for the turn (withheld once), then returned at Phase 10 instead of moving.
+    assert [r["shipment"] for r in h.tt.frame["withheld"]] == [ship.id]
 
 
 def test_a_pool_reset_and_the_switch_off_end_live_shipments_in_the_commons():
@@ -632,3 +730,18 @@ def test_a_sea_lane_loses_its_expected_raid_share_and_a_refused_claim_goes_to_th
     assert closed.deposited == sum(after_sea) - sum(decay) and closed.deposit_reason == "claims_refused"
     assert 90 not in h.state.region(THORNWOOD).claims
     assert h.world.regions[THORNWOOD].stockpile.goods.get("grain", 0.0) >= commons
+
+
+def test_a_later_carrier_may_buy_the_surplus_an_earlier_carrier_cannot_buy_from_itself():
+    """Review m7: a carrier's own claim is off its own offer, not off the next carrier's."""
+    h = TradeHarness()
+    _market(h)                                           # merchant 90 at the origin
+    _merchant(h, 91, VERDANT)
+
+    def own_claim():                                     # merchant 90 holds the origin's only surplus
+        HR.consign(h.world, VERDANT, 90, [5000, 0, 0, 0, 0], "returned_in")
+    h.turn({VERDANT: {"grain": 3.0}}, between=own_claim)
+    assert h.tt.counters.get("plans_no_offer", 0) >= 1    # 90 could not buy its own food
+    ship = next(s for s in h.tt.shipments + h.tt.closed if s.holder == 91)
+    d = next(x for x in h.tt.frame["dispatched"] if x["shipment"] == ship.id)
+    assert {r[0] for r in d["seller_rows"]} == {90}       # 91 bought 90's surplus above its reserve

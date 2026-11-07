@@ -98,11 +98,22 @@ def _is_none(value) -> bool:
     return value is None
 
 
+class _Backfilled(BaseModel):
+    """Exact pickle restoration bypasses defaults: fields added later (A4's
+    ``payer_region``) read their default when an older pickle lacks them."""
+
+    def __setstate__(self, state):
+        super().__setstate__(state)
+        for name, field in type(self).model_fields.items():
+            if name not in self.__dict__:
+                self.__dict__[name] = field.get_default(call_default_factory=True)
+
+
 # ---------------------------------------------------------------------------
 # Persisted book (owned by the calling package's state) and its flows
 # ---------------------------------------------------------------------------
 
-class MoneyFlow(BaseModel):
+class MoneyFlow(_Backfilled):
     """One applied line of a settled bill. ``requested`` = ``applied`` +
     ``residual``; ``residual_to`` is ``"payer"`` or ``"sink:<name>"`` when a
     residual exists. Treasury sides record the whole units moved and the
@@ -123,13 +134,12 @@ class MoneyFlow(BaseModel):
     treasury_units: int = 0
     carry_before: int | None = None
     carry_after: int | None = None
-    #: A pairwise payment (A4): the paying agent's region when it differs in
-    #: kind from ``region`` (the payee's); omitted otherwise, so earlier
-    #: books keep their bytes.
+    #: A pairwise payment (A4): the paying agent's region (``region`` is the
+    #: payee's); omitted otherwise, so earlier books keep their bytes.
     payer_region: int | None = Field(default=None, exclude_if=_is_none)
 
 
-class FlowTotal(BaseModel):
+class FlowTotal(_Backfilled):
     """The exact sum of one settled turn's applied flows of one purpose
     between two account kinds in one region (never truncated, unlike the
     flow list): what the ledger reads. A treasury side keeps its civilization
@@ -152,7 +162,7 @@ class FlowTotal(BaseModel):
     payer_region: int | None = Field(default=None, exclude_if=_is_none)
 
 
-class MoneyBook(BaseModel):
+class MoneyBook(_Backfilled):
     """What one package's payments through the seam must remember."""
 
     #: Settled keys of the latest settled turn: ``[turn, purpose, batch]``.

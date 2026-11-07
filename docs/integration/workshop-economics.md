@@ -376,7 +376,33 @@ option requires `--workshop-economics`.
   the region's wares supply for prices, as retail's owned food counts in food
   prices. The conservation batch gains `workshop_owned_outflow` (the wares
   handed to firms) only when the column is present. Hybrid economy only; a
-  negative or non-finite value is refused.
+  negative or non-finite value is refused. The column marks only firms whose
+  site is open and planned this turn: a firm whose site just closed is not
+  marked, so its region's output is the commons' again from that turn.
+- **Native capability and per-turn reconciliation (review M2).** An extension
+  built before A3-2 would ignore the column and put the output into the
+  commons and the firm's inventory both. Rules 2 therefore requires
+  `AgentSimulator.economy_capabilities()` to list `workshop_owned_crafts`: it
+  is checked at startup and on every resume while the effective rules are 2
+  (refused, one line; a saved world is told to pass
+  `--no-workshop-economics`), and again when the column is built. Every turn
+  with owned regions, after payroll's title, `reconcile_owned` checks that the
+  economy reported `workshop_owned_outflow` (Python's economy reconstruction
+  keeps it; it was dropped before), that the outflow equals the owned regions'
+  craft output, and that each owned region's output was titled whole by its
+  firm; it raises otherwise.
+- **The price rule is part of rules 2.** Rules 2 bundles a second, distinct
+  rule: the firm's own stock counts in the wares supply that sets the price
+  (as retail's owned food counts in food prices). It is not switchable on its
+  own; the development comparison below shows its effect on household prices,
+  and it is declared here as a modelling choice for the lead and owner.
+- **Liquidation is a recorded transfer.** A closing firm's unsold wares go, as
+  in L6a, to the region's commons, whose owner is the region's ruler. Under
+  rules 2 this is recorded as a transfer of inventory to that owner (counter
+  `liquidation_to_owner`, milli-loads; the closure log adds
+  `inventory_to_owner` and `owner`), not a free release of firm output. A
+  firm idle because its inventory is full (`inventory_full`, an idle reason
+  under rules 2) can close idle that way, and its stock is then counted there.
 - **Title.** Payroll titles the whole output, `floor(output x 1000)`
   milli-loads, straight into the firm's inventory (material source
   `workshop_output`), never debiting the commons; `produced == titled` and

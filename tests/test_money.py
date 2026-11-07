@@ -443,3 +443,20 @@ def test_a_limited_payer_row_is_a_stale_read():
             return [(a, b, r, s - 1, c - 1, f, 1) for a, b, r, s, c, f, _st in out]
     with pytest.raises(M.MoneyError, match="stale"):
         M.pay(_world(), _pair_bill(), turn=1, book=M.MoneyBook(), sim=Stale({1: 10.0, 2: 1.0, 3: 1.0}))
+
+
+def test_a_book_pickled_before_pairwise_flows_loads_and_checks():
+    """Review m1: ``payer_region`` was added to flows and totals; a book
+    pickled before it (main's A3 books) restores with the default."""
+    world, book = _world(), M.MoneyBook()
+    firms = {1: _firm(0)}
+    sim = FakeSim({30: 5.0})
+    bill = M.Bill(purpose="wares_purchase", batch=1, phase="phase10", payee=M.firm_cash(1),
+                  lines=((M.agent(30), 1500),), regions=(2,))
+    assert M.pay(world, bill, turn=3, book=book, sim=sim, firms=firms).ok
+    for model in (*book.flows, *book.totals):
+        del model.__dict__["payer_region"]                # as an object restored from an older pickle
+    back = pickle.loads(pickle.dumps(book))
+    assert all(f.payer_region is None for f in back.flows) and all(t.payer_region is None for t in back.totals)
+    M.check_book(back)
+    assert back.model_dump() == M.MoneyBook.model_validate(back.model_dump()).model_dump()

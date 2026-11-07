@@ -477,8 +477,18 @@ def _titled_trade(world, book: _Book, turn: int) -> None:
     if not fresh:
         return
     inflow, outflow = moved.get("cargo_purchase", (0, 0))
-    paid = sum(int(d["paid"]) for d in st.frame.get("dispatched", ()))
-    book.closure("cargo_purchase", "merchants debited = owners credited (pairwise)", outflow, inflow)
+    rows = list(st.frame.get("dispatched", ()))
+    paid = sum(int(d["paid"]) for d in rows)
+    # Independent of the receipts: the merchants' and owners' wealth measured on
+    # the live pool before and after each payment (f32 balances, so within a
+    # small tolerance per person), against what the payment seam credited.
+    loss = math.fsum(float(d["measured_payer_loss"]) for d in rows)
+    gain = math.fsum(float(d["measured_payees_gain"]) for d in rows)
+    tol = 1e-4 + 1e-5 * sum(1 + int(d["sellers"]) for d in rows)
+    book.closure("cargo_purchase", "merchants' measured wealth loss = owners' measured wealth gain (live pool)",
+                 loss, gain, abs(loss - gain) <= tol)
+    book.closure("cargo_purchase", "owners' measured wealth gain = owners credited (payment seam)",
+                 gain, inflow / MILLI, abs(gain - inflow / MILLI) <= tol)
     book.closure("cargo_purchase", "owners credited = A4 purchase receipts", inflow, paid)
 
 

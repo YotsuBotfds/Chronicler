@@ -80,6 +80,9 @@ COUNTERS: tuple[str, ...] = (
     # Rules version 2 (A3-2): output the firm took straight into its inventory
     # (never in the commons) and the operating firm-turns that produced it.
     "owned_output", "owned_output_turns",
+    # Rules version 2: unsold wares a closing firm handed to the region's ruler
+    # (owner of the commons) at liquidation, milli-loads.
+    "liquidation_to_owner",
 )
 
 

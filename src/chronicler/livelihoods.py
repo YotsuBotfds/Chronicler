@@ -653,13 +653,23 @@ def _check_prerequisites(world: Any, values: dict, agent_mode: str, args: Any = 
                           "their cargo in the commons where they stand, dated)" if saved else ""))
             raise (LivelihoodsRefusal if saved else ValueError)(message)
     rules_a3 = getattr(args, "workshop_economics_rules", None) if args is not None else None
+    economics = getattr(livelihoods_state(world), "workshop_economics", None)
     if rules_a3 is not None:
-        economics = getattr(livelihoods_state(world), "workshop_economics", None)
         if economics is None and not _on(world, values, "workshop_economics"):
             raise ValueError("--workshop-economics-rules requires --workshop-economics")
         if economics is not None and str(rules_a3) != economics.rules:
             raise ValueError(f"--workshop-economics-rules {rules_a3} conflicts with the saved workshop "
                              f"economics rules version {economics.rules}")
+    effective = str(rules_a3) if rules_a3 is not None else (economics.rules if economics is not None else "1")
+    if effective == "2" and _on(world, values, "workshop_economics") and agent_mode == "hybrid":
+        # A3-2 needs an extension that honours its native column (startup and resume).
+        from chronicler.workshop_economics import native_owned_supported
+        if not native_owned_supported():
+            saved = rules_a3 is None
+            raise (LivelihoodsRefusal if saved else ValueError)(
+                "--workshop-economics-rules 2 needs a native build that honours the workshop_owned_crafts "
+                "column (rebuild chronicler-agents)"
+                + ("; this world has it on: pass --no-workshop-economics to end it" if saved else ""))
     if _on(world, values, "attribution_records") and agent_mode != "hybrid":
         # Also when only saved: the records observe hybrid runs (army rosters,
         # the native tick); a resume outside hybrid is refused until ended.

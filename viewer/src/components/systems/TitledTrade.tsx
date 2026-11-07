@@ -11,6 +11,7 @@ const OUTCOME: Record<string, string> = {
   escheated: "holder died: cargo to the commons where it stood",
   pool_reset: "native pool rebuilt: cargo to the commons where it stood",
   switched_off: "titled trade switched off: cargo to the commons where it stood",
+  released_returned: "carrier released in transit: returned to the origin at full value, the holder keeps title",
 };
 const CAUSE: Record<string, string> = {
   destination_conquered: "destination conquered", quarantine_closure: "quarantine closed the route",
@@ -74,14 +75,15 @@ export function TitledTrade({ bundle, snapshot, currentTurn, onSelectRegion }: {
     </table></div> : frame !== null ? <p className="systems-note">No merchant bought owned food in simulation turn {record.source_turn} (a recorded zero).</p> : null}
     {frame !== null && frame.events.some((e) => e.event !== "moved") ? <ul className="systems-note" aria-label="Shipment outcomes">
       {frame.events.filter((e) => e.event !== "moved").map((e, i) => <li key={`${e.shipment}-${i}`}>
-        Shipment #{e.shipment}: {e.event === "carrier_released" ? `carrier released (${RELEASE[e.reason ?? ""] ?? e.reason}); the holder keeps title` : `${OUTCOME[e.event] ?? e.event}${e.cause ? `, because the ${CAUSE[e.cause] ?? e.cause}` : ""}`} at {region(e.region)}{e.delivered ? `; ${food(e.delivered)} delivered` : ""}{e.returned ? `; ${food(e.returned)} returned` : ""}{e.deposited ? `; ${food(e.deposited)} to the commons` : ""}.
+        Shipment #{e.shipment}: {OUTCOME[e.event] ?? e.event}{e.cause ? (e.event === "released_returned" ? `, because the carrier ${RELEASE[e.cause] ?? e.cause}` : `, because the ${CAUSE[e.cause] ?? e.cause}`) : ""} at {region(e.region)}{e.delivered ? `; ${food(e.delivered)} delivered` : ""}{e.returned ? `; ${food(e.returned)} returned` : ""}{e.deposited ? `; ${food(e.deposited)} to the commons` : ""}.
       </li>)}
     </ul> : null}
     {frame !== null && frame.sales.length > 0 ? <p className="systems-note">Holders' sales of delivered cargo this turn: {frame.sales.map((s) => `${s.holder} sold ${food(s.cargo_sold)} at ${region(s.region)} for ${show(units(s.credited))}${s.exact ? "" : " (approximate)"}`).join("; ")}.</p> : null}
     <table className="systems-table" aria-label={`Titled trade funnel to snapshot ${record.source_turn + 1}`}>
       <tbody>
-        <tr><th scope="row">Shipments bought · delivered · returned · escheated · ended</th><td>{`${show(f.dispatched)} · ${show(f.delivered)} · ${show(f.returned)} · ${show(f.escheated)} · ${show(f.ended)}`}</td></tr>
+        <tr><th scope="row">Shipments bought · delivered · returned · carrier released and returned · escheated · ended</th><td>{`${show(f.dispatched)} · ${show(f.delivered)} · ${show(f.returned)} · ${show(f.releasedReturned)} · ${show(f.escheated)} · ${show(f.ended)}`}</td></tr>
         <tr><th scope="row">Returned because</th><td>{Object.entries(f.returnedBy).filter(([, n]) => n).map(([k, n]) => `${CAUSE[k] ?? k} ${n}`).join("; ") || "—"}</td></tr>
+        <tr><th scope="row">Carrier released because</th><td>{Object.entries(f.releasedBy).filter(([, n]) => n).map(([k, n]) => `${RELEASE[k] ?? k} ${n}`).join("; ") || "—"}</td></tr>
         <tr><th scope="row">Food bought from owners · paid to them</th><td>{`${show(f.bought)} · ${show(f.paid)}`}</td></tr>
         <tr><th scope="row">Lost in transit (decay · sea) · delivered · returned · to the commons</th><td>{`${show(f.transitDecay)} · ${show(f.seaLoss)} · ${show(f.consigned)} · ${show(f.returnedFood)} · ${show(f.deposited)}`}</td></tr>
         <tr><th scope="row">Delivered food sold to households · credited to holders</th><td>{`${show(f.cargoSold)} · ${show(f.salesCredited)}${f.salesInexact ? ` (${show(f.salesInexact)} approximate)` : ""}`}</td></tr>
@@ -89,6 +91,6 @@ export function TitledTrade({ bundle, snapshot, currentTurn, onSelectRegion }: {
         <tr><th scope="row">Merchant income withheld while carrying · carrier-turns · carriers released</th><td>{`${show(f.withheld)} · ${show(f.carrierTurns)} · ${show(f.carriersReleased)}`}</td></tr>
       </tbody>
     </table>
-    {record.closed.length > 0 ? <p className="systems-note">Recent shipments: {record.closed.slice(-6).map((s) => `#${s.id} ${region(s.origin)} → ${region(s.dest)}: ${s.outcome}${s.cause ? ` (${CAUSE[s.cause] ?? s.cause})` : ""}, turn ${s.closed_turn}`).join("; ")}.</p> : null}
+    {record.closed.length > 0 ? <p className="systems-note">Recent shipments: {record.closed.slice(-6).map((s) => `#${s.id} ${region(s.origin)} → ${region(s.dest)}: ${s.outcome}${s.cause ? ` (${CAUSE[s.cause] ?? RELEASE[s.cause] ?? s.cause})` : ""}, turn ${s.closed_turn}`).join("; ")}.</p> : null}
   </section>;
 }

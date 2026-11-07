@@ -115,10 +115,12 @@ may plan one shipment:
 A shipment dispatched in Phase 10 of turn T moves its first edge in Phase 10
 of T+1 and arrives in Phase 10 of T+h (h hops); its carrier is reserved for
 T+1 ... T+h. Each Phase 10, before purchases, every live shipment (ascending
-id) is checked in this order, and exactly one thing happens:
+id) is checked in this order, and exactly one thing happens (a dead holder
+and a released carrier are checked first, then the route):
 
 | Situation | Outcome | Books |
 | --- | --- | --- |
+| The carrier was released: it migrated, changed occupation, enlisted, went on a native trip or holds other work (seen at Phase 2 `reserve_first` and again before each move) | `released_returned`, cause the release reason: halted and back to the origin at once at full value, under the same unwind rule (lead decision, review M3) | as `returned` below: the holder's claim at the origin (`returned_in`); the origin's commons if it left the pilot or the claims cap refuses |
 | The destination's controller changed since dispatch (conquest) | `returned`, cause `destination_conquered`: back to the origin at full value (the native unwind's rule) | the holder's claim at the origin (`returned_in`); the origin's commons if it left the pilot or the claims cap refuses |
 | The destination left the retail pilot | `returned`, `destination_left_pilot` | as above |
 | A quarantine closure cuts any edge of the remaining route | `returned`, `quarantine_closure` | as above |
@@ -135,11 +137,24 @@ deposited`. "Region of death" is read as the region the cargo stands in: the
 carrier stays home in the native pool (below), so its native home would
 teleport the cargo.
 
+**Commons deposits (review M1).** Every deposit (`escheated`, `pool_reset`,
+`switched_off`, a refused claim) goes through retail's seam
+`household_retail.deposit_commons`, which writes the region's commons and
+marks the region in retail's books for the turn. A deposit made in Phase 2
+before the economy tick (a pool reset, or a dead holder seen at
+`reserve_first`) lands after the region batch was built; retail's
+`prepare_phase2`, which runs after `reserve_first`, patches the marked
+regions' commons columns into that batch, so the economy starts from commons
+that hold the cargo (the same seam retail uses for its own closures).
+
 **Carriers.** A carrier who migrates, changes occupation, enlists, goes on a
-native trip or holds other work is **released**: no reservation, no withheld
-income; the holder keeps title and the shipment continues. A reserved carrier
-on a native trip after the tick is an invariant failure (raises): the native
-planner skips `trade` holders.
+native trip or holds other work is **released**, and its shipment ends
+`released_returned` at once: the cargo goes back to the origin at full value
+(the unwind rule) and the holder keeps title there as a retail claim. No cargo
+moves without a reserved carrier, and the holder's new ordinary income never
+stacks with a margin (the shipment ends at the release, so no margin follows). A
+reserved carrier on a native trip after the tick is an invariant failure
+(raises): the native planner skips `trade` holders.
 
 **War.** War does not reach cargo in transit in A4-1: a shipment standing in
 a besieged, occupied or just-conquered region loses nothing (counted,
@@ -162,14 +177,14 @@ what the claim still holds. Granary purchases from holders are counted by id.
 
 | Order | Point | A4 action |
 | --- | --- | --- |
-| 1 | Phase 2, `reserve_first` (before every package plans work) | each live shipment's carrier re-checked and reserved under `trade` (whole turn); released carriers and dead holders handled |
+| 1 | Phase 2, `reserve_first` (before every package plans work) | each live shipment's carrier re-checked and reserved under `trade` (whole turn); a released carrier's shipment returned to the origin, a dead holder's cargo escheated (both deposits patched into the batch by retail's `prepare_phase2`) |
 | 2 | Phase 2 finish (after the economy tick, after payroll and the RS2/PL1/PL3 extends) | `extend_paid_work(turn, carriers, 1.0)` |
 | 3 | tick 0.5 (wealth phase) | carriers' ordinary income withheld (receipt) |
 | 4 | tick 0.7 | native provisioning sells holders' claims (purpose 5, credited by id) |
 | 5 | tick 0.9 | the native merchant planner skips `trade` holders |
 | 6 | after the tick (after retail's settlement) | the shared paid-work receipt read (exact rows); dead holders' cargo escheated |
 | 7 | Phase 10: granary procurement (pinned seam) | granaries may buy holders' claims |
-| 8 | Phase 10: retail's `phase10`, after its procurement credit and before its frame closes | holders' sales attributed; live shipments moved, returned or delivered; purchases planned and paid; A4's frame committed |
+| 8 | Phase 10: retail's `phase10`, after its procurement credit and before its frame closes | holders' sales attributed; carriers re-checked (a release returns the shipment); live shipments moved, returned or delivered; purchases planned and paid; A4's frame committed |
 | 9 | Phase 10, last | the A1 ledger reads the money book, the withheld rows and the channels |
 
 ## Accounting (each raises when it fails)
@@ -182,12 +197,22 @@ what the claim still holds. Granary purchases from holders are counted by id.
 - Money: per pairwise row `requested = sent = credited + refunded` (a limited
   payer row is a stale read and raises); the payer's loss is the credited sum;
   `(turn, cargo_purchase, shipment)` settles once in the book and in the native
-  key log, across exact resumes.
+  key log, across exact resumes. The one-sided native `transfer` refuses the
+  pairwise purposes 8 and 9: they are paid only through `settle_pairs`. A
+  money book pickled before the pairwise fields existed loads with
+  `payer_region` None (exact pickle restoration bypasses defaults, so the book
+  models backfill missing fields) and checks as before.
 - Every carrier-turn has one paid-work row at share 1.0.
 - **A1 ledger** (`--wealth-accounting`): channel `cargo_purchase` (merchant ->
   owners, both in the household sector: in = out, located at the payees' and
-  the payer's own regions; `payer_region` on the flow), closures "merchants
-  debited = owners credited" and "owners credited = A4 purchase receipts";
+  the payer's own regions; `payer_region` on the flow), and three closures:
+  "merchants' measured wealth loss = owners' measured wealth gain (live pool)"
+  and "owners' measured wealth gain = owners credited (payment seam)" compare
+  wealth read from the live pool before and after each payment (each purchase
+  row records `measured_payer_loss` and `measured_payees_gain`; f32 balances,
+  so within `1e-4 + 1e-5` per person) with what the seam credited,
+  independently of the receipts (review); "owners credited = A4 purchase
+  receipts" ties the seam to A4's frame;
   withheld package `titled_trade` matched row by row to A4's carriers and to
   A4's own exact total. The registries (`WEALTH_WRITERS`, `WEALTH_ROUTERS`
   `_native_pairs`, `MONEY_BILLS` `("titled_trade", "_buy")`,
@@ -204,8 +229,9 @@ what the claim still holds. Granary purchases from holders are counted by id.
  units: {food: "milli_food", money: "milli_units", price: "milli_per_ration", withheld: "wealth_units", milli: 1000},
  shipments: [live Shipment], closed: [last 32 Shipment], lots: [{holder, region, milli, shipments}],
  frame: null | {turn, dispatched: [{shipment, holder, origin, dest, path, milli, cargo, price_milli, paid,
-                                     refunded, sellers, seller_rows: [[owner, milli, asked, paid]] (at most 16)}],
-                events: [{shipment, event: moved | carrier_released | <outcome>, region, ...}],
+                                     refunded, sellers, seller_rows: [[owner, milli, asked, paid]] (at most 16),
+                                     measured_payer_loss, measured_payees_gain}],
+                events: [{shipment, event: moved | <outcome>, region, ...}],
                 withheld: [{shipment, carrier, share, ordinary, deducted}], withheld_total,
                 sales: [{holder, region, sold, cargo_sold, credited, exact}], plans: {...}, live},
  flows: null | [money flows of the source turn], counters, log, log_dropped, parameters}
@@ -222,12 +248,15 @@ pinned `types.ts` is not touched) keeps **absent**, **disabled** (a retail
 record without this one), **malformed** (wrong shape, a cargo that does not
 close, a closed shipment without exactly one declared outcome, a reused id, a
 frame whose purchases do not equal their sellers' payments), **unobserved**
-(`frame: null`, unknown, not zero) and **observed** (recorded zeros) apart.
+(`frame: null`, unknown, not zero) and **observed** (recorded zeros) apart;
+a `released_returned` shipment must name a release reason as its cause.
 `TitledTrade.tsx`, in the Livelihoods panel, shows shipments in transit (id,
 holder, carrier or why it was released, route, position, cargo, what the
 owners were paid, income withheld), the turn's purchases (owners -> merchant,
-food, price, paid by id), outcomes with their causes, holders' sales, and a
-lifetime funnel with the merchants' net money against the income withheld.
+food, price, paid by id), outcomes with their causes (a released carrier's
+return with its reason), holders' sales, and a lifetime funnel (released and
+returned shipments by reason) with the merchants' net money against the
+income withheld.
 The household-retail reader accepts the three new flow kinds in its closure.
 
 ## Native change (one batched build with A3-2)
@@ -240,12 +269,13 @@ The household-retail reader accepts the three new flow kinds in its closure.
   ABSENT for a dead or unknown party, else `sent = min(amount, what the payer
   still holds)`, `credited = min(sent, the payee's room)`; each person's net
   change applied once after every row (no f32 drift between rows); no trip
-  rule.
+  rule. The one-sided keyed `transfer` refuses purposes 8 and 9 (review).
 - `workshop_work.rs`: `RESERVATION_CATEGORIES` appends `trade` (4) and
   `trade_holders(pool, turn)`.
 - `merchant.rs` (pinned): the planner skips this turn's `trade` holders (an
   empty set without such rows: bit-identical).
-- `ffi/mod.rs` (pinned): `settle_pairs` and `work_reservation_categories`.
+- `ffi/mod.rs` (pinned): `settle_pairs`, `work_reservation_categories` and
+  `economy_capabilities` (A3-2's startup check).
 - No checkpoint layout change: reservations, the paid share and the key log are
   transient.
 
@@ -275,8 +305,8 @@ The household-retail reader accepts the three new flow kinds in its closure.
   model income (the remaining model share, declared).
 - Food only; timber (A4-3) and wares (A4-W, after A3-2) are later slices.
 - Withheld income lowers a merchant's income in the native occupation and
-  migration choices: carriers may switch occupation in transit (observed on a
-  development world: released, title kept).
+  migration choices: carriers may switch occupation or migrate in transit;
+  their shipments then return to the origin (observed on a development world).
 - Holders' sales are attributed by id (exact unless a claim mixes a lot with
   other food or a seller hit the ceiling: marked approximate).
 - No toll exists: any toll must replace the model route income (owner's

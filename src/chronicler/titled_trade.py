@@ -219,6 +219,14 @@ def _people(snapshot) -> dict[int, tuple[int, int, int, float]]:
     return {int(i): (int(r), int(o), int(a), float(w)) for i, r, o, a, w in zip(*cols)}
 
 
+def _balances(sim, ids) -> dict[int, float]:
+    """The live wealth (f32 read as float) of ``ids`` from a fresh snapshot."""
+    snap = sim.get_snapshot()
+    got = dict(zip((int(a) for a in snap.column("id").to_pylist()),
+                   (float(w) for w in snap.column("wealth").to_pylist()), strict=True))
+    return {aid: got.get(aid, 0.0) for aid in ids}
+
+
 def _enlisted(world) -> set[int]:
     armies = getattr(getattr(world, "war_state", None), "armies", None) or []
     return {int(aid) for army in armies for aid, _ in army.roster}
@@ -293,14 +301,18 @@ def _capacity(edges, path: list[int]) -> int:
 # Phase 2: carriers
 # ---------------------------------------------------------------------------
 
-def _release(state, t: _Turn, ship: Shipment, reason: str) -> None:
+def _release(world, state, t: _Turn, ship: Shipment, reason: str) -> None:
+    """The carrier can no longer carry (lead decision M3): the shipment halts
+    and returns to its origin at once under the unwind rule (full value, the
+    holder's claim there): no cargo moves without a reserved carrier, and the
+    holder's new ordinary income never stacks with a margin."""
     if reason not in RELEASE_REASONS:
         raise KeyError(reason)
-    ship.carrier, ship.released = None, reason
+    ship.released = reason
     _note(ship, t.turn, f"released_{reason}", ship.region())
     _bump(state, "carriers_released")
     _log(state, t.turn, "carrier_released", ship.id, holder=ship.holder, reason=reason)
-    t.events.append({"shipment": ship.id, "event": "carrier_released", "reason": reason, "region": ship.region()})
+    _return(world, state, t, ship, reason, outcome="released_returned")
 
 
 def reserve_first(world, agent_bridge, snapshot) -> None:
@@ -320,16 +332,12 @@ def reserve_first(world, agent_bridge, snapshot) -> None:
     people = _people(snapshot)
     enlisted = _enlisted(world)
     trips = _trips(sim)
-    for ship in sorted(state.shipments, key=lambda s: s.id):
+    for ship in sorted(list(state.shipments), key=lambda s: s.id):
         if ship.holder not in people:
             _escheat(world, state, t, ship)
             continue
         aid = ship.carrier
-        if aid is None:
-            continue
-        region, occupation, _age, _w = people[aid]
-        reason = ("migrated" if region != ship.origin else "occupation" if occupation != MERCHANT
-                  else "enlisted" if aid in enlisted else "on_trip" if aid in trips else None)
+        reason = _release_reason(ship, people, enlisted, trips)
         if reason is None:
             try:
                 sim.reserve_work(int(world.turn), CATEGORY_TRADE, [(aid, SHARE)])
@@ -338,9 +346,19 @@ def reserve_first(world, agent_bridge, snapshot) -> None:
                     raise
                 reason = "other_work"
         if reason is not None:
-            _release(state, t, ship, reason)
+            _release(world, state, t, ship, reason)
             continue
         t.reserved.append(ship.id)
+
+
+def _release_reason(ship: Shipment, people, enlisted, trips) -> str | None:
+    """Why the carrier can no longer carry (None: it can): it migrated from
+    the origin, is no longer a Merchant, enlisted, or is on a native trip."""
+    if ship.carrier is None or ship.carrier not in people:
+        return ship.released or "other_work"
+    region, occupation, _age, _w = people[ship.carrier]
+    return ("migrated" if region != ship.origin else "occupation" if occupation != MERCHANT
+            else "enlisted" if ship.carrier in enlisted else "on_trip" if ship.carrier in trips else None)
 
 
 def finish_phase2(world, economy_result, agent_bridge, acc):
@@ -352,7 +370,7 @@ def finish_phase2(world, economy_result, agent_bridge, acc):
         if state.shipments:
             raise RuntimeError("titled trade carriers were not reserved this turn")
         return []
-    carriers = sorted(state.shipment(sid).carrier for sid in t.reserved)
+    carriers = sorted(state.shipment(sid).carrier for sid in t.reserved if state.shipment(sid) is not None)
     if carriers:
         t.sim.extend_paid_work(int(world.turn), [(aid, SHARE) for aid in carriers])
         t.installed = True
@@ -440,12 +458,12 @@ def _deposit(world, state, ship: Shipment, rid: int, reason: str, cargo: list[in
     """Cargo into region ``rid``'s commons (title lost), dated by the caller."""
     if reason not in DEPOSIT_REASONS:
         raise KeyError(reason)
-    from chronicler.household_retail_state import RETAIL_GOODS
+    from chronicler.household_retail import deposit_commons
     cargo = list(ship.cargo) if cargo is None else cargo
-    goods = world.regions[rid].stockpile.goods
-    for g, v in enumerate(cargo):
-        if v:
-            goods[RETAIL_GOODS[g]] = goods.get(RETAIL_GOODS[g], 0.0) + v / MILLI
+    # Through retail's seam: a deposit made in Phase 2 before the economy
+    # (a pool reset, a death or release seen at reserve_first) marks the
+    # region so retail patches this turn's batch with it (review M1).
+    deposit_commons(world, rid, cargo)
     total = sum(cargo)
     ship.deposited += total
     ship.deposit_reason = reason
@@ -474,7 +492,7 @@ def _close(world, state, ship: Shipment, turn: int, outcome: str, cause: str | N
     _log(state, turn, "closed", ship.id, outcome=outcome, cause=cause, region=ship.region(),
          delivered=ship.delivered, returned=ship.returned, deposited=ship.deposited)
     if t is not None:
-        if ship.carrier is not None:
+        if ship.carrier is not None and outcome != "released_returned":
             t.closed_carriers.add(ship.carrier)
         t.events.append({"shipment": ship.id, "event": outcome, "cause": cause, "region": ship.region(),
                          "delivered": ship.delivered, "returned": ship.returned, "deposited": ship.deposited,
@@ -487,10 +505,10 @@ def _escheat(world, state, t: _Turn, ship: Shipment) -> None:
     _close(world, state, ship, t.turn, "escheated", None, t)
 
 
-def _return(world, state, t: _Turn, ship: Shipment, cause: str) -> None:
+def _return(world, state, t: _Turn, ship: Shipment, cause: str, *, outcome: str = "returned") -> None:
     """Back to the origin at full value (no decay): the holder's claim there,
     else the origin's commons."""
-    if cause not in RETURN_CAUSES:
+    if cause not in (RETURN_CAUSES if outcome == "returned" else RELEASE_REASONS):
         raise KeyError(cause)
     from chronicler.household_retail import consign, pilot_entry
     cargo = list(ship.cargo)
@@ -503,7 +521,7 @@ def _return(world, state, t: _Turn, ship: Shipment, cause: str) -> None:
     elif total:
         reason = "not_pilot" if pilot_entry(world, ship.origin) is None else "claims_refused"
         _deposit(world, state, ship, ship.origin, reason)
-    _close(world, state, ship, t.turn, "returned", cause, t)
+    _close(world, state, ship, t.turn, outcome, cause, t)
 
 
 def _arrive(world, state, t: _Turn, ship: Shipment) -> None:
@@ -529,10 +547,12 @@ def _arrive(world, state, t: _Turn, ship: Shipment) -> None:
 def _add_lot(state, holder: int, region: int, milli: int, sid: int) -> None:
     lot = next((x for x in state.lots if x.holder == holder and x.region == region), None)
     if lot is None:
+        if len(state.lots) >= MAX_LOTS:
+            _bump(state, "lots_untracked_milli", milli)     # sold untracked: counted, not dropped silently
+            return
         lot = Lot(holder=holder, region=region, milli=0)
         state.lots.append(lot)
         state.lots.sort(key=lambda x: (x.region, x.holder))
-        del state.lots[MAX_LOTS:]
     lot.milli += milli
     lot.shipments = sorted(set(lot.shipments) | {sid})[-MAX_HISTORY:]
 
@@ -718,9 +738,11 @@ def _dispatch(world, state, t: _Turn, sim, edges, economy_result, acc) -> None:
                 if surplus > 0:
                     offer[owner] = surplus
             if sum(offer.values()) < MIN_CARGO:
+                # Not ``break``: this carrier's own claim is off its offer, and
+                # a later carrier may buy it (review m7).
                 _bump(state, "plans_no_offer")
                 t.plans["no_offer"] = t.plans.get("no_offer", 0) + 1
-                break
+                continue
             cash = math.floor(people[aid][3] * MILLI) - RESERVE_RATIONS * price_o - len(offer)
             q_cash = int(max(0, cash) * ration_milli // price_o)
             if q_cash < MIN_CARGO:
@@ -767,10 +789,16 @@ def _buy(world, state, t: _Turn, sim, acc, aid, o, d, path, q, offer, price_o, r
     quote = money.quote(world, bill, turn=turn, book=state.book, acc=acc, sim=sim)
     if not quote.ok:
         raise RuntimeError(f"titled trade purchase refused before anything moved: {quote.reason}")
+    ids = [aid, *sorted(takes)]
+    before = _balances(sim, ids)
     per_good = sell_to_merchant(world, o, takes)            # title passes to the shipment
     got = money.pay(world, bill, turn=turn, book=state.book, acc=acc, sim=sim)
     if not got.ok:
         raise RuntimeError(f"titled trade purchase refused after validation: {got.reason}")
+    after = _balances(sim, ids)
+    # Measured on the live pool, independently of the receipts (the ledger's check).
+    measured_loss = before[aid] - after[aid]
+    measured_gain = math.fsum(after[o] - before[o] for o in takes)
     regions = world.regions
     ship = Shipment(id=sid, holder=aid, carrier=aid, origin=o, dest=d, path=list(path), cursor=0,
                     controllers=[regions[o].controller, regions[d].controller], dispatched_turn=turn,
@@ -794,7 +822,8 @@ def _buy(world, state, t: _Turn, sim, acc, aid, o, d, path, q, offer, price_o, r
                for f in got.flows]
     t.dispatched.append({"shipment": sid, "holder": aid, "origin": o, "dest": d, "path": list(path), "milli": q,
                          "cargo": list(per_good), "price_milli": price_o, "paid": got.applied,
-                         "refunded": got.residual, "sellers": len(takes), "seller_rows": sellers[:MAX_FRAME_SELLERS]})
+                         "refunded": got.residual, "sellers": len(takes), "seller_rows": sellers[:MAX_FRAME_SELLERS],
+                         "measured_payer_loss": round(measured_loss, 9), "measured_payees_gain": round(measured_gain, 9)})
 
 
 def retail_phase10(world, acc, economy_result, agent_bridge) -> None:
@@ -808,8 +837,21 @@ def retail_phase10(world, acc, economy_result, agent_bridge) -> None:
     sim = _native(agent_bridge)
     edges, closed = _graph(world)
     _attribute_sales(world, state, t)
-    for ship in sorted(list(state.shipments), key=lambda s: s.id):
-        _move(world, state, t, ship, edges, closed)
+    live = sorted(list(state.shipments), key=lambda s: s.id)
+    if live:
+        # A carrier that migrated, changed occupation or enlisted in this
+        # tick no longer carries: its shipment returns instead of moving (M3).
+        people = _people(sim.get_snapshot())
+        enlisted = _enlisted(world)
+        for ship in live:
+            if ship.holder not in people:
+                _escheat(world, state, t, ship)
+                continue
+            reason = _release_reason(ship, people, enlisted, ())
+            if reason is not None:
+                _release(world, state, t, ship, reason)
+                continue
+            _move(world, state, t, ship, edges, closed)
     _dispatch(world, state, t, sim, edges, economy_result, acc)
     _commit(world, state, t)
     state.last_trade_turn = turn

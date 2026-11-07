@@ -2414,6 +2414,27 @@ def consign(world, rid: int, holder: int, per_good: list[int], kind: str) -> boo
     return True
 
 
+def deposit_commons(world, rid: int, per_good: list[int]) -> None:
+    """Titled trade's cargo into region ``rid``'s commons (any region, pilot
+    or not): written to ``region.stockpile`` and marked as touched in this
+    turn's books, so a deposit made in Phase 2 before the economy batch is
+    built into the economy (a pool reset, or a death or release seen at
+    ``reserve_first``) is patched into that batch by :func:`prepare_phase2`
+    (review M1). After the economy tick the next turn's batch reads it."""
+    if len(per_good) != len(RETAIL_GOODS) or any(v < 0 for v in per_good):
+        raise RetailAccountingError("a commons deposit names no cargo")
+    state = _state(world)
+    if state is None:
+        goods = world.regions[rid].stockpile.goods
+        for g, v in enumerate(per_good):
+            if v:
+                goods[RETAIL_GOODS[g]] = goods.get(RETAIL_GOODS[g], 0.0) + v / MILLI
+        return
+    if state.enabled:
+        _turn(state, world)                   # this turn's books, so the region is marked
+    _to_stockpile(state, world, rid, list(per_good))
+
+
 def turn_settlement(world):
     """This turn's settlement as titled trade reads it: ``(money_rows,
     claim_sold, region_money, procurement_credits)`` (see ``_Turn``), each

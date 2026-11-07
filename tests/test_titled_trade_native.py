@@ -2,10 +2,11 @@
 
 Development world only (template seed 1, household retail in every region,
 titled trade, the A1 ledger): merchants first buy owners' surplus food at
-turn 51; shipments travel one or two hops, carriers switch occupation in
-transit at turn 56 (released, title kept), a holder dies at turn 62 (cargo
-escheated where it stood), and deliveries become holders' retail claims that
-households buy. Every pairwise payment is checked against the live pool, a
+turn 51; shipments travel one to three hops, carriers released in transit
+(snapshots 55, 56 and 61: occupation changes and a migration) return their
+shipments to the origin at once (review M3), a holder dies in transit
+(snapshot 60: cargo escheated where it stood), and deliveries become
+holders' retail claims that households buy. Every pairwise payment is checked against the live pool, a
 repeated key is refused unchanged, carriers are never planned on native trips
 (titled trade raises otherwise) and exact resumes inside live shipments equal
 the straight run.
@@ -97,7 +98,7 @@ def test_merchants_buy_carry_and_sell_owned_food_with_exact_books(tmp_path, monk
                 withheld_rows += 1
                 assert row["share"] == 1.0 and row["deducted"] == pytest.approx(row["ordinary"])
             for e in frame["events"]:
-                if e["event"] in ("delivered", "returned", "escheated"):
+                if e["event"] in ("delivered", "returned", "escheated", "released_returned"):
                     outcomes[e["shipment"]] = outcomes.get(e["shipment"], []) + [e["event"]]
         for ship in tt["shipments"] + tt["closed"]:
             lost = sum(ship["losses"].values())
@@ -141,8 +142,8 @@ def _resume_identical(tmp_path, monkeypatch, flags, turns, k):
 
 @pytest.mark.parametrize("k, turns, expect", [
     (52, 55, "moved"),            # a shipment halfway along its two-hop route
-    (55, 58, "carrier_released"),  # carriers in transit switch occupation the turn after
-    (61, 64, "escheated"),        # the holder dies in the next tick
+    (55, 58, "released_returned"),  # carriers in transit switch occupation: their shipments return
+    (59, 62, "escheated"),        # the holder dies in the next tick
 ])
 def test_exact_resume_with_a_shipment_in_transit(tmp_path, monkeypatch, k, turns, expect):
     a = _resume_identical(tmp_path, monkeypatch, BASE, turns, k)
@@ -150,3 +151,67 @@ def test_exact_resume_with_a_shipment_in_transit(tmp_path, monkeypatch, k, turns
     events = [e["event"] for snap in a["history"][k + 1:]
               for e in (snap["livelihoods"]["titled_trade"]["frame"] or {}).get("events", [])]
     assert expect in events
+
+
+def test_the_one_sided_transfer_refuses_the_pairwise_purposes(tmp_path, monkeypatch):
+    """Review m4: cargo_purchase and cargo_sale are paid only pairwise."""
+    from chronicler_agents import AgentSimulator
+    sim = AgentSimulator(num_regions=1, seed=1)
+    for purpose in (CARGO_PURCHASE, CARGO_PURCHASE + 1):
+        with pytest.raises(ValueError, match="pairwise"):
+            sim.transfer_wealth(1, purpose, 0, [(1, 10)])
+
+
+@pytest.mark.parametrize("force", ["reset", "death"])
+def test_a_deposit_made_while_phase_2_is_prepared_reaches_the_economy(tmp_path, monkeypatch, force):
+    """Review M1 on the real extension: a forced pool reset (as a legacy
+    resume rebuilds the pool) and a holder's death seen at ``reserve_first``
+    deposit cargo after the region batch was built; retail patches the batch,
+    so the economy starts from commons that hold the cargo."""
+    import chronicler.livelihoods as LV
+    import chronicler.titled_trade as TT
+    from chronicler.household_retail_state import RETAIL_GOODS
+    seen = {}
+    real_prep, real_people = LV.prepare_phase2, TT._people
+
+    def prep(world, region_input, agent_bridge, snapshot, *, acc=None):
+        st = getattr(world.livelihoods, "titled_trade", None)
+        armed = st is not None and "forced" not in seen and world.turn >= 52 and bool(st.shipments)
+        if armed:
+            ship = sorted(st.shipments, key=lambda s: s.id)[0]
+            rid = ship.region()
+            hit = [s for s in st.shipments if s.region() == rid and (force == "reset" or s.holder == ship.holder)]
+            cargo = [sum(s.cargo[g] for s in hit) for g in range(len(RETAIL_GOODS))]
+            before = [float(world.regions[rid].stockpile.goods.get(g, 0.0)) for g in RETAIL_GOODS]
+            retail = world.livelihoods.household_retail.region(rid)
+            owned = list(retail.goods) if retail is not None and force == "reset" else [0] * len(RETAIL_GOODS)
+            seen["forced"] = (int(world.turn), sorted(s.id for s in hit), cargo)
+            if force == "reset":
+                world.livelihoods._pool_sim = -1
+            else:
+                monkeypatch.setattr(TT, "_people", lambda snap: {k: v for k, v in real_people(snap).items()
+                                                                 if k != ship.holder})
+        out = real_prep(world, region_input, agent_bridge, snapshot, acc=acc)
+        if armed:
+            monkeypatch.setattr(TT, "_people", real_people)
+            built = [region_input.column(f"stockpile_{g}").to_pylist()[rid] for g in RETAIL_GOODS]
+            got = [out.column(f"stockpile_{g}").to_pylist()[rid] for g in RETAIL_GOODS]
+            now = [float(world.regions[rid].stockpile.goods.get(g, 0.0)) for g in RETAIL_GOODS]
+            seen["check"] = (built, got, now, [b + (o + v) / 1000 for b, o, v in zip(before, owned, cargo)])
+        return out
+    monkeypatch.setattr(LV, "prepare_phase2", prep)
+    monkeypatch.setenv("CHRONICLER_CHECK_RESOURCES", "1")
+    _cli(monkeypatch, tmp_path, "--seed", "1", "--turns", "56", *BASE)
+    turn, ids, cargo = seen["forced"]
+    built, got, now, expected = seen["check"]
+    assert sum(cargo) > 0 and ids
+    assert got != pytest.approx(built, rel=1e-6, abs=1e-3)       # the batch was built without the cargo
+    assert got == pytest.approx(now, rel=1e-6, abs=1e-3)         # and the economy reads it
+    assert now == pytest.approx(expected, rel=1e-9, abs=1e-6)
+    from chronicler.bundle_codec import load_bundle
+    bundle = load_bundle(tmp_path / "chronicle_bundle.json")
+    closed = {s["id"]: s for snap in bundle["history"] for s in snap["livelihoods"]["titled_trade"]["closed"]}
+    for sid in ids:
+        assert closed[sid]["outcome"] == ("pool_reset" if force == "reset" else "escheated")
+        assert closed[sid]["closed_turn"] == turn and closed[sid]["deposit_reason"] in ("pool_reset", "holder_died")
+    assert sum(closed[sid]["deposited"] for sid in ids) == sum(cargo)
