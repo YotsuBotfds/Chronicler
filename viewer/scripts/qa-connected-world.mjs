@@ -166,7 +166,7 @@ try {
         } else {
           const selector = section.getByLabel("Recorded entity");
           const opts = await selector.locator("option").evaluateAll((os)=>os.map((o)=>o.value));
-          const projectWitness=(snapshot.livelihoods?.recovery_crews?.receipts??[]).flatMap((r,j)=>(r.members??[]).map((m,k)=>({member:m,project:r.pid,receipt:j,index:k}))).find(w=>opts.includes(`person:${w.member.agent_id}`));
+          const projectWitness=(snapshot.livelihoods?.recovery_crews?.receipts??[]).flatMap((r,j)=>(r.members??[]).map((m,k)=>({member:m,project:r.pid,region:r.region,receipt:j,index:k}))).find(w=>opts.includes(`person:${w.member.agent_id}`));
           const person = projectWitness?`person:${projectWitness.member.agent_id}`:opts.find((o)=>o.startsWith("person:"));
           check(result,`${name}: named person is selectable`,!!person,opts.slice(0,20).join(","));
           if (person) await selector.selectOption(person);
@@ -183,6 +183,13 @@ try {
           const earlierPointers=await section.locator("code").allTextContents();
           check(result,`${name}: earlier-page source pointers retain their original snapshot indices`,earlierPointers.length>0&&earlierPointers.every(resolves),earlierPointers.join("\n"));
           if(projectWitness){const pointer=`/history/${expected.history.findIndex(s=>s.turn===snapshot.turn)}/livelihoods/recovery_crews/receipts/${projectWitness.receipt}/members/${projectWitness.index}`;const row=section.locator("tbody tr").filter({has:page.getByText(pointer,{exact:true})});const actual=await row.innerText();check(result,`${name}: actual named repair wage and withheld ordinary income`,actual.includes(`wage ${units(projectWitness.member.wage_milli)} coins`)&&actual.includes(`ordinary income withheld ${projectWitness.member.income_replaced===null?"unknown":fmt(projectWitness.member.income_replaced)}`),actual);}
+          if(projectWitness){
+            const chain=page.getByRole("region",{name:"Recovery chain",exact:true});
+            await chain.getByLabel("Region",{exact:true}).selectOption(String(projectWitness.region));
+            await chain.getByText("Linked histories of identities recorded in this chain",{exact:true}).click();
+            await chain.getByRole("button",{name:`History: Person #${projectWitness.member.agent_id}`,exact:true}).click();
+            check(result,`${name}: chain opens the actual named worker's stable history at the same snapshot`,await selector.inputValue()===person&&await page.getByRole("slider",{name:"Historical turn"}).getAttribute("aria-valuenow")===String(snapshot.turn));
+          }
           if (await project.count()) {
             await project.click();
             check(result,`${name}: related project button changes stable-id entity`,(await selector.inputValue()).startsWith("project:"));
@@ -192,6 +199,19 @@ try {
             await page.waitForFunction((n)=>document.querySelector('.phase75-playhead-label')?.textContent === `T${n}`,turn);
             check(result,`${name}: history snapshot link seeks timeline`,await page.getByRole("slider",{name:"Historical turn"}).getAttribute("aria-valuenow") === String(turn));
           } else check(result,`${name}: linked project witness exists`,false);
+          if(projectWitness){
+            const region=projectWitness.region,regionName=expected.regions[region];
+            const openRegion=section.getByRole("button",{name:`Open ${regionName}`,exact:true}).first();
+            await openRegion.click();
+            const investigation=page.getByRole("region",{name:"Selected region investigation",exact:true});
+            await investigation.getByRole("button",{name:`Linked system history: ${regionName}`,exact:true}).click();
+            check(result,`${name}: regional inspector opens linked aggregate history by region identity`,await selector.inputValue()===`region:${region}`);
+            await page.getByText("Search recorded entities",{exact:true}).click();
+            const search=page.getByRole("region",{name:"Historical entity search",exact:true});
+            await search.getByLabel("Name or dated alias",{exact:true}).fill(regionName);
+            await search.getByRole("button",{name:`Linked system history: ${regionName}`,exact:true}).click();
+            check(result,`${name}: historical search reaches the same recorded region without a future jump`,await selector.inputValue()===`region:${region}`&&Number(await page.getByRole("slider",{name:"Historical turn"}).getAttribute("aria-valuenow"))<=snapshot.turn);
+          }
         }
         await section.scrollIntoViewIfNeeded();
         const image = `${name}-snapshot${snapshot.turn}.png`;
