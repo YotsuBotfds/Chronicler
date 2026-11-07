@@ -119,11 +119,13 @@ OFF strips the new parameters and keeps the prior chain/control.
 
 Each source runs both OFF and FULL: ten runs per source, twenty total, with
 72 exact same-source checkpoint reads. No new held seed or qualification gate
-is used. Start with a corrected proc19 FULL timing pilot, capped at 450 process
-CPU seconds, before freezing the suite budget. The proposed paired-suite ceiling
-is 2,700 process CPU seconds (0.75 core-hours), split into 1,350 per source and
-subject to that pilot; stop and
-record failures rather than raising a limit. This is separate from the offline
+is used. The lead requested a separate cheap admission pair before the matrix,
+so the actual timing pilot was **template seed 5 FULL, 200 turns**, capped at
+450 process CPU seconds per source. It replaces the originally proposed proc19
+pilot. [The budget amendment](matrix-budget-amendment.json) records the change,
+projection and uncertainty before reporting any matrix results. The frozen
+paired-suite ceiling is 2,700 process CPU seconds (0.75 core-hours), split into
+1,350 per source; stop and retain failures if it is exhausted. This is separate from the offline
 110-second chunk limit, which remains unchanged. Each child also receives a kernel
 process-CPU ceiling equal to the remaining suite budget rounded up to a whole
 second; its plan records the rounding. Schedule one profiling process
@@ -148,11 +150,22 @@ and negative checks, including unknown-to-zero, identity, signed-zero, private
 X1 state, artifact binding, flags, native identity and truncated CSV rejection.
 These controls are not simulation evidence or a qualification claim.
 
+The [actual template pilot comparison](template200-pilot-comparison.json) passes
+all 117 non-bundle outputs, every Arrow file, the complete decoded bundle and
+four native/private-state checkpoint comparisons. Corrected unoptimized source
+`09403c15070ddab4977ae8b2e65c336238468447` and its timber-only optimization
+`a1fcb482f4d971e1c20e99075f2e256f9838a359` share native artifact
+`b1d3ea5ac858681960b2cb880c534164905501f6ab4f6f3c94f7c9b5f66196cd`.
+Whole-run CPU is **22.3021 → 22.3118 seconds**, a null +0.04% observation in
+single runs. Timber planning falls from 0.7992 to 0.2876 seconds; complete-child
+CPU including checkpoint reads, validation and evidence is 33.26/33.53 seconds.
+The matrix will freshly repeat this case alongside the other fixed scales.
+
 ```sh
 TOOL=docs/superpowers/progress/connected-world-rework/performance/profile-rework.py
 PYTHONPATH=FROZEN/src NATIVE/bin/python "$TOOL" run PILOT \
   --source-root FROZEN --expect-commit CORRECTED_REF --native-sha256 NATIVE_SHA \
-  --python NATIVE/bin/python --case proc32_s19-full --cpu-budget-seconds 450
+  --python NATIVE/bin/python --case template_s5-full --cpu-budget-seconds 450
 # After the measured budget and clean immutable refs are reviewed:
 PYTHONPATH=BEFORE/src NATIVE/bin/python "$TOOL" run BEFORE_OUT \
   --source-root BEFORE --expect-commit BEFORE_REF --native-sha256 NATIVE_SHA \
