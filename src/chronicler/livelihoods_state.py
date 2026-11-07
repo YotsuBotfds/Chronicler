@@ -12,8 +12,11 @@ independent switches was enabled: ``workshops`` (L1), ``food_allocation``
 ``maintenance_obligation`` (PL3) and ``household_retail`` (PL4, L6b), and the
 connected-world program's ``watershed`` (B1), ``workshop_economics`` (A3,
 inserted before the ledger; it has no hooks of its own: the workshop and
-payroll seams call it), ``attribution_records`` (D2, observation-only records
-of actor, victim and cause, after every acting package) and
+payroll seams call it), ``residence_ledger`` (X1, the lead-owned displacement
+contract: home, residence, attachment and displacement spells, record-only,
+inserted before D2 and the ledger), ``attribution_records`` (D2,
+observation-only records of actor, victim and cause, after every acting
+package) and
 ``wealth_accounting`` (A1, an observation-only ledger, kept last so its hooks
 run after every payer). Each
 sub-state is owned by its own module
@@ -41,6 +44,7 @@ from chronicler.recovery_crews_state import RecoveryCrewsState
 from chronicler.relocation_costs_state import RelocationCostsState
 from chronicler.remittances_state import RemittancesState
 from chronicler.repair_projects_state import RepairProjectsState
+from chronicler.residence_ledger_state import ResidenceLedgerState
 from chronicler.timber_stock_state import TimberStockState
 from chronicler.timber_supply_state import TimberSupplyState
 from chronicler.veteran_reintegration_state import VeteranReintegrationState
@@ -59,7 +63,7 @@ LIVELIHOODS_SWITCHES: tuple[str, ...] = ("workshops", "food_allocation", "timber
                                          "operating_wear", "timber_supply",
                                          "recovery_crews", "maintenance_obligation",
                                          "household_retail", "watershed", "workshop_economics",
-                                         "attribution_records", "wealth_accounting")
+                                         "residence_ledger", "attribution_records", "wealth_accounting")
 
 
 def _is_none(value) -> bool:
@@ -89,6 +93,7 @@ class LivelihoodsState(BaseModel):
     household_retail: HouseholdRetailState | None = Field(default=None, exclude_if=_is_none)
     watershed: WatershedState | None = Field(default=None, exclude_if=_is_none)
     workshop_economics: WorkshopEconomicsState | None = Field(default=None, exclude_if=_is_none)
+    residence_ledger: ResidenceLedgerState | None = Field(default=None, exclude_if=_is_none)
     attribution_records: AttributionRecordsState | None = Field(default=None, exclude_if=_is_none)
     wealth_accounting: WealthAccountingState | None = Field(default=None, exclude_if=_is_none)
 

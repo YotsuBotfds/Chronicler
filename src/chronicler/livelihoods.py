@@ -50,6 +50,11 @@ The connected-world program appends:
   the commons owner, starts with owner capital and sells to households as
   well as academies; inserted before the ledger and without hooks of its own
   (the workshop and payroll seams call it).
+* ``--residence-ledger`` (X1, the lead-owned displacement contract): home,
+  residence, army attachment and displacement spells with cause and dated
+  home-region anchor, written once per turn in Phase 10 after the rosters are
+  reconciled and read by consumers only the next turn; inserted after A3 and
+  before D2 and the wealth ledger. It changes nothing it observes.
 * ``--attribution-records`` (D2): observation-only records of actor, victim and
   cause (granary seizures, casualties by cause, restored-civ identity reuse,
   burdens per actor -> victim pair); inserted after A3 and before the wealth ledger,
@@ -143,6 +148,7 @@ LIVELIHOODS_ARG_KEYS: tuple[str, ...] = (
     "household_retail_rules",
     "watershed", "watershed_mode",
     "workshop_economics", "workshop_economics_mode",
+    "residence_ledger",
     "attribution_records",
     "wealth_accounting",
 )
@@ -390,6 +396,16 @@ _HELP = {
         "market (default); free_inputs: the cost control, every rule as market except that the input "
         "charge is recorded and not taken; academy_only: the demand control with no household customers"
     ),
+    "residence_ledger": (
+        "Residence ledger (X1, the displacement contract): a record-only ledger of where each person lives, "
+        "where they belong and why they left: home (the residence when first observed, changed only by a "
+        "voluntary or unclassified move or after 20 turns settled elsewhere; never by enlistment), residence, "
+        "army attachment and displacement spells opened by a flight- or hunger-driven move from home, with "
+        "the home-region event (war, famine, persecution) dated in the 5 turns before, closed on return, "
+        "resettlement, death, a rebuilt pool or an unobserved gap; one frame per turn dated by its source "
+        "turn, readable by a consumer only the next turn; changes nothing; requires --agents hybrid "
+        "(default off)"
+    ),
     "attribution_records": (
         "Attribution records (D2): observation-only records of who did what to whom, at the event: "
         "granary seizures with their actor and victim; enlisted soldiers' deaths per war and cause - "
@@ -616,6 +632,12 @@ def _check_prerequisites(world: Any, values: dict, agent_mode: str, args: Any = 
             raise ValueError("--workshop-economics requires --workshop-payroll (--workshops in operate mode, "
                              "--agents hybrid)"
                              + ("; this world has it on: pass --no-workshop-economics to end it" if saved else ""))
+    if _on(world, values, "residence_ledger") and agent_mode != "hybrid":
+        # Also when only saved: the ledger reads the hybrid agent pool, its
+        # moves and the rosters; a resume outside hybrid is refused until ended.
+        saved = values["residence_ledger"] is not True
+        raise ValueError("--residence-ledger requires --agents hybrid"
+                         + ("; this world has it on: pass --no-residence-ledger to end it" if saved else ""))
     if _on(world, values, "attribution_records") and agent_mode != "hybrid":
         # Also when only saved: the records observe hybrid runs (army rosters,
         # the native tick); a resume outside hybrid is refused until ended.

@@ -140,6 +140,7 @@ SIMULATION_ARG_KEYS = WORLD_ARG_KEYS + (
     "quarantine_mode",
     "workshop_economics",
     "workshop_economics_mode",
+    "residence_ledger",
     "attribution_records",
     "wealth_accounting",
     "quarantine_channels",
@@ -267,7 +268,7 @@ def simulation_config(args: Any, tuning_overrides: dict | None = None) -> dict[s
                              "household_retail", "household_retail_mode", "household_retail_boundary",
                              "household_retail_rules", "household_retail_schedule", "watershed", "watershed_mode",
                              "quarantine_mode", "workshop_economics", "workshop_economics_mode",
-                             "attribution_records", "wealth_accounting", "quarantine_channels")
+                             "residence_ledger", "attribution_records", "wealth_accounting", "quarantine_channels")
               or getattr(args, key, None) is not None}
     overrides = tuning_overrides if tuning_overrides is not None else getattr(args, "tuning_overrides", None)
     config["tuning_overrides"] = _json_value(overrides or {})
