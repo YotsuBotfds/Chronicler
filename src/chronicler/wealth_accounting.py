@@ -494,11 +494,11 @@ def _seam_package(world, book: _Book, turn: int, package: str) -> None:
             paid = sum(r.applied for r in treasury_rows)
             book.treasury["to_households_milli"][channel] = paid
             book.closure(channel, "treasury units x 1000 = credited + change in wage carry",
-                         sum(r.treasury_units * MILLI for r in treasury_rows),
+                         sum(-r.treasury_units * MILLI for r in treasury_rows),
                          sum(r.applied + r.carry_change for r in treasury_rows))
             for r in treasury_rows:
                 if r.payer_civ is not None:
-                    book.civ_add(r.payer_civ, "charged", r.treasury_units)
+                    book.civ_add(r.payer_civ, "charged", -r.treasury_units)
                     book.civ_add(r.payer_civ, "to_households_milli", r.applied)
 
 
