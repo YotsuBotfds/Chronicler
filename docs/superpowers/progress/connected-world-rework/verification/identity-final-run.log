@@ -1,0 +1,11 @@
+chronicler /workspace/cwr-final-runtime/src/chronicler/__init__.py
+native /workspace/cwr-native/lib/python3.13/site-packages/chronicler_agents/chronicler_agents.cpython-313-x86_64-linux-gnu.so b1d3ea5ac858681960b2cb880c534164905501f6ab4f6f3c94f7c9b5f66196cd
+off_s42: exit 0 in 7 s
+off_s7: exit 0 in 6 s
+hybrid_s42: exit 0 in 5 s
+hybrid_s7: exit 0 in 6 s
+hybrid_s1234: exit 0 in 5 s
+proc48_hybrid_s42: exit 0 in 12 s
+proc48_off_s7: exit 0 in 10 s
+scaled22k_s42: exit 0 in 8 s
+scaled52k_s7: exit 0 in 9 s

@@ -1,0 +1,26 @@
+{
+  "source_commit": "8792be88dd36ba4d7c22e480de6a19dd64ea1300",
+  "worktree": "/workspace/cwr-final-runtime",
+  "dirty": "",
+  "tracked_src_count": 287,
+  "actual_src_sha256": "5f64f222c3d492e1472551da68944e30729daa46e95b060d00c44af7f84df460",
+  "actual_vs_git_mismatches": [],
+  "interpreter": "/workspace/cwr-native/bin/python",
+  "python": "3.13.5 (main, Aug 10 2026, 12:06:59) [GCC 14.2.0]",
+  "imported_python": "/workspace/cwr-final-runtime/src/chronicler/__init__.py",
+  "native": "/workspace/cwr-native/lib/python3.13/site-packages/chronicler_agents/chronicler_agents.cpython-313-x86_64-linux-gnu.so",
+  "native_sha256": "b1d3ea5ac858681960b2cb880c534164905501f6ab4f6f3c94f7c9b5f66196cd",
+  "matrix": {
+    "cases": 9,
+    "compared_files_per_reference": 399,
+    "differences": 0,
+    "references": [
+      "8abc1acb3adf978ea212a570fb1dfbbfe9723ec3",
+      "125a69066ea158a973ac5207f393e4eeb330aee8 (retained830d0dc2 production-equivalence proof)"
+    ],
+    "normalization": "metadata.generated_at only, decoded and raw bundles; all other files bytewise",
+    "command": "PYTHONPATH=/workspace/cwr-final-runtime/src RAYON_NUM_THREADS=1 OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1 /workspace/cwr-native/bin/python scripts/turn_speed_identity.py run /workspace/evidence/cwr-default-identity-final --source-root /workspace/cwr-final-runtime"
+  },
+  "raw_output": "/workspace/evidence/cwr-default-identity-final",
+  "guard_scope": "Retained run log verifies actual imports; final source/native hashes rechecked against immutable published reference. No native/source mutation occurred during run/comparisons."
+}
