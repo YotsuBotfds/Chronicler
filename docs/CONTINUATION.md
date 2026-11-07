@@ -1,3 +1,13 @@
+# 2026-11-07 — #95 merged; final A–E integration and evidence active
+
+PR #94 main Tests42382492574 passed all nine jobs. PR #95 merged at `f76436ae37c735b2b856caf98033122798ac88d2` after independent source review and exact-head Tests42384860718 all nine green; merge tree equals reviewed11467a46. Main Tests42386261493 is pending: next feature merge waits for green. D1 held60/60 completed; relief sparse activation suppresses primary summary, league purse effects mixed. Its unsupported historical lower benefit bound is withdrawn, not silently rewritten.
+
+Final draft [PR #96](https://github.com/YotsuBotfds/Chronicler/pull/96) contains all remaining original-scope mechanisms, native observer and opt-in decisions, paid works, material health, cross-border timber, funded branches and linked histories. Runtime43f02cca/native59f536b8 is frozen for fresh200T development pilots. The earlier combined pilot exposed illegal unary use of pairwise native payment codes; fixed with existing legal codes, failures retained before any held seed. D3 future-event snapshot alias and history date/ID-namespace bugs were independently reviewed and fixed. No held cohort has been spent on the new union yet. Original CW3 disk-full history remains.
+
+Next executable work: pilots/schema/timing → committed preregistrations → bounded held CW6 and CW-health; final both-reference feature-off identity, active-transition exact resume, declared-scale CPU/RSS/artifact/checkpoint profile, full offline/native/Rust/viewer/browser and strict natural examples; independent final source/inverse review → exact-head Tests → authorized merge → verified main CI. Ports lack a service consumer and remain explicit dependency deferral. No default promotion, restricted full qualification or paid narration. This checkpoint does not promise automatic restart after container reclamation.
+
+Earlier entries below are dated recovery/history records, not the current next-task authority.
+
 # 2026-11-07 — B3 merged; whole program integration active
 
 PR #94 merged at `4cabac21f41ba6683f4fd7106bd5c11292c4978b`, tree equals independently reviewed `be524a60`; premerge Tests `42381096201` all nine green. Main Tests `42382492574` pending: no further feature merge before verified green. B3 fresh identities both original and preceding main: 9 cases, 399 files, zero differences each; offline 72 chunks/7618 passed/69 skipped on 3.13.16, five native lifecycle resumes, real desktop/phone and 14 declared-scale off/on runs. Prior 3.13.5 argparse failure preserved. See `superpowers/audits/connected-world/b3-integration-verification-2026-11-07.md`.
