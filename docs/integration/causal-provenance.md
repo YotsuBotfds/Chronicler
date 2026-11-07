@@ -9,7 +9,11 @@ contact ledger and the Python scale work). Code: `src/chronicler/provenance.py`
 The simulation decides outcomes; provenance only records **why**. It draws no
 random numbers, mutates no simulation state and no simulation decision reads it.
 Every simulation outcome is identical to the base branch (see
-[Outcome identity](#outcome-identity)).
+[Outcome identity](#outcome-identity)). Later systems broke the last rule in seven
+places (cities, diplomacy, epidemiology, nomads and three scholarship sites); they are
+recorded, unchanged, and guarded against new ones by
+`tests/test_provenance_decision_guard.py` ([attribution records](attribution-records.md),
+"Guard: decisions never read provenance", 2026-11-07).
 
 ## Why
 
@@ -169,7 +173,8 @@ so version-3 bundles load unchanged (the viewer fixtures are version 3).
 ## Outcome identity
 
 Contract: provenance never draws RNG, never writes simulation fields and is
-never read by a simulation decision. It also never builds or touches the
+never read by a simulation decision (the recorded exceptions added later are listed in
+[attribution records](attribution-records.md)). It also never builds or touches the
 world's lookup caches (`civ_map`, `region_map`, trade-route caches): building a
 cache earlier than the simulation would can change what a later stale-cache read
 returns. Lookups scan `world.civilizations` and `world.regions` directly.

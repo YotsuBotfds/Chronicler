@@ -649,6 +649,11 @@ def apply_region_conquest(
         # no-op unless active in version 2).
         from chronicler.household_retail import on_conquest
         on_conquest(world, contested, attacker, defender, via=via)
+        # --attribution-records (D2): this conquest's stock, granary and
+        # owned-stock losses with conqueror and previous ruler, once per call
+        # (a no-op unless active).
+        from chronicler.attribution_records import note_conquest
+        note_conquest(world, contested, attacker, defender, via=via)
     contested.last_conquered_turn = world.turn
     attacker.regions.append(contested.name)
     defender.regions = [r for r in defender.regions if r != contested.name]
