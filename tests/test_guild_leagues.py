@@ -73,7 +73,12 @@ def test_switch_registry_cli_catalog_and_manifest():
     from chronicler.batch_manifest import SIMULATION_ARG_KEYS, simulation_config
     from chronicler.feature_catalog import REQUIREMENTS, SETTINGS
     from chronicler.main import _build_parser
-    assert LIVELIHOODS_SWITCHES.index("guild_leagues") == LIVELIHOODS_SWITCHES.index("residence_ledger") - 1
+    # Keep guild cooperation before X1 while the completed acting packages
+    # consume the prior frame before the sole residence-ledger writer runs.
+    assert LIVELIHOODS_SWITCHES[LIVELIHOODS_SWITCHES.index("guild_leagues"):
+                               LIVELIHOODS_SWITCHES.index("residence_ledger") + 1] == (
+        "guild_leagues", "war_requisition", "war_consequences", "adaptive_livelihoods",
+        "public_health", "movement_branches", "residence_ledger")
     assert LV.LIVELIHOODS_CHOICES["guild_league_mode"] == ("mutual", "dues_only")
     keys = LV.LIVELIHOODS_ARG_KEYS
     assert keys[keys.index("guild_leagues") + 1] == "guild_league_mode"
