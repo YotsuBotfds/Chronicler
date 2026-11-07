@@ -176,6 +176,8 @@ MONEY_BILLS: dict[tuple[str, str], tuple[str, ...]] = {
     # C2: carers' wages, treasury to agents (prepaid carry rule).
     ("epidemic_care", "_quote_bills"): ("care_wage",),
     ("titled_trade", "_buy"): ("cargo_purchase",),
+    # B3: infrastructure works' whole-unit charge, treasury to the public_works sink.
+    ("infrastructure_condition", "_bill"): ("infrastructure_repair",),
     # D1a: the relief fund's payments in, out to owners and back to the treasury.
     ("reform_services", "_deposit"): ("relief_budget",),
     ("reform_services", "_refund"): ("relief_refund",),

@@ -56,6 +56,11 @@ The connected-world program appends:
   pilot region, carry it with title and custody per shipment by stable id and
   sell it as their own retail claim at another pilot region; inserted before
   the ledger; its Phase 10 runs inside retail's frame.
+* ``--infrastructure-condition`` (B3): condition, service and repair of
+  irrigation works and roads; mode ``record_only`` changes nothing outside its
+  record, ``wear_only`` is the no-repair control, ``repair`` and ``cost_only``
+  repair inside RS2's Phase 2 (its labour column and timber holds, after RS2's
+  planned charge; under L9 only within their own ``infrastructure_works`` envelope).
 * ``--epidemic-care`` (C2): named adult farmers paid from an L9 envelope tend the
   sick of a region with a reported outbreak; their farm time leaves the native
   farm labour, and the patients they can serve, dated, lower the next epidemic
@@ -148,6 +153,7 @@ LIVELIHOODS_CHOICES: dict[str, tuple[str, ...]] = {
     "watershed_mode": ("record_only", "flow"),
     "workshop_economics_mode": ("market", "free_inputs", "academy_only"),
     "workshop_economics_rules": ("1", "2"),
+    "infrastructure_condition_mode": ("repair", "record_only", "wear_only", "cost_only"),
     "epidemic_care_mode": ("care", "cost_only"),
     "reform_services_mode": ("service", "cost_only"),
     "guild_league_mode": ("mutual", "dues_only"),
@@ -178,6 +184,7 @@ LIVELIHOODS_ARG_KEYS: tuple[str, ...] = (
     "workshop_economics", "workshop_economics_mode",
     "workshop_economics_rules",
     "titled_trade",
+    "infrastructure_condition", "infrastructure_condition_mode",
     "epidemic_care", "epidemic_care_mode",
     # D1a: the CLI and catalog list it beside the other connected-world switches;
     # its hooks run before household_retail's (LIVELIHOODS_SWITCHES order).
@@ -448,6 +455,21 @@ _HELP = {
         "destination, a quarantine closure of the route or a lost route returns the shipment, the holder's "
         "death escheats the cargo to the commons where it stands; requires --agents hybrid and "
         "--household-retail in mode retail or no_relief with rules version 2 (default off)"
+    ),
+    "infrastructure_condition": (
+        "Infrastructure condition (B3): irrigation works and roads get a stable asset id, condition and "
+        "service (s = min(1, condition / 0.5)); serving works wear each turn (irrigation 0.01, roads 0.005) "
+        "and take war damage at conquest and sack; condition 0 fails a work until it is repaired; "
+        "irrigation's arable-capacity bonus scales with service and its native flag and roads' two-hop "
+        "trade range need service >= 0.5; works repair them with anonymous farm labour, timber and "
+        "treasury coins planned after RS2's repairs (under --local-budgets only within their own envelope); "
+        "requires --agents hybrid (default off)"
+    ),
+    "infrastructure_condition_mode": (
+        "repair (default; requires --repair-projects): works repair condition; record_only: condition is "
+        "recorded and nothing else changes (service stays 1.0, no works); wear_only: wear and service act "
+        "and nothing repairs (the control); cost_only (requires --repair-projects): works plan and pay "
+        "identically and credit no condition"
     ),
     "epidemic_care": (
         "Epidemic care (C2): each ruler may fund, from its local budget, carers for a region with a reported "
@@ -759,6 +781,14 @@ def _check_prerequisites(world: Any, values: dict, agent_mode: str, args: Any = 
                 "--workshop-economics-rules 2 needs a native build that honours the workshop_owned_crafts "
                 "column (rebuild chronicler-agents)"
                 + ("; this world has it on: pass --no-workshop-economics to end it" if saved else ""))
+    if values["infrastructure_condition"] is not None or _on(world, values, "infrastructure_condition") \
+            or getattr(args, "infrastructure_condition_mode", None) is not None:
+        # Also when only saved: a resume outside hybrid, or a work mode without
+        # RS2, is refused until the switch is ended; the mode is fixed once
+        # opened, and a mode given without the switch is refused.
+        from chronicler.infrastructure_condition import check_request
+        check_request(world, values["infrastructure_condition"], args, agent_mode=agent_mode,
+                      rs2=_on(world, values, "repair_projects"))
     if (values["epidemic_care"] is not None or getattr(args, "epidemic_care_mode", None) is not None
             or getattr(livelihoods_state(world), "epidemic_care", None) is not None):
         # C2: also when only saved (a resume outside hybrid, without L9 or
@@ -891,6 +921,7 @@ _CHOICE_FIELDS: dict[str, tuple[str, str]] = {
     "watershed_mode": ("watershed", "mode"),
     "workshop_economics_mode": ("workshop_economics", "mode"),
     "workshop_economics_rules": ("workshop_economics", "rules"),
+    "infrastructure_condition_mode": ("infrastructure_condition", "mode"),
     "epidemic_care_mode": ("epidemic_care", "mode"),
     "reform_services_mode": ("reform_services", "mode"),
     "guild_league_mode": ("guild_leagues", "mode"),

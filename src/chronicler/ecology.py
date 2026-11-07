@@ -783,9 +783,10 @@ def _harvest_shock_water(world, region, trend: float) -> float:
 
 
 def _tick_water(region: Region, civ, climate_phase: ClimatePhase, world: WorldState) -> None:
+    from chronicler.infrastructure_condition import serves
     has_irrigation = any(
         i.type == InfrastructureType.IRRIGATION and i.active for i in region.infrastructure
-    )
+    ) and serves(world, region, "irrigation")      # B3: the work serves (True while off)
 
     # Degradation / phase effects (Geography 2.0: scaled by latitude exposure)
     exposure = climate_exposure(region.latitude_band, climate_phase)

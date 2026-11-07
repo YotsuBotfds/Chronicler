@@ -43,6 +43,10 @@ Services (built-in providers; each reuses an existing public API)
     the envelope for ``epidemic_care:<region>`` (``epidemic_care.prepare_phase2``
     reads the open commitments); the commons' stake is the deaths care would
     avert, valued in food units.
+    ``infrastructure_works`` (registered by ``--infrastructure-condition``, group
+    ``repairs``): B3's irrigation works spend only within their own
+    ``infrastructure:<civ>`` envelope, a proposal of their own (never pooled
+    with RS2's); roads carry no relief and are not proposed.
 
 Budget. ``budget = floor(ENVELOPE_SHARE x max(0, projected - FLOOR -
 obligations - committed))``: the projected treasury replays queued ``keep``
@@ -130,6 +134,7 @@ PROVIDERS: tuple[str, ...] = (
     "chronicler.local_budgets:REPAIRS",
     "chronicler.maintenance_obligation:BUDGET_PROVIDER",
     "chronicler.epidemic_care:BUDGET_PROVIDER",
+    "chronicler.infrastructure_condition:BUDGET_PROVIDER",
 )
 
 

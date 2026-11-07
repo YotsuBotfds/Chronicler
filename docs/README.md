@@ -91,6 +91,7 @@ link to these by path, so keep their names stable.
   ([board](superpowers/progress/connected-world.json));
   [screens, seed registry, harm panel and compatibility matrix](integration/connected-world-screens.md);
   [watershed account (B1 record only, B2 flow)](integration/watershed.md);
+  [infrastructure condition and repair (B3)](integration/infrastructure-condition.md);
   [attribution records (D2, observation only: actor, victim and cause; the provenance guard)](integration/attribution-records.md);
   [residence ledger (X1, the displacement contract: home, residence, attachment, displacement spells)](integration/residence-ledger.md).
 - **World generation:** [geography 2.0](integration/geography-2.md),

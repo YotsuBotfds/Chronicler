@@ -55,7 +55,7 @@ function Frame({ frame, source, civName, regionName }: {
   const byRegion = reliefByRegion(frame);
   return <>
     {frame.civs.length === 0 ? <p className="systems-note">No realm held a relief or a fund this turn (recorded zero).</p>
-      : <table className="systems-table" aria-label={`Relief funds at snapshot ${source + 1}`}>
+      : <div className="systems-table-wrap"><table className="systems-table" aria-label={`Relief funds at snapshot ${source + 1}`}>
         <thead><tr><th>Realm</th><th>Paid in from</th><th>Fund at start</th><th>Paid in</th><th>Sunk</th>
           <th>Spent on food</th><th>Returned to treasury</th><th>Fund at end</th><th>Cap</th></tr></thead>
         <tbody>{frame.civs.map((c) => <tr key={c.civ}>
@@ -65,9 +65,9 @@ function Frame({ frame, source, civName, regionName }: {
           <td>{units(c.spent_milli)}{c.residual_milli ? ` (${units(c.residual_milli)} refused by a wealth ceiling, kept)` : ""}</td>
           <td>{units(c.refunded_milli)}</td><td>{units(c.fund_close_milli)}</td><td>{units(c.cap_milli)}</td>
         </tr>)}</tbody>
-      </table>}
+      </table></div>}
     {frame.purchases.length === 0 ? <p className="systems-note">No food was bought this turn (recorded zero).</p>
-      : <table className="systems-table" aria-label={`Relief purchases at snapshot ${source + 1}`}>
+      : <div className="systems-table-wrap"><table className="systems-table" aria-label={`Relief purchases at snapshot ${source + 1}`}>
         <thead><tr><th>Region</th><th>Realm</th><th>Unmet need (rations)</th><th>Ask per ration</th>
           <th>Food bought</th><th>Rations</th><th>Paid to owners</th><th>Sellers</th></tr></thead>
         <tbody>{frame.purchases.map((p) => <tr key={p.region}>
@@ -75,9 +75,9 @@ function Frame({ frame, source, civName, regionName }: {
           <td>{units(p.price_milli)}</td><td>{units(p.food_milli)}</td><td>{show(p.rations)}</td>
           <td>{units(p.credited_milli)}</td><td>{p.sellers}</td>
         </tr>)}</tbody>
-      </table>}
+      </table></div>}
     {frame.deliveries.length === 0 ? <p className="systems-note">No delivery was read this turn: nothing was bought last turn (recorded zero).</p>
-      : <table className="systems-table" aria-label={`Relief deliveries at snapshot ${source + 1}`}>
+      : <div className="systems-table-wrap"><table className="systems-table" aria-label={`Relief deliveries at snapshot ${source + 1}`}>
         <thead><tr><th>Region</th><th>Bought at turn</th><th>Rations bought</th><th>Free pool (given / unallocated)</th>
           <th>Reached people (rations)</th><th>Priced out now</th></tr></thead>
         <tbody>{frame.deliveries.map((d) => <tr key={`${d.region}-${d.bought_turn}`}>
@@ -88,7 +88,7 @@ function Frame({ frame, source, civName, regionName }: {
             : `${show(d.delivered_at_least)} to ${show(d.delivered_at_most)}`}</td>
           <td>{show(d.priced_out_persons, 0)}</td>
         </tr>)}</tbody>
-      </table>}
+      </table></div>}
     {byRegion.length > 0 ? <p className="systems-note">By region: {byRegion.map((r) =>
       `${regionName(r.region)} bought ${show(r.bought)} rations${r.atMost === null ? "" : `, delivered at most ${show(r.atMost)}`}${r.atLeast === null ? "" : `, at least ${show(r.atLeast)}`}`).join("; ")}.
       Recipients are not named: relief food is pooled with the commons.</p> : null}

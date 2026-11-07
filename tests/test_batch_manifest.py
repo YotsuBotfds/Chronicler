@@ -145,6 +145,7 @@ def test_the_manifest_records_the_cohort_and_identity(batch_42):
                                                            "watershed", "watershed_mode",
                                                            "quarantine_mode", "workshop_economics", "workshop_economics_mode",
                                                            "workshop_economics_rules", "titled_trade",
+                                                           "infrastructure_condition", "infrastructure_condition_mode",
                                                            "epidemic_care", "epidemic_care_mode",
                                                            "reform_services", "reform_services_mode", "guild_leagues", "guild_league_mode",
                                                            "residence_ledger", "attribution_records",

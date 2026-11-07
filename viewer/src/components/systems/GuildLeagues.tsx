@@ -64,7 +64,7 @@ function Frame({ frame, source, city, realm }: {
   const cityOf = (id: number) => regionOf.has(id) ? city(id, regionOf.get(id)!) : `city ${id}`;
   return <>
     {frame.leagues.length === 0 ? <p className="systems-note">No league this turn (recorded zero).</p>
-      : <table className="systems-table" aria-label={`Guild leagues at snapshot ${source + 1}`}>
+      : <div className="systems-table-wrap"><table className="systems-table" aria-label={`Guild leagues at snapshot ${source + 1}`}>
         <thead><tr><th>League</th><th>Members (realm)</th><th>Fund at start</th><th>Dues in</th><th>Claims paid</th>
           <th>Returned</th><th>Fund at end</th><th>Cap</th></tr></thead>
         <tbody>{frame.leagues.map((l) => <tr key={l.league}>
@@ -74,15 +74,15 @@ function Frame({ frame, source, city, realm }: {
           <td>{units(l.returned_milli)}{l.unclaimed_milli ? ` (+${units(l.unclaimed_milli)} unclaimed)` : ""}</td>
           <td>{units(l.fund_close_milli)}</td><td>{units(l.cap_milli)}</td>
         </tr>)}</tbody>
-      </table>}
+      </table></div>}
     {frame.payouts.length === 0 ? <p className="systems-note">No member's loss was recorded this turn: no claim (recorded zero).</p>
-      : <table className="systems-table" aria-label={`League claims at snapshot ${source + 1}`}>
+      : <div className="systems-table-wrap"><table className="systems-table" aria-label={`League claims at snapshot ${source + 1}`}>
         <thead><tr><th>League</th><th>City</th><th>Recorded loss</th><th>Loss</th><th>Paid to the city's purse</th><th>Event</th></tr></thead>
         <tbody>{frame.payouts.map((p) => <tr key={`${p.league}-${p.city}-${p.kind}`}>
           <td>{p.league}</td><td>{cityOf(p.city)}</td><td>{CLAIM[p.kind]}</td><td>{units(p.loss_milli)}</td>
           <td>{units(p.paid_milli)}</td><td>{p.event_id || "Unknown"}</td>
         </tr>)}</tbody>
-      </table>}
+      </table></div>}
     {frame.changes.length > 0 ? <ul className="systems-list" aria-label={`League changes at snapshot ${source + 1}`}>
       {frame.changes.map((c, i) => <li key={i}>{change(c, cityOf)}</li>)}</ul> : null}
     <p className="systems-note">{frame.dues.length} member{frame.dues.length === 1 ? "" : "s"} paid dues this turn; {frame.candidates} candidate pairs; {frame.links} links held.</p>
