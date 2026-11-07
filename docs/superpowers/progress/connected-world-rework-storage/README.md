@@ -15,9 +15,14 @@ is added. The unchanged default writer still emits ordinary version-6 JSON.
 gzip stream with fixed time and no embedded filename, then decompresses it and
 compares the complete bytes against the unchanged source before publication.
 Same-directory hard-link publication refuses a destination created concurrently
-instead of overwriting it. Source changes, compression errors and truncated or
-corrupt archives are explicit failures. Temporary files are removed. Existing
-outputs and originals are never replaced or deleted.
+instead of overwriting it. Archive only finalized source files: the final
+stat/hash check detects source changes through validation, but does not lock
+out a writer that changes the original afterward. Compression errors and
+truncated or corrupt archives fail validation. Temporary files are removed.
+A directory-fsync failure after publication raises while leaving the complete
+verified archive at its destination; an exception does not always mean the
+destination is absent. Existing outputs and originals are never replaced or
+deleted.
 
 This is transport verification, not a claim that a malformed history patch or
 scientific model became valid. `load_bundle` recognizes gzip by magic bytes and
