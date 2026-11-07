@@ -25,6 +25,10 @@ def _bundle(mode="active", policy="evidence"):
                            "sanitation_observed": False, "water_service": 0, "displaced_share": 0,
                            "crowding_factor": 1, "flux_factor": 1}], "supply_turn": 0, "supplies": [],
           "guard_turn": 0, "guards": [], "guard_capacity_turn": 0, "guard_capacity": [], "totals": {}}
+    ph.update(funding_turn=0, funding=[{"turn": 0, "civ": 0, "envelope_milli": 4000,
+        "care_paid_milli": 0, "care_cash_milli": 0, "care_carry_before": 0, "care_carry_after": 0,
+        "supply_cash_milli": 0, "guard_paid_milli": 0, "guard_cash_milli": 0,
+        "guard_carry_before": 0, "guard_carry_after": 0}])
     care = {"schema_version": 1, "source_turn": 0, "mode": "care" if mode == "active" else "cost_only",
             "tick": {"turn": 0, "refused": [], "regions": [{"region": 0, "deaths": 2,
                      "infectious_pt": 20, "pathogens": [[0, 2, 20]]}], "applied": []}, "frame": [],
@@ -83,7 +87,10 @@ def test_material_paid_guard_and_single_envelope_closure(CW):
     care["frame"] = [{"turn": 0, "civ": 0, "wages_paid_milli": 500, "farm_time_removed": 1,
                       "carers": [{"income_withheld": .2}]}]
     ph["totals"] = {"food_consumed_milli": 1000, "gross_supplies_milli": 1000, "internal_supplies_milli": 1000,
-                     "guard_farm_time": 1, "guard_wages_milli": 500, "guard_income_withheld": .3}
+                     "guard_farm_time": 1, "guard_wages_milli": 500, "guard_income_withheld": .3,
+                     "care_cash_milli": 1000, "guard_cash_milli": 1000}
+    ph["funding"][0].update(care_paid_milli=500, care_cash_milli=1000, care_carry_after=500,
+                            guard_paid_milli=500, guard_cash_milli=1000, guard_carry_after=500)
     m, problems = CW.extract(b, ())
     assert problems == []
     assert m["guard_paid_milli"] == 500 and m["supplies_cash_milli"] == 0 and m["supplies_internal_milli"] == 1000
@@ -101,6 +108,8 @@ def test_material_paid_guard_and_single_envelope_closure(CW):
     (lambda b: b["history"].append(deepcopy(b["history"][0])), "duplicate"),
     (lambda b: _ph(b)["environment"][0].__setitem__("crowding_factor", 1.5), "crowding"),
     (lambda b: _ph(b)["totals"].__setitem__("food_consumed_milli", 100), "receipt sum"),
+    (lambda b: _ph(b)["funding"][0].__setitem__("care_carry_after", 500), "cash + carry"),
+    (lambda b: _ph(b).__setitem__("funding_turn", -1), "cash funding"),
 ])
 def test_invalid_records_fail_visibly(CW, mutation, reason):
     b = _bundle()
@@ -164,3 +173,28 @@ def test_valid_uncontrolled_arrival_is_recorded_outside_primary(CW):
     b["events_timeline"].append({"event_type": "epidemic_arrival", "turn": 0, "actors": []})
     m, problems = CW.extract(b, ())
     assert problems == [] and m["arrivals_world"] == 1
+
+
+def test_one_coin_cannot_prefund_two_wages_despite_retained_value_fitting(CW):
+    b = _bundle()
+    ph, care = _ph(b), _care(b)
+    care["ledger"][0]["envelope_coins"] = 1
+    care["frame"] = [{"turn": 0, "civ": 0, "wages_paid_milli": 250, "farm_time_removed": .5,
+                      "carers": [{"income_withheld": .1}]}]
+    ph["guards"] = [{"turn": 0, "civ": 0, "target": 1, "work": 1, "staffed": True, "payment": "paid",
+                     "members": [{"wage_due_milli": 500, "wage_paid_milli": 500, "income_withheld": .3}]}]
+    ph["guard_capacity"] = [[0, 1]]
+    ph["funding"][0].update(envelope_milli=1000, care_paid_milli=250, care_cash_milli=1000,
+                            care_carry_after=750, guard_paid_milli=500, guard_cash_milli=1000, guard_carry_after=500)
+    ph["totals"].update(care_cash_milli=1000, guard_cash_milli=1000, guard_farm_time=1,
+                        guard_wages_milli=500, guard_income_withheld=.3)
+    m, problems = CW.extract(b, ())
+    assert m["care_paid_milli"] + m["guard_paid_milli"] == 750
+    assert m["health_cash_milli"] == 2000
+    assert any("fresh health cash funding exceeds" in p for p in problems)
+    # Existing prepaid carries can fund these exact credits within the same
+    # value envelope, with no fresh cash and no invented transfer between purposes.
+    ph["funding"][0].update(care_cash_milli=0, care_carry_before=250, care_carry_after=0,
+                            guard_cash_milli=0, guard_carry_before=500, guard_carry_after=0)
+    ph["totals"].update(care_cash_milli=0, guard_cash_milli=0)
+    assert CW.extract(b, ())[1] == []

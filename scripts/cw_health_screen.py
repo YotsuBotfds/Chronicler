@@ -56,9 +56,12 @@ def extract(bundle: dict, flags) -> tuple[dict, list[str]]:
                       "supplies_cash_milli", "supplies_internal_milli", "l9_envelope_milli", "decisions",
                       "advised_closures", "unfunded_guard_teams", "migrants_blocked", "flight_blocked",
                       "hunger_blocked", "dearth_region_turns", "famine_region_turns"), 0)
+    m.update(dict.fromkeys(("care_cash_milli", "supply_cash_milli", "guard_cash_milli", "health_cash_milli",
+                           "care_carry_change_milli", "guard_carry_change_milli"), 0))
     seen_turns = set()
     sums = dict.fromkeys(("food_consumed_milli", "gross_supplies_milli", "internal_supplies_milli",
-                          "guard_farm_time", "guard_wages_milli", "guard_income_withheld"), 0)
+                          "guard_farm_time", "guard_wages_milli", "guard_income_withheld", "care_cash_milli",
+                          "supply_cash_milli", "guard_cash_milli"), 0)
     last_epi = last_ph = last_rules = None
 
     def integer(x):
@@ -147,7 +150,7 @@ def extract(bundle: dict, flags) -> tuple[dict, list[str]]:
                 problems.append(f"{where}: care used stale or future capacity")
             if mode == "cost_only" and row.get("care_factor") != 1:
                 problems.append(f"{where}: cost_only applies a care benefit")
-        budgets, spent = {}, {}
+        budgets, spent, care_paid, guard_paid, supply_cash = {}, {}, {}, {}, {}
         for row in rows(care, "ledger", where):
             if row.get("turn") != turn or not integer(row.get("civ")):
                 problems.append(f"{where}: care envelope missing payer or source date")
@@ -158,6 +161,7 @@ def extract(bundle: dict, flags) -> tuple[dict, list[str]]:
                 problems.append(f"{where}: care receipt misdated")
             paid = amount(row, "wages_paid_milli", where)
             spent[row.get("civ")] = spent.get(row.get("civ"), 0) + paid
+            care_paid[row.get("civ")] = care_paid.get(row.get("civ"), 0) + paid
             m["care_paid_milli"] += paid
             m["care_farm_time"] += amount(row, "farm_time_removed", where)
             for carer in rows(row, "carers", where):
@@ -227,6 +231,7 @@ def extract(bundle: dict, flags) -> tuple[dict, list[str]]:
             spent[row.get("civ")] = spent.get(row.get("civ"), 0) + cash + internal
             m["food_consumed_milli"] += food
             m["supplies_cash_milli"] += cash
+            supply_cash[row.get("civ")] = supply_cash.get(row.get("civ"), 0) + cash
             m["supplies_internal_milli"] += internal
             sums["food_consumed_milli"] += food
             sums["gross_supplies_milli"] += cash + internal
@@ -248,6 +253,7 @@ def extract(bundle: dict, flags) -> tuple[dict, list[str]]:
                 sums["guard_income_withheld"] += withheld
                 m["guard_income_withheld"] += withheld
             spent[row.get("civ")] = spent.get(row.get("civ"), 0) + paid
+            guard_paid[row.get("civ")] = guard_paid.get(row.get("civ"), 0) + paid
             m["guard_paid_milli"] += paid
             sums["guard_wages_milli"] += paid
             m["guard_staffed_pair_turns"] += row.get("staffed") is True
@@ -267,6 +273,45 @@ def extract(bundle: dict, flags) -> tuple[dict, list[str]]:
             if value > budgets.get(civ, 0):
                 problems.append(f"{where}: care + supply + guard gross cost {value} exceeds civ {civ} envelope "
                                 f"{budgets.get(civ, 0)}")
+        if ph.get("funding_turn") != turn:
+            problems.append(f"{where}: cash funding missing or misdated")
+        funding_civs = set()
+        for row in rows(ph, "funding", where):
+            civ = row.get("civ")
+            if row.get("turn") != turn or not integer(civ) or civ >= len(civ_names) or civ in funding_civs:
+                problems.append(f"{where}: cash funding has invalid or duplicate payer/date")
+            if integer(civ):
+                funding_civs.add(civ)
+            envelope = amount(row, "envelope_milli", where)
+            if envelope != budgets.get(civ, 0):
+                problems.append(f"{where}: cash funding envelope differs from single L9 care envelope")
+            cash = 0
+            for purpose in ("care", "guard"):
+                paid = amount(row, f"{purpose}_paid_milli", where)
+                charged = amount(row, f"{purpose}_cash_milli", where)
+                before = amount(row, f"{purpose}_carry_before", where)
+                after = amount(row, f"{purpose}_carry_after", where)
+                if not all(integer(v) for v in (paid, charged, before, after)) or charged % 1000 \
+                        or before >= 1000 or after >= 1000 or charged + before != paid + after:
+                    problems.append(f"{where}: {purpose} cash + carry before != credited + carry after")
+                expected = care_paid.get(civ, 0) if purpose == "care" else guard_paid.get(civ, 0)
+                if paid != expected:
+                    problems.append(f"{where}: {purpose} funding credits differ from named wage receipts")
+                cash += charged
+                m[f"{purpose}_cash_milli"] += charged
+                m[f"{purpose}_carry_change_milli"] += after - before
+                sums[f"{purpose}_cash_milli"] += charged
+            charged = amount(row, "supply_cash_milli", where)
+            if charged % 1000 or charged != supply_cash.get(civ, 0):
+                problems.append(f"{where}: patient cash funding differs from actual foreign receipts")
+            cash += charged
+            m["supply_cash_milli"] += charged
+            sums["supply_cash_milli"] += charged
+            m["health_cash_milli"] += cash
+            if cash > envelope:
+                problems.append(f"{where}: fresh health cash funding exceeds its single L9 envelope")
+        if funding_civs != set(budgets):
+            problems.append(f"{where}: cash funding does not cover exactly the executed care envelopes")
         m["l9_envelope_milli"] += sum(budgets.values())
         rules = epi.get("quarantine_rules")
         if not isinstance(rules, dict) or rules.get("mode") != "closure" or rules.get("channels") != "trade,migration":
@@ -377,6 +422,9 @@ SCREEN = SR.Screen(
                   ("guard_income_withheld", "Ordinary guard income withheld"),
                   ("care_farm_time", "Carer farm time removed"), ("guard_farm_time", "Guard farm time removed"),
                   ("l9_envelope_milli", "Gross single care/public-health envelopes (milli-units)"),
+                  ("health_cash_milli", "Actual whole-coin health cash funding (milli-units)"),
+                  ("care_carry_change_milli", "Change in prepaid care wage carry (milli-units)"),
+                  ("guard_carry_change_milli", "Change in prepaid guard wage carry (milli-units)"),
                   ("famine_region_turns", "Region-turns below 0.6 food sufficiency"),
                   ("migrants_blocked", "Refused civilian migration person-turns"),
                   ("flight_blocked", "Refused flight person-turns"), ("hunger_blocked", "Refused hunger moves"),
