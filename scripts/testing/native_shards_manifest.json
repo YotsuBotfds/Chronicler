@@ -44,6 +44,7 @@
       "tests/test_cw1_screen.py",
       "tests/test_cw3_screen.py",
       "tests/test_cw4_screen.py",
+      "tests/test_cw5c_screen.py",
       "tests/test_decision_delivery_adapter.py",
       "tests/test_deeds.py",
       "tests/test_demand_signals.py",

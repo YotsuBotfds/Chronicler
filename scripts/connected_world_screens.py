@@ -1495,7 +1495,12 @@ def cw5c_extract(bundle: dict, flags) -> tuple[dict, list[str]]:
     # --- hunger and stability (every arm) ---------------------------------------------
     dearth = famine = 0
     stab, stab_n = 0.0, 0
+    unrest, unrest_n = 0.0, 0
     for w, snap in sorted(snaps.items()):
+        for city in (SR._get(snap, ("cities", "cities")) or []):
+            if isinstance(city, dict) and SR._num(city.get("unrest")):
+                unrest += city["unrest"]
+                unrest_n += 1
         fa = snap.get("food_accounting")
         if isinstance(fa, dict) and fa.get("source_turn") == w and isinstance(fa.get("regions"), list):
             for row in fa["regions"]:
@@ -1510,6 +1515,7 @@ def cw5c_extract(bundle: dict, flags) -> tuple[dict, list[str]]:
     m["dearth_region_turns"] = dearth
     m["famine_region_turns"] = famine
     m["stability_mean"] = stab / stab_n if stab_n else None
+    m["city_unrest_mean"] = unrest / unrest_n if unrest_n else None
     # --- L9 envelopes by service (every arm: displacement within the one budget) -------
     care_coins = other_coins = 0
     awarded: dict[str, int] = {}
@@ -1660,6 +1666,9 @@ def _cw5c_outcomes() -> tuple[SR.Outcome, ...]:
         SR.Outcome("cw5c_h_stability", "Mean civ stability over civ-turns (EC - E0)", "EC", "E0", _m("stability_mean")),
         SR.Outcome("cw5c_h_stability_care", "Mean civ stability over civ-turns (EF - EC)", "EF", "EC",
                    _m("stability_mean")),
+        SR.Outcome("cw5c_h_unrest", "Mean city unrest over city-turns (EC - E0)", "EC", "E0", _m("city_unrest_mean")),
+        SR.Outcome("cw5c_h_unrest_care", "Mean city unrest over city-turns (EF - EC)", "EF", "EC",
+                   _m("city_unrest_mean")),
         SR.Outcome("cw5c_h_population", "Population at the end (EF - EC)", "EF", "EC", h("population")),
         SR.Outcome("cw5c_h_population_cost", "Population at the end (EC - E0)", "EC", "E0", h("population")),
         SR.Outcome("cw5c_h_migration", "Agents moving between regions over the run (EF - EC)", "EF", "EC",
