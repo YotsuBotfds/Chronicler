@@ -1,0 +1,189 @@
+{
+ "source": "development run of the C2 branch: template world, seed 42, 60 turns, --agents hybrid --grain-reserves --local-budgets --epidemic-care",
+ "regions": [
+  "Frostholm Tundra",
+  "Iron Peaks",
+  "Verdant Plains",
+  "Ashara Desert",
+  "Thornwood",
+  "Amber Valley",
+  "Stormbreak Cliffs",
+  "Obsidian Shore"
+ ],
+ "civilizations": [
+  "Ashkari Nomads",
+  "Kethani Empire",
+  "Thornwall Confederacy",
+  "Selurian Republic"
+ ],
+ "recorded": {
+  "turn": 37,
+  "record": {
+   "schema_version": 1,
+   "stage": "C2",
+   "mode": "care",
+   "source_turn": 36,
+   "units": {
+    "money": "milli_treasury_units",
+    "care": "worker_turns",
+    "patients": "people",
+    "milli": 1000
+   },
+   "tick": {
+    "turn": 36,
+    "applied": [
+     {
+      "region": 2,
+      "source_turn": 35,
+      "patients": 7.546810507774353,
+      "infectious": 7.546810686000001,
+      "coverage": 0.999999976383978,
+      "care_factor": 0.7000000070848067,
+      "would_be": 0.7000000070848067,
+      "techniques_factor": 1.0,
+      "combined_factor": 0.7000000070848067,
+      "floored": false,
+      "deaths": 1,
+      "cases": 32.019085,
+      "infectious_after": 7.387190416
+     },
+     {
+      "region": 5,
+      "source_turn": 35,
+      "patients": 3.8280004262924194,
+      "infectious": 3.828000546,
+      "coverage": 0.9999999687284317,
+      "care_factor": 0.7000000093814704,
+      "would_be": 0.7000000093814704,
+      "techniques_factor": 1.0,
+      "combined_factor": 0.7000000093814704,
+      "floored": false,
+      "deaths": 0,
+      "cases": 2.089047,
+      "infectious_after": 1.18270019
+     }
+    ],
+    "refused": []
+   },
+   "frame": [
+    {
+     "turn": 36,
+     "region": 5,
+     "civ": 1,
+     "commitment": 8,
+     "envelope": 1,
+     "infectious": 1.18270019,
+     "need": 0.236540038,
+     "eligible": 8,
+     "carers": [
+      {
+       "agent_id": 95,
+       "origin": "rural_farmer",
+       "share": 0.2365400344133377,
+       "wage_due_milli": 118,
+       "wage_paid_milli": 118,
+       "wage_residual_milli": 0,
+       "income_withheld": 0.03177385777235031
+      }
+     ],
+     "care_time": 0.2365400344133377,
+     "patients": 1.1827001720666885,
+     "wages_due_milli": 118,
+     "wages_paid_milli": 118,
+     "wage_residual_milli": 0,
+     "farm_time_removed": 0.2365400344133377,
+     "limit": "need_met",
+     "paid": true
+    }
+   ],
+   "ledger": [
+    {
+     "turn": 36,
+     "civ": 1,
+     "due_milli": 118,
+     "paid_milli": 118,
+     "residual_milli": 0,
+     "treasury_units": 1,
+     "carry_before": 29,
+     "carry_after": 911,
+     "status": "paid"
+    }
+   ],
+   "capacity": [
+    {
+     "region": 5,
+     "source_turn": 36,
+     "carers": 1,
+     "care_time": 0.2365400344133377,
+     "patients": 1.1827001720666885
+    }
+   ],
+   "rows_dropped": 0,
+   "counters": {
+    "ticks_observed": 37,
+    "covered_region_turns": 6,
+    "capacity_applied": 6,
+    "frames": 37,
+    "envelopes": 7,
+    "carer_turns": 8,
+    "care_time": 4.042032,
+    "patients": 20.210162,
+    "farm_time_removed": 4.042032,
+    "wages_due_milli": 2016,
+    "wages_paid_milli": 2016,
+    "wage_residual_milli": 0,
+    "treasury_units": 4,
+    "income_withheld": 0.200218,
+    "limit_need_met": 7
+   },
+   "parameters": {
+    "care_cfr_reduction": 0.3,
+    "patients_per_carer": 5.0,
+    "wage_milli": 500,
+    "cfr_floor": 0.5,
+    "min_share": 0.001,
+    "care_wage_batch": 794624,
+    "registry_category": 3,
+    "max_frame_rows": 256
+   }
+  }
+ },
+ "recorded_zero": {
+  "turn": 1,
+  "record": {
+   "schema_version": 1,
+   "stage": "C2",
+   "mode": "care",
+   "source_turn": 0,
+   "units": {
+    "money": "milli_treasury_units",
+    "care": "worker_turns",
+    "patients": "people",
+    "milli": 1000
+   },
+   "tick": {
+    "turn": 0,
+    "applied": [],
+    "refused": []
+   },
+   "frame": [],
+   "ledger": [],
+   "capacity": [],
+   "rows_dropped": 0,
+   "counters": {
+    "ticks_observed": 1,
+    "frames": 1
+   },
+   "parameters": {
+    "care_cfr_reduction": 0.3,
+    "patients_per_carer": 5.0,
+    "wage_milli": 500,
+    "cfr_floor": 0.5,
+    "min_share": 0.001,
+    "care_wage_batch": 794624,
+    "registry_category": 3,
+    "max_frame_rows": 256
+   }
+  }
+ }
+}
