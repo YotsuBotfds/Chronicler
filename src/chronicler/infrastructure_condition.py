@@ -248,7 +248,7 @@ def service(world, region, kind: str) -> float:
     rid = _index(world, region)
     best = None
     for a in state.assets:
-        if a.region == rid and a.kind == kind and a.status in ("serving", "failed"):
+        if a.region == rid and a.kind == kind and a.status in ("serving", "failed") and _in_service(world, a):
             s = service_of(a.condition)
             best = s if best is None else max(best, s)
     return 1.0 if best is None else best

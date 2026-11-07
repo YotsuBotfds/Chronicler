@@ -194,6 +194,22 @@ def test_mid_turn_damage_skips_a_record_ended_earlier_in_the_turn_and_phase10_da
     assert (ended.aid, ended.status, ended.cause) == (1, "inactive", "earthquake")
 
 
+def test_service_never_uses_a_deactivated_or_replaced_record_before_reconciliation():
+    world = _world(mode="wear_only", rs2=False)
+    IC.reconcile(world)
+    old = _asset(world, 0, "irrigation")
+    old.condition = 0.1
+    assert IC.service(world, 0, "irrigation") == pytest.approx(0.2)
+    world.regions[0].infrastructure[0].active = False
+    assert IC.service(world, 0, "irrigation") == 1.0
+    # A replacement starts full; an old failed asset cannot lend it its condition.
+    world.regions[0].infrastructure[0] = Infrastructure(type=IRR, builder_civ="new", built_turn=world.turn)
+    assert IC.service(world, 0, "irrigation") == 1.0
+    IC.reconcile(world)
+    assert IC.service(world, 0, "irrigation") == 1.0
+    assert _asset(world, 0, "irrigation").aid != old.aid
+
+
 def test_a_removed_record_list_destroys_and_a_rebuild_gets_a_new_id():
     world = _world(mode="wear_only", rs2=False)
     IC.reconcile(world)
