@@ -57,6 +57,10 @@ def _requisition(region: "Region", factor: float, world=None, *, cause: str | No
         # region's owned stock, once per call (a no-op unless active in v2).
         from chronicler.household_retail import on_war_loss
         on_war_loss(world, region, factor, cause=cause, actor=actor)
+        # --attribution-records (D2): the commons, granary and owned-stock
+        # losses of this event with actor and victim (a no-op unless active).
+        from chronicler.attribution_records import note_requisition
+        note_requisition(world, region, factor, cause, actor)
 
 
 def start_occupation(ctx: WarContext, region: "Region", occupier: "Civilization",
@@ -78,6 +82,10 @@ def start_occupation(ctx: WarContext, region: "Region", occupier: "Civilization"
     plunder = region.population // 10
     if plunder:
         add_stat(ctx, occupier, "treasury", plunder, "keep")
+    if getattr(world, "livelihoods", None) is not None:
+        # --attribution-records (D2): the plunder, minted (a no-op unless active).
+        from chronicler.attribution_records import note_plunder
+        note_plunder(world, region, occupier, owner_name, plunder)
     is_capital = owner is not None and owner.capital_region == region.name
     if owner is not None and is_capital:
         from chronicler.emergence import get_severity_multiplier
@@ -205,12 +213,17 @@ def tick_occupations(ctx: WarContext) -> None:
         delta -= min(P.UNREST_GARRISON_CAP, soldiers * P.UNREST_PER_SOLDIER)
         occ.unrest = max(0, min(1000, occ.unrest + delta))
         # Economic effects: lost taxes, requisitions, stability.
-        spend(ctx, owner, P.OCC_TAX_LOSS)
+        tax_lost = spend(ctx, owner, P.OCC_TAX_LOSS)
         add_stat(ctx, occupier, "treasury", P.OCC_REQUISITION, "keep")
+        if getattr(world, "livelihoods", None) is not None:
+            # --attribution-records (D2): this occupied turn's costs, observed
+            # (a no-op unless active).
+            from chronicler.attribution_records import note_occupation_turn
+            note_occupation_turn(world, occ, owner, occupier, tax_lost, P.OCC_REQUISITION)
         add_stat(ctx, owner, "stability", -max(1, int(get_severity_multiplier(owner, world))), "signal")
         owner.war_weariness += P.OCCUPATION_WEARINESS
         if occ.unrest >= P.UNREST_DEPOPULATION and region.population > 2:
-            drain_population(ctx, [region.name], max(1, region.population // 100))
+            drain_population(ctx, [region.name], max(1, region.population // 100), actor=occupier)
         # Resistance.
         if occ.unrest >= revolt_threshold:
             rng = war_rng(ctx, "revolt", occ.region)
@@ -258,7 +271,7 @@ def _revolt(ctx: WarContext, occ, region, owner, occupier, garrison, rng) -> Non
         name_event(ctx, title, "uprising", [owner.name, occupier.name], region.name,
                    f"The people of {region.name} rise against {occupier.name}", 6)
     else:
-        killed = drain_population(ctx, [region.name], partisans)
+        killed = drain_population(ctx, [region.name], partisans, actor=occupier)
         occ.unrest = max(0, occ.unrest - 300)
         for army in garrison:
             apply_casualties(ctx, army, partisans // (3 * len(garrison)), cause="revolt")

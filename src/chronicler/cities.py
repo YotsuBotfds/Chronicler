@@ -635,6 +635,10 @@ def _sack(t: _Tick, city: City, region, sacker_idx: int, cause: str | None, *,
         from chronicler.repair_projects import city_sacked
         city_sacked(world, city.settlement_id, city.region, sacker.name if sacker else None,
                     victim.name if victim else None)
+        # --attribution-records (D2): the plunder paid and the loot no one
+        # receives (a no-op unless active).
+        from chronicler.attribution_records import note_city_sack
+        note_city_sack(world, city, sacker_idx, victim_idx, loot, paid)
 
 
 def _update_rank(t: _Tick, city: City, region, residents: int, k: float) -> None:
@@ -698,6 +702,11 @@ def _commerce(t: _Tick, city: City, region, food: float, k: float) -> None:
     commerce = base * access * food * (OCCUPIED_COMMERCE if _occupied(region) else 1.0)
     dues = commerce * share if city.lord >= 0 else 0.0
     _owe(t, city.lord, dues)
+    if getattr(t.world, "livelihoods", None) is not None:
+        # --attribution-records (D2): the dues and a levy's part, observed
+        # (a no-op unless active).
+        from chronicler.attribution_records import note_city_dues
+        note_city_dues(t.world, city, commerce, share, dues, guild)
     city.commerce = _q(commerce)
     if guild is None:
         city.wealth = _q(city.wealth * (1.0 - WEALTH_DECAY) + commerce - dues)
