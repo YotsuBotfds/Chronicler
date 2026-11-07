@@ -695,6 +695,26 @@ def rollback_phase2(world) -> None:
         state._turn = None
 
 
+def farm_time(world, turn: int) -> dict[int, float]:
+    """Current full care plan's actual farm removal, by stable person ID.
+
+    Removal occurred in prepare_phase2, independent of wage payment or food
+    delivery. Carer.share already includes the urban/partial farm limit. The
+    uncapped in-flight plan is authoritative until Phase 10 drops it; a public
+    frame can be truncated and must not substitute for this economic input.
+    """
+    state = _state(world)
+    pending = getattr(state, "_turn", None)
+    if state is None or not state.enabled or turn != world.turn or pending is None \
+            or pending.turn != turn or not pending.prepared:
+        return {}
+    removed = {}
+    for row in pending.receipts:
+        for person in row.carers:
+            removed[person.agent_id] = removed.get(person.agent_id, 0.0) + person.share
+    return removed
+
+
 def rollback_agent_tick(world, agent_bridge) -> None:
     """A failed agent tick: release the paid share still pending natively."""
     state = _state(world)

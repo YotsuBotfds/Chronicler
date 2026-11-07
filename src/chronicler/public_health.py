@@ -602,6 +602,24 @@ def after_agent_tick(world, agent_bridge):
     return []
 
 
+def farm_time(world, turn: int) -> dict[int, float]:
+    """Current named guard plan's full prepared farm removal, by stable ID.
+
+    Guard member.share is the urban/partial farm-equivalent work actually
+    removed from farm_labor_factor. Refused or ceiling-limited payment does
+    not restore that lost farm time. No capped or historical frame is read.
+    """
+    state = _state(world)
+    if state is None or not state.enabled or turn != world.turn or state.guard_turn != turn:
+        return {}
+    removed = {}
+    for row in state.guards:
+        for person in row["members"]:
+            aid = person["agent_id"]
+            removed[aid] = removed.get(aid, 0.0) + person["share"]
+    return removed
+
+
 def rollback_phase2(world):
     state = _state(world)
     if state is not None:
