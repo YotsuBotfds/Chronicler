@@ -187,17 +187,42 @@ def extract(bundle, flags):
             problems.append(f"A6 information control differs at {turn}")
         m["a6_input_rows"] += finite(af.get("rows_installed"), "A6 installed rows")
         m["dropped_a6_rows"] += finite(af.get("rows_dropped", 0), "A6 dropped rows")
+        score_rows = af.get("rows")
+        if not isinstance(score_rows, list) or not all(isinstance(row, (list, tuple)) and len(row) == 3
+                and type(row[0]) is int and row[0] >= 0 and type(row[1]) is int and 0 <= row[1] < nregions
+                and SR._num(row[2]) and abs(row[2]) <= .30 for row in score_rows):
+            problems.append(f"A6 signed score sample malformed at {turn}")
+            score_rows = []
+        if len(score_rows) + finite(af.get("rows_dropped"), "A6 score dropped") != af.get("rows_total"):
+            problems.append(f"A6 score sample/total does not close at {turn}")
+        if af.get("rows_installed") != (0 if a6_mode == "record_only" else af.get("rows_total")):
+            problems.append(f"A6 installed score count differs from control at {turn}")
+        information = af.get("known_destinations")
+        if not isinstance(information, list) or not all(isinstance(row, (list, tuple)) and len(row) == 3
+                and type(row[0]) is int and row[0] >= 0 and type(row[1]) is int and 0 <= row[1] < nregions
+                and type(row[2]) is int and 0 < row[2] <= 7 for row in information):
+            problems.append(f"A6 information provenance sample malformed at {turn}")
         receipt = af.get("receipt")
         if not isinstance(receipt, (list, tuple)) or len(receipt) != 4 or receipt[0] != turn:
             problems.append(f"A6 native receipt absent or misdated at {turn}")
         else:
             m["a6_changed"] += finite(receipt[3], "A6 changed")
+            if a6_mode == "record_only" and (receipt[2] != 0 or receipt[3] != 0):
+                problems.append(f"A6 record_only native score altered choices at {turn}")
         m["a6_refusals"] += finite(af.get("refusals_total", 0), "A6 refusal total")
         for refusal in rows(af, "refusals", "A6"):
             key = (refusal.get("id"), refusal.get("region"))
             m["a6_repeated_refusals"] += key in past_refused
             past_refused.add(key)
         for work in rows(af, "work", "A6"):
+            components = [work.get(key) for key in ("paid_milli", "withheld_milli", "title_forgone_milli")]
+            if work.get("turn") != turn or not all(value is None or (type(value) is int and value >= 0) for value in components):
+                problems.append(f"A6 personal work receipt malformed or misdated at {turn}")
+            elif all(value is not None for value in components):
+                if work.get("net_milli") != components[0] - components[1] - components[2]:
+                    problems.append(f"A6 personal work net does not close at {turn}")
+            elif work.get("net_milli") is not None:
+                problems.append(f"A6 unknown personal cost was treated as known at {turn}")
             m["a6_work_observed"] += work.get("net_milli") is not None
             m["a6_work_unknown"] += work.get("net_milli") is None
         m["dropped_work_rows"] += finite(af.get("work_dropped"), "A6 dropped work")
