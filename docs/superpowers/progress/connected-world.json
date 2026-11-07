@@ -653,7 +653,7 @@
       "verification": "Independent actual source/native/inverse/evidence/test-contract reviews; all nine premerge Tests success; tree equals reviewed head; all nine exact main Tests success."
     }
   ],
-  "next": "Continue only the existing frozen CWR1 run and identity; audit all 144 cases after closure; lead records registry once; finalize results and independent whole-PR review; require green reviewed-head Tests, merge authorized PR and verify exact main CI.",
+  "next": "Finalize the complete CWR1 results and limitations, independent whole-PR/result delta review, green Tests on the final reviewed head, authorized PR merge and exact main CI; then record completed integration through a reviewed documentation PR.",
   "baseline": {
     "oracle_lane": "PASS, 63 chunks, 295.5 s, slowest 32.4 s of 110 s",
     "native_check": "check_python_env --expect native PASS (101a4cd5)",
@@ -845,13 +845,13 @@
     "final_documentation_policy": "The completion-ledger PR changes documentation only; its exact-head premerge and final main Tests are verified separately. The authoritative later ledger result is the GitHub Tests push run for current main HEAD, linked in the completion PR."
   },
   "rework": {
-    "status": "held_running",
+    "status": "held_complete_final_review_and_integration_pending",
     "instruction": "Correctness, causal evaluation and practical performance; no favorable-result target; preserve default-off/restricted gates",
     "base": "2726bf449d0e4d581a72034000ee0861a58ee439",
     "base_main_run": 42397121718,
     "ledger": "docs/superpowers/progress/connected-world-rework.md",
     "branch": "codex/cw-rework",
-    "next": "Continue only the existing frozen CWR1 run and identity; audit all 144 cases after closure; lead records registry once; finalize results and independent whole-PR review; require green reviewed-head Tests, merge authorized PR and verify exact main CI.",
+    "next": "Finalize the complete CWR1 results and limitations, independent whole-PR/result delta review, green Tests on the final reviewed head, authorized PR merge and exact main CI; then record completed integration through a reviewed documentation PR.",
     "correctness": "Explicit rules 3 / density_only independently reviewed and tested; legacy feature and version defaults unchanged. Physical-arrival, downstream real epidemic, native adversarial and control tests pass. Historical CW6 adverse findings remain reproduced; fresh results await held closure.",
     "native": {
       "sha256": "b1d3ea5ac858681960b2cb880c534164905501f6ab4f6f3c94f7c9b5f66196cd",
@@ -868,7 +868,7 @@
       "main_tests": 42417310582
     },
     "held": {
-      "status": "running; treat ALL reserved CWR1 seeds as potentially spent; never start a fresh cohort run",
+      "status": "Completed 144/144 strict-valid; zero failures; independently audited; cohort recorded run once.",
       "source": "b45c1e99572d4d6a60fb01fbd75cb7688aa54e93",
       "started": "2026-11-07T22:41:33Z",
       "identity": "98c7bb2accb18b04e68f0585780ba58f85f03ece77c987d82ff67ceb7d9370a8",
@@ -876,7 +876,17 @@
       "source_ref": "origin/codex/cwr-held-runtime",
       "ledger": "/workspace/cwr-held-runtime/output/held-runs/ledger.jsonl",
       "start_record": "docs/superpowers/progress/connected-world-rework/held/start.json",
-      "registry": "Reserved until one standard mark-run afterclosure; active startledger alreadyconsumes cohort. Do not mark twice. Root owns registry."
+      "registry": "cwr1-held-t/p recorded run, complete144, one standard lead mark-run; content/seed hash unchanged.",
+      "simulation_seconds": 2934.7,
+      "extraction_seconds": 410.1,
+      "budget_corehours": 0.9291111111111111,
+      "cap_corehours": 2.0,
+      "measured_descendant_cpu_seconds": 3352.514769,
+      "registry_record": "docs/superpowers/progress/connected-world-rework/held/registry-record.json",
+      "metrics_sha256": "6c56e3ffa725848c69aecf6f2edfcdf81adb18e5c5f038562e2c9d3c73ace9e0",
+      "report_sha256": "e5d64f1658265a64ed100d158d650d29eed1f0247d77ea980599c3a145eaf2c3",
+      "independent_arithmetic": "PASS all144rows; six rendered primary rows checked",
+      "raw_readback": "PASS24 retainedfirstworldcases/2880snapshots;2096 complete merges,784 capped-unverified;81.560CPU<120"
     },
     "development_schema": {
       "source": "09403c15070ddab4977ae8b2e65c336238468447",
@@ -935,7 +945,7 @@
       },
       "final_runtime": "8792be88dd36ba4d7c22e480de6a19dd64ea1300",
       "final_profile": "1e047e7b6585d2cf13bb990f03f292c1067979c5 (same src/Rust/scripts bytes)",
-      "next": "All implementation gates completed; await unchanged held closure, independent results/whole-PR review and final exact-head/main CI.",
+      "next": "Finalize the complete CWR1 results and limitations, independent whole-PR/result delta review, green Tests on the final reviewed head, authorized PR merge and exact main CI; then record completed integration through a reviewed documentation PR.",
       "enabled_resume": {
         "source": "8792be88dd36ba4d7c22e480de6a19dd64ea1300",
         "branches": 14,
@@ -978,9 +988,9 @@
       "held_started": true
     },
     "code_ci": {
-      "head": "b1b324e39162b0283387694cf3118c4535a30034",
-      "run": 42421910336,
-      "all_nine": "passed; later changes are evidence/docs, final reviewed head must pass separately"
+      "head": "27074bba8adc7701a220c5baabf9a753029b91ee",
+      "run": 42424371808,
+      "all_nine": "passed; final held evidence and reviewed head require separate exact-head checks"
     },
     "preclosure_review": {
       "head": "2fc370565c97ca622be036465fc4b65c0425efcc",
