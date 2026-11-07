@@ -132,3 +132,13 @@ describe("history readers", () => {
     expect(serviceOf(0.8)).toBe(1);
   });
 });
+
+it("reads named wages and both prepaid carries, and refuses an incomplete wage closure",()=>{
+  const s=copy(settledIndex); const r=rec(s);
+  const ledger=(r.ledger as Array<Record<string,number>>)[0];
+  Object.assign(ledger,{charged:1,coin_cost_milli:900,nominal_cost_milli:1000,wages_requested_milli:500,wages_milli:400,wages_refused_milli:100,
+    prepaid_before_milli:0,prepaid_after_milli:0,wage_carry_before_milli:0,wage_carry_after_milli:100,envelope:null});
+  expect(readInfrastructure(s,regions,true).status).toBe("ok");
+  ledger.wage_carry_after_milli=99;
+  expect(readInfrastructure(s,regions,true)).toEqual({status:"malformed",reason:"a ledger row does not close"});
+});

@@ -157,6 +157,16 @@ LIVELIHOODS_CHOICES: dict[str, tuple[str, ...]] = {
     "epidemic_care_mode": ("care", "cost_only"),
     "reform_services_mode": ("service", "cost_only"),
     "guild_league_mode": ("mutual", "dues_only"),
+    "movement_branches_mode": ("funded", "record_only", "cost_only"),
+    "wealth_accounting_mode": ("observe", "strict"),
+    "war_requisition_mode": ('transfer', 'cost_only'),
+    "war_consequences_mode": ('active', 'record_only'),
+    "adaptive_livelihoods_mode": ('adapt', 'record_only', 'shuffled'),
+    "adaptive_livelihoods_rules": ('2', '1'),
+    "public_health_mode": ('active', 'cost_only'),
+    "public_health_policy": ('evidence', 'shuffled'),
+    "public_health_report_delay": ('0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12', '13', '14', '15', '16', '17', '18', '19', '20'),
+    "harvest_cover_mode": ("loss", "record_only"),
 }
 #: All parser destinations owned here (``batch_manifest.SIMULATION_ARG_KEYS``).
 LIVELIHOODS_ARG_KEYS: tuple[str, ...] = (
@@ -175,7 +185,7 @@ LIVELIHOODS_ARG_KEYS: tuple[str, ...] = (
     "remittances", "remittance_mode",
     "clearing_protection", "clearing_protection_mode",
     "operating_wear",
-    "timber_supply", "timber_supply_mode",
+    "timber_supply", "timber_supply_mode", "timber_orders",
     "recovery_crews", "recovery_crew_mode",
     "maintenance_obligation", "maintenance_obligation_mode",
     "household_retail", "household_retail_mode", "household_retail_boundary",
@@ -185,14 +195,27 @@ LIVELIHOODS_ARG_KEYS: tuple[str, ...] = (
     "workshop_economics_rules",
     "titled_trade",
     "infrastructure_condition", "infrastructure_condition_mode",
+    "harvest_cover", "harvest_cover_mode",
     "epidemic_care", "epidemic_care_mode",
     # D1a: the CLI and catalog list it beside the other connected-world switches;
     # its hooks run before household_retail's (LIVELIHOODS_SWITCHES order).
     "reform_services", "reform_services_mode",
     "guild_leagues", "guild_league_mode",
+    "war_requisition",
+    "war_requisition_mode",
+    "war_consequences",
+    "war_consequences_mode",
+    "adaptive_livelihoods",
+    "adaptive_livelihoods_mode",
+    "adaptive_livelihoods_rules",
+    "public_health",
+    "public_health_mode",
+    "public_health_policy",
+    "public_health_report_delay",
+    "movement_branches", "movement_branches_mode",
     "residence_ledger",
     "attribution_records",
-    "wealth_accounting",
+    "wealth_accounting", "wealth_accounting_mode",
 )
 #: Options that take a file path (A2R), parser destinations owned here too
 #: (``batch_manifest.SIMULATION_ARG_KEYS``). Command line only: the feature
@@ -203,6 +226,22 @@ LIVELIHOODS_PATH_KEYS: tuple[str, ...] = ("household_retail_schedule",)
 _AGENT_ECONOMY = ("hybrid", "shadow", "demographics-only")
 
 _HELP = {
+    "movement_branches": "Dated movement branches abroad funded by named local members (default off).",
+    "movement_branches_mode": "funded (default): paid local permission; cost_only: identical dues without permission; record_only: no payment or native effect.",
+    "timber_orders": "Cross-civilization timber procurement for measured repair gaps, real carrier purchases, finite escrow and delivery (default off).",
+    "wealth_accounting_mode": "observe (default): itemized source/sink ledger; strict: refuse an unexplained balance closure.",
+    "war_requisition": 'D4 real army supply, seizure and treasury-funded restitution (default off); requires hybrid, campaigns and retail rules 2.',
+    "war_requisition_mode": "Saved option; choices ('transfer', 'cost_only')",
+    "war_consequences": 'D3 combat wounds and dated family separation (default off); requires real army supply, health care and residence ledger.',
+    "war_consequences_mode": "Saved option; choices ('active', 'record_only')",
+    "adaptive_livelihoods": 'A6 personal dated migration failures and work experience inform native decisions (default off); requires hybrid and residence ledger.',
+    "adaptive_livelihoods_mode": "Saved option; choices ('adapt', 'record_only', 'shuffled')",
+    "adaptive_livelihoods_rules": "Saved option; choices ('2', '1')",
+    "public_health": 'Supplied epidemic care, maintained-water sanitation, displacement crowding and dated public-health advice (default off).',
+    "public_health_mode": "Saved option; choices ('active', 'cost_only')",
+    "public_health_policy": "Saved option; choices ('evidence', 'shuffled')",
+    "public_health_report_delay": "Saved option; choices ('0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12', '13', '14', '15', '16', '17', '18', '19', '20')",
+
     "workshops": (
         "Staffed public workshops: up to four selected cities employ named adult "
         "urban farmers' already-diverted time; with --workshop-mode operate the "
@@ -471,13 +510,16 @@ _HELP = {
         "and nothing repairs (the control); cost_only (requires --repair-projects): works plan and pay "
         "identically and credit no condition"
     ),
+    "harvest_cover": ("Timber depletion opens canopy gaps without destroying standing stock; ecology owns "
+                      "regrowth and the watershed reads cover; requires --agents hybrid and --timber-stock (default off)"),
+    "harvest_cover_mode": ("loss (default): apply canopy gaps; record_only: observe proposed loss without changing cover"),
     "epidemic_care": (
         "Epidemic care (C2): each ruler may fund, from its local budget, carers for a region with a reported "
         "outbreak: adult farmers resident there who hold no other work, named by stable id, give their farm "
         "time (removed from farming, their ordinary income share withheld) for a wage paid from the treasury; "
         "the patients they can serve (5 per worker-turn) multiply case fatality at the next epidemic tick by "
         "1 - 0.3 x coverage (one floor with practised medicine); requires --agents hybrid, --local-budgets "
-        "and epidemiology with the contact ledger; cannot run with --wealth-accounting (default off)"
+        "and epidemiology with the contact ledger (default off)"
     ),
     "epidemic_care_mode": (
         "care (default): the carers' capacity lowers the next tick's case fatality; cost_only: the cost control "
@@ -659,6 +701,21 @@ def _grain_storage_on(world: Any) -> bool:
 
 
 def _check_prerequisites(world: Any, values: dict, agent_mode: str, args: Any = None) -> None:
+    # These completion options belong to a requested or saved enabled switch.
+    # Check before any setter can mutate the world. The existing resume-field
+    # registry remains the single source of option -> state-field ownership.
+    for key in ("war_requisition_mode", "war_consequences_mode", "adaptive_livelihoods_mode",
+                "adaptive_livelihoods_rules", "wealth_accounting_mode"):
+        given = getattr(args, key, None)
+        if given is None:
+            continue
+        name, field = _CHOICE_FIELDS[key]
+        if not _on(world, values, name):
+            raise ValueError(f"--{key.replace('_', '-')} requires --{name.replace('_', '-')}")
+        saved = getattr(livelihoods_state(world), name, None)
+        if saved is not None and given != getattr(saved, field):
+            raise ValueError(f"--{key.replace('_', '-')} {given!r} conflicts with the saved world "
+                             f"({field}: {getattr(saved, field)!r})")
     if (values["watershed"] is not None or getattr(args, "watershed_mode", None) is not None
             or getattr(livelihoods_state(world), "watershed", None) is not None):
         # Procedural geography; opens with a new world; a resume cannot end it
@@ -789,6 +846,9 @@ def _check_prerequisites(world: Any, values: dict, agent_mode: str, args: Any = 
         from chronicler.infrastructure_condition import check_request
         check_request(world, values["infrastructure_condition"], args, agent_mode=agent_mode,
                       rs2=_on(world, values, "repair_projects"))
+    if values["harvest_cover"] is not None or _on(world, values, "harvest_cover") or getattr(args, "harvest_cover_mode", None) is not None:
+        from chronicler.harvest_cover import check_request
+        check_request(world, values["harvest_cover"], args, agent_mode=agent_mode, timber_on=_on(world, values, "timber_stock"))
     if (values["epidemic_care"] is not None or getattr(args, "epidemic_care_mode", None) is not None
             or getattr(livelihoods_state(world), "epidemic_care", None) is not None):
         # C2: also when only saved (a resume outside hybrid, without L9 or
@@ -819,6 +879,29 @@ def _check_prerequisites(world: Any, values: dict, agent_mode: str, args: Any = 
             saved = values["guild_leagues"] is not True
             raise ValueError("--guild-leagues requires --agents hybrid, cities and guilds (both on by default)"
                              + ("; this world has it on: pass --no-guild-leagues to end it" if saved else ""))
+    for name in ("war_requisition", "war_consequences", "adaptive_livelihoods"):
+        if _on(world, values, name) and agent_mode != "hybrid":
+            raise LivelihoodsRefusal(f"--{name.replace('_', '-')} requires --agents hybrid; pass --no-{name.replace('_', '-')} to end it")
+    if _on(world, values, "timber_orders") and (agent_mode != "hybrid" or not _on(world, values, "timber_supply") or not _on(world, values, "local_budgets")):
+        raise ValueError("--timber-orders requires --agents hybrid, --timber-supply and --local-budgets")
+    if _on(world, values, "war_requisition"):
+        retail = getattr(livelihoods_state(world), "household_retail", None)
+        rules = getattr(args, "household_retail_rules", None) or (retail.rules if retail else "2")
+        if not getattr(world, "campaigns_enabled", False) or not _on(world, values, "household_retail") or str(rules) != "2":
+            raise ValueError("--war-requisition requires campaigns and --household-retail rules 2")
+    if _on(world, values, "war_consequences"):
+        if not (_on(world, values, "war_requisition") and _on(world, values, "residence_ledger") and getattr(world, "health_care", None) is not None):
+            raise ValueError("--war-consequences requires --war-requisition, --residence-ledger and --health-care")
+    if _on(world, values, "adaptive_livelihoods"):
+        if not _on(world, values, "residence_ledger"):
+            raise ValueError("--adaptive-livelihoods requires --residence-ledger")
+        if getattr(args, "decision_ablation", None) or getattr(args, "decision_observer", None):
+            raise ValueError("--adaptive-livelihoods refuses decision ablations/observer until separately instrumented")
+    from chronicler.movement_branches import check_request as check_branch_request
+    from chronicler.agent_movements_state import agent_movements_on
+    check_branch_request(world, values["movement_branches"], args, agent_mode=agent_mode, movements_on=agent_movements_on(world))
+    from chronicler.public_health import check_request as check_public_health_request
+    check_public_health_request(world, values, args, agent_mode=agent_mode, on=lambda name: _on(world, values, name))
     if _on(world, values, "residence_ledger") and agent_mode != "hybrid":
         # Also when only saved: the ledger reads the hybrid agent pool, its
         # moves and the rosters; a resume outside hybrid is refused until ended.
@@ -898,6 +981,8 @@ def _present(world: Any):
 
 #: Each option of ``LIVELIHOODS_CHOICES``: its switch and the sub-state field holding it.
 _CHOICE_FIELDS: dict[str, tuple[str, str]] = {
+    "movement_branches_mode": ("movement_branches", "mode"),
+    "wealth_accounting_mode": ("wealth_accounting", "mode"),
     "workshop_mode": ("workshops", "mode"),
     "food_allocation_regime": ("food_allocation", "regime"),
     "convoy_route_policy": ("grain_convoys", "route_policy"),
@@ -922,7 +1007,16 @@ _CHOICE_FIELDS: dict[str, tuple[str, str]] = {
     "workshop_economics_mode": ("workshop_economics", "mode"),
     "workshop_economics_rules": ("workshop_economics", "rules"),
     "infrastructure_condition_mode": ("infrastructure_condition", "mode"),
+    "harvest_cover_mode": ("harvest_cover", "mode"),
     "epidemic_care_mode": ("epidemic_care", "mode"),
+    "war_requisition_mode": ("war_requisition", "mode"),
+    "war_consequences_mode": ("war_consequences", "mode"),
+    "adaptive_livelihoods_mode": ("adaptive_livelihoods", "mode"),
+    "adaptive_livelihoods_rules": ("adaptive_livelihoods", "rules"),
+    "public_health_mode": ("public_health", "mode"),
+    "public_health_policy": ("public_health", "policy"),
+    "public_health_report_delay": ("public_health", "report_delay"),
+
     "reform_services_mode": ("reform_services", "mode"),
     "guild_league_mode": ("guild_leagues", "mode"),
 }
@@ -954,7 +1048,7 @@ def livelihoods_resume_conflicts(world: Any, args: Any, recorded: dict) -> list[
             continue
         sub = getattr(state, name, None) if state is not None else None
         saved = getattr(sub, field) if sub is not None else None
-        if given != saved:
+        if (str(given) != str(saved) if key == "public_health_report_delay" else given != saved):
             conflicts.append(f"--{key.replace('_', '-')} {given!r} conflicts with the checkpoint "
                              f"(saved: {saved!r})")
     schedule = getattr(args, "household_retail_schedule", None)
@@ -1056,10 +1150,14 @@ def prepare_phase2(world, region_input, agent_bridge, snapshot, *, acc=None):
     Work held across turns (PL1 expedition crews, away from home) is reserved
     first (``reserve_first``), so every package's planner sees it as held."""
     bind_native_pool(world, agent_bridge)
+    from chronicler.war_requisition import prepare_service_economy
+    region_input = prepare_service_economy(world, region_input, agent_bridge, snapshot, acc)
     for fn in _hooks(world, "reserve_first"):
         fn(world, agent_bridge, snapshot)
     for fn in _hooks(world, "prepare_phase2"):
         region_input = fn(world, region_input, agent_bridge, snapshot, acc)
+    from chronicler.household_retail import finalize_phase2_input
+    finalize_phase2_input(world, region_input)
     return region_input
 
 

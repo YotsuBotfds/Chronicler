@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "board_version": 18,
+  "board_version": 23,
   "title": "Connected-world program (A livelihoods and trade, B watersheds and infrastructure, C public health, D institutions and war, E stories and evidence) operational board",
   "plan": "docs/superpowers/roadmaps/connected-world-program.md",
   "owner_instruction": "2026-11-06 (after #82): own the A-E program end to end with parallel workers, integrating and evaluating each slice and continuing across slice boundaries; merges of this program authorized after independent review, green premerge Tests on the reviewed head and verified main CI; new systems opt-in and off by default; no default promotion; full 200-seed and procedural qualification gates restricted; bounded held screens (procedural included) authorized; no purchases, paid credits, paid narration APIs, deployments, credential or sharing changes. Amendment (same day): tiers sequence work and are not stopping points; failures block the affected merge, not the program; pin 8abc1acb as the original reference; default-path changes behind a switch or rules version.",
@@ -12,13 +12,25 @@
   },
   "durable_location": {
     "branch": "main (merged slices) plus the lane and integration branches listed in lanes",
-    "base": "main at 66e1ec40 (#89)"
+    "base": "f76436ae37c735b2b856caf98033122798ac88d2 (#95); main Tests42386261493 all nine verified success"
   },
-  "status_values": ["proposed", "ready", "active", "blocked", "integrated", "evaluated", "merged", "deferred"],
+  "status_values": [
+    "proposed",
+    "ready",
+    "active",
+    "blocked",
+    "integrated",
+    "evaluated",
+    "merged",
+    "deferred"
+  ],
   "machine": {
     "cores": 4,
-    "memory_gb": 15,
-    "writable_disk_gb": 30
+    "memory_gb": 16,
+    "writable_disk_gb": 30,
+    "logical_cpus_observed": 5,
+    "cgroup_cpu_max": "400000 100000",
+    "cgroup_memory_max": 17179869184
   },
   "slices": [
     {
@@ -28,28 +40,28 @@
     },
     {
       "id": "S1",
-      "status": "active",
-      "summary": "A1 accounting, A2 wage vs paid_work enrollment with fixed cohorts, recorded-limit dispositions needing no new mechanism."
+      "status": "integrated",
+      "summary": "A1 accounting, A2 wage vs paid_work enrollment with fixed cohorts, recorded-limit dispositions needing no new mechanism. Final A-E union and evidence in #96; earlier proposed labels superseded, not completion."
     },
     {
       "id": "S2",
-      "status": "proposed",
-      "summary": "A3 workshop economics, A5 owned-stock lifecycle."
+      "status": "integrated",
+      "summary": "A3 workshop economics, A5 owned-stock lifecycle. Final A-E union and evidence in #96; earlier proposed labels superseded, not completion."
     },
     {
       "id": "S3",
-      "status": "proposed",
-      "summary": "B1-B3 initial watershed and infrastructure slice, C1 quarantine."
+      "status": "integrated",
+      "summary": "B1-B3 initial watershed and infrastructure slice, C1 quarantine. Final A-E union and evidence in #96; earlier proposed labels superseded, not completion."
     },
     {
       "id": "S4",
-      "status": "proposed",
-      "summary": "A4 merchants and owned cargo, B4 forest and water, B5 viewer, C2 care and sanitation, D2 attribution, D4 requisition and reconstruction."
+      "status": "evaluated",
+      "summary": "A4 merchants and owned cargo, B4 forest and water, B5 viewer, C2 care and sanitation, D2 attribution, D4 requisition and reconstruction. Final A-E union and evidence in #96; earlier proposed labels superseded, not completion."
     },
     {
       "id": "S5",
-      "status": "proposed",
-      "summary": "A6 adaptive decisions, D1 cross-border organization, D3 war's human consequences, C4 public-health choices."
+      "status": "evaluated",
+      "summary": "A6 adaptive decisions, D1 cross-border organization, D3 war's human consequences, C4 public-health choices. Final A-E union and evidence in #96; earlier proposed labels superseded, not completion."
     }
   ],
   "lanes": [
@@ -153,8 +165,12 @@
       "id": "B3",
       "branch": "claude/cw-b3-infrastructure",
       "scope": "--infrastructure-condition: irrigation then roads; sibling record infrastructure_works; money.py; one L9 envelope",
-      "status": "approved; CW3b run and checked; main 4ecfb54d merged; merge check running",
-      "head": "83abd666"
+      "status": "merged (#94); main CI nine jobs verified green",
+      "head": "be524a60a3a94a64c9572f1befd3769583773c62",
+      "integration_branch": "codex/cw-b3",
+      "merge_commit": "4cabac21f41ba6683f4fd7106bd5c11292c4978b",
+      "premerge_run": 42381096201,
+      "main_run": 42382492574
     },
     {
       "id": "C2",
@@ -167,20 +183,48 @@
       "id": "X1",
       "branch": "claude/cw-x1-residence",
       "scope": "--residence-ledger: the lead-owned displacement contract (record-only; home, residence, attachment, spells)",
-      "status": "approved (review + re-check + merge check); PR",
-      "head": "6619ceac"
+      "status": "merged (#93)",
+      "head": "e39673c0"
     },
     {
       "id": "D1",
       "branch": "claude/cw-d1-institutions",
       "scope": "--reform-services (poor relief buys real food) and --guild-leagues (cross-border guild leagues, real purse transfers)",
-      "status": "implemented (e12ba7ec); review running"
+      "status": "merged (#95); main CI all nine verified green",
+      "integration_branch": "codex/cw-d1",
+      "fresh_cohort": {
+        "template": [
+          3701,
+          3706
+        ],
+        "procedural": [
+          3801,
+          3806
+        ]
+      },
+      "head": "11467a46b957a364b3d4d4ba2ba1a4326adcc6c3",
+      "merge_commit": "f76436ae37c735b2b856caf98033122798ac88d2",
+      "premerge_run": 42384860718,
+      "main_run": 42386261493,
+      "held": "CW6D1 complete60/60; frozen808726b8; sparse relief/no primary summary, league mixed"
     },
     {
       "id": "D4",
       "branch": "claude/cw-d4-requisition",
       "scope": "--war-requisition transfer|cost_only (requisitioned food to army rations, minted refill reduced), restitution (native purpose 10), A4-2 cargo in war; settles the soldier-movement discrepancy",
-      "status": "active"
+      "status": "Reconstructed and implemented; independently reviewed; CW6 60/60 and all80 integrated exact resumes passed; final exact-head PR96 CI pending",
+      "integration_branch": "codex/cw-lead"
+    },
+    {
+      "id": "A-E-final",
+      "branch": "codex/cw-lead",
+      "scope": "A1-2, A4-2/3, A6 full choices, B3 named crews/road funding, B4/B5, C2 supplies/sanitation/crowding, C4/named guards, D1c, D2 works attribution, D3/D4, E linked histories/provenance/examples",
+      "status": "PR #96 candidate; adopted scope implemented and independently reviewed; all bounded evidence complete; final exact-head nine-job Tests pending",
+      "native_source": "9e0017017245870affa0401714d14cddccf98ff7",
+      "native_sha256": "59f536b8f4a6c2bc82c51eeaec55f3aff6b0a1c5c8f1a324049ad15b42c51617",
+      "native_inputs_sha256": "38b21020673a028ce6bcd76e19fb3e0c01eed5893b89f1ce6ff6eda6cf8925a2",
+      "limitations": "No port service consumer; wealth is single spendable but not globally conserved cash; Soldier income remains modeled; irrigation sanitation proxy; A6 unknown causes change X1 classification and C2 crowding/exposure input, not proof of less physical displacement. Material cost and adverse held outcomes preclude efficacy/promotion claims.",
+      "runtime": "eaa4a5d3e1cb5c958b5e32719601c28986c9f6ac (valid runtime); startup guards c13768f6 reject only invalid configurations"
     }
   ],
   "recorded_limits": [
@@ -243,53 +287,208 @@
   ],
   "seeds": {
     "development": {
-      "template": [1, 3, 7, 9, 11, 23, 42],
-      "procedural": [7, 11, 13, 17, 21, 31, 302, 303]
+      "template": [
+        1,
+        3,
+        7,
+        9,
+        11,
+        23,
+        42
+      ],
+      "procedural": [
+        7,
+        11,
+        13,
+        17,
+        21,
+        31,
+        302,
+        303
+      ]
     },
     "viewer_qa": {
-      "template": [12, 13, 14]
+      "template": [
+        12,
+        13,
+        14
+      ]
     },
     "pilot": {
-      "template": [5],
-      "procedural": [19]
+      "template": [
+        5
+      ],
+      "procedural": [
+        19
+      ]
     },
     "held": {
       "CW1": {
-        "template": [731, 732, 733, 734, 735, 736],
-        "procedural": [831, 832, 833, 834, 835, 836]
+        "template": [
+          731,
+          732,
+          733,
+          734,
+          735,
+          736
+        ],
+        "procedural": [
+          831,
+          832,
+          833,
+          834,
+          835,
+          836
+        ]
       },
       "CW2": {
-        "template": [741, 742, 743, 744, 745, 746],
-        "procedural": [841, 842, 843, 844, 845, 846]
+        "template": [
+          741,
+          742,
+          743,
+          744,
+          745,
+          746
+        ],
+        "procedural": [
+          841,
+          842,
+          843,
+          844,
+          845,
+          846
+        ]
       },
       "CW3": {
-        "template": [751, 752, 753, 754, 755, 756],
-        "procedural": [851, 852, 853, 854, 855, 856],
+        "template": [
+          751,
+          752,
+          753,
+          754,
+          755,
+          756
+        ],
+        "procedural": [
+          851,
+          852,
+          853,
+          854,
+          855,
+          856
+        ],
         "note": "procedural stratum only (watershed refuses template worlds)"
       },
       "CW4": {
-        "template": [761, 762, 763, 764, 765, 766],
-        "procedural": [861, 862, 863, 864, 865, 866]
+        "template": [
+          761,
+          762,
+          763,
+          764,
+          765,
+          766
+        ],
+        "procedural": [
+          861,
+          862,
+          863,
+          864,
+          865,
+          866
+        ]
       },
       "CW5": {
-        "template": [771, 772, 773, 774, 775, 776],
-        "procedural": [871, 872, 873, 874, 875, 876]
+        "template": [
+          771,
+          772,
+          773,
+          774,
+          775,
+          776
+        ],
+        "procedural": [
+          871,
+          872,
+          873,
+          874,
+          875,
+          876
+        ]
       },
       "CW6": {
-        "template": [781, 782, 783, 784, 785, 786],
-        "procedural": [881, 882, 883, 884, 885, 886]
+        "template": [
+          781,
+          782,
+          783,
+          784,
+          785,
+          786
+        ],
+        "procedural": [
+          881,
+          882,
+          883,
+          884,
+          885,
+          886
+        ]
       },
       "reserve": {
-        "template": [791, 792, 793, 794, 795, 796],
-        "procedural": [891, 892, 893, 894, 895, 896]
+        "template": [
+          791,
+          792,
+          793,
+          794,
+          795,
+          796
+        ],
+        "procedural": [
+          891,
+          892,
+          893,
+          894,
+          895,
+          896
+        ]
       },
       "CW4b": {
-        "template": [3101, 3102, 3103, 3104, 3105, 3106],
-        "procedural": [3201, 3202, 3203, 3204, 3205, 3206],
+        "template": [
+          3101,
+          3102,
+          3103,
+          3104,
+          3105,
+          3106
+        ],
+        "procedural": [
+          3201,
+          3202,
+          3203,
+          3204,
+          3205,
+          3206
+        ],
         "note": "reserved for the C1b migration-closure screen"
+      },
+      "CWD1": {
+        "template": [
+          3701,
+          3702,
+          3703,
+          3704,
+          3705,
+          3706
+        ],
+        "procedural": [
+          3801,
+          3802,
+          3803,
+          3804,
+          3805,
+          3806
+        ]
       }
     },
-    "status": "reserved 2026-11-06 against the audit E registry (none run)"
+    "status": "Consult scripts/seed_registry.json authoritative run/reservation entries; historical CW3 failure preserved."
   },
   "merges": [
     {
@@ -392,9 +591,40 @@
       "main_run": 42350879411,
       "date": "2026-11-07",
       "native": "43cbd22a"
+    },
+    {
+      "pr": 93,
+      "slice": "X1 record-only residence/displacement ledger",
+      "merge_commit": "e3bce686df1fe2e73a4ee7378c36f2e2647826bb",
+      "reviewed_head": "e39673c0",
+      "main_run": 42354356085,
+      "date": "2026-11-07",
+      "verification": "main exact-head Tests success, nine jobs"
+    },
+    {
+      "pr": 94,
+      "slice": "B3 infrastructure condition and public works",
+      "merge_commit": "4cabac21f41ba6683f4fd7106bd5c11292c4978b",
+      "reviewed_head": "be524a60a3a94a64c9572f1befd3769583773c62",
+      "premerge_run": 42381096201,
+      "main_run": 42382492574,
+      "main_status": "success (all nine jobs verified)",
+      "date": "2026-11-07",
+      "verification": "independent exact-head approval; all nine premerge jobs green; feature-off identity both refs9/399/0; offline72chunks7618pass69skip;5native;desktop+phone;14declared-scale runs. See B3 integration verification doc."
+    },
+    {
+      "pr": 95,
+      "slice": "D1a reform services and D1b guild leagues",
+      "merge_commit": "f76436ae37c735b2b856caf98033122798ac88d2",
+      "reviewed_head": "11467a46b957a364b3d4d4ba2ba1a4326adcc6c3",
+      "premerge_run": 42384860718,
+      "main_run": 42386261493,
+      "main_status": "success (all nine jobs verified)",
+      "date": "2026-11-07",
+      "verification": "Independent exact-head approval; all nine premerge Tests jobs success; merge tree equals reviewed head. CW6D1 60/60 completed, sparse relief activation suppresses summary, leagues mixed."
     }
   ],
-  "next": "Merge X1, then B3 (re-merges main); review D1 and assign its cohort; D4 (native purpose 10); then E linked histories, A1-2 native observer, D3 and A6-1 (one native build, reading the residence ledger), C4.",
+  "next": "Final independent exact-head review and all-nine PR96 Tests; merge under existing authorization only after green, verify exact main CI, then record verified merge/run in durable completion ledger. All60 CW6 held,80 integrated resumes,both-reference identity,14 declared-scale profiles,52 checkpoint reads,health36 held and real browsers complete. No restricted qualification or default promotion.",
   "baseline": {
     "oracle_lane": "PASS, 63 chunks, 295.5 s, slowest 32.4 s of 110 s",
     "native_check": "check_python_env --expect native PASS (101a4cd5)",
@@ -411,7 +641,15 @@
     "A6": "docs/superpowers/audits/connected-world/audit-a6-adaptive-decisions.md"
   },
   "decisions": {
-    "livelihoods_switch_order": "existing switches, then household_retail, watershed, workshop_economics, wealth_accounting last (observer after every payer); pinned by a test at integration"
+    "livelihoods_switch_order": "existing switches, then household_retail, watershed, workshop_economics, wealth_accounting last (observer after every payer); pinned by a test at integration",
+    "native_income": "A1 arms whole-turn native exact f32 stages; income/withheld/decay/clamp/birth/estate/rounding itemized, observer after all payers; strict closure1e-8, not globally conserved cash",
+    "army_movement": "Actual native source confirms enlisted people can migrate; service attachment is not residence. No teleport; Phase2 census freezes work/food exclusion and meal authority; late recruits start service nextturn.",
+    "infrastructure_labor": "Original B3 anonymous/unpaid fallback remains honestly labeled. With recovery_crews, named adult farmer labor uses actual wage/material bills and one finite L9 works envelope including roads; no fake road food relief.",
+    "historical_bound": "D1 lower delivery benefit cannot be proved without gross outbound food. Historical raw retained, current lower null; upper remains conditional.",
+    "inverse": "Append-only cwcomplete exact inverse to reviewed11467a46 tree,37hunks7files independently byte-verified; historical fixtures untouched.",
+    "return_home": "D3 stores first personally known priorOwnRowhome/source and allwitnessedwarinstances; X1unknownmove rehoming neveroverwritesmemory. Latepriorreadrefusal keepsunknown, neverreadsT.",
+    "a4_wares": "Unimplemented unadopted A4-W auditproposal; adoptedroadmap5.7 coversfood+timber. No ownedwarescrossborderclaim. Separate futurecontract, nottechnicalportdependency.",
+    "performance": "Accept substantial measured FULLCPU/RSS/artifactoverhead asoptinexperimental cost, with actualcounts/ratios/latency; never defaultpromotion orperformancequalification. Proposed25%/2x/500MiB flags remainvisible."
   },
   "screens": {
     "CW4": {
@@ -484,8 +722,67 @@
       "primaries": "service maintained C_T-W_T p 4/4 higher, t 4/0/1; C-W (L9) p 4/4 higher, t null (5.8 work units/world); irrigated food shortfall C-W p 4/4 lower, t 0/3/1",
       "harms": "L9 displaces RS2 repair (p -67.5, 5/6); treasury-funded works more woodcutter time (p +180, 6/6); treasury C-W p -1,375 (5/6); timber stalls on every world",
       "page": "docs/superpowers/progress/connected-world-screens-cw3b.md"
+    },
+    "CW6D1": {
+      "status": "complete bounded held screen",
+      "frozen": "808726b8",
+      "cohort": "3701–3706 template /3801–3806 procedural",
+      "held": "60/60 completed, 0.296coreh below0.75cap",
+      "results": "Relief0/6template2/6procedural: primary summary suppressed; leagues0/6template6/6procedural: mean purse diff−0.164888,5positive1negative; descriptive only",
+      "page": "docs/superpowers/progress/connected-world-screens-cw6d1/README.md"
+    },
+    "CW6": {
+      "status": "complete60/60 strictPASS; independent raw/arithmetic approval; all131outcomes eachrun",
+      "cohort": "781–786template/881–886procedural;120T pre-heldamendment recorded",
+      "failure": "Priorccc pilot7paymentprotocol failures/3success; preserved; fixed legal unary purposes506498df. No held touched.",
+      "runtime": "eaa4a5d3e1cb5c958b5e32719601c28986c9f6ac",
+      "pilot": "10/10strictPASS312.2s; marginprojection.7805coreh<1cap; original200T rejectedforbudgetbeforeanyheld",
+      "frozen": "5ec73003837b5149091593ffa411d33dd32e9491",
+      "held": "120T;1467.4s(.40761coreh) below unchanged1.0cap; no failure/missing outcome",
+      "results": "FULL-A6R balance/1000PT means -3.41826t/-1.03271p; foodshortfall higherall12, means+1110.365t/+1254.741p; epidemicdeathshigherall12 means+22.167t/+151.333p. Native deathrate/ joint service contrast mixed. All60 enrolled; unknown/drop/nulls retained.",
+      "page": "docs/superpowers/progress/connected-world-evidence/CW6/held/README.md"
+    },
+    "CW-health": {
+      "status": "complete36/36 strictPASS; independent final evidence approved",
+      "cohort": "3901–3906 template /4001–4006 procedural; consumed, complete36/36",
+      "failure": "First pilot simulation succeeded but strict extractor mismatched actual ordered quarantine channels and missing deceased-worker income row; preserved unknown, not zero.",
+      "frozen": "8d38f8b49e2db7635ee9ba074edde1d422fbc030",
+      "held": "200T,820s(.22778coreh) below.75cap; fullfresh12worldcohort; noqualification",
+      "results": "PA-PC death-rate means lower t/p; raw epidemic deaths proceduralmean+2.833 and foodshortfall higherbothstrata; PA-PS arrivalsprocedural+20.833 (4/6higher,max+102). Unknown deductions explicitlyretained, no universalbenefit."
     }
   },
-  "events": ["2026-11-07 ~00:10Z: container restart stopped lanes A3, B2, D2 mid-task; all resumed from saved transcripts with no work lost; shared native venv rebuilt from main ae94bca6 (e724072d).", "2026-11-07 ~04:40Z: second container restart stopped lanes X1, B3 and the C2/A4 reviews; all resumed from saved transcripts, no work lost; native venvs intact.", "2026-11-07: held runs serialized with a shared lock (the runner charges elapsed seconds against each ceiling)."],
-  "defects_for_owner": ["seven decision sites read causal provenance (4 default-path: cities, diplomacy, epidemiology, nomads; 3 behind --scholarship); recorded by D2, not changed", "merchant income computed by origin but paid by current region", "natural deaths booked as army casualties (17% of soldier deaths on development worlds)"]
+  "events": [
+    "2026-11-07 ~00:10Z: container restart stopped lanes A3, B2, D2 mid-task; all resumed from saved transcripts with no work lost; shared native venv rebuilt from main ae94bca6 (e724072d).",
+    "2026-11-07 ~04:40Z: second container restart stopped lanes X1, B3 and the C2/A4 reviews; all resumed from saved transcripts, no work lost; native venvs intact.",
+    "2026-11-07: held runs serialized with a shared lock (the runner charges elapsed seconds against each ceiling).",
+    "2026-11-07 Codex recovery: clean sole checkout e3bce686; fetched all remote branches, B3 83abd666 and D1 e12ba7ec recovered into isolated worktrees; D4 remote absent, no original worktree accessible. Main Tests 42354356085 green. Reconciled all remote CW seed registries: appended CW3b, preserved CW3 disk failure; CW5c 3301/3401 used, D1 reserved 3701/3801.",
+    "2026-11-07T14:37Z #94 merged through PR after independent be524a60 review and Tests42381096201 all9green; tree equality verified. main4cabac21 CI42382492574 pending. Actual D4 Phase2 census fixes recruit double meal; native review blocks later integration on A6 attribution/A1 treasury-sign findings.",
+    {
+      "date": "2026-11-07",
+      "event": "Final runtime pilot repairs before held",
+      "detail": "Fixed D3 cumulative snapshot alias/future-event leak with regression; D4 opt-in pool-identity repair, actual unary timber native payment alias, strict record dates/namespaces; no default changes. Independent review/real native regression; failures retained."
+    },
+    {
+      "date": "2026-11-07",
+      "event": "All final bounded execution evidence complete",
+      "detail": "CW6 60/60 strict passed under unchanged1coreh, all80 integrated resumes pass; independent arithmetic/raw approvals retained. Adverse foodshortfall and epidemicdeaths in all12 integrated worlds, mixed primary outcomes and material cost explicitly retained. Offline75chunks7964pass69skip; later consumed-registry targeted156pass. Final exact-head CI required."
+    }
+  ],
+  "defects_for_owner": [
+    "seven decision sites read causal provenance (4 default-path: cities, diplomacy, epidemiology, nomads; 3 behind --scholarship); recorded by D2, not changed",
+    "merchant income computed by origin but paid by current region",
+    "natural deaths booked as army casualties (17% of soldier deaths on development worlds)"
+  ],
+  "verification": {
+    "report": "docs/superpowers/progress/connected-world-final-report.md",
+    "coverage": "docs/superpowers/progress/connected-world-final-coverage.md",
+    "offline": "75 chunks,7964pass69skip; maximum34.3816s under unchanged110; post-consumption registry156pass; exact-head CI required",
+    "identity": "final830d against original8abc and preceding11467/f764:9cases399files0diff each",
+    "resume": "80 integrated exact branches (22active,58canonical) pass plus4health; compared rawArrow and declared artifacts",
+    "profile": "14runs,52strictreads,actualpeak53138; CPU1.81–6.90x,bundle2.13–3.94x,RSS+60–1010MiB; acceptedoptin materialcost",
+    "browser": "30history+38branches+82health real desktop/phone checks; initialhistory4.8s",
+    "examples": "1200strictobservations,21/24categories,3honestnulls,0audit/schemaerrors",
+    "review": "independent source/native/inverse/profile/identity/heldarithmetic/browser/testcontracts retained",
+    "final_merge": "pending exact-head Tests and main CI; do not claim candidate merged"
+  }
 }

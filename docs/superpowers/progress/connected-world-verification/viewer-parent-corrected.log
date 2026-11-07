@@ -1,0 +1,13 @@
+
+> viewer@0.0.0 test
+> vitest run --maxWorkers=1 src/components/systems/__tests__/Watershed.test.tsx
+
+
+ RUN  v4.1.0 /workspace/Chronicler/viewer
+
+
+ Test Files  1 passed (1)
+      Tests  8 passed (8)
+   Start at  15:43:35
+   Duration  13.45s (transform 3.39s, setup 195ms, import 4.30s, tests 7.33s, environment 1.26s)
+

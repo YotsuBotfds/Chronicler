@@ -1,3 +1,8 @@
+import { MovementBranches } from "./MovementBranches";
+import { AdaptiveLivelihoods, WarConsequences } from "./PersonalExperience";
+import { WarRequisition } from "./WarRequisition";
+import { TimberOrders } from "./TimberOrders";
+import { EntityHistory } from "./EntityHistory";
 import { useMemo } from "react";
 import { hasRecoveryChain, packagesOn } from "../../lib/recoveryChain";
 import { watershedOn } from "../../lib/watershed";
@@ -19,6 +24,7 @@ import { FoodAllocation } from "./FoodAllocation";
 import { GrainConvoys } from "./GrainConvoys";
 import { GuildLeagues } from "./GuildLeagues";
 import { HouseholdRetail } from "./HouseholdRetail";
+import { HarvestCover } from "./HarvestCover";
 import { InfrastructureCondition } from "./InfrastructureCondition";
 import { LearningCohorts } from "./LearningCohorts";
 import { LocalBudgets } from "./LocalBudgets";
@@ -45,7 +51,7 @@ const PACKAGES = ["workshops", "workshop_payroll", "food_allocation", "timber_st
   "commons_rules", "learning_cohorts", "relocation_costs", "local_budgets", "clearing_protection",
   "remittances", "apprenticeship", "veteran_reintegration", "repair_projects", "operating_wear", "timber_supply",
   "recovery_crews", "maintenance_obligation", "reform_services", "household_retail", "watershed",
-  "workshop_economics", "titled_trade", "infrastructure_condition", "guild_leagues", "residence_ledger", "attribution_records", "wealth_accounting"];
+  "workshop_economics", "titled_trade", "infrastructure_condition", "harvest_cover", "guild_leagues", "timber_orders", "war_requisition", "war_consequences", "adaptive_livelihoods", "movement_branches", "residence_ledger", "attribution_records", "wealth_accounting"];
 
 export function LivelihoodsPanel(panelProps: SystemPanelProps) {
   const { bundle, snapshot, currentTurn, onSelectRegion } = panelProps;
@@ -78,6 +84,12 @@ export function LivelihoodsPanel(panelProps: SystemPanelProps) {
   return <div className="systems-body">
     {raw !== null && !readable ? <p className="systems-note">The livelihoods record at snapshot {at} is unreadable (malformed or of an unknown version); nothing is shown from it.</p> : null}
     {record !== null && !PACKAGES.some((key) => record[key] != null) ? <p className="systems-note">The livelihoods record at snapshot {at} names no package this viewer reads.</p> : null}
+    <WarRequisition {...panelProps} />
+    <TimberOrders {...panelProps} />
+    <MovementBranches {...panelProps} />
+    <AdaptiveLivelihoods {...panelProps} />
+    <WarConsequences {...panelProps} />
+    <EntityHistory {...panelProps} />
     {chain ? <RecoveryChain {...panelProps} /> : null}
     {record?.workshops != null ? <Workshops {...props} /> : null}
     {record?.workshop_payroll != null ? <WorkshopFinance {...props} /> : null}
@@ -105,6 +117,7 @@ export function LivelihoodsPanel(panelProps: SystemPanelProps) {
     {watershed ? <Watershed {...props} /> : null}
     {infrastructure ? <InfrastructureCondition {...props} /> : null}
     {leagues ? <GuildLeagues {...props} /> : null}
+    {record?.harvest_cover != null ? <HarvestCover {...props} /> : null}
     {residence ? <ResidenceLedger {...props} /> : null}
     {attribution ? <AttributionRecords {...props} /> : null}
     {record?.wealth_accounting != null ? <WealthAccounting {...props} /> : null}

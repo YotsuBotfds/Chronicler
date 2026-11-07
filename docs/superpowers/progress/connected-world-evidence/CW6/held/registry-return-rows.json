@@ -1,0 +1,58 @@
+[
+  {
+    "id": "cw6-held-t",
+    "source": "docs/superpowers/roadmaps/connected-world-program.md section 7; audit E section 5.4",
+    "use": "connected-world CW6 held cohort: S5 adaptive decisions, cross-border organisation, war; the integrated evaluation",
+    "stratum": "template",
+    "world": "template 8x4",
+    "seeds": [
+      [
+        781,
+        786
+      ]
+    ],
+    "turns": [
+      120
+    ],
+    "status": "run",
+    "program": "connected-world",
+    "cohort": "held",
+    "screen": "CW6",
+    "held_run": {
+      "out": "/workspace/evidence/cw6/held",
+      "identity": "45b176288eaf43018283a542f1531f855e58b8c6e55e0bb55bd0bef5b9624ab9",
+      "started": "2026-11-07T15:51:57Z",
+      "rows": 60,
+      "complete": true,
+      "recorded": "2026-11-07T16:17:25Z"
+    }
+  },
+  {
+    "id": "cw6-held-p",
+    "source": "docs/superpowers/roadmaps/connected-world-program.md section 7; audit E section 5.4",
+    "use": "connected-world CW6 held cohort: S5 adaptive decisions, cross-border organisation, war; the integrated evaluation",
+    "stratum": "procedural",
+    "world": "procedural 32x10",
+    "seeds": [
+      [
+        881,
+        886
+      ]
+    ],
+    "turns": [
+      120
+    ],
+    "status": "run",
+    "program": "connected-world",
+    "cohort": "held",
+    "screen": "CW6",
+    "held_run": {
+      "out": "/workspace/evidence/cw6/held",
+      "identity": "45b176288eaf43018283a542f1531f855e58b8c6e55e0bb55bd0bef5b9624ab9",
+      "started": "2026-11-07T15:51:57Z",
+      "rows": 60,
+      "complete": true,
+      "recorded": "2026-11-07T16:17:25Z"
+    }
+  }
+]

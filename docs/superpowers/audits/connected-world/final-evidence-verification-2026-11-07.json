@@ -1,0 +1,242 @@
+{
+  "reviewer": "B3 integration owner; independent of profile/identity author",
+  "reviewed_evidence_commits": [
+    "9d0a9780c18a10c9901dbcd36a096198435858d5",
+    "bbf456a81c091fd579c260f925039a2db3e2b168",
+    "0f28c598f221371273054f6313bf8a3d5679d6a8"
+  ],
+  "profile": {
+    "profile_commit": "9d0a9780c18a10c9901dbcd36a096198435858d5",
+    "cases": 14,
+    "parent_exit_codes": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "snapshot": {
+      "commit": "eaa4a5d3e1cb5c958b5e32719601c28986c9f6ac",
+      "files": 344,
+      "sha256": "faa94c0cad6d097d3b6f53230563f23efa18aa2efad9c5fe494e7da368623d5d"
+    },
+    "tool_sha256": "1c21d7db60cfe9d9a3d60f4ed06fe2ff0117762aed51cdd26dee71b7d7d0d410",
+    "checkpoints": 52,
+    "max_write_seconds": 3.3476187430005666,
+    "max_read_seconds": 4.215507836999677,
+    "max_run_rss_mib": 1941.70703125,
+    "max_process_rss_mib": 1941.70703125,
+    "sidecars_verified": 84,
+    "output_hashes_verified": 80,
+    "physical_file_maps_verified": 14,
+    "pairs": [
+      {
+        "world": "template_s5",
+        "initial": [
+          180,
+          180
+        ],
+        "peak": [
+          229,
+          249
+        ],
+        "cpu_seconds": [
+          13.317383,
+          24.119019
+        ],
+        "cpu_ratio": 1.8110929902669317,
+        "bundle_ratio": 2.126112747091841,
+        "extra_rss_mib": 342.390625,
+        "max_checkpoint_ratio": 1.9918041019135215
+      },
+      {
+        "world": "template_s23",
+        "initial": [
+          196,
+          196
+        ],
+        "peak": [
+          224,
+          299
+        ],
+        "cpu_seconds": [
+          12.297032,
+          23.117380999999998
+        ],
+        "cpu_ratio": 1.8799154950560426,
+        "bundle_ratio": 2.3280212810682754,
+        "extra_rss_mib": 350.44921875,
+        "max_checkpoint_ratio": 1.943069715155044
+      },
+      {
+        "world": "proc32_s19",
+        "initial": [
+          502,
+          502
+        ],
+        "peak": [
+          740,
+          1026
+        ],
+        "cpu_seconds": [
+          36.530394,
+          95.149738
+        ],
+        "cpu_ratio": 2.60467319350566,
+        "bundle_ratio": 2.5519235691132316,
+        "extra_rss_mib": 995.828125,
+        "max_checkpoint_ratio": 1.975339651280888
+      },
+      {
+        "world": "proc32_s31",
+        "initial": [
+          544,
+          544
+        ],
+        "peak": [
+          795,
+          894
+        ],
+        "cpu_seconds": [
+          33.179446999999996,
+          76.025371
+        ],
+        "cpu_ratio": 2.2913393041179986,
+        "bundle_ratio": 2.996948075332984,
+        "extra_rss_mib": 1010.41015625,
+        "max_checkpoint_ratio": 2.0964966620697654
+      },
+      {
+        "world": "scaled22k_s42",
+        "initial": [
+          18801,
+          18801
+        ],
+        "peak": [
+          22952,
+          24571
+        ],
+        "cpu_seconds": [
+          16.328852,
+          112.703247
+        ],
+        "cpu_ratio": 6.902092504727215,
+        "bundle_ratio": 3.944633862843859,
+        "extra_rss_mib": 239.703125,
+        "max_checkpoint_ratio": 1.320940431249956
+      },
+      {
+        "world": "scaled52k_s7",
+        "initial": [
+          43700,
+          43700
+        ],
+        "peak": [
+          49507,
+          53138
+        ],
+        "cpu_seconds": [
+          28.543723,
+          65.409885
+        ],
+        "cpu_ratio": 2.2915680971259427,
+        "bundle_ratio": 3.313772604864058,
+        "extra_rss_mib": 60.18359375,
+        "max_checkpoint_ratio": 1.1782599699776883
+      },
+      {
+        "world": "proc48_s42",
+        "initial": [
+          506,
+          506
+        ],
+        "peak": [
+          880,
+          1046
+        ],
+        "cpu_seconds": [
+          24.413386,
+          52.712154
+        ],
+        "cpu_ratio": 2.1591496566678625,
+        "bundle_ratio": 2.5714663176486714,
+        "extra_rss_mib": 725.375,
+        "max_checkpoint_ratio": 1.9780475455766167
+      }
+    ],
+    "issues": []
+  },
+  "source": {
+    "original": {
+      "commit": "8abc1acb3adf978ea212a570fb1dfbbfe9723ec3",
+      "files": 247,
+      "mismatches": [],
+      "path_nul_bytes_digest": "ef0b0f2940e07350acc36e4b308f9674956b78f4c3b61ce9b00a320afc65a94f",
+      "reported_digest": "ef0b0f2940e07350acc36e4b308f9674956b78f4c3b61ce9b00a320afc65a94f",
+      "native_sha256": "8926c45b87f80cea732439b0d0513debb3ea314fbc56938648cec5dd6bfc951e"
+    },
+    "previous": {
+      "commit": "11467a46b957a364b3d4d4ba2ba1a4326adcc6c3",
+      "files": 270,
+      "mismatches": [],
+      "path_nul_bytes_digest": "49528856b5d4b5c8f5ba7209489eb5c8daa4302e31ac2aee6cd7486d1402f6cb",
+      "reported_digest": "49528856b5d4b5c8f5ba7209489eb5c8daa4302e31ac2aee6cd7486d1402f6cb",
+      "native_sha256": "f2fb24f13c386c3965e485330499b9aa435f61a43e8fc02023f950fbf9664256"
+    },
+    "candidate": {
+      "commit": "830d0dc2ecc7caad12217f88e47d6ffeb21309c1",
+      "files": 287,
+      "mismatches": [],
+      "path_nul_bytes_digest": "86a8d91a1c3594b89714bbf757141278393cf172ccc7011c488bcf6359603344",
+      "reported_digest": "86a8d91a1c3594b89714bbf757141278393cf172ccc7011c488bcf6359603344",
+      "native_sha256": "59f536b8f4a6c2bc82c51eeaec55f3aff6b0a1c5c8f1a324049ad15b42c51617"
+    },
+    "profile_snapshot_recomputed": {
+      "commit": "eaa4a5d3e1cb5c958b5e32719601c28986c9f6ac",
+      "files": 344,
+      "sha256": "faa94c0cad6d097d3b6f53230563f23efa18aa2efad9c5fe494e7da368623d5d"
+    },
+    "identity_script_sha256": "a0f241a0d074050ecfefe2e696815fab2a6475fd9e08cfbf749d26e0867cc7df"
+  },
+  "native_inputs_verified": {
+    "files": 56,
+    "sha256": "38b21020673a028ce6bcd76e19fb3e0c01eed5893b89f1ce6ff6eda6cf8925a2"
+  },
+  "independent_existing_output_comparisons": [
+    {
+      "control": "original",
+      "command": [
+        "/workspace/cw-b3-offline/bin/python",
+        "/workspace/Chronicler/scripts/turn_speed_identity.py",
+        "compare",
+        "/workspace/evidence/identities/reference/out",
+        "/workspace/evidence/final-program/identity/final-830d0dc2/out"
+      ],
+      "returncode": 0,
+      "stdout": "hybrid_s1234: 10 files, 0 differences\nhybrid_s42: 111 files, 0 differences\nhybrid_s7: 111 files, 0 differences\noff_s42: 9 files, 0 differences\noff_s7: 9 files, 0 differences\nproc48_hybrid_s42: 92 files, 0 differences\nproc48_off_s7: 15 files, 0 differences\nscaled22k_s42: 32 files, 0 differences\nscaled52k_s7: 10 files, 0 differences\n9 cases, 399 files compared, 0 differences\n"
+    },
+    {
+      "control": "preceding",
+      "command": [
+        "/workspace/cw-b3-offline/bin/python",
+        "/workspace/Chronicler/scripts/turn_speed_identity.py",
+        "compare",
+        "/workspace/evidence/final-program/identity/previous-11467/out",
+        "/workspace/evidence/final-program/identity/final-830d0dc2/out"
+      ],
+      "returncode": 0,
+      "stdout": "hybrid_s1234: 10 files, 0 differences\nhybrid_s42: 111 files, 0 differences\nhybrid_s7: 111 files, 0 differences\noff_s42: 9 files, 0 differences\noff_s7: 9 files, 0 differences\nproc48_hybrid_s42: 92 files, 0 differences\nproc48_off_s7: 15 files, 0 differences\nscaled22k_s42: 32 files, 0 differences\nscaled52k_s7: 10 files, 0 differences\n9 cases, 399 files compared, 0 differences\n"
+    }
+  ],
+  "new_native_or_simulation_runs": 0,
+  "approval": "evidence and interpretation only; final held/resume/browser/offline/PR/main-CI gates separate"
+}

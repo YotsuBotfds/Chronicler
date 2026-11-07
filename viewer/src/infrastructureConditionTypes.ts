@@ -142,6 +142,8 @@ export interface InfraReceipt {
   condition_before: number;
   condition_after: number;
   remaining_after: number;
+  crew_mode?: "paid" | "unpaid";
+  members?: Array<{agent_id:number;origin:string;share:number;worked:number;wage_requested_milli:number;wages_milli:number;wage_refused_milli:number;income_replaced:number|null}>;
 }
 
 export interface InfraLedger {
@@ -158,6 +160,12 @@ export interface InfraLedger {
   envelope: number | null;
   /** RS2's charge to the civ this turn (its own envelope; shown for context). */
   rs2_charged: number;
+  nominal_cost_milli?: number;
+  wages_requested_milli?: number;
+  wages_milli?: number;
+  wages_refused_milli?: number;
+  wage_carry_before_milli?: number;
+  wage_carry_after_milli?: number;
 }
 
 export interface InfraUnmet {

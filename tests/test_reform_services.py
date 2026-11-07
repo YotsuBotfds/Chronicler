@@ -106,7 +106,12 @@ def test_switch_registry_cli_catalog_and_manifest():
     assert default.reform_services is None and default.reform_services_mode is None
     assert "reform_services" not in simulation_config(default)         # feature-off manifests keep their bytes
     assert ReformServicesState().mode == "service"
-    assert M.MONEY_BOOKS[-1] == "reform_services" and M.NATIVE_ALIASES["relief_purchase"] == "food_procurement"
+    # Keep the landed D1 prefix; later actual payers append their books instead
+    # of replacing or reordering the relief fund's registered authority.
+    assert M.MONEY_BOOKS[:5] == (
+        "workshop_economics", "epidemic_care", "titled_trade", "infrastructure_condition", "reform_services")
+    assert M.MONEY_BOOKS[5:] == ("war_requisition", "public_health", "timber_orders", "movement_branches")
+    assert M.NATIVE_ALIASES["relief_purchase"] == "food_procurement"
 
 
 def test_never_enabled_world_has_no_state_and_withholds_nothing():

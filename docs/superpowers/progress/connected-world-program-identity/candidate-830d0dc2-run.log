@@ -1,0 +1,11 @@
+chronicler /workspace/cw-final-identity-830/src/chronicler/__init__.py
+native /workspace/cw-evidence-native/lib/python3.13/site-packages/chronicler_agents/chronicler_agents.cpython-313-x86_64-linux-gnu.so 59f536b8f4a6c2bc82c51eeaec55f3aff6b0a1c5c8f1a324049ad15b42c51617
+off_s42: exit 0 in 8 s
+off_s7: exit 0 in 6 s
+hybrid_s42: exit 0 in 6 s
+hybrid_s7: exit 0 in 7 s
+hybrid_s1234: exit 0 in 6 s
+proc48_hybrid_s42: exit 0 in 13 s
+proc48_off_s7: exit 0 in 12 s
+scaled22k_s42: exit 0 in 8 s
+scaled52k_s7: exit 0 in 10 s

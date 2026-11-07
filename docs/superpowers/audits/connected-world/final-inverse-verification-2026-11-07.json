@@ -1,0 +1,56 @@
+{
+  "source": "0bf2832f39f21ff5794dcdb444ddff26f76ce8ca",
+  "parent": "11467a46b957a364b3d4d4ba2ba1a4326adcc6c3",
+  "rows": [
+    {
+      "path": "chronicler-agents/src/ffi/mod.rs",
+      "hunks": 14,
+      "parent_sha256": "2d28f2b9071e5be29637a1f3d4e7e5413b1b281908d0c69cfce141d9b5620fa1",
+      "current_sha256": "8d53d90c576f2bba5ec0d312155ef626de9d73dbf20182e618fa40d6e0442ca3",
+      "exact_bidirectional": true
+    },
+    {
+      "path": "chronicler-agents/src/household.rs",
+      "hunks": 2,
+      "parent_sha256": "ce75a9538db4c803767d5feaf4843dbadcb3991b73c2c978ae20237e9f187869",
+      "current_sha256": "ca2e19a336a0d4da8a81306b01be06446f16becc3ae27030a2dfaaeba7c12816",
+      "exact_bidirectional": true
+    },
+    {
+      "path": "chronicler-agents/src/lib.rs",
+      "hunks": 1,
+      "parent_sha256": "57276043d6f34a0eadff3e2076beab798b3b28aa08127d09ec5727731ebcd370",
+      "current_sha256": "ada58366368e4f8bc17e078e23684d4796dcb123bd02af7566e91b159506f55b",
+      "exact_bidirectional": true
+    },
+    {
+      "path": "chronicler-agents/src/pool.rs",
+      "hunks": 3,
+      "parent_sha256": "e73952cfd6e3e3e3036d26f418f2fc22a98c6183f212af02da4e244e72f56195",
+      "current_sha256": "804fd841c7c87b18938bcc5955771ad50815e40cce45efb2abd1a543439df340",
+      "exact_bidirectional": true
+    },
+    {
+      "path": "chronicler-agents/src/tick.rs",
+      "hunks": 11,
+      "parent_sha256": "36c306ea15cfe306d3ba86bf2f71bb4c7c32444fbb28f155e4391ccfe5d0ff0a",
+      "current_sha256": "0655aa3b8d10b28aaf1ac149ce12b5638962be500b8e9c4ebba0d9aab478f02f",
+      "exact_bidirectional": true
+    },
+    {
+      "path": "src/chronicler/batch_manifest.py",
+      "hunks": 4,
+      "parent_sha256": "e08d1a8df47108e6c4321d001826e1eb5f27e661f5eab0a21b4c009f3c7cc254",
+      "current_sha256": "b67af57dbf12218a7c86690315227c4c6a96cb94b5cb8cbeb5bcebf3dda874de",
+      "exact_bidirectional": true
+    },
+    {
+      "path": "tests/test_batch_manifest.py",
+      "hunks": 2,
+      "parent_sha256": "2b3b10f4b2100fdf05403fcfa29c7629fdc26c6168af9f9cd890662a59eeb828",
+      "current_sha256": "b748dec974420652d2b555aed3a884d37e6b61163612e2c06dfd386e63aa3a0e",
+      "exact_bidirectional": true
+    }
+  ],
+  "historical_fixtures_unchanged": true
+}

@@ -1,0 +1,7 @@
+{
+  "viewer_source": "876d3c3d13e780f73041c1d1229c3f6b5fe0a1df",
+  "tracked_tree_status": "",
+  "build_command": "npm run build -- --outDir /workspace/evidence/history/integrated-dist-health-final",
+  "native_sha256": "59f536b8f4a6c2bc82c51eeaec55f3aff6b0a1c5c8f1a324049ad15b42c51617",
+  "note": "Frontend build identity only. Each raw bundle has its own independent simulation source and SHA256; see browser reports and simulation-source receipts."
+}

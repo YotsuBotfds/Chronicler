@@ -73,8 +73,14 @@ BURDEN_KINDS: dict[str, tuple[str, str, str]] = {
     "quarantine_closure": ("quarantine_rules.decide (closure mode: the closer's trade routes to the target)",
                            "restriction", "routes"),
 }
+# Keep pre-integration lifetime declaration order stable when adding a kind.
+_LEGACY_BURDEN_KINDS = tuple(BURDEN_KINDS)
+BURDEN_KINDS["infrastructure_war_damage"] = (
+    "infrastructure_condition.war_damage (accepted conquest or sack damage per asset)",
+    "destroyed", "condition",
+)
 BURDEN_NATURES: tuple[str, ...] = ("transfer", "minted", "destroyed", "restriction")
-BURDEN_UNITS: tuple[str, ...] = ("treasury", "food", "goods", "grain", "milli_food", "routes")
+BURDEN_UNITS: tuple[str, ...] = ("treasury", "food", "goods", "grain", "milli_food", "routes", "condition")
 
 #: Identity events (restored civilization identity reuse and its relatives).
 IDENTITY_KINDS: tuple[str, ...] = ("restored", "revived", "name_reused", "renamed")
@@ -90,10 +96,12 @@ MAX_ENTRIES = 256
 #: each burden kind's amount (its own unit) and its number of events.
 LIFETIME: tuple[str, ...] = (
     *(f"deaths_{cause}" for cause in CASUALTY_CAUSES[:5]),
-    *(f"burden_{kind}" for kind in BURDEN_KINDS),
-    *(f"burden_{kind}_events" for kind in BURDEN_KINDS),
+    *(f"burden_{kind}" for kind in _LEGACY_BURDEN_KINDS),
+    *(f"burden_{kind}_events" for kind in _LEGACY_BURDEN_KINDS),
     # Review m1 (appended): deaths at reconciliation in a region a war drain hit.
     "deaths_war_drain", "deaths_possibly_enemy",
+    # B3 integration (appended): accepted asset-condition loss, never money or food.
+    "burden_infrastructure_war_damage", "burden_infrastructure_war_damage_events",
 )
 
 #: Lifetime counters (declaration order; append only).

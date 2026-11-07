@@ -118,6 +118,7 @@ fn apply_death_batch(
             migration_driver: NO_MIGRATION_DRIVER,
         });
 
+        let estate = pool.wealth[slot] as f64;
         let (_inheritance_events, spouse_intents) = crate::household::household_death_transfer(
             pool,
             slot,
@@ -126,6 +127,15 @@ fn apply_death_batch(
             &context.parent_to_children,
             household_stats,
         );
+        if pool.wealth_observation.is_some() {
+            pool.observe_wealth(region, "estate_out", -estate);
+            let mut credited = 0.0;
+            for inherited in &_inheritance_events {
+                credited += inherited.amount as f64;
+            }
+            pool.observe_wealth(region, if _inheritance_events.is_empty() { "estate_unclaimed" }
+                else { "estate_overflow" }, estate - credited);
+        }
         memory_intents.extend(spouse_intents);
 
         if let Some(children) = context.parent_to_children.get(&dying_agent_id) {
@@ -791,6 +801,11 @@ fn try_tick_agents_with_movements_observer<M: crate::decision_delivery::MoveObse
     let mut pending_decisions = pending_decisions; // make mutable for consolidation
     // Consolidation may replace followers' rebellion/switch decisions. Retain
     // those primary actions if the later household gate cancels their move.
+    // Capture only independently chosen primaries before household following.
+    let adaptive_primary: Vec<_> = if pool.adaptive_migration.is_some() {
+        pending_decisions.iter().flat_map(|p| p.migrations.iter().copied()).collect()
+    } else { Vec::new() };
+    let mut adaptive_refused = Vec::new();
     // Livelihoods L7: a relocation fare policy prices the same household groups.
     let mut relocation = pool.relocation_policy.take().filter(|p| p.turn == turn && gate.is_none());
     // Connected-world C1b: a quarantine's migration closure for this tick.
@@ -812,12 +827,17 @@ fn try_tick_agents_with_movements_observer<M: crate::decision_delivery::MoveObse
         gate_groups.as_deref_mut(),
     );
 
+    let adaptive_primary: Vec<_> = adaptive_primary.into_iter().filter(|m|
+        pending_decisions.iter().any(|p| p.migrations.contains(m))).collect();
     // C1b: consolidated moves across a closed pair are refused before any
     // household is priced or gated (`migration_closure`); unchanged without one.
     if let Some(closure) = closure.as_ref() {
         let (blocked, receipt) = crate::migration_closure::gate(pool, closure, &mut pending_decisions);
         if let Some(original) = original_actions.as_ref() {
             restore_blocked_primary_actions(&mut pending_decisions, &blocked, original);
+        }
+        if pool.adaptive_migration.is_some() {
+            adaptive_refused = crate::adaptive_migration::removed(pool, &adaptive_primary, &pending_decisions, 0);
         }
         pool.migration_closure_receipt = Some(receipt);
     }
@@ -832,6 +852,13 @@ fn try_tick_agents_with_movements_observer<M: crate::decision_delivery::MoveObse
         if let Some(original) = original_actions {
             restore_blocked_primary_actions(&mut pending_decisions, &blocked, &original);
         }
+    }
+
+    if pool.adaptive_migration.is_some() {
+        for row in crate::adaptive_migration::removed(pool, &adaptive_primary, &pending_decisions, 1) {
+            if !adaptive_refused.iter().any(|r| r.0 == row.0) { adaptive_refused.push(row); }
+        }
+        adaptive_refused.sort_unstable();
     }
 
     // -----------------------------------------------------------------------
@@ -1188,6 +1215,7 @@ fn try_tick_agents_with_movements_observer<M: crate::decision_delivery::MoveObse
                 birth.cultural_values[2],
                 birth.belief,
             )?;
+            pool.observe_wealth(birth.region, "birth_endowment", pool.wealth[new_slot] as f64);
             pool.set_loyalty(new_slot, birth.parent_loyalty);
             if let Some(&inherited) = parent_needs.get(&birth.birth_parent_id) {
                 crate::needs::set_newborn_needs(pool, new_slot, inherited);
@@ -1479,6 +1507,16 @@ fn try_tick_agents_with_movements_observer<M: crate::decision_delivery::MoveObse
     pool.food_access.clear();
     pool.food_access_ids.clear();
     pool.food_access_regions.clear();
+    if let Some(o) = &mut pool.wealth_observation { o.complete = true; }
+    if let Some(a) = pool.adaptive_migration.take() {
+        use std::sync::atomic::Ordering;
+        pool.adaptive_migration_receipt = Some(crate::adaptive_migration::AdaptiveReceipt {
+            turn: a.turn, refused: adaptive_refused, used: a.used.load(Ordering::Relaxed),
+            changed: a.changed.load(Ordering::Relaxed),
+        });
+    }
+    pool.enlisted_service = None;
+    pool.adaptive_information = None;
     Ok((events, kin_bond_failures, formation_stats, demo_debug, household_stats, merchant_stats, knowledge_stats))
 }
 
@@ -1594,6 +1632,11 @@ pub fn wealth_tick(
             }
         };
 
+        let before_enlisted = income;
+        let income = if occ == 0 && pool.enlisted(slot) { 0.0 } else { income };
+        pool.observe_wealth(pool.regions[slot], "withheld_enlisted", before_enlisted as f64 - income as f64);
+        let observed_gross = income;
+        pool.observe_wealth(pool.regions[slot], "income_gross", before_enlisted as f64);
         // Teaching reserves the Scholar's existing ordinary income work.
         // The care observer's pre-health operand is the remaining ordinary
         // income; teaching has its own separately labelled receipt.
@@ -1609,16 +1652,24 @@ pub fn wealth_tick(
                 } else { income }
             } else { income }
         } else { income };
+        pool.observe_wealth(pool.regions[slot], "withheld_teaching", (observed_gross as f64) - income as f64);
+        let observed_before_learning = income;
         // A seated learner's attendance withholds that share of ordinary income.
         let income = crate::learning_work::charge(&mut learning, slot, pool.ids[slot], income);
+        pool.observe_wealth(pool.regions[slot], "withheld_learning", observed_before_learning as f64 - income as f64);
+        let observed_before_paid = income;
         // Livelihoods L6a: paid workshop time replaces this share of the
         // ordinary income (wages are paid separately, never on top).
         let income = crate::wealth_transfer::paid_work_income(
             &paid_work, &mut paid_work_rows, pool.ids[slot], slot, income);
+        pool.observe_wealth(pool.regions[slot], "withheld_paid_work", observed_before_paid as f64 - income as f64);
+        let observed_before_retail = income;
         // Livelihoods L6b: what is left of a pilot farmer's farm income is
         // replaced by food sales (recorded after health loss, then zero).
         let income = crate::wealth_transfer::retail_income(
             &retail_income, &mut retail_income_rows, occ, region_id, pool.ids[slot], income, health_loss.get(slot));
+        pool.observe_wealth(pool.regions[slot], "withheld_retail", observed_before_retail as f64 - income as f64);
+        let observed_before_health = income;
         // CAREOBS_SOURCE_BEGIN: actual pre-health base income
         if let Some(observation) = &mut health_care_observation { observation.wealth_value(slot, 1, income); }
         // CAREOBS_SOURCE_END: actual pre-health base income
@@ -1631,16 +1682,27 @@ pub fn wealth_tick(
         // CAREOBS_SOURCE_BEGIN: actual charged income
         if let Some(observation) = &mut health_care_observation { observation.wealth_value(slot, 2, income); }
         // CAREOBS_SOURCE_END: actual charged income
+        pool.observe_wealth(pool.regions[slot], "withheld_health", observed_before_health as f64 - income as f64);
+        let observed_before_add = pool.wealth[slot];
         pool.wealth[slot] += income;
+        pool.observe_wealth(pool.regions[slot], "income_applied", pool.wealth[slot] as f64 - observed_before_add as f64);
+        pool.observe_wealth(pool.regions[slot], "income_rounding", pool.wealth[slot] as f64 - observed_before_add as f64 - income as f64);
+
         // CAREOBS_SOURCE_BEGIN: actual wealth after addition
         if let Some(observation) = &mut health_care_observation { observation.wealth_value(slot, 3, pool.wealth[slot]); }
         // CAREOBS_SOURCE_END: actual wealth after addition
         // Multiplicative decay
+        let observed_before_decay = pool.wealth[slot];
         pool.wealth[slot] *= 1.0 - crate::agent::WEALTH_DECAY;
+        pool.observe_wealth(pool.regions[slot], "decay", pool.wealth[slot] as f64 - observed_before_decay as f64);
+
         // CAREOBS_SOURCE_BEGIN: actual wealth after decay
         if let Some(observation) = &mut health_care_observation { observation.wealth_value(slot, 4, pool.wealth[slot]); }
         // CAREOBS_SOURCE_END: actual wealth after decay
+        let observed_before_clamp = pool.wealth[slot];
         pool.wealth[slot] = pool.wealth[slot].clamp(0.0, crate::agent::MAX_WEALTH);
+        pool.observe_wealth(pool.regions[slot], "ceiling_floor", pool.wealth[slot] as f64 - observed_before_clamp as f64);
+
         // CAREOBS_SOURCE_BEGIN: actual wealth after clamp
         if let Some(observation) = &mut health_care_observation { observation.wealth_value(slot, 5, pool.wealth[slot]); }
         // CAREOBS_SOURCE_END: actual wealth after clamp
@@ -2043,11 +2105,12 @@ fn tick_region_demographics(
         // Is this a soldier at war? (H-29: O(1) lookup)
         let civ_at_war = civ_idx.get(signals, civ)
             .map_or(false, |c| c.is_at_war);
-        let is_soldier_at_war = occ == 1 && civ_at_war;
+        let is_soldier_at_war = occ == 1 && civ_at_war
+            && !pool.enlisted_service.as_ref().is_some_and(|s| s.suppress_war_mortality);
 
         let mut mort_rate = demographics::mortality_rate(age, eco_stress, is_soldier_at_war, region.endemic_severity);
         // Livelihoods L2: a person's own ration when an allocation ran.
-        let (hunger_dearth, hunger_famine, hunger_fertility, hungry) = if pool.food_access.is_empty() {
+        let (hunger_dearth, hunger_famine, hunger_fertility, hungry) = if pool.food_access.is_empty() && !pool.enlisted(slot) {
             (hunger_dearth, hunger_famine, hunger_fertility, hungry)
         } else {
             let (d, f) = demographics::hunger_components(

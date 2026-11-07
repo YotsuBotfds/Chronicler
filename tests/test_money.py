@@ -35,6 +35,8 @@ class FakeSim:
 
     def transfer_wealth(self, turn, purpose, batch, rows):
         self.calls += 1
+        if purpose in (8, 9):
+            raise ValueError("a pairwise wealth transfer purpose is paid only through settle_pairs")
         if purpose >= len(self.purposes):
             raise ValueError("unknown wealth transfer purpose")
         if any(p == purpose and b == batch and t >= turn for t, p, b in self.keys):

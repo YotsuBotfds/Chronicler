@@ -399,6 +399,7 @@ CHUNKS = {
     "connected-world-b": [
         "tests/test_watershed.py",
         "tests/test_infrastructure_condition.py",
+        "tests/test_harvest_cover.py",
         "tests/test_cw3_screen.py",
     ],
     "ritual-gatherings": [
@@ -485,6 +486,9 @@ CHUNKS = {
         "tests/test_reform_services.py",
         "tests/test_guild_leagues.py",
     ],
+    "connected-world-completion": ["tests/test_public_health_integration.py", "tests/test_movement_branches.py", "tests/test_timber_orders.py", "tests/test_connected_record_provenance.py", "tests/test_cw_health_screen.py", 'tests/test_war_requisition.py', 'tests/test_war_consequences.py', 'tests/test_adaptive_livelihoods.py', 'tests/test_public_health.py'],
+
+    "connected-world-readers": ["tests/test_connected_world_examples.py", "tests/test_cw_integrated_screen.py", "tests/test_connected_world_startup_guards.py"],
 }
 TESTS = [node for nodes in CHUNKS.values() for node in nodes]
 if len(set(TESTS)) != len(TESTS):

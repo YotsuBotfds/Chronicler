@@ -1,0 +1,46 @@
+{
+  "original": {
+    "commit": "8abc1acb3adf978ea212a570fb1dfbbfe9723ec3",
+    "source": "/workspace/evidence/identities/reference/src-tree",
+    "tracked_src_files": 247,
+    "tracked_src_digest": "ef0b0f2940e07350acc36e4b308f9674956b78f4c3b61ce9b00a320afc65a94f",
+    "mismatches": []
+  },
+  "previous": {
+    "commit": "11467a46b957a364b3d4d4ba2ba1a4326adcc6c3",
+    "source": "/workspace/evidence/final-program/identity/previous-11467/src-tree",
+    "tracked_src_files": 270,
+    "tracked_src_digest": "49528856b5d4b5c8f5ba7209489eb5c8daa4302e31ac2aee6cd7486d1402f6cb",
+    "mismatches": []
+  },
+  "candidate": {
+    "commit": "830d0dc2ecc7caad12217f88e47d6ffeb21309c1",
+    "source": "/workspace/cw-final-identity-830",
+    "tracked_src_files": 287,
+    "tracked_src_digest": "86a8d91a1c3594b89714bbf757141278393cf172ccc7011c488bcf6359603344",
+    "mismatches": []
+  },
+  "native": {
+    "candidate": "59f536b8f4a6c2bc82c51eeaec55f3aff6b0a1c5c8f1a324049ad15b42c51617",
+    "original_rebuilt": "8926c45b87f80cea732439b0d0513debb3ea314fbc56938648cec5dd6bfc951e",
+    "previous": "f2fb24f13c386c3965e485330499b9aa435f61a43e8fc02023f950fbf9664256"
+  },
+  "results": {
+    "original": "hybrid_s1234: 10 files, 0 differences\nhybrid_s42: 111 files, 0 differences\nhybrid_s7: 111 files, 0 differences\noff_s42: 9 files, 0 differences\noff_s7: 9 files, 0 differences\nproc48_hybrid_s42: 92 files, 0 differences\nproc48_off_s7: 15 files, 0 differences\nscaled22k_s42: 32 files, 0 differences\nscaled52k_s7: 10 files, 0 differences\n9 cases, 399 files compared, 0 differences\n",
+    "previous-11467": "hybrid_s1234: 10 files, 0 differences\nhybrid_s42: 111 files, 0 differences\nhybrid_s7: 111 files, 0 differences\noff_s42: 9 files, 0 differences\noff_s7: 9 files, 0 differences\nproc48_hybrid_s42: 92 files, 0 differences\nproc48_off_s7: 15 files, 0 differences\nscaled22k_s42: 32 files, 0 differences\nscaled52k_s7: 10 files, 0 differences\n9 cases, 399 files compared, 0 differences\n"
+  },
+  "identity_script_sha256": "a0f241a0d074050ecfefe2e696815fab2a6475fd9e08cfbf749d26e0867cc7df",
+  "commands": {
+    "run": "PYTHONPATH=/workspace/cw-final-identity-830/src /workspace/cw-evidence-native/bin/python /workspace/cw-final-identity-830/scripts/turn_speed_identity.py run /workspace/evidence/final-program/identity/final-830d0dc2/out --source-root /workspace/cw-final-identity-830",
+    "original_compare": "python scripts/turn_speed_identity.py compare /workspace/evidence/identities/reference/out /workspace/evidence/final-program/identity/final-830d0dc2/out",
+    "preceding_compare": "python scripts/turn_speed_identity.py compare /workspace/evidence/final-program/identity/previous-11467/out /workspace/evidence/final-program/identity/final-830d0dc2/out"
+  },
+  "preceding_main": {
+    "commit": "f76436ae37c735b2b856caf98033122798ac88d2",
+    "reviewed_head": "11467a46b957a364b3d4d4ba2ba1a4326adcc6c3",
+    "both_tree": "0c7cdfdcde7ea05dcc30c6eaa25637c03977c1ce"
+  },
+  "comparison": "Every case file byte-for-byte; bundle decoded and raw bytes with only metadata.generated_at normalized; no faith projection",
+  "baseline_note": "Rebuilt original8abc native artifact used; historical Claude binary not claimed recovered. Prior archive mislabeled D1 was rejected and true11467 source freshly exported and run.",
+  "tracked_src_digest_format": "SHA-256 of git ls-tree -r --name-only <commit> src order; for each repo-relative UTF-8 path: path + NUL + actual file bytes + NUL. Each actual file separately compared to git show <commit>:<path>."
+}

@@ -1,0 +1,66 @@
+{
+  "status": "PASS; independent actual source, configuration, completed results and Arrow readback approved",
+  "reviewer": "health/pilot_review (independent of source and evidence authors)",
+  "runtime_source": "eaa4a5d3e1cb5c958b5e32719601c28986c9f6ac",
+  "native_sha256": "59f536b8f4a6c2bc82c51eeaec55f3aff6b0a1c5c8f1a324049ad15b42c51617",
+  "driver_sha256": "42c029fb307b7c27ad4b2d467850f570cd3453cf1351e815e0b412e32dd88683",
+  "summary_sha256": "783cc756058d92d37e6a107bcc55a82f893c93cfc8db95f564dd6256283e8cba",
+  "seconds": 920.9334132869999,
+  "case_count": 2,
+  "resumes": 58,
+  "hybrid_s42_long": {
+    "turns": 200,
+    "resumes": 19,
+    "plain_vs_checkpointed_files": 112,
+    "resumed_file_counts": [
+      22,
+      47,
+      67,
+      72,
+      76,
+      88,
+      92,
+      96,
+      100,
+      104,
+      108
+    ],
+    "differences": 0,
+    "unknown_migrations": 1328,
+    "all_migrations": 1495
+  },
+  "proc32_hybrid_s11": {
+    "turns": 40,
+    "resumes": 39,
+    "plain_vs_checkpointed_files": 41,
+    "resumed_file_counts": [
+      25,
+      29,
+      33,
+      37
+    ],
+    "differences": 0,
+    "unknown_migrations": 581,
+    "all_migrations": 581
+  },
+  "review": [
+    "Original case CLI, horizon, target population and default checkpoints retained; exact FULL program flags appended; procedural watershed flow and original 32 regions/eight civilizations retained.",
+    "All exits zero; checkpoint writing and all resumed comparisons have zero differences. Outer reports, case reports, selections and summary agree.",
+    "Clean eaa source and imported native 59f identity unchanged; both retained straight bundles have correct seed/horizon/geography and pass strict CW6 extraction.",
+    "All six Arrow sidecars per case readable; agent events span 0–199 and 0–39 and native death/migration counts close. Arrow is compared as raw bytes.",
+    "Comparator removes bundle generated_at, ignores logs/run_manifest/checkpoint files and expects pre-checkpoint per-turn JSON only on uninterrupted side. Unknown migration causes remain explicit."
+  ],
+  "files": {
+    "README.md": "e57b7c84b8c9d5dbe52e78782f45e140c96acefdd5efb624802bf1d2783cd673",
+    "execution.log": "ae765398ada425c12177fdba2de332fb7495dae58fe8cd23491412c793b67899",
+    "orchestrator-receipt.json": "dd8d321cac4b5838749287b68723b295f7e6c7e16d6a2e2468462d6fd64a8cf2",
+    "orchestrator.py.txt": "42c029fb307b7c27ad4b2d467850f570cd3453cf1351e815e0b412e32dd88683",
+    "report-hybrid_s42_long.json": "16cd424e4ca885def8e78876afbe100c937af6ccf6833ddc4549dc2986b09375",
+    "report-proc32_hybrid_s11.json": "e23906466fe4b882efe2e430b34e1c56eb5aab8b02c126acc7a2539752895949",
+    "retained-straight-files.json": "1f69a1d651eb87091649f7b2d133de3b403fd7d1041a3d45c15539b4c7a042fe",
+    "selection-hybrid_s42_long.json": "daebeca5643c86e372cdcc5b687f5113cfeada323d505becc50d1f2e667c3e39",
+    "selection-proc32_hybrid_s11.json": "0ac4e8504405be836c3e514932b6214191c7a3ba76f30c43ddfb092c416af31c",
+    "source.txt": "5d3f0c7df54971432d50e2a41faba608a99e58526c9c1fafc5be91fcf3bc0f2d",
+    "summary.json": "783cc756058d92d37e6a107bcc55a82f893c93cfc8db95f564dd6256283e8cba"
+  }
+}

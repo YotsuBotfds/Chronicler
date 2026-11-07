@@ -1,0 +1,7 @@
+{
+  "viewer_source": "e69f823b03e22242e59a3007667e1cabcab8fa9e",
+  "tracked_tree_status": "",
+  "build_command": "npm run build -- --outDir /workspace/evidence/history/integrated-dist-accepted-immutable",
+  "native_sha256": "59f536b8f4a6c2bc82c51eeaec55f3aff6b0a1c5c8f1a324049ad15b42c51617",
+  "note": "Frontend identity only; immutable isolated worktree. Raw saved simulation retains independent source/content identity."
+}

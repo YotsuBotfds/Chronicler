@@ -594,6 +594,12 @@ def decide(world: Any, state: Any, rules: QuarantineRulesState, reports: dict, a
     before = {(c.civ, c.target): c for c in rules.closures}
     decided: dict[tuple[int, int], str] = {}   # (civ, target) -> cause
     closing: list[int] = []
+    from chronicler.public_health import report_targets
+    advised = report_targets(world, reports)
+    from chronicler.public_health import enforcement_cost, staffed_targets
+    if advised is not None:
+        advised = staffed_targets(world, advised)
+    cost = enforcement_cost(world, ENFORCEMENT_COST)
     if rules.mode in DECIDING_MODES and cl.ledger_enabled(world):
         sick = sorted(reports)
         neighbors = world.contact_ledger.neighbors()
@@ -610,19 +616,22 @@ def decide(world: Any, state: Any, rules: QuarantineRulesState, reports: dict, a
                 t_idx = index.get(ctrl) if ctrl is not None else None
                 if t_idx is not None and t_idx != idx:
                     targets.setdefault(t_idx, key)
+            if advised is not None:
+                targets = advised.get(idx, {})
             if not targets:
                 continue
-            if civ.stability < QUARANTINE_MIN_STABILITY or civ.treasury < ENFORCEMENT_COST:
+            if civ.stability < QUARANTINE_MIN_STABILITY or civ.treasury < cost:
                 continue
             closing.append(idx)
-            receipt.enforcement.append((idx, ENFORCEMENT_COST))
-            if acc is not None:
-                acc.add(idx, civ, "treasury", -ENFORCEMENT_COST, "keep")
-            else:
-                civ.treasury -= ENFORCEMENT_COST
+            receipt.enforcement.append((idx, cost))
+            if cost:
+                if acc is not None:
+                    acc.add(idx, civ, "treasury", -cost, "keep")
+                else:
+                    civ.treasury -= cost
             first = min(targets.values())
             for t_idx, key in targets.items():
-                decided[(idx, t_idx)] = _report_cause(world, reports[key]) or ""
+                decided[(idx, t_idx)] = _report_cause(world, reports[key]) or "" if key in reports else ""
             names = [civs[t].name for t in sorted(targets)]
             listed = names[0] if len(names) == 1 else ", ".join(names[:-1]) + " and " + names[-1]
             label = PATHOGENS[first[1]].label
@@ -638,7 +647,8 @@ def decide(world: Any, state: Any, rules: QuarantineRulesState, reports: dict, a
             seat = civ.capital_region if civ.capital_region in civ.regions else civ.regions[0]
             ev = Event(turn=turn, event_type="quarantine", actors=[civ.name],
                        description=text, importance=4, region=seat)
-            provenance.cite(ev, _report_cause(world, reports[first]))
+            if first in reports:
+                provenance.cite(ev, _report_cause(world, reports[first]))
             events.append(ev)
     kept: list[QuarantineClosure] = []
     for pair in sorted(decided):
@@ -677,6 +687,11 @@ def decide(world: Any, state: Any, rules: QuarantineRulesState, reports: dict, a
 # Snapshot and metrics
 # ---------------------------------------------------------------------------
 
+def _effective_enforcement_cost(world):
+    from chronicler.public_health import enforcement_cost
+    return enforcement_cost(world, ENFORCEMENT_COST)
+
+
 def snapshot_summary(world: Any) -> dict | None:
     """``history[n].epidemics.quarantine_rules`` (None in legacy mode)."""
     rules = rules_of(world)
@@ -697,7 +712,7 @@ def snapshot_summary(world: Any) -> dict | None:
         "channels": channels_of(rules),
         "exempt": sorted(k for k in EXEMPT if not (k == "migrants" and migration_closure_on(world))),
         "import_multiplier": False,
-        "enforcement_cost": ENFORCEMENT_COST if rules.mode in DECIDING_MODES else 0,
+        "enforcement_cost": _effective_enforcement_cost(world) if rules.mode in DECIDING_MODES else 0,
         "closures": [
             {"id": c.id, "civ": name(c.civ), "target": name(c.target), "opened_turn": c.opened_turn,
              "last_renewed_turn": c.last_renewed_turn, "cause": c.cause}

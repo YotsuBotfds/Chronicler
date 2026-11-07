@@ -27,10 +27,11 @@ def test_the_extension_is_the_compiled_build_with_the_rs0_methods():
     for name in ("extend_paid_work", "install_paid_work", "plan_workshop_crews", "reserve_work"):
         assert callable(getattr(AgentSimulator, name)), name
     # Append-only: household retail (L6b) appended food_purchase and food_procurement,
-    # workshop economics (A3) wares_purchase, titled trade (A4) cargo_purchase and cargo_sale.
+    # workshop economics (A3) wares_purchase, titled trade (A4) cargo_purchase/cargo_sale,
+    # then D4 restitution. Historical codes keep their exact positions.
     assert AgentSimulator.wealth_transfer_purposes() == [
         "workshop_wage", "relocation_fare", "apprentice_stipend", "repair_wage", "remittance",
-        "food_purchase", "food_procurement", "wares_purchase", "cargo_purchase", "cargo_sale"]
+        "food_purchase", "food_procurement", "wares_purchase", "cargo_purchase", "cargo_sale", "restitution"]
 
 
 @pytest.fixture
@@ -70,14 +71,14 @@ def test_appended_categories_share_the_registry_and_purposes_transfer(live):
     with pytest.raises(ValueError, match="category"):
         sim.reserve_work(t, 5, [(c, 0.1)])
     assert sim.work_reservation_conflicts(t) == []
-    for purpose in (2, 3, 4, 5, 6, 7):             # 5-6 household retail (L6b), 7 A3
+    for purpose in (2, 3, 4, 5, 6, 7, 10):         # L6b, A3, then D4 restitution
         out = sim.transfer_wealth(t, purpose, 0, [(c, 10)])
         assert out[0][2] == 10 and out[0][4] == 0
     for purpose in (8, 9):                         # A4's pairwise purposes: settle_pairs only
         with pytest.raises(ValueError, match="pairwise"):
             sim.transfer_wealth(t, purpose, 0, [(c, 10)])
     with pytest.raises(ValueError, match="purpose"):
-        sim.transfer_wealth(t, 10, 0, [(c, 10)])
+        sim.transfer_wealth(t, len(sim.wealth_transfer_purposes()), 0, [(c, 10)])
 
 
 def test_extend_paid_work_merges_refuses_and_is_consumed_once_by_the_tick(live):

@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import type { Bundle, Event } from "../types";
 import { regionInvestigation } from "../lib/investigation";
+import { requestEntityHistory } from "../lib/entityHistoryNavigation";
 import "./investigation.css";
 
 export function RegionInvestigation({ bundle, regionIndex, currentTurn, onHistory, onCivilization, onEvent }: {
@@ -16,7 +17,7 @@ export function RegionInvestigation({ bundle, regionIndex, currentTurn, onHistor
       {context.reading?.metrics.filter((row) => ["population", "nativePopulation", "food", "grain"].includes(row.id)).map((row) =>
         <div key={row.id}><dt>{row.label}</dt><dd>{row.value === null ? "Unknown" : row.value.toLocaleString(undefined, { maximumFractionDigits: 2 })}</dd></div>)}
     </dl>
-    {context.unique && <button type="button" onClick={onHistory}>Inspect history: {context.name}</button>}
+    {context.unique && <><button type="button" onClick={onHistory}>Inspect history: {context.name}</button><button type="button" onClick={()=>requestEntityHistory({kind:"region",id:regionIndex},currentTurn)}>Linked system history: {context.name}</button></>}
     {context.ownerIndex !== null && typeof context.owner === "string" && <button type="button" onClick={() => onCivilization(context.owner! as string)}>Inspect owner: {context.owner}</button>}
     <details><summary>Recent regional reports · turns {context.from}–{context.through}</summary>
       <p>Explicitly named region only. Controller-wide events are not assigned to its regions. Nearby events do not establish causes. Snapshot T follows simulation tick T−1.</p>

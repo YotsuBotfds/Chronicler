@@ -1,0 +1,27 @@
+{
+ "screen": "CW-health",
+ "cohort": "held",
+ "out": "/workspace/evidence/health/held-v1",
+ "identity": "25946961828ca27e20127e182af1ffd4b6375adef19aa3a47a343482518eaa3c",
+ "preregistration": "7128ddcdb9dc6c0d99b289242e2afb80710c229c9119677243ac2214b88b74a1 docs/superpowers/progress/connected-world-screen-health.md",
+ "started": "2026-11-07T15:36:21Z",
+ "seeds": {
+  "template": [
+   3901,
+   3902,
+   3903,
+   3904,
+   3905,
+   3906
+  ],
+  "procedural": [
+   4001,
+   4002,
+   4003,
+   4004,
+   4005,
+   4006
+  ]
+ },
+ "reason": null
+}

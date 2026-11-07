@@ -1,0 +1,238 @@
+{
+  "source_commit": "8d38f8b49e2db7635ee9ba074edde1d422fbc030",
+  "runs": 36,
+  "passed": 36,
+  "simulation_and_extraction_seconds": 820.0,
+  "ceiling_coreh": 0.75,
+  "primaries": {
+    "health_world_death_rate": {
+      "label": "World epidemic deaths per 1,000 end-turn person-turns (PA - PC)",
+      "strata": {
+        "template": {
+          "per_world": [
+            "3901: -1.66",
+            "3902: +0.4938",
+            "3903: -0.5611",
+            "3904: +1.15",
+            "3905: +0",
+            "3906: -1.172"
+          ],
+          "description": {
+            "n": 6,
+            "mean": -0.2914360838450736,
+            "min": -1.6599732153079012,
+            "max": 1.1503407676334678,
+            "positive": 2,
+            "negative": 3,
+            "zero": 1
+          },
+          "sign_flip": {
+            "n": 6,
+            "assignments": 64,
+            "observed": -0.2914360838450736,
+            "min": -0.8394702918130862,
+            "max": 0.8394702918130862,
+            "at_least_as_extreme": 28
+          },
+          "defined_pairs": 6,
+          "enrolled_worlds": 6
+        },
+        "procedural": {
+          "per_world": [
+            "4001: -2.126",
+            "4002: -0.1385",
+            "4003: +2.158",
+            "4004: +0.5195",
+            "4005: +0.08477",
+            "4006: -1.836"
+          ],
+          "description": {
+            "n": 6,
+            "mean": -0.22294088238011156,
+            "min": -2.125896778033775,
+            "max": 2.158215845083534,
+            "positive": 3,
+            "negative": 3,
+            "zero": 0
+          },
+          "sign_flip": {
+            "n": 6,
+            "assignments": 64,
+            "observed": -0.22294088238011156,
+            "min": -1.1437690562844882,
+            "max": 1.1437690562844882,
+            "at_least_as_extreme": 56
+          },
+          "defined_pairs": 6,
+          "enrolled_worlds": 6
+        }
+      }
+    },
+    "health_world_dpi": {
+      "label": "World epidemic deaths per infectious person-turn (PA - PC)",
+      "strata": {
+        "template": {
+          "per_world": [
+            "3901: -0.03739",
+            "3902: -0.000543",
+            "3903: +0.009435",
+            "3904: -0.04915",
+            "3905: +0",
+            "3906: +0.02226"
+          ],
+          "description": {
+            "n": 6,
+            "mean": -0.009231259763790698,
+            "min": -0.0491500760796072,
+            "max": 0.022257203695190242,
+            "positive": 2,
+            "negative": 3,
+            "zero": 1
+          },
+          "sign_flip": {
+            "n": 6,
+            "assignments": 64,
+            "observed": -0.009231259763790698,
+            "min": -0.01979537843908762,
+            "max": 0.01979537843908762,
+            "at_least_as_extreme": 28
+          },
+          "defined_pairs": 6,
+          "enrolled_worlds": 6
+        },
+        "procedural": {
+          "per_world": [
+            "4001: -0.05264",
+            "4002: -0.01895",
+            "4003: +0.03863",
+            "4004: -0.00296",
+            "4005: -0.003319",
+            "4006: -0.01781"
+          ],
+          "description": {
+            "n": 6,
+            "mean": -0.0095072225384222,
+            "min": -0.05263872094281796,
+            "max": 0.03862936382771276,
+            "positive": 1,
+            "negative": 5,
+            "zero": 0
+          },
+          "sign_flip": {
+            "n": 6,
+            "assignments": 64,
+            "observed": -0.0095072225384222,
+            "min": -0.02238367714765979,
+            "max": 0.02238367714765979,
+            "at_least_as_extreme": 28
+          },
+          "defined_pairs": 6,
+          "enrolled_worlds": 6
+        }
+      }
+    },
+    "health_world_arrivals": {
+      "label": "World cross-polity epidemic arrivals (PA - PS)",
+      "strata": {
+        "template": {
+          "per_world": [
+            "3901: -7",
+            "3902: +0",
+            "3903: -18",
+            "3904: -5",
+            "3905: +1",
+            "3906: -13"
+          ],
+          "description": {
+            "n": 6,
+            "mean": -7,
+            "min": -18,
+            "max": 1,
+            "positive": 1,
+            "negative": 4,
+            "zero": 1
+          },
+          "sign_flip": {
+            "n": 6,
+            "assignments": 64,
+            "observed": -7,
+            "min": -7.333333333333333,
+            "max": 7.333333333333333,
+            "at_least_as_extreme": 8
+          },
+          "defined_pairs": 6,
+          "enrolled_worlds": 6
+        },
+        "procedural": {
+          "per_world": [
+            "4001: +13",
+            "4002: +102",
+            "4003: -5",
+            "4004: +55",
+            "4005: +5",
+            "4006: -45"
+          ],
+          "description": {
+            "n": 6,
+            "mean": 20.833333333333332,
+            "min": -45,
+            "max": 102,
+            "positive": 4,
+            "negative": 2,
+            "zero": 0
+          },
+          "sign_flip": {
+            "n": 6,
+            "assignments": 64,
+            "observed": 20.833333333333332,
+            "min": -37.5,
+            "max": 37.5,
+            "at_least_as_extreme": 22
+          },
+          "defined_pairs": 6,
+          "enrolled_worlds": 6
+        }
+      }
+    }
+  },
+  "unknown_income_by_arm": {
+    "PC": {
+      "care_income_unknown_person_turns": 140,
+      "guard_income_unknown_person_turns": 73
+    },
+    "PS": {
+      "care_income_unknown_person_turns": 127,
+      "guard_income_unknown_person_turns": 65
+    },
+    "PA": {
+      "care_income_unknown_person_turns": 141,
+      "guard_income_unknown_person_turns": 71
+    }
+  },
+  "activation_by_arm": {
+    "PC": {
+      "care_covered_region_turns": 1293,
+      "water_service_region_turns": 20012,
+      "displaced_region_turns": 24057,
+      "guard_staffed_pair_turns": 5285,
+      "food_consumed_milli": 997626,
+      "health_cash_milli": 5099000
+    },
+    "PS": {
+      "care_covered_region_turns": 1320,
+      "water_service_region_turns": 19161,
+      "displaced_region_turns": 23790,
+      "guard_staffed_pair_turns": 4273,
+      "food_consumed_milli": 1158685,
+      "health_cash_milli": 4602000
+    },
+    "PA": {
+      "care_covered_region_turns": 1519,
+      "water_service_region_turns": 19714,
+      "displaced_region_turns": 24430,
+      "guard_staffed_pair_turns": 5062,
+      "food_consumed_milli": 1179449,
+      "health_cash_milli": 5275000
+    }
+  }
+}

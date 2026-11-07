@@ -1,0 +1,9 @@
+{
+  "script": "/workspace/evidence/cw6/final_resume_orchestrator.py",
+  "sha256": "860d104c2f4815f51d00e95420a8354345b5277e2dd24091ba27c919c88913ec",
+  "source": "eaa4a5d3e1cb5c958b5e32719601c28986c9f6ac",
+  "native": "59f536b8f4a6c2bc82c51eeaec55f3aff6b0a1c5c8f1a324049ad15b42c51617",
+  "jobs": 1,
+  "comparator": "checkpoint_identity.run_case / cities_identity.compare",
+  "extra_boundaries": "first actual wounded/released/evacuated/returned event saved checkpoint, and its immediately preceding nonzero checkpoint; no held selection"
+}

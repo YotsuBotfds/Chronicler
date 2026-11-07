@@ -47,12 +47,13 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any, Iterable
 
-from chronicler.narration_provenance import STRAY_ID, EntityUniverse, expand_entries, fact_rows
+from chronicler.narration_provenance import STRAY_ID, EntityUniverse, expand_entries, fact_rows, resolve_record_pointer
+from chronicler.record_identity import person_namespace
 
 FLAG_KINDS = (
     "unsupplied_citation", "unknown_citation", "future_citation", "future_supplied",
     "unsupplied_name", "stray_marker", "unresolved_fact", "date_mismatch", "bad_span",
-    "uncited_sentence", "uncovered_text",
+    "uncited_sentence", "uncovered_text", "unsupported_record_cause",
 )
 
 _SENTENCE = re.compile(r"[^.!?\n]+[.!?]*")
@@ -116,6 +117,7 @@ class BundleRecords:
     lacks), date None when the id carries none."""
 
     def __init__(self, bundle: dict) -> None:
+        self.bundle = bundle
         self.events = bundle.get("events_timeline") or []
         self.named = bundle.get("named_events") or []
         self.snapshots = {s.get("turn") for s in bundle.get("history") or []}
@@ -182,6 +184,11 @@ class BundleRecords:
         m = re.fullmatch(r"p(\d+)", fid)
         if m:
             return (int(m.group(1)) in self.agents) if self.has_world else None, None
+        # Reserved exact-record citations must not inherit legacy snapshot-only
+        # resolution: an invented row in a real snapshot is still unresolved.
+        if re.match(r"s[0-9]+\.lh(?:\.|$)", fid):
+            record = resolve_record_pointer(self.bundle, fid)
+            return (True, record.source_turn) if record is not None else (False, None)
         m = re.fullmatch(r"s(\d+)\..+", fid)
         if m:
             s = int(m.group(1))
@@ -245,14 +252,18 @@ def audit_entry(index: int, entry: dict, records: BundleRecords | None,
     # The facts given: in the bundle, with their dates, none later than the
     # moment outside a retrospective section.
     for fid, (turn, retro) in facts.items():
+        actual_turn = None
         if records is not None:
             exists, real = records.resolve(fid, entry)
+            if re.match(r"s[0-9]+\.lh\.", fid):
+                actual_turn = real
             if exists is False:
                 add("unresolved_fact", f"{fid} names no record of the bundle", [fid])
             elif real is not None and turn is not None and _EXACT_DATES.match(fid) and real != turn:
                 add("date_mismatch", f"{fid} is dated {turn} in the provenance and {real} in the bundle", [fid])
-        if turn is not None and as_of is not None and turn > as_of and not retro:
-            add("future_supplied", f"{fid} (turn {turn}) was given as of turn {as_of} outside a "
+        supplied_turn = max((t for t in (turn, actual_turn) if t is not None), default=None)
+        if supplied_turn is not None and as_of is not None and supplied_turn > as_of and not retro:
+            add("future_supplied", f"{fid} (turn {supplied_turn}) was given as of turn {as_of} outside a "
                                    "retrospective section", [fid])
 
     # Spans and citations.
@@ -271,6 +282,34 @@ def audit_entry(index: int, entry: dict, records: BundleRecords | None,
         last_end = max(last_end, e)
         if narrator == "mechanical" and not ids and narrative[s:e].strip():
             add("uncited_sentence", f"mechanical text without facts: {narrative[s:e][:80]!r}", [], [s, e])
+        # Exact program-record prose gets an explicit join check. Historical
+        # prose retains its existing audit contract and default output identity.
+        record_ids = [fid for fid in ids if re.match(r"s[0-9]+\.lh\.", fid)]
+        if record_ids and re.search(r"\b(?:because|so|led to)\b", narrative[s:e], re.IGNORECASE):
+            linked = False
+            if records is not None:
+                for link in prov.get("record_links") or []:
+                    if not isinstance(link, dict) or link.get("join") != "id":
+                        continue
+                    left, right = link.get("from"), link.get("to")
+                    if left not in ids or right not in ids or left == right:
+                        continue
+                    a = resolve_record_pointer(records.bundle, left) if isinstance(left, str) else None
+                    b = resolve_record_pointer(records.bundle, right) if isinstance(right, str) else None
+                    if a is None or b is None or not isinstance(a.value, dict) or not isinstance(b.value, dict):
+                        continue
+                    lk, rk = link.get("left_key"), link.get("right_key")
+                    value = link.get("value")
+                    # Only reviewed package/path aliases for the SAME native
+                    # person epoch authorize this personal identity join.
+                    # Civilization owner ids, project ids, expedition ids and
+                    # unknown schemas cannot borrow a matching scalar value.
+                    namespace = person_namespace(records.bundle, a, lk)
+                    if namespace is not None and namespace == person_namespace(records.bundle, b, rk) and value is not None and not isinstance(value, (bool, list, dict)) and a.value.get(lk) == value == b.value.get(rk):
+                        linked = True
+                        break
+            if not linked:
+                add("unsupported_record_cause", "causal prose over exact program records lacks an explicit, validated stable-id join; region and inferred joins are co-occurrence only", record_ids, [s, e])
         for fid in ids:
             if fid not in cited:
                 cited.append(fid)
@@ -285,6 +324,9 @@ def audit_entry(index: int, entry: dict, records: BundleRecords | None,
                                            "and was not given", [fid], [s, e])
                 continue
             turn, retro = given
+            if records is not None and re.match(r"s[0-9]+\.lh\.", fid):
+                _exists, actual_turn = records.resolve(fid, entry)
+                turn = max((t for t in (turn, actual_turn) if t is not None), default=None)
             if retro:
                 stats.cited_retrospective += 1
             elif turn is not None and as_of is not None and turn > as_of:

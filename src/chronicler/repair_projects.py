@@ -646,6 +646,8 @@ def before_crews(world, sim, requests: list, acc=None) -> None:
             w.removed = {aid: farm for aid, _origin, farm in pool}
         else:
             candidates = [int(a) for a in row[8] if int(a) not in held]
+        from chronicler.work_experience import accepts_offer
+        candidates = [a for a in candidates if accepts_offer(world, a, "repair")]
         rate = 1.0 if candidates and candidates[0] in qualified else UNQUALIFIED_RATE
         remaining = max(0.0, p.scope - p.delivered)
         per = d * rate
@@ -1048,6 +1050,9 @@ def finish_phase2(world, economy_result, agent_bridge, acc):
         for aid, requested, got, residual, status in sim.transfer_wealth(
                 world.turn, PURPOSE_REPAIR_WAGE, 0, wages):
             applied[int(aid)] = (int(got), int(residual) if status != 2 else int(requested))
+    t.individual_wages = applied
+    from chronicler.work_experience import active, occupations
+    t.individual_occupations = occupations(sim.get_snapshot()) if active(world) and callable(getattr(sim, "get_snapshot", None)) else {}
     crew_pay = {}
     if named:
         # PL3 paid mode: the granary's coins of the delivered work go to its
@@ -1256,6 +1261,12 @@ def after_agent_tick(world, agent_bridge):
         if r.crew:
             r.income_replaced = math.fsum(receipt[a][2] for a in r.crew if a in receipt)
             _bump(state, "income_replaced", r.income_replaced)
+            from chronicler.work_experience import record
+            for aid in r.crew:
+                record(world, aid, "repair", paid_milli=getattr(t, "individual_wages", {}).get(aid, (0, 0))[0],
+                       receipt=receipt, share=r.share, region=r.region,
+                       occupation=getattr(t, "individual_occupations", {}).get(aid),
+                       source="repair_projects:untruncated individual wage + keyed paid-work receipt")
     return []
 
 

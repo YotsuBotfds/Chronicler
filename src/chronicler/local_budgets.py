@@ -135,6 +135,7 @@ PROVIDERS: tuple[str, ...] = (
     "chronicler.maintenance_obligation:BUDGET_PROVIDER",
     "chronicler.epidemic_care:BUDGET_PROVIDER",
     "chronicler.infrastructure_condition:BUDGET_PROVIDER",
+    "chronicler.timber_orders:BUDGET_PROVIDER",
 )
 
 
@@ -1103,6 +1104,10 @@ def _burdens(world, civ: int, obs) -> dict[str, float | None]:
         for r in workshops.frame:
             if r.region in regions:
                 patricians += max(0.0, r.work_available - r.allocated)
+    infrastructure = getattr(world.livelihoods, "infrastructure_condition", None)
+    if infrastructure is not None and infrastructure.enabled:
+        from chronicler.infrastructure_condition import road_work_burden
+        patricians += road_work_burden(world, civ)
     return {"commons": None if commons is None else round(commons, 6), "patricians": round(patricians, 6)}
 
 
@@ -1445,7 +1450,9 @@ def _decide(world, state: LocalBudgetState, obs, providers, acc) -> None:
                            for_turn=obs.turn + 1, recipients=list(p.recipients), site=p.site,
                            claims=list(p.claims), amount=amount, unit=p.unit,
                            expected=round(p.expected * amount / p.cost, 6), sponsor=sponsors.get(p.pid),
-                           detail={"cost": p.cost})
+                           # B3's two-kind promise must survive into settlement.
+                           # Other providers retain their historical output.
+                           detail={"cost": p.cost, **(p.detail if p.service == "infrastructure_works" else {})})
             c.venue = _venue(world, ci, c, decision.seat)
             state.next_cid += 1
             state.open.append(c)

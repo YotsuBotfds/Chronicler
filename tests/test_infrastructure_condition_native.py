@@ -153,3 +153,102 @@ def test_exact_resume_with_an_outstanding_timber_order(tmp_path, monkeypatch):
     assert any(e["eid"] in launched and e["status"] == "delivered" for e in after["closed"])
     assert a["history"] == b["history"] and a["world_state"] == b["world_state"]
     assert (straight / "state.json").read_bytes() == (resumed / "state.json").read_bytes()
+
+
+def test_harvest_cover_exact_resume_during_a_constructed_depleted_stand(tmp_path, monkeypatch):
+    """Constructed B4 transition, not a natural depletion/held efficacy claim."""
+    import chronicler.main as main_mod
+    from chronicler.livelihoods_state import LivelihoodsState
+    from chronicler.timber_stock import set_timber_stock_enabled
+    generate = main_mod.generate_world
+
+    def depleted(*args, **kwargs):
+        world = generate(*args, **kwargs)
+        world.livelihoods = LivelihoodsState()
+        set_timber_stock_enabled(world, True)
+        for stand in world.livelihoods.timber_stock.stocks:
+            stand.stock *= 0.02
+        return world
+
+    monkeypatch.setattr(main_mod, "generate_world", depleted)
+    straight, resumed = tmp_path / "straight", tmp_path / "resumed"
+    _cli(monkeypatch, straight, "--seed", "31", "--turns", "12", *FLAGS, *PROCEDURAL,
+         "--timber-stock", "--harvest-cover", "--checkpoint-turns", "6")
+    _cli(monkeypatch, resumed, "--resume", str(straight / "checkpoint_turn_6.ckpt"))
+    a, b = _bundle(straight), _bundle(resumed)
+    assert a["history"] == b["history"] and a["world_state"] == b["world_state"]
+    assert (straight / "state.json").read_bytes() == (resumed / "state.json").read_bytes()
+    cover = a["history"][5]["livelihoods"]["harvest_cover"]
+    assert cover["counters"]["cover_loss"] > 0
+    assert any(row["loss"] > 0 for row in cover["rows"])
+
+
+def test_harvest_cover_record_only_keeps_native_outputs_identical(tmp_path, monkeypatch):
+    off, on = tmp_path / "off", tmp_path / "on"
+    args = ("--seed", "23", "--turns", "12", *FLAGS, "--timber-stock")
+    _cli(monkeypatch, off, *args)
+    _cli(monkeypatch, on, *args, "--harvest-cover", "--harvest-cover-mode", "record_only")
+    def without(value):
+        if isinstance(value, dict):
+            return {k: without(v) for k, v in value.items() if k != "harvest_cover"}
+        if isinstance(value, list):
+            return [without(v) for v in value]
+        return value
+    a, b = _bundle(off), _bundle(on)
+    assert without(a["history"]) == without(b["history"])
+    assert without(a["world_state"]) == without(b["world_state"])
+    assert without(json.loads((off / "state.json").read_text())) == without(json.loads((on / "state.json").read_text()))
+
+
+def test_named_infrastructure_native_paid_work_and_exact_resume(tmp_path, monkeypatch):
+    from chronicler.wealth_accounting_state import MONEY_PURPOSE_CHANNELS
+    monkeypatch.setitem(MONEY_PURPOSE_CHANNELS, "infrastructure_wage", "infrastructure_wage")
+    straight, resumed = tmp_path / "straight", tmp_path / "resumed"
+    _cli(monkeypatch, straight, "--seed", "31", "--turns", "72", *FLAGS, *PROCEDURAL,
+         "--infrastructure-condition", "--recovery-crews", "--timber-stock", "--timber-supply", "--checkpoint-turns", "61")
+    _cli(monkeypatch, resumed, "--resume", str(straight / "checkpoint_turn_61.ckpt"))
+    a, b = _bundle(straight), _bundle(resumed)
+    assert a["history"] == b["history"] and a["world_state"] == b["world_state"]
+    assert (straight / "state.json").read_bytes() == (resumed / "state.json").read_bytes()
+    members = [m for s in a["history"] for r in s["livelihoods"]["infrastructure_condition"]["receipts"] or [] for m in r.get("members") or []]
+    assert members and sum(m["wages_milli"] for m in members) > 0
+    assert sum(m["income_replaced"] for m in members if m["income_replaced"] is not None) > 0
+    for snap in a["history"]:
+        receipts = snap["livelihoods"]["infrastructure_condition"]["receipts"] or []
+        ids = [m["agent_id"] for row in receipts for m in row.get("members") or []]
+        assert len(ids) == len(set(ids))
+        for row in receipts:
+            assert sum(m["worked"] for m in row["members"]) == pytest.approx(row["delivered"])
+
+
+def test_l9_named_road_repair_and_per_kind_promises_resume_exactly(tmp_path, monkeypatch):
+    """Development procedural seed 31: actual L9 award and paid road work.
+
+    This is bounded activation/resume evidence, not held qualification. PL1's
+    timber procurement authority is exercised alongside the named work seam.
+    """
+    from chronicler.wealth_accounting_state import MONEY_PURPOSE_CHANNELS
+    monkeypatch.setitem(MONEY_PURPOSE_CHANNELS, "infrastructure_wage", "infrastructure_wage")
+    straight, resumed = tmp_path / "straight", tmp_path / "resumed"
+    _cli(monkeypatch, straight, "--seed", "31", "--turns", "72", *FLAGS, *PROCEDURAL,
+         "--infrastructure-condition", "--recovery-crews", "--timber-stock", "--timber-supply",
+         "--local-budgets", "--checkpoint-turns", "66")
+    _cli(monkeypatch, resumed, "--resume", str(straight / "checkpoint_turn_66.ckpt"))
+    a, b = _bundle(straight), _bundle(resumed)
+    assert a["history"] == b["history"] and a["world_state"] == b["world_state"]
+    assert (straight / "state.json").read_bytes() == (resumed / "state.json").read_bytes()
+    roads = [r for s in a["history"] for r in s["livelihoods"]["infrastructure_condition"]["receipts"] or []
+             if r["kind"] == "roads" and r["delivered"] > 0]
+    assert roads and sum(m["wages_milli"] for r in roads for m in r["members"]) > 0
+    assert all(r["envelope"] > 0 and r["timber_used"] > 0 for r in roads)
+    promises = [c for s in a["history"] for c in s["livelihoods"]["local_budgets"]["open"]
+                if c["service"] == "infrastructure_works" and c["detail"].get("expected_roads_work", 0) > 0]
+    assert promises and all(any(claim.startswith("infrastructure_work:") for claim in c["claims"]) for c in promises)
+    at_checkpoint = next(s for s in a["history"] if s["turn"] == 66)
+    assert any(c["detail"].get("expected_roads_work", 0) > 0
+               for c in at_checkpoint["livelihoods"]["local_budgets"]["open"]
+               if c["service"] == "infrastructure_works"), "resume must cross a funded road promise"
+    settlements = [c for s in a["history"] for c in s["livelihoods"]["local_budgets"]["settled"]
+                   if c["service"] == "infrastructure_works"]
+    assert any(c["detail"].get("delivered_roads_work", 0) > 0 for c in settlements)
+    assert any(s["livelihoods"]["timber_supply"]["closed"] for s in a["history"])

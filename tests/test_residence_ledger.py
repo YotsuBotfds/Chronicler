@@ -153,8 +153,11 @@ def test_the_switch_sits_after_a3_before_d2_with_cli_catalog_and_manifest_keys()
     i = LIVELIHOODS_SWITCHES.index("residence_ledger")
     assert LIVELIHOODS_SWITCHES[i + 1:] == ("attribution_records", "wealth_accounting")
     assert LIVELIHOODS_SWITCHES.index("workshop_economics") < i
+    for consumer in ("war_consequences", "adaptive_livelihoods", "public_health"):
+        assert LIVELIHOODS_SWITCHES.index(consumer) < i  # T-1 reads precede the sole writer
     keys = LV.LIVELIHOODS_ARG_KEYS
-    assert keys[keys.index("residence_ledger") + 1:] == ("attribution_records", "wealth_accounting")
+    assert keys[keys.index("residence_ledger") + 1:] == (
+        "attribution_records", "wealth_accounting", "wealth_accounting_mode")
     assert "residence_ledger" not in LV.LIVELIHOODS_CHOICES                 # no modes: record only
     assert REQUIREMENTS["residence_ledger"] == ({"agents": ["hybrid"]},)
     assert "residence_ledger" in SIMULATION_ARG_KEYS

@@ -570,6 +570,12 @@ def tick_epidemics(world: "WorldState", acc=None) -> list["Event"]:
         urban = epidemic_susceptibility_factors(world)
         mods = [(susc * urban[i], cfr, famine) for i, (susc, cfr, famine) in enumerate(mods)]
 
+    from chronicler.public_health import environment_factors
+    public_health = environment_factors(world)
+    if public_health is not None:
+        mods = [(susc * public_health[i]["crowding_factor"], cfr, famine)
+                for i, (susc, cfr, famine) in enumerate(mods)]
+
     _introduce(world, state, rows, mods)
 
     # Within-region dynamics; expected deaths per row.
@@ -578,7 +584,11 @@ def tick_epidemics(world: "WorldState", acc=None) -> list["Event"]:
         row = rows[key]
         if row.n <= 0:
             continue
-        expected[key] = _step(row, PATHOGENS[row.pathogen], mods[row.region])
+        row_mods = mods[row.region]
+        if public_health is not None and PATHOGENS[row.pathogen].name == "flux":
+            susc, cfr, famine = row_mods
+            row_mods = (susc * public_health[row.region]["flux_factor"], cfr, famine)
+        expected[key] = _step(row, PATHOGENS[row.pathogen], row_mods)
 
     deaths = _apply_deaths(world, state, rows, expected, acc)
 

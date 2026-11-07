@@ -1,0 +1,54 @@
+
+> viewer@0.0.0 test
+> vitest run --maxWorkers=1
+
+
+ RUN  v4.1.0 /workspace/Chronicler/viewer
+
+ ❯ src/components/__tests__/FeatureOptions.test.tsx (14 tests | 1 failed) 19021ms
+     × offers the productive-recovery switches off, each disabled until its prerequisites are met 5728ms
+ ❯ src/components/systems/__tests__/Watershed.test.tsx (8 tests | 1 failed) 4192ms
+   × mounts in the livelihoods panel whenever the run records the account 10ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/components/__tests__/FeatureOptions.test.tsx > FeatureOptions > offers the productive-recovery switches off, each disabled until its prerequisites are met
+Error: Test timed out in 5000ms.
+If this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".
+ ❯ src/components/__tests__/FeatureOptions.test.tsx:149:3
+    147|   });
+    148|
+    149|   it("offers the productive-recovery switches off, each disabled until…
+       |   ^
+    150|     const onChange = vi.fn();
+    151|     render(<Harness catalog={served} onChange={onChange} />);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ FAIL  src/components/systems/__tests__/Watershed.test.tsx > mounts in the livelihoods panel whenever the run records the account
+TypeError: Cannot read properties of undefined (reading 'length')
+ ❯ WarRequisition src/components/systems/WarRequisition.tsx:7:127
+      5| /** Physical sources and liabilities remain distinct from food creatio…
+      6| export function WarRequisition({ bundle, snapshot, onSelectRegion }: S…
+      7|   const regions = bundle.world_state.regions, r = warRequisitionAt(sna…
+       |                                                                                                                               ^
+      8|   if (r.status === "absent") return null;
+      9|   const link = (id: number) => <button type="button" className="system…
+ ❯ Object.react_stack_bottom_frame node_modules/react-dom/cjs/react-dom-client.development.js:25904:20
+ ❯ renderWithHooks node_modules/react-dom/cjs/react-dom-client.development.js:7662:22
+ ❯ updateFunctionComponent node_modules/react-dom/cjs/react-dom-client.development.js:10166:19
+ ❯ beginWork node_modules/react-dom/cjs/react-dom-client.development.js:11778:18
+ ❯ runWithFiberInDEV node_modules/react-dom/cjs/react-dom-client.development.js:874:13
+ ❯ performUnitOfWork node_modules/react-dom/cjs/react-dom-client.development.js:17641:22
+ ❯ workLoopSync node_modules/react-dom/cjs/react-dom-client.development.js:17469:41
+ ❯ renderRootSync node_modules/react-dom/cjs/react-dom-client.development.js:17450:11
+ ❯ performWorkOnRoot node_modules/react-dom/cjs/react-dom-client.development.js:16583:35
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+
+
+ Test Files  2 failed | 190 passed (192)
+      Tests  2 failed | 1753 passed | 2 skipped (1757)
+   Start at  15:31:34
+   Duration  344.93s (transform 11.69s, setup 7.83s, import 27.26s, tests 191.85s, environment 92.55s)
+

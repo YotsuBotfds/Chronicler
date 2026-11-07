@@ -1,0 +1,42 @@
+{
+  "status": "PASS; independently reviewed actual source, plans and completed results",
+  "runtime_source": "eaa4a5d3e1cb5c958b5e32719601c28986c9f6ac",
+  "native_sha256": "59f536b8f4a6c2bc82c51eeaec55f3aff6b0a1c5c8f1a324049ad15b42c51617",
+  "case_count": 2,
+  "resumes": 22,
+  "procedural19": {
+    "points": 10,
+    "files_each": 16,
+    "differences": 0
+  },
+  "template5": {
+    "points": 12,
+    "files_each": 10,
+    "differences": 0
+  },
+  "plain_vs_checkpointed": "both cases zero differences",
+  "independent_reviewers": [
+    "health agent: actual driver/public validation/selection source approved",
+    "health/pilot_review: actual source and all final report/summary/plan/CLI/JSON+Arrow/selection identities approved"
+  ],
+  "reviewed_summary_sha256": "55ee615ed9e048d8cfc21e636c51c2f28380c20f357ef6dee447c07a44a9385a",
+  "seconds": 854.312,
+  "limitations": [
+    "Procedural first military/wound/release event source turn0 has no preceding nonzero checkpoint; completed1 tested, template supplies independent wound pre/post5/6",
+    "Observed development states are covered; cargo/claim/birth/estate/pool-reset lifecycle alternatives are not all claimed active here",
+    "Canonical playbook cases are separate evidence, not included in these22 resumes"
+  ],
+  "files": {
+    "README.md": "3b0fac2aed0042bf3774a8e071c086b31087be3f5e0d42f1e2587c8a983f8be8",
+    "execution.log": "eaaf29d9b8db128b19d77a4193fe108c3bf32b368155bd628ed4f25d847e1581",
+    "orchestrator-receipt.json": "d90552b4110e58f80afd4aacd9591d53216991030b576dfdd20d2ea4d46ba586",
+    "orchestrator.py.txt": "860d104c2f4815f51d00e95420a8354345b5277e2dd24091ba27c919c88913ec",
+    "report-p19.json": "20f534ec250abe370633c363c80a3402d3b4def68bbac6eada1a9bf2b524893e",
+    "report-t5.json": "32da6eb72d8c0b81e353d55f4536f22d0ff34e61d9d5dd839c939e5a78c40604",
+    "retained-straight-files.json": "ad674c7bbd3812b8c97d2299ffa786c22e0c15b3ddf4ace36b45770dadbee435",
+    "selection-p19.json": "29b66099ace1502525e5e30e9d5324b1fd40c8f1aa94ac9677f904ccc238519e",
+    "selection-t5.json": "1751c0f118666f88c12a6fa6d0e9fcc6e1e59a8d3fc6e04d4065661be70e191c",
+    "source.txt": "5d3f0c7df54971432d50e2a41faba608a99e58526c9c1fafc5be91fcf3bc0f2d",
+    "summary.json": "55ee615ed9e048d8cfc21e636c51c2f28380c20f357ef6dee447c07a44a9385a"
+  }
+}

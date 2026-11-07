@@ -9,7 +9,11 @@ whose served output is byte-identical (section 5).
 | --- | --- |
 | `scripts/seed_registry.json` | Every recorded use of a seed number, per stratum, and the program's reservations |
 | `scripts/screen_runner.py` | The generic run/report/check/`--resume` runner, parametrized by a `Screen` |
-| `scripts/connected_world_screens.py` | CW1-CW6 (stubs: cohorts only, except CW4, declared by slice C1: [quarantine rules](quarantine-rules.md), preregistration `docs/superpowers/progress/connected-world-screens-cw4.md`, CW1, declared by slice S1: the wage and `paid_work` enrollment, a two-phase screen, preregistration `docs/superpowers/progress/connected-world-screens-cw1.md`, CW3, declared by slice B2: the [watershed](watershed.md) in flow mode under upstream forest protection, procedural stratum only, preregistration `docs/superpowers/progress/connected-world-screens-cw3.md`, CW2, declared by slices A3-1/A3-2: [workshop economics](workshop-economics.md) and the owned-output rule, preregistration (draft) `docs/superpowers/progress/connected-world-screens-cw2.md`, and CW5, declared by slice A4-1: [titled trade](titled-trade.md), preregistration (draft) `docs/superpowers/progress/connected-world-screens-cw5.md`) and the development-only `DEV` smoke screen |
+| `scripts/connected_world_screens.py` | Implemented CW1–CW6 and their historical follow-ons, plus development-only `DEV`. CW6 delegates to its owning module below; historical cohort/source pins remain unchanged. |
+| `scripts/cw_integrated_screen.py` | CW6 five-arm integrated A–E screen, strict event sidecar, 120 turns after a pre-held compute amendment; [preregistration](../superpowers/progress/connected-world-screens-cw6-integrated.md) |
+| `scripts/cw_health_screen.py` | CW-health three-arm 200-turn supplies/sanitation/crowding/report-choice screen; [preregistration](../superpowers/progress/connected-world-screen-health.md) |
+| `scripts/cw_d1_screen.py` | Completed CW6D1 relief/league screen on its own fresh registered cohort |
+| `scripts/cw_program_profile.py` | Serial off/FULL CPU/RSS/artifact/checkpoint profile with actual native counts, source and extension guards; development worlds only |
 | `scripts/feature_matrix.py` | The switch compatibility matrix, generated from `feature_catalog` |
 | `viewer/src/lib/recordReading.ts` | The RL8 fix: absent, malformed, disabled and recorded-zero records told apart |
 | `tests/test_screen_runner.py`, `tests/test_feature_matrix.py` | Offline tests (oracle chunk `connected-world-e`, native shard 0) |

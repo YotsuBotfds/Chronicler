@@ -1,0 +1,80 @@
+{
+  "source_identity": [
+    "source b11d0fd547d894110b9d65bc36f73d4574f16fe4",
+    "dirty 0 tracked files",
+    "dirty-code 0 tracked code files",
+    "chronicler /workspace/cw-health/src/chronicler/__init__.py",
+    "native /workspace/cw-evidence-native/lib/python3.13/site-packages/chronicler_agents/chronicler_agents.cpython-313-x86_64-linux-gnu.so 59f536b8f4a6c2bc82c51eeaec55f3aff6b0a1c5c8f1a324049ad15b42c51617",
+    "interpreter /workspace/cw-evidence-native/bin/python",
+    "runner 5ded5f3548bb6403b1df25e9d31e5c5ce638631aa5fd1b4fabdcfb8510b5cadb scripts/screen_runner.py",
+    "screens 65f3bcb01c679ff8c638e941c088c74c24934419fd54cc69660b150ede7ed263 scripts/cw_health_screen.py",
+    "registry e67ce34a9045a9d4b2acf72327abe7605a599859cef981cd00e4733fef8c8b8e scripts/seed_registry.json",
+    "registry-content 511f5d7e80053650e6de7e54f5c9d1b1fc0e79c4f2986e8198bb1089ad29e81a (cohorts and seeds)",
+    "run: screen CW-health; cohort pilot; seeds all; arms PC,PS,PA; jobs 1; worlds -; turns -; rows already written 0",
+    "started 2026-11-07T15:21:49Z",
+    "finished 2026-11-07T15:24:15Z: 6 runs, 6 failed, 146 s of simulation and extraction (0.041 core-hours in all), 146.3 s wall"
+  ],
+  "run_path": "/workspace/evidence/health/pilot-v1",
+  "simulation_completed": 6,
+  "extraction_failed": 6,
+  "held_worlds_spent": 0,
+  "failure_classes": [
+    "quarantine channel list mistaken for CLI string; receipt structure subsequently corrected",
+    "explicit paid-worker income None incorrectly rejected rather than reported unknown"
+  ],
+  "fixes": [
+    "df0b270b",
+    "2dd4af5d"
+  ],
+  "runs": [
+    {
+      "arm": "PC",
+      "stratum": "p",
+      "seed": 19,
+      "rc": 3,
+      "wall_s": 30.3,
+      "extract_s": 4.4
+    },
+    {
+      "arm": "PS",
+      "stratum": "p",
+      "seed": 19,
+      "rc": 3,
+      "wall_s": 30.4,
+      "extract_s": 5.4
+    },
+    {
+      "arm": "PA",
+      "stratum": "p",
+      "seed": 19,
+      "rc": 3,
+      "wall_s": 31.1,
+      "extract_s": 5.6
+    },
+    {
+      "arm": "PC",
+      "stratum": "t",
+      "seed": 5,
+      "rc": 3,
+      "wall_s": 11.8,
+      "extract_s": 1.3
+    },
+    {
+      "arm": "PS",
+      "stratum": "t",
+      "seed": 5,
+      "rc": 3,
+      "wall_s": 11.2,
+      "extract_s": 1.2
+    },
+    {
+      "arm": "PA",
+      "stratum": "t",
+      "seed": 5,
+      "rc": 3,
+      "wall_s": 11.8,
+      "extract_s": 1.3
+    }
+  ],
+  "preservation": "Original metrics, errors and all bundles retained outside repository. Re-extraction confirmed all six valid after source-reviewed schema correction; pilot-v2 repeated all simulations on final source."
+}

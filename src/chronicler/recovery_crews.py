@@ -347,7 +347,15 @@ def farm_labour(world, snapshot) -> list[int] | None:
     if snapshot is None:
         return None
     try:
-        return _People(world, snapshot).farmer_counts(len(world.regions))
+        people = _People(world, snapshot)
+        counts = people.farmer_counts(len(world.regions))
+        from chronicler.war_requisition import enlisted_ids
+        service = set(enlisted_ids(world))
+        if service:
+            for aid, region, occupation in zip(people.ids, people.region, people.occupation):
+                if int(aid) in service and int(occupation) == FARMER and 0 <= int(region) < len(counts):
+                    counts[int(region)] -= 1
+        return counts
     except RuntimeError:
         return None
 
@@ -370,7 +378,7 @@ def workshop_candidates(world, sim, site, diverted: float, priority) -> tuple[li
     return out, sum(1 for r in rows if r[1] == "site_city")
 
 
-def plan_granary_crew(world, w, planned: float, *, sim, snapshot, priority) -> float:
+def plan_granary_crew(world, w, planned: float, *, sim, snapshot, priority, offer_kind="granary") -> float:
     """Name and reserve the crew of RS2 granary work ``w`` (its ``_Work``)
     for ``planned`` work; returns the native request, ``min(planned, the
     crew's farm time)``, f32-floored. Stores the crew on ``w.named`` and
@@ -383,6 +391,8 @@ def plan_granary_crew(world, w, planned: float, *, sim, snapshot, priority) -> f
     t = _begin(world, sim)
     people = _people(world, t, snapshot, sim)
     rows = _eligible(world, people, sim, int(w.region), "granary", priority)
+    from chronicler.work_experience import accepts_offer
+    rows = [r for r in rows if accepts_offer(world, r[0], offer_kind)]
     w.eligible = len(rows)
     w.planned = planned
     chosen, capacity = [], 0.0
@@ -641,6 +651,10 @@ def after_agent_tick(world, agent_bridge):
             if m.worked > 0 and m.agent_id in receipt:
                 m.income_replaced = float(receipt[m.agent_id][2])
                 t.bump("income_replaced", m.income_replaced)
+            if r.kind == "granary" and m.worked > 0:
+                from chronicler.work_experience import record
+                record(world, m.agent_id, "granary", paid_milli=m.wage_milli, receipt=receipt, share=m.worked,
+                       region=r.region, occupation=FARMER, source="recovery_crews:individual wage + keyed paid-work receipt")
     t.receipt_read = True
     return []
 

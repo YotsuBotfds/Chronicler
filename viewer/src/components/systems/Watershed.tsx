@@ -1,6 +1,7 @@
 import { useMemo, type ReactNode } from "react";
 import type { Bundle, TurnSnapshot } from "../../types";
 import { drainsTo, readWatershed, readWatershedRun, watershedOutflow } from "../../lib/watershed";
+import { WatershedBasin } from "./WatershedBasin";
 import type { WatershedDrought, WatershedRecord, WatershedStatic } from "../../watershedTypes";
 
 const show = (value: number | null | undefined, digits = 3) =>
@@ -64,6 +65,7 @@ export function Watershed({ bundle, snapshot, currentTurn, onSelectRegion }: {
   return <section className="systems-section" aria-label="Watershed">
     {header}
     <p className="systems-note">Opened at turn {record.opened_turn}; the graph reproduces {statics.graph.river_steps} saved river step{statics.graph.river_steps === 1 ? "" : "s"}. Each region drains to one place: its lowest lower neighbour, the sea, a lake or a closed basin.</p>
+    <WatershedBasin regions={regions} snapshot={snapshot} record={record} onSelectRegion={onSelectRegion} />
     {reading.status === "unobserved"
       ? <p className="systems-note">No Phase 9 account was settled in simulation turn {record.source_turn}; this turn's flows, floods and droughts are unknown, not zero.</p>
       : <Settled record={record} statics={statics} names={names} regionLink={regionLink} />}

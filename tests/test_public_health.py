@@ -1,0 +1,567 @@
+"""Connected public-health costs, dated evidence and authority boundaries."""
+from __future__ import annotations
+
+import ast
+import pickle
+import sys
+from pathlib import Path
+from types import ModuleType, SimpleNamespace
+
+import pytest
+
+from chronicler import epidemic_care as EC
+from chronicler import money
+from chronicler import public_health as PH
+from chronicler import residence_ledger as RL
+from chronicler import wealth_accounting_state as WA
+from chronicler.epidemic_care_state import CareCapacity
+from chronicler.public_health_state import PublicHealthState
+from chronicler.quarantine_rules import QuarantineClosure, configure_quarantine
+from test_epidemic_care import _Bridge, _Sim, _batch, _envelope, _outbreak, _people, _world
+
+
+def _enabled(mode="active"):
+    w = _world()
+    st = PublicHealthState(mode=mode)
+    # Root integration adds the serialized container slot. Attaching directly
+    # also exercises the module against historical containers without it.
+    object.__setattr__(w.livelihoods, "public_health", st)
+    st.prices, st.price_turn = {i: 1000 for i in range(3)}, w.turn - 1
+    for region in w.regions:
+        region.stockpile.goods["grain"] = 10.0
+        region.adjacencies = []
+    return w, st
+
+
+@pytest.fixture(autouse=True)
+def _seams(monkeypatch):
+    # Shared root contract; no native code is involved in this purpose.
+    monkeypatch.setitem(money.PURPOSES, "care_supply", None)
+    monkeypatch.setitem(WA.MONEY_PURPOSE_CHANNELS, "guard_wage", "guard_wage")
+    monkeypatch.setattr("chronicler.mutual_aid.read_stockpile_commitments", lambda w, s: {})
+
+
+def _settle(w):
+    sim = _Sim(_people())
+    bridge = _Bridge(sim)
+    EC.prepare_phase2(w, _batch(w, sim), bridge, sim.get_snapshot(), None)
+    EC.finish_phase2(w, SimpleNamespace(market_prices={r.name: {"food": 1.0} for r in w.regions}), bridge, None)
+    return sim
+
+
+def test_supplies_consume_real_grain_and_gross_cost_and_wage_fit_single_envelope():
+    w, st = _enabled()
+    _outbreak(w, 0, burden=0.05)
+    _envelope(w, 0, 8)
+    treasury = w.civilizations[0].treasury
+    grain = w.regions[0].stockpile.goods["grain"]
+    _settle(w)
+    cs = w.livelihoods.epidemic_care
+    consumed = sum(r.food_milli for r in st.supplies)
+    assert consumed > 0
+    assert w.regions[0].stockpile.goods["grain"] == pytest.approx(grain - consumed / 1000)
+    assert sum(r.charged_milli + r.internal_milli for r in st.supplies) + sum(r.wages_paid_milli for r in cs.frame) <= 8000
+    # Its local controller owns the public pool: net cash cost is wages only.
+    assert sum(r.internal_milli for r in st.supplies) > 0
+    assert sum(r.charged_milli for r in st.supplies) == 0
+    assert w.civilizations[0].treasury < treasury
+    assert cs.capacity[0].patients <= consumed / (1000 * PH._ration(w))
+
+
+@pytest.mark.parametrize("failure", ["stock", "price"])
+def test_missing_real_supply_never_mints_capacity(failure):
+    w, st = _enabled()
+    _outbreak(w, 0, burden=0.05)
+    _envelope(w, 0, 8)
+    if failure == "stock":
+        w.regions[0].stockpile.goods["grain"] = 0
+    else:
+        st.price_turn = w.turn - 2
+    _settle(w)
+    assert all(c.patients == 0 for c in w.livelihoods.epidemic_care.capacity)
+    assert sum(r.food_milli for r in st.supplies) == 0
+    assert st.totals["patients_unsupplied"] > 0
+
+
+def test_owned_and_committed_grain_are_never_sold_as_public_supply(monkeypatch):
+    w, st = _enabled()
+    w.regions[0].stockpile.goods["grain"] = 10
+    monkeypatch.setattr("chronicler.household_retail.pilot_entry", lambda w, rid: SimpleNamespace(goods=[4000]) if rid == 0 else None)
+    assert PH._available(w, 0, {w.regions[0].name: {"grain": 3.0}}) == 7000
+    assert PH._available(w, 0, {w.regions[0].name: {"grain": 10.0}}) == 0
+
+
+def test_only_open_direct_neighbors_sell_and_foreign_owner_receives_real_cash():
+    w, st = _enabled()
+    w.regions[0].stockpile.goods["grain"] = 0
+    w.regions[0].adjacencies = [w.regions[2].name]
+    before = w.civilizations[1].treasury
+    _outbreak(w, 0, burden=0.05)
+    _envelope(w, 0, 8)
+    _settle(w)
+    sold = [r for r in st.supplies if r.seller == 1 and r.food_milli]
+    assert sold
+    assert w.civilizations[1].treasury - before == sum(r.charged_milli for r in sold) // 1000
+    assert all(r.source in (0, 2) for r in st.supplies)
+
+
+def test_closure_refuses_foreign_patient_supplies():
+    w, st = _enabled()
+    configure_quarantine(w, SimpleNamespace(quarantine_mode="closure", quarantine_channels=None))
+    rules = w.epidemics.quarantine_rules
+    rules.closures = [QuarantineClosure(id=0, civ=0, target=1, opened_turn=0, last_renewed_turn=4, cause="")]
+    w.regions[0].adjacencies = [w.regions[2].name]
+    assert list(PH._sources(w, 0, 0)) == [(0, 0)]
+
+
+def test_repeat_supply_settlement_is_refused_before_any_stock_changes():
+    w, st = _enabled()
+    st.supply_turn = w.turn
+    before = [r.stockpile.goods.copy() for r in w.regions]
+    with pytest.raises(RuntimeError, match="already settled"):
+        PH.supply_care(w, SimpleNamespace(), [], SimpleNamespace(), None)
+    assert [r.stockpile.goods for r in w.regions] == before
+
+
+def test_supplies_and_delayed_reports_restore_exactly():
+    w, st = _enabled()
+    _outbreak(w, 0)
+    _envelope(w, 0, 8)
+    _settle(w)
+    assert pickle.loads(pickle.dumps(st)).model_dump() == st.model_dump()
+    assert st.supply_turn == w.turn
+
+
+def test_environment_reads_only_guarded_previous_frame_and_stale_sanitation_is_neutral(monkeypatch):
+    w, st = _enabled()
+    observed = []
+    def read(world, *, consumer_turn):
+        observed.append(consumer_turn)
+        return {"regions": [{"region": 0, "displaced": 5, "residents": 10}]}
+    monkeypatch.setattr(RL, "read_frame", read)
+    st.sanitation_turn, st.sanitation = w.turn - 1, [1.0, 0.0, 0.0]
+    rows = PH.environment_factors(w)
+    assert observed == [w.turn]
+    assert rows[0]["crowding_factor"] == 1.125
+    assert rows[0]["flux_factor"] == 0.8
+    st.sanitation_turn = w.turn - 2
+    assert PH.environment_factors(w)[0]["flux_factor"] == 1
+
+
+def test_environment_propagates_same_turn_read_refusal(monkeypatch):
+    w, st = _enabled()
+    def read(world, *, consumer_turn):
+        raise RL.LedgerReadRefused("same-turn read refused")
+    monkeypatch.setattr(RL, "read_frame", read)
+    with pytest.raises(RL.LedgerReadRefused):
+        PH.environment_factors(w)
+
+
+def test_cost_control_keeps_real_supply_costs_and_crowding_but_no_protective_effect(monkeypatch):
+    w, st = _enabled("cost_only")
+    monkeypatch.setattr(RL, "read_frame", lambda *a, **k: {"regions": [{"region": 0, "displaced": 5, "residents": 10}]})
+    st.sanitation_turn, st.sanitation = w.turn - 1, [1.0, 0.0, 0.0]
+    assert PH.environment_factors(w)[0]["flux_factor"] == 1.0
+    assert PH.environment_factors(w)[0]["crowding_factor"] == 1.125
+    assert not PH.care_allowed(w)
+    _outbreak(w, 0)
+    _envelope(w, 0, 8)
+    _settle(w)
+    assert st.totals["food_consumed_milli"] > 0
+    w.turn += 1
+    assert EC.care_factors(w, w.epidemics.rows) is None
+
+
+def test_outbreak_reports_are_delayed_and_current_own_deaths_are_not_prior_knowledge():
+    w, st = _enabled()
+    w.contact_ledger.edges = [(0, 2, 100.0, 100.0, 0.0, 0.0)]
+    w.contact_ledger.invalidate()
+    _outbreak(w, 2, burden=0.5)
+    _outbreak(w, 0, burden=0.5)
+    w.epidemics.last_deaths = [(0, 1, 10)]
+    assert PH.report_targets(w, {(2, 1): object(), (0, 1): object()}) == {}
+    reports = [r for r in st.reports if r.recipient == 0 and r.target == 1]
+    assert reports and min(r.delivery for r in reports) == w.turn + 2
+    assert st.fatality["0:1"][0] == 10
+    w.turn += 1
+    assert PH.report_targets(w, {}) == {}
+    assert st.decisions == []
+    w.turn += 1
+    PH.report_targets(w, {})
+    assert st.decisions and st.decisions[0]["fatality_observed"]
+
+
+def test_reports_expire_and_never_read_current_hidden_prevalence():
+    w, st = _enabled()
+    w.contact_ledger.edges = [(0, 2, 100.0, 0.0, 0.0, 0.0)]
+    w.contact_ledger.invalidate()
+    _outbreak(w, 2, burden=0.1)
+    PH.report_targets(w, {(2, 1): object()})
+    issued = [r.prevalence for r in st.reports]
+    w.epidemics.rows[0].burden = 0.9
+    w.turn += 2
+    PH.report_targets(w, {})
+    assert [r.prevalence for r in st.reports] == issued
+    w.turn += 10
+    PH.report_targets(w, {})
+    assert st.reports == [] and st.decisions == []
+
+
+def test_new_module_never_creates_individual_injury_or_applies_deaths():
+    tree = ast.parse(Path(PH.__file__).read_text())
+    names = {n.id for n in ast.walk(tree) if isinstance(n, ast.Name)}
+    attrs = {n.attr for n in ast.walk(tree) if isinstance(n, ast.Attribute)}
+    assert not {"InjuryEpisode", "_apply_deaths", "endemic_severity", "health_care"} & (names | attrs)
+
+
+def test_feature_off_helpers_leave_capacity_and_decisions_unchanged():
+    w = _world()
+    capacity = [CareCapacity(region=0, source_turn=w.turn, carers=1, care_time=1, patients=5)]
+    assert PH.supply_care(w, None, capacity, None, None) is capacity
+    assert PH.supply_estimate(w, 100, [0]) == 0
+    assert PH.wage_budget(w, 0, 4000) == 4000
+    assert PH.report_targets(w, {}) is None
+    assert PH.environment_factors(w) is None
+    assert PH.care_allowed(w)
+
+
+def _guard_plan(w, st):
+    st.guard_plan = [{"civ": 0, "target": 1}]
+    w.contact_ledger.edges = [(0, 2, 100.0, 0.0, 0.0, 0.0)]
+    w.contact_ledger.invalidate()
+
+
+def test_named_guard_work_is_reserved_paid_and_only_staffs_next_turn():
+    w, st = _enabled()
+    _guard_plan(w, st)
+    _envelope(w, 0, 2)
+    sim = _Sim(_people())
+    bridge = _Bridge(sim)
+    original = _batch(w, sim)
+    batch = EC.prepare_phase2(w, original, bridge, sim.get_snapshot(), None)
+    batch = PH.prepare_phase2(w, batch, bridge, sim.get_snapshot(), None)
+    team = st.guards[0]
+    assert team["members"][0]["agent_id"] == 1
+    assert sim.work_reservations(w.turn) == [(1, 3, 1.0)]
+    assert not PH.staffed_targets(w, {0: {1: (2, 1)}})[0]
+    EC.finish_phase2(w, SimpleNamespace(market_prices={}), bridge, None)
+    PH.finish_phase2(w, SimpleNamespace(), bridge, None)
+    assert team["staffed"] and team["members"][0]["wage_paid_milli"] == 500
+    assert PH.supply_spent(w, 0) == 500
+    sim.tick(w.turn)
+    EC.after_agent_tick(w, bridge)
+    PH.after_agent_tick(w, bridge)
+    assert team["members"][0]["income_withheld"] == pytest.approx(0.3)
+    w.turn += 1
+    assert PH.staffed_targets(w, {0: {1: (2, 1)}}) == {0: {1: (2, 1)}}
+    w.turn += 1
+    assert not PH.staffed_targets(w, {0: {1: (2, 1)}})[0]
+
+
+def test_guard_and_carer_reservations_do_not_double_book_and_fit_one_envelope():
+    w, st = _enabled()
+    _guard_plan(w, st)
+    _outbreak(w, 0, burden=0.02)
+    _envelope(w, 0, 8)
+    sim = _Sim(_people())
+    bridge = _Bridge(sim)
+    batch = EC.prepare_phase2(w, _batch(w, sim), bridge, sim.get_snapshot(), None)
+    PH.prepare_phase2(w, batch, bridge, sim.get_snapshot(), None)
+    carer_ids = {x.agent_id for r in w.livelihoods.epidemic_care._turn.receipts for x in r.carers}
+    guard_ids = {m["agent_id"] for r in st.guards for m in r["members"]}
+    assert guard_ids and carer_ids and not guard_ids & carer_ids
+    EC.finish_phase2(w, SimpleNamespace(market_prices={}), bridge, None)
+    PH.finish_phase2(w, SimpleNamespace(), bridge, None)
+    spent = sum(r.wages_paid_milli for r in w.livelihoods.epidemic_care.frame)
+    spent += PH.supply_spent(w, 0) + sum(r.internal_milli for r in st.supplies)
+    assert spent <= 8000
+
+
+def test_unfunded_or_partial_guard_work_does_not_close_any_channel():
+    w, st = _enabled()
+    _guard_plan(w, st)
+    sim = _Sim(_people())
+    bridge = _Bridge(sim)
+    PH.prepare_phase2(w, _batch(w, sim), bridge, sim.get_snapshot(), None)
+    PH.finish_phase2(w, SimpleNamespace(), bridge, None)
+    assert st.guards[0]["payment"] == "no_workers"
+    w.turn += 1
+    assert PH.staffed_targets(w, {0: {1: (2, 1)}}) == {0: {}}
+
+
+def test_guard_proposal_exists_without_an_own_outbreak():
+    w, st = _enabled()
+    _guard_plan(w, st)
+    st.decisions = [{"civ": 0, "target": 1, "close": True, "expected_loss_units": 20.0}]
+    proposal = EC.BUDGET_PROVIDER.proposals(w, 0, SimpleNamespace(pcf=0.5))
+    assert proposal and proposal[0]["cost"] == 1
+    assert proposal[0]["expected"] == 1.0
+    assert proposal[0]["relief"]["commons"] > 0
+
+
+def test_guard_capacity_and_stable_members_are_cleared_on_inexact_pool_reset():
+    w, st = _enabled()
+    st.guard_turn, st.guards = w.turn, [{"members": [{"agent_id": 9}]}]
+    st.guard_capacity_turn, st.guard_capacity = w.turn, [(0, 1)]
+    PH.on_pool_reset(w)
+    assert not st.guards and not st.guard_capacity
+    assert st.guard_turn is None and st.guard_capacity_turn is None
+
+
+def test_public_health_guard_wages_replace_flat_charge_only_when_enabled():
+    w, st = _enabled()
+    assert PH.enforcement_cost(w, 2) == 0
+    st.enabled = False
+    assert PH.enforcement_cost(w, 2) == 2
+
+
+def _adaptive_seam(w, monkeypatch, *, declined=()):
+    """Exercise the owned adapter without importing another lane's module."""
+    object.__setattr__(w.livelihoods, "adaptive_livelihoods", SimpleNamespace(enabled=True))
+    adapter = ModuleType("chronicler.adaptive_livelihoods")
+    offers, work = [], []
+    def accept(world, aid, kind):
+        offers.append((aid, kind))
+        return aid not in declined
+    adapter.accepts_offer = accept
+    adapter.note_work = lambda world, aid, kind, **kw: work.append((aid, kind, kw))
+    adapter.forgone_title = lambda world, region: None
+    monkeypatch.setitem(sys.modules, "chronicler.adaptive_livelihoods", adapter)
+    return offers, work
+
+
+def test_adaptive_care_new_offers_skip_booked_people_and_keep_exact_untruncated_receipts(monkeypatch):
+    w, _st = _enabled()
+    offers, work = _adaptive_seam(w, monkeypatch, declined=(2,))
+    _outbreak(w, 0, burden=.05)
+    _envelope(w, 0, 8)
+    sim = _Sim(_people())
+    sim.reserve_work(w.turn, 3, [(1, 1.0)])
+    bridge = _Bridge(sim)
+    EC.prepare_phase2(w, _batch(w, sim), bridge, sim.get_snapshot(), None)
+    assert (1, "epidemic_care") not in offers and (2, "epidemic_care") in offers
+    named = {x.agent_id for r in w.livelihoods.epidemic_care._turn.receipts for x in r.carers}
+    assert named and not named & {1, 2}
+    monkeypatch.setattr(EC, "MAX_FRAME_ROWS", 0)
+    EC.finish_phase2(w, SimpleNamespace(market_prices={}), bridge, None)
+    assert w.livelihoods.epidemic_care.frame == []
+    sim.tick(w.turn)
+    EC.after_agent_tick(w, bridge)
+    assert {aid for aid, _kind, _values in work} == named
+    assert all(kind == "epidemic_care" and values["paid_milli"] > 0
+               and values["withheld_milli"] > 0 and values["title_forgone_milli"] is None
+               for _aid, kind, values in work)
+
+
+def test_adaptive_guard_new_offer_and_exact_receipt(monkeypatch):
+    w, st = _enabled()
+    offers, work = _adaptive_seam(w, monkeypatch, declined=(1,))
+    _guard_plan(w, st)
+    _envelope(w, 0, 4)
+    sim = _Sim(_people())
+    bridge = _Bridge(sim)
+    batch = EC.prepare_phase2(w, _batch(w, sim), bridge, sim.get_snapshot(), None)
+    PH.prepare_phase2(w, batch, bridge, sim.get_snapshot(), None)
+    assert offers == [(1, "border_guard"), (2, "border_guard")]
+    EC.finish_phase2(w, SimpleNamespace(market_prices={}), bridge, None)
+    PH.finish_phase2(w, SimpleNamespace(), bridge, None)
+    sim.tick(w.turn)
+    EC.after_agent_tick(w, bridge)
+    PH.after_agent_tick(w, bridge)
+    assert len(work) == 1
+    aid, kind, values = work[0]
+    assert aid == 2 and kind == "border_guard"
+    assert values["paid_milli"] == 500 and values["withheld_milli"] == 300
+    assert values["title_forgone_milli"] is None
+
+
+def test_adaptive_guard_mixed_paid_share_never_invents_personal_cost(monkeypatch):
+    w, st = _enabled()
+    _offers, work = _adaptive_seam(w, monkeypatch)
+    st.guard_turn = w.turn
+    st.guards = [{"civ": 0, "target": 1, "payment": "paid", "members": [
+        {"agent_id": 1, "region": 0, "share": .5, "wage_paid_milli": 250, "income_withheld": None}]}]
+    monkeypatch.setattr("chronicler.livelihoods.paid_work_receipt", lambda w, s: {1: (1.0, .3, .3)})
+    PH.after_agent_tick(w, _Bridge(_Sim(_people())))
+    assert work[0][2]["paid_milli"] == 250
+    assert work[0][2]["withheld_milli"] is None and work[0][2]["title_forgone_milli"] is None
+
+
+def test_adaptive_unpaid_care_records_zero_payment_and_zero_service_withheld(monkeypatch):
+    w, _st = _enabled()
+    _offers, work = _adaptive_seam(w, monkeypatch)
+    _outbreak(w, 0, burden=.05)
+    _envelope(w, 0, 8)
+    sim = _Sim(_people())
+    bridge = _Bridge(sim)
+    EC.prepare_phase2(w, _batch(w, sim), bridge, sim.get_snapshot(), None)
+    w.civilizations[0].treasury = 0
+    EC.finish_phase2(w, SimpleNamespace(market_prices={}), bridge, None)
+    EC.after_agent_tick(w, bridge)
+    assert work
+    assert all(values["paid_milli"] == 0 and values["withheld_milli"] == 0
+               and values["title_forgone_milli"] is None for _aid, _kind, values in work)
+
+
+def test_one_coin_envelope_cannot_prefund_two_separate_wage_purposes():
+    w, st = _enabled()
+    _guard_plan(w, st)
+    _outbreak(w, 0, burden=.0125)  # half care worker would cost 250 milli
+    _envelope(w, 0, 1)
+    sim = _Sim(_people())
+    bridge = _Bridge(sim)
+    before = w.civilizations[0].treasury
+    batch = EC.prepare_phase2(w, _batch(w, sim), bridge, sim.get_snapshot(), None)
+    assert not any(r.carers for r in w.livelihoods.epidemic_care._turn.receipts)
+    PH.prepare_phase2(w, batch, bridge, sim.get_snapshot(), None)
+    EC.finish_phase2(w, SimpleNamespace(market_prices={}), bridge, None)
+    PH.finish_phase2(w, SimpleNamespace(), bridge, None)
+    assert before - w.civilizations[0].treasury == 1
+    assert st.guards[0]["staffed"]
+    row = st.funding[0]
+    assert row["care_cash_milli"] == 0 and row["guard_cash_milli"] == 1000
+    assert row["guard_paid_milli"] == 500 and row["guard_carry_after"] == 500
+    assert PH._cash_remaining(row) == 0
+
+
+def test_existing_purpose_carry_is_used_before_new_cash_and_both_wages_fit():
+    w, st = _enabled()
+    st.prices = {rid: 100 for rid in st.prices}
+    _guard_plan(w, st)
+    _outbreak(w, 0, burden=.0125)
+    _envelope(w, 0, 1)
+    w.livelihoods.epidemic_care.book.carry["0:care_wage"] = 250
+    st.book.carry["0:guard_wage"] = 500
+    sim = _Sim(_people())
+    bridge = _Bridge(sim)
+    before = w.civilizations[0].treasury
+    batch = EC.prepare_phase2(w, _batch(w, sim), bridge, sim.get_snapshot(), None)
+    PH.prepare_phase2(w, batch, bridge, sim.get_snapshot(), None)
+    EC.finish_phase2(w, SimpleNamespace(market_prices={}), bridge, None)
+    PH.finish_phase2(w, SimpleNamespace(), bridge, None)
+    assert w.civilizations[0].treasury == before
+    row = st.funding[0]
+    assert row["care_paid_milli"] == 250 and row["guard_paid_milli"] == 500
+    assert row["care_cash_milli"] == row["guard_cash_milli"] == 0
+    assert row["care_carry_before"] == 250 and row["guard_carry_before"] == 500
+    assert row["care_carry_after"] == row["guard_carry_after"] == 0
+    assert st.guards[0]["staffed"]
+
+
+def test_actual_cash_quote_refuses_late_guard_when_care_prefunding_used_one_coin():
+    w, st = _enabled()
+    st.prices = {rid: 100 for rid in st.prices}
+    _outbreak(w, 0, burden=.0125)
+    _envelope(w, 0, 1)
+    sim = _settle(w)  # 250-milli care bill debits one coin, leaves 750 care carry
+    assert st.funding[0]["care_paid_milli"] == 250 and st.funding[0]["care_cash_milli"] == 1000
+    # An extra guard offer cannot use that other purpose's prepaid remainder.
+    sim.reserve_work(w.turn, 3, [(6, 1.0)])
+    st._guard_tick = (w.turn, sim)
+    st.guard_turn = w.turn
+    st.guards = [{"turn": w.turn, "civ": 0, "target": 1, "need": 1, "work": 1,
+                  "staffed": False, "payment": "pending", "members": [{"agent_id": 6, "region": 0,
+                    "share": 1, "wage_due_milli": 500, "wage_paid_milli": 0, "wage_residual_milli": 0,
+                    "income_withheld": None}]}]
+    PH.finish_phase2(w, SimpleNamespace(), _Bridge(sim), None)
+    assert st.guards[0]["payment"] == "refused:cash_envelope"
+    assert not st.guards[0]["staffed"] and st.guard_capacity == []
+    assert sim.paid is not None and 6 not in sim.paid
+
+
+def test_local_public_grain_uses_value_envelope_without_charging_own_treasury():
+    w, st = _enabled()
+    w.civilizations[0].treasury = 0
+    _outbreak(w, 0, burden=.0125)
+    _envelope(w, 0, 2)
+    w.livelihoods.epidemic_care.book.carry["0:care_wage"] = 500
+    _settle(w)
+    assert sum(r.food_milli for r in st.supplies) > 0
+    assert sum(r.internal_milli for r in st.supplies) == 1000
+    assert st.funding[0]["care_cash_milli"] == st.funding[0]["supply_cash_milli"] == 0
+    assert w.civilizations[0].treasury == 0
+
+
+def test_foreign_patient_purchase_cannot_spend_reserved_guard_prefunding():
+    w, st = _enabled()
+    st.prices = {rid: 100 for rid in st.prices}
+    _guard_plan(w, st)
+    _outbreak(w, 0, burden=.0125)
+    _envelope(w, 0, 2)
+    w.regions[0].stockpile.goods["grain"] = 0
+    w.regions[0].adjacencies = [w.regions[2].name]
+    sim = _Sim(_people())
+    bridge = _Bridge(sim)
+    before = w.civilizations[0].treasury
+    batch = EC.prepare_phase2(w, _batch(w, sim), bridge, sim.get_snapshot(), None)
+    PH.prepare_phase2(w, batch, bridge, sim.get_snapshot(), None)
+    EC.finish_phase2(w, SimpleNamespace(market_prices={}), bridge, None)
+    PH.finish_phase2(w, SimpleNamespace(), bridge, None)
+    assert sum(r.food_milli for r in st.supplies) == 0
+    assert st.funding[0]["care_paid_milli"] == 250 and st.funding[0]["guard_paid_milli"] == 500
+    assert st.funding[0]["care_cash_milli"] == st.funding[0]["guard_cash_milli"] == 1000
+    assert st.funding[0]["supply_cash_milli"] == 0
+    assert before - w.civilizations[0].treasury == 2
+
+
+def test_health_proposal_prices_both_whole_coin_wage_purposes_and_patient_purchase():
+    w, st = _enabled()
+    st.prices = {rid: 100 for rid in st.prices}
+    _guard_plan(w, st)
+    _outbreak(w, 0, burden=.0125)
+    proposal = EC.BUDGET_PROVIDER.proposals(w, 0, SimpleNamespace(pcf=.5))[0]
+    assert proposal["detail"]["wages_milli"] == 250
+    assert proposal["detail"]["guards_milli"] == 500
+    assert proposal["detail"]["supplies_milli"] == 1000
+    assert proposal["cost"] == 3
+    w.livelihoods.epidemic_care.book.carry["0:care_wage"] = 250
+    st.book.carry["0:guard_wage"] = 500
+    assert EC.BUDGET_PROVIDER.proposals(w, 0, SimpleNamespace(pcf=.5))[0]["cost"] == 2
+
+
+def test_care_title_time_uses_full_prepared_urban_shares_even_when_unpaid_and_frame_truncated(monkeypatch):
+    w, _st = _enabled()
+    _outbreak(w, 1, burden=.04)
+    _envelope(w, 1, 50)
+    sim = _Sim(_people())
+    bridge = _Bridge(sim)
+    assert EC.farm_time(w, w.turn) == {}
+    EC.prepare_phase2(w, _batch(w, sim), bridge, sim.get_snapshot(), None)
+    removed = EC.farm_time(w, w.turn)
+    assert removed and removed[100] == pytest.approx(.8, abs=1e-6)
+    assert sum(removed.values()) == pytest.approx(1.6, abs=1e-6)
+    assert EC.farm_time(w, w.turn - 1) == EC.farm_time(w, w.turn + 1) == {}
+    w.civilizations[0].treasury = 0
+    monkeypatch.setattr(EC, "MAX_FRAME_ROWS", 0)
+    EC.finish_phase2(w, SimpleNamespace(market_prices={}), bridge, None)
+    assert w.livelihoods.epidemic_care.frame == []
+    assert all(not r.paid for r in w.livelihoods.epidemic_care._turn.receipts)
+    assert EC.farm_time(w, w.turn) == removed
+    w.livelihoods.epidemic_care.enabled = False
+    assert EC.farm_time(w, w.turn) == {}
+
+
+def test_guard_title_time_is_actual_urban_partial_removal_independent_of_payment():
+    w, st = _enabled()
+    _guard_plan(w, st)
+    w.contact_ledger.edges = [(1, 2, 100.0, 0.0, 0.0, 0.0)]
+    w.contact_ledger.invalidate()
+    _envelope(w, 1, 2)
+    sim = _Sim(_people())
+    bridge = _Bridge(sim)
+    assert PH.farm_time(w, w.turn) == {}
+    batch = EC.prepare_phase2(w, _batch(w, sim), bridge, sim.get_snapshot(), None)
+    PH.prepare_phase2(w, batch, bridge, sim.get_snapshot(), None)
+    removed = PH.farm_time(w, w.turn)
+    assert removed[100] == pytest.approx(.8, abs=1e-6) and removed[101] == pytest.approx(.2, abs=1e-6)
+    assert sum(removed.values()) == pytest.approx(1)
+    assert PH.farm_time(w, w.turn - 1) == PH.farm_time(w, w.turn + 1) == {}
+    w.civilizations[0].treasury = 0
+    EC.finish_phase2(w, SimpleNamespace(market_prices={}), bridge, None)
+    PH.finish_phase2(w, SimpleNamespace(), bridge, None)
+    assert st.guards[0]["payment"] == "refused:payer_short" and not st.guards[0]["staffed"]
+    assert PH.farm_time(w, w.turn) == removed
+    PH.rollback_phase2(w)
+    assert PH.farm_time(w, w.turn) == {}
+    st.enabled = False
+    assert PH.farm_time(w, w.turn) == {}

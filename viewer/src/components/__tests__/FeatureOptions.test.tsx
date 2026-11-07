@@ -13,11 +13,11 @@ function catalogWith(change: (raw: Record<string, any>) => void = () => {}) { //
   return raw;
 }
 
-function Harness({ catalog, surface = "live", onChange = () => {}, unavailable = null }: {
+function Harness({ catalog, surface = "live", onChange = () => {}, unavailable = null, initialSelection = {} }: {
   catalog: unknown; surface?: "live" | "batch"; onChange?: (selection: FeatureSelection) => void;
-  unavailable?: string | null;
+  unavailable?: string | null; initialSelection?: FeatureSelection;
 }) {
-  const [selection, setSelection] = useState<FeatureSelection>({});
+  const [selection, setSelection] = useState<FeatureSelection>(initialSelection);
   const [agents, setAgents] = useState<string | null>(null);
   return (
     <FeatureOptions
@@ -178,6 +178,18 @@ describe("FeatureOptions", () => {
     fireEvent.click(box(/^Grain reserves --grain-reserves$/));
     fireEvent.click(box(/^Local budgets --local-budgets$/));
     expect(obligation.disabled).toBe(false);
+  });
+
+  it("forwards recovery modes and removes dependent switches when prerequisites are dropped", () => {
+    const onChange = vi.fn();
+    render(<Harness catalog={served} onChange={onChange} initialSelection={{
+      workshops: true, repair_projects: true, timber_stock: true, grain_reserves: true, local_budgets: true,
+    }} />);
+    open();
+    const wear = box(/^Operating wear --operating-wear$/);
+    const timber = box(/^Timber supply --timber-supply$/);
+    const crews = box(/^Recovery crews --recovery-crews$/);
+    const obligation = box(/^Maintenance obligation --maintenance-obligation$/);
     for (const control of [wear, timber, crews, obligation]) fireEvent.click(control);
     const modes: Array<[RegExp, string[]]> = [[/Timber supply mode/, ["supply (default)", "cost_only"]],
       [/Recovery crew mode/, ["paid (default)", "unpaid"]], [/Maintenance obligation mode/, ["reserve (default)", "reserve_only"]]];

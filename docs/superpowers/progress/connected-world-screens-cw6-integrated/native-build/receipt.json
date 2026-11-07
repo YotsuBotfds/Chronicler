@@ -1,0 +1,40 @@
+{
+  "build_source_commit": "9e001701",
+  "checked_roots": [
+    {
+      "root": "/workspace/cw-evidence",
+      "files": 56,
+      "sha256": "38b21020673a028ce6bcd76e19fb3e0c01eed5893b89f1ce6ff6eda6cf8925a2",
+      "reference_mismatches": [],
+      "pyproject_sha256": "625466ac16de324bdd8ad5511b2cd992fa1074c7e73842ad28ba2850adc8ce0b"
+    },
+    {
+      "root": "/workspace/Chronicler",
+      "files": 56,
+      "sha256": "38b21020673a028ce6bcd76e19fb3e0c01eed5893b89f1ce6ff6eda6cf8925a2",
+      "reference_mismatches": [],
+      "pyproject_sha256": "625466ac16de324bdd8ad5511b2cd992fa1074c7e73842ad28ba2850adc8ce0b"
+    },
+    {
+      "root": "/workspace/cw-integrated-screen",
+      "files": 56,
+      "sha256": "38b21020673a028ce6bcd76e19fb3e0c01eed5893b89f1ce6ff6eda6cf8925a2",
+      "reference_mismatches": [],
+      "pyproject_sha256": "625466ac16de324bdd8ad5511b2cd992fa1074c7e73842ad28ba2850adc8ce0b"
+    }
+  ],
+  "path_base": "repository root; includes chronicler-agents/ prefix",
+  "algorithm": "sort repository-relative paths; SHA256(path UTF8 + NUL + bytes + NUL) for all src/**/*.rs,Cargo.toml,Cargo.lock,build.rs",
+  "python": "3.13.5 (main, Aug 10 2026, 12:06:59) [GCC 14.2.0]",
+  "build_log": "/tmp/cw-evidence-native-build-reviewed.log",
+  "artifact": {
+    "path": "/workspace/cw-evidence-native/lib/python3.13/site-packages/chronicler_agents/chronicler_agents.cpython-313-x86_64-linux-gnu.so",
+    "sha256": "59f536b8f4a6c2bc82c51eeaec55f3aff6b0a1c5c8f1a324049ad15b42c51617",
+    "agent_schema": [
+      1,
+      "dcf0c34097c88451"
+    ]
+  },
+  "build_log_sha256": "ac1baf7a760dcd7d08c9d3fd2948665abd7587f8707bc608a0a36345d63c3562",
+  "build_log_text": "\ud83d\udc0d Found CPython 3.13 at /workspace/cw-evidence-native/bin/python\n\ud83d\udd17 Found pyo3 bindings\n\ud83d\udce1 Using build options features from pyproject.toml\n   Compiling chronicler-agents v0.1.0 (/workspace/cw-evidence/chronicler-agents)\n    Finished `release` profile [optimized] target(s) in 1m 49s\n\ud83d\udce6 Built wheel for CPython 3.13 to /tmp/.tmpC0cKQt/chronicler_agents-0.1.0-cp313-cp313-linux_x86_64.whl\n\u270f\ufe0f Setting installed package as editable\n\ud83d\udee0 Installed chronicler-agents-0.1.0\n"
+}

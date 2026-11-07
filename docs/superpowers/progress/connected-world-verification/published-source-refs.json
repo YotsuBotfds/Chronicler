@@ -1,0 +1,9 @@
+{
+  "CW6 held freeze": "codex/cw-screen-final@5ec73003837b5149091593ffa411d33dd32e9491",
+  "health held freeze": "codex/cw-health-held-source@8d38f8b49e2db7635ee9ba074edde1d422fbc030",
+  "native build source": "codex/cw-native-build-source@9e0017017245870affa0401714d14cddccf98ff7",
+  "history frontend": "codex/cw-viewer-evidence-source@e69f823b03e22242e59a3007667e1cabcab8fa9e",
+  "D1c natural example": "codex/cw-institutions-examples-source@8fec1a4b2f874ba42ebed434e05111480ce57d54",
+  "valid runtime": "eaa4a5d3e1cb5c958b5e32719601c28986c9f6ac",
+  "final identity source": "830d0dc2"
+}

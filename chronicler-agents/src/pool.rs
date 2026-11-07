@@ -205,6 +205,11 @@ pub struct AgentPool {
     pub learning_attendance: Option<crate::learning_work::AttendancePlan>,
     /// Livelihoods L6a: armed paid-work income share, its receipt (taken once)
     /// and the applied wealth-transfer keys; transient, never checkpointed.
+    pub adaptive_information: Option<crate::adaptive_information::AdaptiveInformation>,
+    pub adaptive_migration: Option<crate::adaptive_migration::AdaptiveMigration>,
+    pub adaptive_migration_receipt: Option<crate::adaptive_migration::AdaptiveReceipt>,
+    pub enlisted_service: Option<crate::enlisted_service::EnlistedService>,
+    pub wealth_observation: Option<crate::wealth_observation::WealthObservation>,
     pub paid_work: Option<crate::wealth_transfer::PaidWork>,
     pub paid_work_receipt: Option<crate::wealth_transfer::PaidWorkReceipt>,
     pub wealth_transfer_log: Vec<(u32, u8, u32)>,
@@ -308,6 +313,11 @@ impl AgentPool {
             provision_frame: None,
             work_reservations: Vec::new(),
             learning_attendance: None,
+            adaptive_information: None,
+            adaptive_migration: None,
+            adaptive_migration_receipt: None,
+            enlisted_service: None,
+            wealth_observation: None,
             paid_work: None,
             paid_work_receipt: None,
             wealth_transfer_log: Vec::new(),
@@ -1887,5 +1897,5 @@ crate::persist_struct!(AgentPool {
     free_slots,
 } transient { health_work_loss /* CAREOBS_TRANSIENT_BEGIN */, health_care_observation /* CAREOBS_TRANSIENT_END */, teaching_plan,
     food_allocation_config, food_access, food_access_ids, food_access_regions, provision_frame,
-    work_reservations, learning_attendance, paid_work, paid_work_receipt, wealth_transfer_log,
+    work_reservations, learning_attendance, adaptive_information, adaptive_migration, adaptive_migration_receipt, enlisted_service, wealth_observation, paid_work, paid_work_receipt, wealth_transfer_log,
     relocation_policy, relocation_receipt, migration_closure, migration_closure_receipt, retail_config, retail_frame, retail_income, retail_income_receipt });

@@ -206,6 +206,17 @@ class InfraWork(BaseModel):
     history: list[tuple[int, str, int, int]] = Field(default_factory=list)
 
 
+class WorksCrewMember(BaseModel):
+    agent_id: int
+    origin: str
+    share: float
+    worked: float
+    wage_requested_milli: int = 0
+    wages_milli: int = 0
+    wage_refused_milli: int = 0
+    income_replaced: float | None = None
+
+
 class WorkReceipt(BaseModel):
     """One work's Phase 2 of one turn."""
 
@@ -232,6 +243,10 @@ class WorkReceipt(BaseModel):
     condition_before: float
     condition_after: float
     remaining_after: float
+    #: Present only with PL3 --recovery-crews: one stable-id crew, including
+    #: unpaid controls. No anonymous labor is added to these named requests.
+    crew_mode: str | None = Field(default=None, exclude_if=lambda v: v is None)
+    members: list[WorksCrewMember] | None = Field(default=None, exclude_if=lambda v: v is None)
 
 
 class WorksLedger(BaseModel):
@@ -253,6 +268,14 @@ class WorksLedger(BaseModel):
     #: from its own envelope and reservation).
     envelope: int | None = None
     rs2_charged: int = 0
+    #: Named crew extension. coin_cost_milli is material plus actually accepted
+    #: wages; nominal_cost_milli includes refused wages, which return to payer.
+    nominal_cost_milli: int | None = Field(default=None, exclude_if=lambda v: v is None)
+    wages_requested_milli: int | None = Field(default=None, exclude_if=lambda v: v is None)
+    wages_milli: int | None = Field(default=None, exclude_if=lambda v: v is None)
+    wages_refused_milli: int | None = Field(default=None, exclude_if=lambda v: v is None)
+    wage_carry_before_milli: int | None = Field(default=None, exclude_if=lambda v: v is None)
+    wage_carry_after_milli: int | None = Field(default=None, exclude_if=lambda v: v is None)
 
 
 class TimberNeed(BaseModel):

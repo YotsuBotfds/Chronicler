@@ -1,3 +1,27 @@
+# 2026-11-07 — A–E implementation/evaluation complete; final merge gates pending
+
+Main is `f76436ae37c735b2b856caf98033122798ac88d2` (#95). Its Tests `42386261493` passed all nine jobs; #94 main Tests `42382492574` also passed. Remaining adopted scope and final evidence are in [PR #96](https://github.com/YotsuBotfds/Chronicler/pull/96), branch `codex/cw-lead`. See the [final report](superpowers/progress/connected-world-final-report.md) and [complete coverage matrix](superpowers/progress/connected-world-final-coverage.md), rather than older next strings below.
+
+All bounded execution evidence is complete and independently reviewed: CW6 60/60 at 120 turns under the unchanged one-core-hour cap; health 36/36 at 200 turns; D1 60/60. All 80 integrated exact-resume branches (22 active, 58 canonical) passed, plus four health resumes. Both-reference final feature-off identity: nine cases, 399 files, zero differences each. Fourteen declared-scale profiles and 52 checkpoint readbacks passed, actual peak 53,138 agents. Full local offline: 75 chunks, 7,964 passed, 69 skipped, slowest 34.38 seconds under unchanged 110; later consumed-registry fixture correction: 156 focused passed. Real desktop/phone checks: 30 history, 38 branches, 82 health. Natural examples: 1,200 strict observations, 21/24 categories, three honest nulls, zero audit/schema errors.
+
+Results are mixed/adverse: CW6 food shortfall and recorded epidemic deaths increased in all twelve worlds against A6 record-only, balance primary negative both strata. This total adaptive contrast includes information/choice/X1 crowding feedback; it does not overturn the fixed-enrollment wage finding. Profiles show substantial CPU/RSS/artifact cost and history first-open about 4.8 seconds. Keep experimental and opt-in. Physical runtime `eaa4a5d3`, held freeze `5ec73003`, final identity `830d0dc2`; all exact auxiliary refs published and native SHA256 `59f536b8…` verified. All held cohorts remain consumed; no reuse.
+
+Next executable work: final independent exact-head review and all-nine PR96 Tests; merge only after green, verify main CI, and commit the verified source/run to the durable completion ledger. Two stale unknown-purpose-10 native assertions on earlier head `79a7f411` caused CI failure; purpose 10 is now valid restitution. Corrected tests use the next unknown code, with 17 local native checks passed; the failed run is retained, never counted green. Runtime/source unchanged. No restricted qualification, default promotion or paid narration. Ports have no consumer; cross-border owned wares is an unadopted audit proposal outside the adopted contract. No automatic restart after reclamation is promised.
+
+Earlier entries below are dated recovery/history records, not the current next-task authority.
+
+# 2026-11-07 — B3 merged; whole program integration active
+
+PR #94 merged at `4cabac21f41ba6683f4fd7106bd5c11292c4978b`, tree equals independently reviewed `be524a60`; premerge Tests `42381096201` all nine green. Main Tests `42382492574` pending: no further feature merge before verified green. B3 fresh identities both original and preceding main: 9 cases, 399 files, zero differences each; offline 72 chunks/7618 passed/69 skipped on 3.13.16, five native lifecycle resumes, real desktop/phone and 14 declared-scale off/on runs. Prior 3.13.5 argparse failure preserved. See `superpowers/audits/connected-world/b3-integration-verification-2026-11-07.md`.
+
+D1 PR #95: held source frozen `808726b8` on fresh reserved 3701/3801 cohort; held running, real browser journeys passed; #94 integration and final reviewed-head CI still pending. Lead `codex/cw-lead` holds reconstructed D4 and integrated follow-ons A1-2/A4-3/B4-B5/named works/C2/C4/guards/D3/A6/E; these are unmerged, witness/compatibility/native gates in progress. Native independent review found A6 attribution and A1 generic treasury-sign blockers, author fixing with regression tests; do not bypass. Movement branches D1c active. Check the coverage matrix, not a stale short next string, for remaining scope.
+
+# 2026-11-07 — Codex live recovery (program continues)
+
+Fetched main is `e3bce686` after #93; exact-head Tests `42354356085` passed all nine jobs. X1 is merged. Original feature-off reference remains `8abc1acb`. Clean accessible checkout had one worktree; recovered B3 `83abd666` and D1 `e12ba7ec` into isolated worktrees. D4 remote branch is absent and no original D4 worktree was accessible in the bounded workspace search; reconstruction follows durable contracts, without a claim that unpublished work was lost. Board now names live next tasks. Registry reconciled across all fetched CW branches: CW3b 3501/3601 used, CW5c 3301/3401 used, fresh D1 3701/3801 reserved; historical CW3 disk failure retained.
+
+Six isolated workers own B3, D1, D4, independent coverage/evidence, health follow-ons and linked histories. Lead owns shared schemas/native/FFI, registry and integration. Actual resources: 5 CPUs, 17 GiB RAM, 30 GiB free disk; two native builds maximum. Superseding stale next/status fields below does not supersede dated historical evidence.
+
 # Current continuation — connected-world program (A–E), 2026-11-06
 
 ## Connected-world program: slice S0 (plan, audits, tooling) and the first lanes

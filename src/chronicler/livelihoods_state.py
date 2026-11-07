@@ -35,6 +35,10 @@ from typing import Literal
 
 from pydantic import BaseModel, Field, PrivateAttr
 
+from chronicler.war_requisition_state import WarRequisitionState
+from chronicler.war_consequences_state import WarConsequencesState
+from chronicler.adaptive_livelihoods_state import AdaptiveLivelihoodsState
+from chronicler.public_health_state import PublicHealthState
 from chronicler.apprenticeship_state import ApprenticeshipState
 from chronicler.attribution_records_state import AttributionRecordsState
 from chronicler.clearing_protection_state import ClearingProtectionState
@@ -44,8 +48,10 @@ from chronicler.food_allocation_state import FoodAllocationState
 from chronicler.grain_convoys_state import GrainConvoyState
 from chronicler.guild_leagues_state import GuildLeagueState
 from chronicler.household_retail_state import HouseholdRetailState
+from chronicler.harvest_cover_state import HarvestCoverState
 from chronicler.infrastructure_condition_state import InfrastructureConditionState
 from chronicler.learning_cohorts_state import LearningCohortState
+from chronicler.movement_branches_state import MovementBranchesState
 from chronicler.local_budgets_state import LocalBudgetState
 from chronicler.operating_wear_state import OperatingWearState
 from chronicler.maintenance_obligation_state import MaintenanceObligationState
@@ -55,6 +61,7 @@ from chronicler.relocation_costs_state import RelocationCostsState
 from chronicler.remittances_state import RemittancesState
 from chronicler.repair_projects_state import RepairProjectsState
 from chronicler.residence_ledger_state import ResidenceLedgerState
+from chronicler.timber_orders_state import TimberOrdersState
 from chronicler.timber_stock_state import TimberStockState
 from chronicler.timber_supply_state import TimberSupplyState
 from chronicler.titled_trade_state import TitledTradeState
@@ -71,10 +78,10 @@ LIVELIHOODS_SWITCHES: tuple[str, ...] = ("workshops", "food_allocation", "timber
                                          "relocation_costs", "local_budgets",
                                          "apprenticeship", "repair_projects", "veteran_reintegration",
                                          "remittances", "clearing_protection",
-                                         "operating_wear", "timber_supply",
+                                         "operating_wear", "timber_supply", "timber_orders",
                                          "recovery_crews", "maintenance_obligation", "reform_services",
                                          "household_retail", "watershed", "workshop_economics", "titled_trade",
-                                         "infrastructure_condition", "epidemic_care", "guild_leagues", "residence_ledger", "attribution_records",
+                                         "infrastructure_condition", "harvest_cover", "epidemic_care", "guild_leagues", "war_requisition", "war_consequences", "adaptive_livelihoods", "public_health", "movement_branches", "residence_ledger", "attribution_records",
                                          "wealth_accounting")
 
 
@@ -86,6 +93,7 @@ class LivelihoodsState(BaseModel):
     schema_version: Literal[1] = 1
     workshops: WorkshopState | None = Field(default=None, exclude_if=_is_none)
     food_allocation: FoodAllocationState | None = Field(default=None, exclude_if=_is_none)
+    timber_orders: TimberOrdersState | None = Field(default=None, exclude_if=_is_none)
     timber_stock: TimberStockState | None = Field(default=None, exclude_if=_is_none)
     grain_convoys: GrainConvoyState | None = Field(default=None, exclude_if=_is_none)
     commons_rules: CommonsRulesState | None = Field(default=None, exclude_if=_is_none)
@@ -108,8 +116,14 @@ class LivelihoodsState(BaseModel):
     workshop_economics: WorkshopEconomicsState | None = Field(default=None, exclude_if=_is_none)
     titled_trade: TitledTradeState | None = Field(default=None, exclude_if=_is_none)
     infrastructure_condition: InfrastructureConditionState | None = Field(default=None, exclude_if=_is_none)
+    harvest_cover: HarvestCoverState | None = Field(default=None, exclude_if=_is_none)
     epidemic_care: EpidemicCareState | None = Field(default=None, exclude_if=_is_none)
     guild_leagues: GuildLeagueState | None = Field(default=None, exclude_if=_is_none)
+    war_requisition: WarRequisitionState | None = Field(default=None, exclude_if=_is_none)
+    war_consequences: WarConsequencesState | None = Field(default=None, exclude_if=_is_none)
+    adaptive_livelihoods: AdaptiveLivelihoodsState | None = Field(default=None, exclude_if=_is_none)
+    public_health: PublicHealthState | None = Field(default=None, exclude_if=_is_none)
+    movement_branches: MovementBranchesState | None = Field(default=None, exclude_if=_is_none)
     residence_ledger: ResidenceLedgerState | None = Field(default=None, exclude_if=_is_none)
     attribution_records: AttributionRecordsState | None = Field(default=None, exclude_if=_is_none)
     wealth_accounting: WealthAccountingState | None = Field(default=None, exclude_if=_is_none)

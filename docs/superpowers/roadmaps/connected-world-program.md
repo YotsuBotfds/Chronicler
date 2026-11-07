@@ -90,7 +90,7 @@ Terms (owner instruction and amendment):
     checkpoints only (not in the bundle or state file), omitted while off; an exact resume restores it; a rebuilt pool (legacy resume) rebuilds
     nothing (`pool_reset`, `observed_from`). Late army dissolutions are seen at T+1.
   - *Readers* get T's frame at T+1 only (`read_frame` aggregates for C2 and rulers, split by
-    cause and anchor; an `OwnRow` accessor bound to one person for A6; `separation` for D3; a
+    cause and anchor; an `OwnRow` accessor bound to one person for A6 and D3's released-person home; `separation` for D3; a
     same-turn or future read is refused; a Phase 10 consumer sits before the writer in the switch
     order). The guard
     `tests/test_residence_ledger_guard.py` refuses any other read of the ledger by a decision
@@ -293,6 +293,12 @@ open questions follow each summary.
   army rations are minted on top. There are two war-death authorities (campaign casualties and the
   native ×2 Soldier mortality at war). An inexact resume can keep a roster whose ids now name
   strangers (code path, not reproduced).
+- **Correction from the integrated native audit (2026-11-07):** the historical
+  claim above that soldiers never move natively was false. Native enlisted
+  people can migrate; army attachment is distinct from residence. D4 freezes
+  service food/work at Phase2 without teleportation; D3 records wounds and
+  remembered-home return through existing health/migration authorities. The
+  old default double-mortality behavior is changed only under active D3.
 - No person pays tax; at least six channels already turn grievance into influence; a restored civ
   reuses the dead civ's index and name.
 - **Decisions:** owned stock follows the commons once per war event (retail rules version 2,
@@ -404,17 +410,25 @@ open questions follow each summary.
 
 ## 6. Turn-order table
 
-Maintained as slices land.
+Current integrated order (runtime `eaa4a5d3`; earlier slice descriptions remain
+historical). `LIVELIHOODS_SWITCHES` and delegated RS2/retail hooks are the
+implementation authority; all new consumers retain their guarded dates.
 
-| Step | Slice | Owner |
-| --- | --- | --- |
-| Phase 1 epidemic tick, before population change is absorbed: consume care capacity dated T - 1 (CFR factor, one floor with techniques) | C2 | `epidemic_care.care_factors` |
-| Phase 2, after every other package's `prepare_phase2`: name and reserve carers, lower `farm_labor_factor` | C2 | `epidemic_care.prepare_phase2` (livelihoods order: before D2 and A1) |
-| Phase 2 after the economy tick: withhold income share, pay wages (`care_wage`), date capacity T | C2 | `epidemic_care.finish_phase2` |
-| Phase 10: L9 settles care envelopes, then proposes T + 1's from T's reported outbreaks | C2 / L9 | `local_budgets.phase10` with `epidemic_care.BUDGET_PROVIDER` |
-| Phase 1–9, `before_agent_tick` of T: consumers read the residence ledger's frame dated T−1 (`read_frame`, an `OwnRow` accessor, `separation`; a read of T's frame at T is refused): C2's crowding at the epidemic tick, A6 before the tick, D3 at Phase 5 | X1 | lead (contract); C, D, A6 |
-| Phase 10, livelihoods `phase10`, after every acting package, A3 and C2, immediately before D2 and A1: `residence_ledger` writes T's frame from T's applied moves, the post-tick snapshot, trips, the reconciled rosters and region events (X1) | X1 | lead |
-| End-of-turn sync: army dissolutions; the ledger sees them at T+1 | X1 | — |
+| Step | Slice / actual authority |
+| --- | --- |
+| Phase1 epidemic tick reads prior C2 capacity, C4 water/crowding and dated guard capacity; a single epidemic mortality authority applies the factors | C2/C3/C4, `epidemic_care`, `public_health`, `quarantine_rules`; registered X1 `read_frame(T−1)` |
+| Phase2 health preparation, then bind the native pool and freeze the D4 service census before all livelihood reservations/planners; exclude service IDs and recompute civilian farm denominator | D4 `prepare_service_economy`; existing health authority owns its own labor |
+| Reserve ongoing woodcut, timber-order and titled-food carrier work first; prepare workshops, food, commons, payroll, L9, RS2/B3, veteran/woodcut/retail, then care/guards; capture final retail factor after every consumer | A3/A4/B3/C2/C4; `infrastructure_condition` plans inside RS2, not another standalone labor authority |
+| A1 captures the native opening before any payer; native economy settles, then finish hooks settle actual wages/materials, paid-work shares and material care funding | A1 observer last in prepare order; native exact stage observation and one spendable wealth balance |
+| Phase5 campaigns select casualties; D3 partitions eligible combat victims into actual deaths and surviving wounds; D4 replaces minted initial/refill/forage food and captures actual custody once | Existing campaign/death authorities; active-only D3 suppression, physical `Army.rations`, actual funded restitution |
+| Phase9 ecology: clearing and procedural watershed before/after hooks; B4 harvest cover settles from actual timber depletion through its Phase2 finish hook and existing regrowth remains ecology-owned | B1/B2/B4, no second standing-timber store |
+| After Phase9 ecology, before native agent tick: food/learning/relocation/retail installs, D4 service food, D3 prior separation/threat, A6 own dated information/scores, D1c T−1 funded permissions, A1 check; native alone moves people | D3/D4/A6/D1c; X1 bound `OwnRow` / `separation`, never same-turn truth |
+| After native tick: package receipts, stipend/wage/remittance/refund settlement, repair/woodcut/cargo income, named IC/C2 receipts, D4/A6/C4 observations; discard cached native snapshot after wealth-changing hooks | Existing package authorities; no independent second work or food store |
+| Phase10 first reconcile rosters. Before reserves: convoys, relocation, RS2 plans, PL1, cross-border timber arrivals/orders, retail cap/procurement and B3 work needs; arrived timber nets the current gaps once | A4-3/RS2/B3; region-scoped finite L9 input promises |
+| Phase10 main hooks: convoys/payroll, L9 settlement and next proposals, apprenticeship/RS2/veterans/PL1/timber/crews/obligations, real reform relief before retail closes, then titled trade, IC, C2, leagues, D4, D3, A6, C4, funded branches | Existing L9 is sole budget authority. D3 appends wounds to the already settled health authority. A6 observes applied moves before X1 writes |
+| X1 sole Phase10 writer records T after acting consumers and roster reconciliation; D2 attribution then A1 closes after all payers | X1 remains record-only. D3 release reads a bound prior OwnRow; a late guard refusal leaves home unknown |
+| End-of-turn army dissolutions / snapshots / exact checkpoint | Late releases update current D3 records once; X1 observes attachment changes at T+1. Snapshot records are copied, with no future-event alias |
+
 
 ## 7. Seeds
 

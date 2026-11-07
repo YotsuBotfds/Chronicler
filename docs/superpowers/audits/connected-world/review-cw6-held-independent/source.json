@@ -1,0 +1,23 @@
+{
+  "frozen_head": "5ec73003837b5149091593ffa411d33dd32e9491",
+  "runtime": "eaa4a5d3e1cb5c958b5e32719601c28986c9f6ac",
+  "dirty": "",
+  "runtime_to_freeze_paths": [
+    "docs/superpowers/progress/connected-world-evidence/CW6/final-pilot/README.md",
+    "docs/superpowers/progress/connected-world-evidence/CW6/final-pilot/metrics.jsonl",
+    "docs/superpowers/progress/connected-world-evidence/CW6/final-pilot/receipt.json",
+    "docs/superpowers/progress/connected-world-evidence/CW6/final-pilot/report.md",
+    "docs/superpowers/progress/connected-world-evidence/CW6/final-pilot/source.txt",
+    "docs/superpowers/progress/connected-world-screens-cw6-integrated.md"
+  ],
+  "python": "/workspace/cw-evidence-native/bin/python",
+  "version": "3.13.5 (main, Aug 10 2026, 12:06:59) [GCC 14.2.0]",
+  "chronicler": "/workspace/cw-screen-final/src/chronicler/__init__.py",
+  "native": "/workspace/cw-evidence-native/lib/python3.13/site-packages/chronicler_agents/chronicler_agents.cpython-313-x86_64-linux-gnu.so",
+  "native_sha256": "59f536b8f4a6c2bc82c51eeaec55f3aff6b0a1c5c8f1a324049ad15b42c51617",
+  "native_source_files": 56,
+  "native_source_sha256": "38b21020673a028ce6bcd76e19fb3e0c01eed5893b89f1ce6ff6eda6cf8925a2",
+  "screen_sha256": "45827afb49817bdba4ce272a5ceecd8f57ad2c9cd9a455cfed2f630365a2ddd9",
+  "runner_sha256": "5ded5f3548bb6403b1df25e9d31e5c5ce638631aa5fd1b4fabdcfb8510b5cadb",
+  "preregistration_sha256": "f8924582ad5292d27e185fe4eea69241c130b71b25e5471aa05128783640941d"
+}

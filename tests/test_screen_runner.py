@@ -1,4 +1,4 @@
-"""The connected-world screen runner, its seed registry and the CW6 stub.
+"""The connected-world screen runner, its seed registry and the integrated CW6 entry point.
 
 Offline: constructed bundles and a fake runtime (no simulation, no child process);
 the real parser and feature catalog check arm command lines. Nothing here runs a
@@ -89,7 +89,7 @@ def test_registry_union_covers_the_audit_union(SR, registry):
 
 
 #: Screens whose held run ``mark-run`` recorded in the registry (complete).
-RECORDED = {"CW4", "CW1", "CW2", "CW5"}
+RECORDED = {"CW4", "CW1", "CW2", "CW5", "CW6"}
 #: CW3's held run, recorded incomplete (one run failed: the disk was full), procedural only;
 #: its template reservation is recorded as unused by design (never_run).
 RECORDED_INCOMPLETE = {"CW3"}
@@ -154,6 +154,11 @@ def test_pilot_and_reserve(SR, registry, CW):
 def _mutate(registry, change):
     reg = copy.deepcopy(registry)
     by = {e["id"]: e for e in reg["entries"]}
+    if change in ("reservation overlaps", "reservation in the gate", "held reservation without screen"):
+        # These cases exercise a NEW reservation on a scratch copy. The
+        # live CW6 cohort is consumed and must never become available again.
+        by["cw6-held-t"]["status"] = "reserved"
+        by["cw6-held-t"].pop("held_run", None)
     if change == "duplicate id":
         reg["entries"].append(dict(by["ls1-held-t"]))
     elif change == "bad stratum":
@@ -517,10 +522,10 @@ class FakeRuntime:
 
 
 @pytest.mark.parametrize("cohort", ["held", "pilot"])
-def test_stub_screens_are_refused(SR, CW, tmp_path, cohort):
+def test_an_unready_screen_is_refused(SR, CW, tmp_path, cohort):
     fake = FakeRuntime(SR)
     with pytest.raises(SystemExit, match="CW6 is not ready"):
-        SR.run_main([str(tmp_path / "out"), "--screen", "CW6", "--cohort", cohort], CW.SCREENS, fake.rt)
+        SR.run_main([str(tmp_path / "out"), "--screen", "CW6", "--cohort", cohort], {**CW.SCREENS, "CW6": dataclasses.replace(CW.SCREENS["CW6"], ready=False)}, fake.rt)
     assert fake.calls == []
 
 
@@ -655,10 +660,10 @@ def test_registry_content_hash_ignores_run_records_only(SR, registry):
     assert not SR.code_path("scripts/seed_registry.json") and SR.code_path("scripts/screen_runner.py")
 
 
-def test_check_command_reports_stubs_not_ready(SR, CW, capsys):
-    assert CW.main(["check", "--screen", "all"]) == 2
+def test_check_command_reports_implemented_screens_ready(SR, CW, capsys):
+    assert CW.main(["check", "--screen", "all"]) == 0
     text = capsys.readouterr().out
-    assert "CW6: seeds OK" in text and "CW6: NOT READY" in text
+    assert "CW6: seeds OK" in text and "CW6: extractor, packages, 5 arms" in text and "CW6: NOT READY" not in text
     # CW2 is declared by slices A3-1/A3-2 and CW5 by slice A4-1 (tests/test_cw2_screen.py, test_cw5_screen.py).
     assert "CW2: seeds OK" in text and "CW2: extractor, packages, 5 arms and 47 outcomes (3 primary): OK" in text
     assert "CW5: seeds OK" in text and "CW5: extractor, packages, 2 arms and 41 outcomes (2 primary): OK" in text
@@ -672,7 +677,7 @@ def test_check_command_reports_stubs_not_ready(SR, CW, capsys):
     assert CW.main(["check", "--screen", "DEV"]) == 0
     assert CW.main(["registry"]) == 0
     out = capsys.readouterr().out
-    assert "reserved cw6-held-t: template 781-786" in out and "reserved cw1-held-t" not in out   # CW1 was run
+    assert "reserved cw6-held-t" not in out and "reserved cw1-held-t" not in out   # Both cohorts ran
     assert "reserved cw2-held-t" not in out and "reserved cw5-held-t" not in out                 # CW2, CW5 were run
 
 
@@ -1051,7 +1056,12 @@ def test_the_registry_content_hash_is_the_one_every_recorded_identity_used(SR, r
     own recorded identity is the content without the other's entries."""
     def without(*screens):
         kept = copy.deepcopy(registry)
-        kept["entries"] = [e for e in kept["entries"] if e.get("screen") not in screens]
+        kept["entries"] = [e for e in kept["entries"] if e.get("screen") not in {*screens, "CW6D1", "CW-health"}]
+        # CW6 was unspent when its horizon was amended before held runs:
+        # retain the original 200-turn declaration in these historical views.
+        for entry in kept["entries"]:
+            if entry.get("screen") == "CW6" and entry.get("cohort") == "held":
+                entry["turns"] = [200]
         return SR.registry_content_sha256(kept)
     assert without("CW5c", "CW3b") == "a703a8502cb688181662d323ff482822a3fec6df292d23ebccc42f05751b2cfe"
     assert without("CW5c") == "3b50508764cfea7d70bb9432560bf8d85ecdb5edba7c4cd3ca697955dd733ccf"    # CW3b's runs
@@ -1123,3 +1133,12 @@ def test_a_paired_reading_reads_both_rows_names_an_exclusion_and_never_falls_bac
     # Without a control the pair is not used (and check_preregistration refuses such an outcome).
     cells, values = SR.paired_values(rows, screen, "TS", None, read, "t", [1], pair=lambda a, c: None)
     assert values == [5.0]
+
+
+@pytest.mark.parametrize("selection", [["--screen", "CW6"], ["--screen=CW6"]])
+def test_generic_entry_delegates_integrated_sidecar_ownership(monkeypatch, CW, selection):
+    calls = []
+    monkeypatch.setattr(CW._cw6, "main", lambda argv: calls.append(argv) or 73)
+    assert CW.main(["check", *selection]) == 73
+    assert calls == [["check", *selection]]
+    assert CW.SCREENS["CW6"] is CW._cw6.SCREEN

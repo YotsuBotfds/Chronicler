@@ -456,6 +456,25 @@ def store_free(world, region: int) -> float:
     return amount
 
 
+
+def deliver_ordered_store(world, region: int, amount: float) -> None:
+    """A4-3 delivery into the existing repair store, included in PL1's account.
+
+    Called after ``phase10_before_reserves`` and before PL1 closes its frame.
+    No independent store is created and the delivery is not free commons stock.
+    """
+    state = _state(world)
+    if state is None or not timber_supply_active(world):
+        raise RuntimeError("ordered timber delivery requires active timber supply")
+    if not isinstance(region, int) or not 0 <= region < len(world.regions) or not math.isfinite(amount) or amount < 0:
+        raise ValueError("invalid ordered timber delivery")
+    t = state._turn
+    if t is None or t.turn != world.turn:
+        raise RuntimeError("ordered timber delivery outside the PL1 open turn")
+    t.store_open.setdefault(region, state.store.get(region, 0.0))
+    state.store[region] = state.store.get(region, 0.0) + amount
+    t.delivered[region] = t.delivered.get(region, 0.0) + amount
+
 def take_store(world, region: int, amount: float) -> float:
     """RS2 seam (its holds, before the native economy): take up to ``amount``
     from the region's store first; returns what was taken (0.0 without a
@@ -598,6 +617,7 @@ def reserve_first(world, agent_bridge, snapshot) -> None:
     if not live:
         return
     facts = _facts(snapshot, {a for e in live for a in e.crew})
+    t.individual_occupations = {aid: fact[1] for aid, fact in facts.items()}
     enlisted = _enlisted(world)
     trips = _trips(sim)
     open_veterans = frozenset()
@@ -747,6 +767,7 @@ def finish_phase2(world, economy_result, agent_bridge, acc):
         for aid, requested, got, residual, status in sim.transfer_wealth(
                 world.turn, PURPOSE_REPAIR_WAGE, WAGE_BATCH, wages):
             applied[int(aid)] = (int(got), int(residual) if status != 2 else int(requested))
+    t.individual_wages = applied
     accounts = _settled_accounts(world)
     turn = world.turn
     ledger: dict[int, dict] = {}
@@ -923,6 +944,12 @@ def after_agent_tick(world, agent_bridge):
         if r.crew:
             r.income_withheld = math.fsum(receipt[a][2] for a in r.crew if a in receipt)
             _bump(state, "income_withheld", r.income_withheld)
+            from chronicler.work_experience import record
+            for aid in r.crew:
+                record(world, aid, "woodcut", paid_milli=getattr(t, "individual_wages", {}).get(aid, (0, 0))[0],
+                       receipt=receipt, share=SHARE, region=r.home,
+                       occupation=getattr(t, "individual_occupations", {}).get(aid),
+                       source="timber_supply:untruncated individual wage + keyed paid-work receipt")
             exp = by_eid.get(r.eid)
             if exp is not None:
                 exp.income_withheld += r.income_withheld
@@ -1054,7 +1081,8 @@ def _choose_crew(world, state, snapshot, home: int, enlisted, trips) -> tuple[li
         pool = set(eligible)
         first = [int(a) for a in priority_ids(world, home) if int(a) in pool]
     seen = set(first)
-    order = (first + [a for a in eligible if a not in seen])[:CREW_CAP]
+    from chronicler.work_experience import accepts_offer
+    order = [a for a in first + [a for a in eligible if a not in seen] if accepts_offer(world, a, "woodcut")][:CREW_CAP]
     return order, {a for a in order if a in soldiers}
 
 

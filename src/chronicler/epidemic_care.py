@@ -121,6 +121,9 @@ class _Turn:
         self.receipts: list[CareReceipt] = []
         #: civ -> coins of the care envelopes it executes this turn.
         self.envelopes: dict[int, int] = {}
+        self.cash_envelopes: dict[int, int] = {}
+        self.wages_planned: dict[int, int] = {}
+        self.health_cash_limits: dict[int, int] = {}
         self.prepared = False
         self.finished = False
         self.installed = False
@@ -207,9 +210,6 @@ def check_request(world, values: dict, args, *, agent_mode: str, on) -> None:
     refuse = LivelihoodsRefusal if saved else ValueError
     if missing:
         raise refuse("--epidemic-care requires " + ", ".join(missing) + end)
-    if on("wealth_accounting"):
-        raise refuse("--epidemic-care cannot run with --wealth-accounting (the A1 ledger does not itemize "
-                     "care wages)" + end)
     if mode is not None and state is not None and mode != state.mode and (
             state.tick_turn is not None or state.frame_turn is not None):
         raise ValueError(f"--epidemic-care-mode {mode} conflicts with the saved world (saved: {state.mode}); a "
@@ -295,7 +295,8 @@ def care_factors(world, rows) -> list[float] | None:
         inf = infectious[rid]
         coverage = min(1.0, c.patients / inf) if inf > EPS else 0.0
         would = 1.0 - CARE_CFR_REDUCTION * coverage
-        factor = would if state.mode == "care" else 1.0
+        from chronicler.public_health import care_allowed
+        factor = would if state.mode == "care" and care_allowed(world) else 1.0
         factors[rid] = factor
         tech = techniques[rid] if techniques is not None else None
         combined = combine_one(tech, factor)
@@ -402,6 +403,8 @@ def prepare_phase2(world, region_input, agent_bridge, snapshot, acc):
     sim = _native(agent_bridge)
     t = state._turn = _Turn(turn, sim)
     commitments = _envelopes(world)
+    for c in commitments:
+        t.cash_envelopes[c.civ] = t.cash_envelopes.get(c.civ, 0) + c.amount * MILLI
     t.prepared = True
     if not commitments:
         return region_input
@@ -424,6 +427,8 @@ def prepare_phase2(world, region_input, agent_bridge, snapshot, acc):
     for c in commitments:
         name = civs[c.civ].name if 0 <= c.civ < len(civs) else None
         envelope_left = int(c.amount) * MILLI
+        from chronicler.public_health import guard_reserve
+        envelope_left = max(0, envelope_left - guard_reserve(world, c.civ))
         t.envelopes[c.civ] = t.envelopes.get(c.civ, 0) + int(c.amount)
         order = sorted(set(c.recipients), key=lambda j: (-(infectious[j] if 0 <= j < n else 0.0), j))
         for rid in order:
@@ -457,6 +462,8 @@ def prepare_phase2(world, region_input, agent_bridge, snapshot, acc):
                     # date no capacity): nobody is named for it.
                     continue
                 money_left = min(envelope_left, budgets[c.civ])
+                from chronicler.public_health import wage_budget
+                money_left = wage_budget(world, rid, money_left)
                 wage = _wage(share)
                 if wage > money_left:
                     share = _f32_floor(min(share, money_left / WAGE_MILLI))
@@ -464,11 +471,26 @@ def prepare_phase2(world, region_input, agent_bridge, snapshot, acc):
                     wage = min(_wage(share), money_left)
                     if share < MIN_SHARE or wage < 1:
                         break
+                from chronicler.public_health import care_cash_available
+                cash_limit = care_cash_available(world, c.civ)
+                if cash_limit is not None and wage > cash_limit:
+                    share = _f32_floor(min(share, cash_limit / WAGE_MILLI))
+                    wage = min(_wage(share), cash_limit)
+                    limit = "envelope"
+                    if share < MIN_SHARE or wage < 1:
+                        break
+                if getattr(world.livelihoods, "adaptive_livelihoods", None) is not None:
+                    from chronicler.adaptive_livelihoods import accepts_offer
+                    if not accepts_offer(world, aid, "epidemic_care"):
+                        continue
                 r.carers.append(Carer(agent_id=aid, origin="urban_farmer" if urban else "rural_farmer", share=share,
                                       wage_due_milli=wage))
+                t.wages_planned[c.civ] = t.wages_planned.get(c.civ, 0) + wage
                 care += share
-                envelope_left -= wage
-                budgets[c.civ] -= wage
+                from chronicler.public_health import supply_for_work
+                reserve_supplies = supply_for_work(world, rid, share)
+                envelope_left -= wage + reserve_supplies
+                budgets[c.civ] -= wage + reserve_supplies
                 taken.add(aid)
                 if limit is not None:
                     break
@@ -516,6 +538,8 @@ def finish_phase2(world, economy_result, agent_bridge, acc):
         t.sim.extend_paid_work(turn, rows)
         t.installed = True
     ledger = _pay_wages(world, state, t, acc, bills)
+    from chronicler.public_health import note_care_funding
+    note_care_funding(world, t, ledger)
     if state.capacity:
         # Unreachable while every turn's tick consumes the capacity first.
         _bump(state, "capacity_unconsumed", len(state.capacity))
@@ -529,7 +553,8 @@ def finish_phase2(world, economy_result, agent_bridge, acc):
     people = [x.agent_id for r in t.receipts for x in r.carers]
     if len(set(people)) != len(people):
         raise RuntimeError("a carer was named twice in one turn")
-    state.capacity = capacity
+    from chronicler.public_health import supply_care
+    state.capacity = supply_care(world, t, capacity, economy_result, acc)
     receipts = t.receipts
     if len(receipts) > MAX_FRAME_ROWS:
         state.rows_dropped += len(receipts) - MAX_FRAME_ROWS
@@ -571,7 +596,11 @@ def _quote_bills(world, state, t: _Turn, acc) -> dict:
         bill = money.Bill(purpose="care_wage", batch=CARE_WAGE_BATCH + civ, phase="phase2",
                           lines=tuple((money.agent(x.agent_id), x.wage_due_milli) for x, _rid, _r in items),
                           payer=money.treasury(civ), regions=tuple(rid for _x, rid, _r in items))
-        out[civ] = (bill, money.quote(world, bill, turn=world.turn, book=state.book, acc=acc, sim=t.sim), items)
+        quote = money.quote(world, bill, turn=world.turn, book=state.book, acc=acc, sim=t.sim)
+        from chronicler.public_health import care_bill_fits
+        if quote.ok and not care_bill_fits(world, civ, quote.total):
+            quote = money.Quote(False, "cash_envelope", quote.total, quote.available)
+        out[civ] = (bill, quote, items)
     return out
 
 
@@ -632,17 +661,27 @@ def after_agent_tick(world, agent_bridge):
     shared paid-work receipt, taken once per turn by whichever package asks first)."""
     state = _state(world)
     t = state._turn
-    if t is None or t.turn != world.turn or not t.finished or not t.installed:
+    if t is None or t.turn != world.turn or not t.finished:
         return []
     from chronicler.livelihoods import paid_work_receipt
-    receipt = paid_work_receipt(world, t.sim)
-    if receipt is None:
+    receipt = paid_work_receipt(world, t.sim) if t.installed else {}
+    if receipt is None and t.installed:
         raise RuntimeError("paid work receipt missing for this turn's carers")
+    adaptive = getattr(world.livelihoods, "adaptive_livelihoods", None)
     for r in t.receipts:
         for x in r.carers:
-            if x.agent_id in receipt:
-                x.income_withheld = float(receipt[x.agent_id][2])
+            observed = receipt.get(x.agent_id)
+            if observed is not None:
+                x.income_withheld = float(observed[2])
                 _bump(state, "income_withheld", x.income_withheld)
+            if adaptive is not None:
+                from chronicler.adaptive_livelihoods import forgone_title, note_work
+                withheld = (round(float(observed[2]) * MILLI) if observed is not None
+                            and abs(float(observed[0]) - x.share) <= 1e-6
+                            else 0 if not r.paid else None)
+                note_work(world, x.agent_id, "epidemic_care", paid_milli=x.wage_paid_milli,
+                          withheld_milli=withheld, title_forgone_milli=forgone_title(world, r.region),
+                          source="epidemic_care:untruncated keyed wage and attributable paid-work receipt")
     t.receipt_read = True
     return []
 
@@ -654,6 +693,26 @@ def rollback_phase2(world) -> None:
     t = state._turn if state is not None else None
     if t is not None and t.turn == getattr(world, "turn", None) and not t.finished:
         state._turn = None
+
+
+def farm_time(world, turn: int) -> dict[int, float]:
+    """Current full care plan's actual farm removal, by stable person ID.
+
+    Removal occurred in prepare_phase2, independent of wage payment or food
+    delivery. Carer.share already includes the urban/partial farm limit. The
+    uncapped in-flight plan is authoritative until Phase 10 drops it; a public
+    frame can be truncated and must not substitute for this economic input.
+    """
+    state = _state(world)
+    pending = getattr(state, "_turn", None)
+    if state is None or not state.enabled or turn != world.turn or pending is None \
+            or pending.turn != turn or not pending.prepared:
+        return {}
+    removed = {}
+    for row in pending.receipts:
+        for person in row.carers:
+            removed[person.agent_id] = removed.get(person.agent_id, 0.0) + person.share
+    return removed
 
 
 def rollback_agent_tick(world, agent_bridge) -> None:
@@ -717,17 +776,25 @@ class _CareEnvelopes:
         deaths = _expected_deaths(world, rows)
         regions = [rid for rid in reported if world.regions[rid].controller == name
                    and infectious[rid] / PATIENTS_PER_CARER >= MIN_SHARE]
+        from chronicler.public_health import guard_regions, guard_reserve, guard_expected_deaths, GUARD_WAGE_MILLI
+        regions = sorted(set(regions) | set(guard_regions(world, civ)))
+        guards = guard_reserve(world, civ)
         if not regions:
             return []
-        need = math.fsum(infectious[rid] / PATIENTS_PER_CARER for rid in regions)
+        need = math.fsum(infectious[rid] / PATIENTS_PER_CARER for rid in regions) + guards / GUARD_WAGE_MILLI
         wages = sum(_wage_total(infectious[rid] / PATIENTS_PER_CARER) for rid in regions)
-        cost = max(1, -(-wages // MILLI))
-        averted = CARE_CFR_REDUCTION * math.fsum(deaths[rid] for rid in regions)
+        from chronicler.public_health import proposal_cost, supply_estimate
+        supply = supply_estimate(world, math.fsum(infectious[rid] for rid in regions), regions,
+                                 infectious_by_region=infectious)
+        cost = proposal_cost(world, civ, wages, supply, guards)
+        averted = CARE_CFR_REDUCTION * math.fsum(deaths[rid] for rid in regions) + guard_expected_deaths(world, civ)
         stake = averted * food_per_death
         return [dict(service=SERVICE, recipients=regions, claims=[f"{SERVICE}:{civ}"], cost=cost,
                      divisible=True, unit="care_time", expected=round(need, 6),
                      relief={"commons": round(stake, 6)} if stake > EPS else {},
                      detail={"regions": len(regions), "wages_milli": wages,
+                             **({"supplies_milli": supply} if supply else {}),
+                             **({"guards_milli": guards} if guards else {}),
                              "infectious": round(math.fsum(infectious[rid] for rid in regions), 6),
                              "expected_deaths": round(math.fsum(deaths[rid] for rid in regions), 6),
                              "deaths_averted": round(averted, 6), "food_per_death": round(food_per_death, 6)})]
@@ -745,19 +812,26 @@ class _CareEnvelopes:
             return {"outcome": "deferred", "reason": "service_off", "spent": 0, "delivered": 0.0, "ratio": 0.0}
         paid = sum(r.wages_paid_milli for r in rs)
         delivered = math.fsum(r.care_time for r in rs if r.paid)
+        from chronicler.public_health import guard_work
+        guards = guard_work(world, c.civ)
+        delivered += guards
         limits = [r.limit for r in rs]
         detail = {"regions": len(rs), "carers": sum(len(r.carers) for r in rs), "care_time": round(delivered, 6),
                   "limits": ",".join(sorted(set(limits))), "wages_paid_milli": paid}
         # L9 counts whole coins: the wages, floored (the civ's exact charge,
         # whole units with a prepaid carry, is C2's wage ledger).
-        spent = paid // MILLI
+        from chronicler.public_health import supply_spent
+        supplies = supply_spent(world, c.civ)
+        if supplies:
+            detail["supplies_milli"] = supplies
+        spent = (paid + supplies) // MILLI
         if all(limit == "recipient_lost" for limit in limits):
             return {"outcome": "deferred", "reason": "recipient_lost", "spent": 0, "delivered": 0.0, "ratio": 0.0,
                     "detail": detail}
         if any(r.unpaid_reason for r in rs):
             return {"outcome": "deferred", "reason": "treasury_shortfall", "spent": spent, "delivered": delivered,
                     "ratio": 0.0, "detail": detail}
-        if all(limit in ("no_patients", "recipient_lost") for limit in limits):
+        if not guards and all(limit in ("no_patients", "recipient_lost") for limit in limits):
             return {"outcome": "kept", "reason": None, "spent": 0, "delivered": 0.0, "ratio": 1.0, "detail": detail}
         ratio = min(1.0, delivered / c.expected) if c.expected > EPS else 1.0
         from chronicler.local_budgets import KEPT_RATIO
@@ -809,8 +883,10 @@ def snapshot_summary(world) -> dict:
         tick = {"turn": state.tick_turn, "applied": [a.model_dump() for a in state.applied],
                 "refused": [r.model_dump() for r in state.refused],
                 "regions": [r.model_dump() for r in state.regions]}
+    from chronicler.public_health import care_allowed
+    effective_mode = state.mode if care_allowed(world) else "cost_only"
     return {
-        "schema_version": 1, "stage": "C2", "mode": state.mode, "source_turn": source,
+        "schema_version": 1, "stage": "C2", "mode": effective_mode, "source_turn": source,
         "units": {"money": "milli_treasury_units", "care": "worker_turns", "patients": "people", "milli": MILLI},
         "tick": tick,
         "frame": [r.model_dump() for r in state.frame] if fresh and state.frame is not None else None,

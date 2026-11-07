@@ -154,11 +154,10 @@ own projects and before RS2 applies the turn's timber holds; RS2's `finish_phase
 `settle_phase2` after RS2 charged. Works are planned in the fixed order irrigation, then roads,
 by region and `aid`.
 
-- **Labour: anonymous farm labour through the native `granary_work_requested` column** (the
-  storage channel; the economy delivers `min(request, farmers x farm_labor_factor)` and removes it
-  from farming, so its cost is lost farm output). **The farmers are not paid**: PL3's named, paid
-  crews stay granary-only, because paying named infrastructure crews needs a treasury-to-agent
-  payment the payment seam does not support yet (see Limits). The column is shared in a fixed order,
+- **Labour through the native `granary_work_requested` column.** With PL3, eligible named adult
+  farmers are reserved once and paid through `infrastructure_wage`; the unpaid control keeps the
+  same reservation. Actual work replaces farming. With PL3 off, the earlier anonymous unpaid
+  path remains (see the named-crew contract below). The column is shared in a fixed order,
   **granary -> irrigation -> roads**, decided by storage's **actual** request this turn and
   recorded on each receipt (`granary_request`, `shared`) and in the frame (`shared` regions):
   - grain storage off: B3 appends the column;
@@ -190,15 +189,14 @@ by region and `aid`.
   free timber. The cargo is cut through the forest's L3 account and delivered to the home region's
   store, which RS2's holds (the works' included) take first, exactly once; PL1 keeps the store
   where a work asks for timber (the same screen as the need rows) instead of releasing it, and
-  releases it once none asks, so a work that asks nothing (an L9 road, a region without a farmer)
+  releases it once none asks, so a work that asks nothing (a region without a farmer, or a predicted granary-first region)
   never holds RS2's leftover out of the stockpile (review of `0187bfb5`). **Boundary:** only
   works already opened by the lifecycle ask, never an asset that has not opened one; a work asks
   nothing when its record is not in service, its region has no controller or had no farmer after
   the turn's agent tick (RS2's observed count, as PL1 skips RS2 granaries without farm labour);
-  under L9 a work is funded only through the works' own proposal, so only irrigation works that
-  proposal could name ask (roads never get an envelope; a region whose storage is set to ask for
-  work is screened `granary_first` by the same prediction; the proposal's `no_timber` screen is
-  what the supply relieves). Without L9 storage's actual request decides `granary_first` at Phase
+  under L9 a work is funded only through the works' own proposal, so either repair kind that
+  proposal could name asks (a region whose storage is set to ask for work is screened
+  `granary_first` by the same prediction; the proposal's `no_timber` screen is what supply relieves). Without L9 storage's actual request decides `granary_first` at Phase
   2 (it depends on storage's own inputs, so no prediction screens the need); a work stalled there
   keeps its delivered timber in the store. Works opened in this Phase 10 ask from the next (B3's
   Phase 10 hook runs after PL1's). The rows are recorded here (`timber_needs`); PL1's own need rows
@@ -233,31 +231,30 @@ are a proposal provider of their own (`infrastructure_condition.BUDGET_PROVIDER`
 `fixed_shares` control, claim `infrastructure:<civ>`), **never pooled with RS2's divisible
 proposal**:
 
-- one divisible proposal per ruler for next turn's planned work of its open **irrigation** works,
-  with its own cost in whole units (its own rounding) and its own relief;
-- screened before proposing, as RS2 skips granaries without farm labour: a work in a region with no
-  farmer after this turn's agent tick (`no_labor`), a work whose region's storage is set to ask for
-  work next turn (`granary_first`, predicted from the current storage policy), a work without free
-  timber after RS2's open projects' needs (`no_timber`), and roads (no relief measure);
-- the detail records `works`, `cost_milli`, `work`, `food_at_risk_relieved` and every screened
-  work (`screened_no_labor`, `screened_granary_first`, `screened_no_timber`, `screened_roads`), so
-  each proposal can be audited;
-- relief, a declared rule owned by B3: **commons food at risk relieved** = the irrigation arable
-  ceiling the proposed work keeps over L9's `horizon` (service with the work minus service
-  without, each turn under `WEAR`) x the region's observed food production (`food_ledger`
-  produced) / its arable capacity. **Assumption:** food output scales with the arable ceiling; it
-  overstates the relief where labour rather than land limits output (an upper bound). It uses only
-  dated observations and the declared wear (no war foresight), and it is positive **before
-  failure**, as soon as service would fall within the horizon (condition below `0.5 + horizon x
-  0.01`, 0.6 with the default horizon);
-- Phase 2: with L9 an irrigation work spends **only within its own envelope** (and the treasury
-  after RS2's planned charge), and only when its region is one of the commitment's recipients:
-  an award funds only the works it names, so a work the proposal screened out gets nothing even
-  if its constraint has cleared by Phase 2 (the reviewer found 7 of 73 envelope-funded receipts
-  outside the awarded regions before this rule); a road has no envelope and stalls `no_envelope`. The envelope
-  settles from the works' own ledger and irrigation receipts (`spent` = the works' charge,
-  `spent <= amount` checked on every ledger row); RS2's proposal, settlement, reservation and the
-  maintenance obligation are main's code, unchanged by B3.
+- one divisible proposal per ruler covers feasible open **irrigation and road** works. Both kinds
+  share one finite whole-coin envelope and one payer ledger; named paid crews reserve one extra
+  whole coin for the independently rounded wage/material bills;
+- dated screens exclude no farmer (`no_labor`), predicted storage work (`granary_first`) and no
+  free timber after RS2's needs (`no_timber`). PL1 can procure timber for either kind before an
+  award exists; timber still must arrive before a feasible proposal can be made;
+- commons relief remains the declared irrigation **food at risk relieved**: arable ceiling kept
+  over L9's horizon under declared wear, times observed food production / arable capacity. This
+  assumes food output scales with land capacity and overstates relief where labour limits output;
+- patrician relief is feasible **road repair worker-turns**, bounded by measured remaining road
+  repair work. The same outstanding worker-turns enter patrician burden while B3 repair or
+  `cost_only` is active, alongside L9's existing idle workshop work. This is a declared maintenance
+  stake, not nutrition, measured trade revenue or a second labour authority;
+- claims record each stable `infrastructure_work:<wid>` as well as the civ's service claim. A
+  same-region work that was screened out or opened later cannot spend the award. Historical
+  checkpoints with the earlier recipient-only claims retain their irrigation-only authority;
+- proposal details preserve each kind's expected work, relief, screens and the rounding reserve
+  in the commitment. Partial grants scale the expected bundle proportionally, an approximation:
+  Phase 2 retains fixed irrigation-first execution and may deliver an uneven bundle;
+- settlement reports actual delivered and credited work **by kind**, and checks the one civ charge
+  against the envelope. A new promise is kept only if **each promised kind** reaches L9's kept
+  threshold. Spending the full grant on irrigation cannot satisfy its road promise. `cost_only`
+  may keep a work-delivery promise but explicitly records zero credited work/service restoration.
+  RS2's separate envelope and maintenance reservation remain separate authorities.
 
 Each irrigation asset also records `food_at_risk`: the food its region would lose over the horizon
 without repair (observed each Phase 10 with an economy tick; null otherwise).
@@ -540,27 +537,29 @@ gate and the procedural qualification gate.
 
 ## 10. Limits and open questions
 
-- **Named, paid crews.** Works use anonymous, unpaid farm labour only. PL3's named crews
-  (`--recovery-crews`) remain granary-only: paying named infrastructure crews needs a
-  treasury-to-agent payment, which the payment seam's first slice refuses, and a new ledger channel.
-  Recorded as a missing capability.
-- **Coins are destroyed.** The `public_works` sink pays no one (section 5): a declared
-  deflationary leak, like the undeclared granary coins of storage and RS2.
+- **Named crews require PL3.** With `--recovery-crews`, works use the named, paid or unpaid
+  farm crews described below. Without PL3, the earlier anonymous, unpaid labour contract remains.
+  Neither path reassigns native occupations.
+- **Material coins are destroyed.** The `public_works` material sink pays no one (section 5).
+  Accepted named wages use the separate treasury-to-agent channel described below; they are not
+  recorded as a public-works sink.
 - **PL1 supply is bounded by PL1's own rules.** The works now ask PL1 for timber after RS2
   (section 5), but PL1 sends a crew only to a healthy forest within two hops that no other crew is
   cutting, so many works' needs are refused `no_forest`, `too_far`, `forest_busy` or
   `forest_depleted` (section 8, timber link re-measure); a crew's harvest follows the forest
   slot's labour curve and can be small. None of PL1's constants was changed for B3.
-- **Roads have no relief measure** under L9 (trade range lost is not valued): they are not proposed,
-  so under L9 they get no envelope and stall `no_envelope`; they are repaired without L9.
+- **Road relief is a declared maintenance stake.** Outstanding repair worker-turns are valued
+  in the patrician work unit, not as measured trade gains. Partial grant expectations are
+  proportional and may miss the fixed-order delivered mix; settlements expose this deferral.
 - **granary_first is decided by storage's actual request** in Phase 2, but the L9 proposal's screen
   predicts it from the current storage policy (L9 decides next turn's storage policy in the same
   Phase 10).
 - **`cost_only` is RS2's convention**: a work whose scope was delivered without credit closes and
   reopens larger while the asset stays worn, so it is not a same-spend control after the first
   completion.
-- **D2 attribution** does not yet record B3 war damage as a burden (the actor and the war are on
-  each `InfraDamage`); left for the integration of the two.
+- **D2 attribution** records accepted conquest/sack damage in its own asset-condition unit when
+  `--attribution-records` is active. Skipped duplicate damage and floods create no foreign burden.
+  This observation creates no grievance or estimated food/money harm.
 - Ports are deferred (no consumer reads the type). Flood damage per unit of excess is declared and
   uncalibrated (floods are rare and small under `flow`). Constants are declared and uncalibrated;
   nothing was tuned on held seeds, and the 200-seed gate is unrun.
@@ -574,3 +573,88 @@ gate and the procedural qualification gate.
   works sent more woodcutters (procedural +180 person-turns, 6 of 6), and the works stalled for
   timber on every world under PL1's real forest limits. Whole-trajectory differences on four to six
   worlds per stratum; no promotion.
+
+### Named farm crews (opt-in PL3 integration)
+
+When `--recovery-crews` is also active, every B3 irrigation/road request is
+limited to a named crew of living adult farmers in its region. Existing PL3
+exclusions apply: enlisted, trips, health work, mentors and shared-registry
+holders cannot be named. Earlier RS2/granary commitments keep priority. Each
+person contributes only their available farm share; the native shared labor
+column removes exactly the delivered named work from farming. No anonymous
+labor fills a named request. Unpaid PL3 control names, reserves and withholds
+the same work. PL3 being off preserves the explicitly anonymous B3 contract.
+
+Paid crews request 500 milli-coins per actual delivered worker-turn (the
+existing repair wage). Irrigation's remaining 100 milli/work is material;
+roads' nominal 500 milli/work is the wage. Fractional rounding can leave a
+small material remainder. `infrastructure_wage` routes through native
+`repair_wage`, batch `0xB3000 + civ`, separate from all existing consumers.
+Every payer's wages and materials are quoted against one finite treasury and
+one envelope before either bill is paid. Planning reserves one additional
+whole coin to cover the separate rounding of wage and material bills; this is
+a conservative restriction, especially on a one-coin envelope. Material and
+wage prepaid balances are distinct. The wage seam returns refused/absent
+credits to the payer's carry or treasury. Only accepted wages enter wealth;
+materials enter `public_works`. No money is minted from a sink.
+
+The named ledger records nominal cost, actual accepted cost, requested,
+accepted/refused wages and both prepaid balances. Its integer closure is
+`charged*1000 + material_before + wage_before = actual_cost + material_after + wage_after`.
+The same native paid-work receipt supplies each person's ordinary income
+withheld. Receipts retain stable ids, reservation/work shares and individual
+wages. `cost_only` changes no condition while retaining these same work and
+money mechanisms. None of this constitutes native occupation reassignment,
+a second spendable balance or a globally conserved cash system.
+
+A natural procedural seed 31, 32 regions, 10 agents per region, 72-turn development run with PL1 supplied real
+active crews and passed exact resume at turn 61. The earlier 44-turn run had no B3
+crew activation because timber was unavailable; that null is not evidence
+that wages ran. The helper contracts additionally exercise trip/registry and
+age exclusions, no duplicate worker, unpaid control and wealth-ceiling
+refusal with exact ledger closure. No fresh held efficacy cohort was consumed.
+
+
+## L9 road completion, 2026-11-07
+
+The earlier CW3/CW3b tables above describe their exact historical irrigation-only L9 source;
+those held results are retained and do not qualify this follow-on. The current contract includes
+roads in the same finite works envelope, exact stable work claims, dated worker-turn burden,
+and per-kind promise settlement. Constructed tests exercise a real L9 decision, partial mixed
+bundles, an unpromised same-region work, named paid repair and cost-only control, and a
+PL1 expedition that delivers timber before L9 funds the named road crew. They retain PL1's
+sole forest/crew/store authority and the shared native work column. Native and integrated
+held/profile evidence must name the later source explicitly.
+
+Follow-on verification on the isolated Python source (parent `39d5ef5e`, unchanged
+native Rust source at `e3bce686`; read-only extension SHA256
+`f2fb24f13c386c3965e485330499b9aa435f61a43e8fc02023f950fbf9664256`):
+
+- 248 focused offline tests passed on CPython 3.13.16: infrastructure condition,
+  local budgets, PL3 crews, PL1 timber supply, repair projects, shared treasury and
+  maintenance obligation. The native module remains in its existing shard.
+- A natural development procedural seed 31, 32 regions / 10 civs, 72 turns with
+  grain reserves/storage, RS2, B3, PL3, L3, PL1 and L9 delivered 9 progressing road
+  receipts: 20.40 worker-turns, 10.20 timber and 10,196 milli accepted named wages.
+  Its 12 works settlements were 11 kept and 1 deferred. This is activation evidence,
+  not an efficacy comparison or held qualification.
+- The first raw CLI attempt stopped because this isolated lane lacked the lead's
+  A1 `infrastructure_wage` channel registration. The test supplies that shared
+  registration explicitly. The subsequent native journey exposed two real B3
+  integration defects: settlement used the first plan's zero allowance instead
+  of the finite whole-service envelope; and an absent individual native income
+  receipt raised despite the shared PL3 lifecycle contract. Both failures were
+  retained. Regression tests now keep an unpromised first irrigation plan while
+  funding a later road, and distinguish a missing whole receipt (error) from a
+  missing individual row (unknown withheld income). Exact wages are unchanged.
+- The corrected 72-turn run and checkpoint resume at turn 61 passed in 11.39s,
+  crossing open road works. The strengthened test checkpoints at turn 66, inside
+  a funded road promise, and requires the complete history, final world and state
+  file to match exactly. Final integrated native, compatibility, profile and CI
+  gates still belong to the lead; this local run does not establish them.
+
+Reproduce the bounded native journey with
+`PYTHONPATH=src <verified-native-python> -m pytest -q tests/test_infrastructure_condition_native.py -k l9_named_road`.
+The test uses only the development seed, supplies the isolated A1 registration,
+and records no paid narration call. Evidence logs and bundles are kept outside
+Git under `/workspace/evidence/b3/l9-roads-*` for this session.
