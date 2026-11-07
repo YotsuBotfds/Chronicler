@@ -162,6 +162,8 @@ def extract(bundle: dict, flags) -> tuple[dict, list[str]]:
             if row.get("turn") != turn or not integer(row.get("civ")):
                 problems.append(f"{where}: care receipt missing payer or source date")
                 continue
+            if type(row.get("paid")) is not bool:
+                problems.append(f"{where}: care receipt paid status is not an observed boolean")
             paid = amount(row, "wages_paid_milli", where)
             spent[row.get("civ")] = spent.get(row.get("civ"), 0) + paid
             care_paid[row.get("civ")] = care_paid.get(row.get("civ"), 0) + paid
@@ -173,7 +175,7 @@ def extract(bundle: dict, flags) -> tuple[dict, list[str]]:
                 # wealth-stage row (e.g. death before that stage): preserve
                 # that explicit unknown instead of inventing a zero deduction.
                 if "income_withheld" in carer and carer["income_withheld"] is None:
-                    m["care_income_unknown_person_turns"] += row.get("paid") is not False
+                    m["care_income_unknown_person_turns"] += row.get("paid") is True
                     continue
                 m["care_income_withheld"] += amount(carer, "income_withheld", where)
         for field in ("report", "environment", "supply", "guard"):
@@ -253,11 +255,16 @@ def extract(bundle: dict, flags) -> tuple[dict, list[str]]:
             m["guard_farm_time"] += work
             paid = 0
             members = rows(row, "members", where)
+            payment = row.get("payment")
+            recognized_payment = isinstance(payment, str) and (payment == "paid" or
+                (payment.startswith("refused:") and len(payment) > len("refused:")) or
+                (payment == "no_workers" and not members))
+            if not recognized_payment:
+                problems.append(f"{where}: guard payment status is not a recognized settlement")
             for member in members:
                 paid += amount(member, "wage_paid_milli", where)
-                no_paid_work = str(row.get("payment", "")).startswith("refused:")
                 if "income_withheld" in member and member["income_withheld"] is None:
-                    m["guard_income_unknown_person_turns"] += not no_paid_work
+                    m["guard_income_unknown_person_turns"] += payment == "paid"
                     withheld = 0  # observed subtotal; unknown count remains separate
                 else:
                     withheld = amount(member, "income_withheld", where)
