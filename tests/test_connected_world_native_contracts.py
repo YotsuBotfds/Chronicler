@@ -335,3 +335,31 @@ def test_service_rebases_urban_farm_average_before_named_work_removal(urban_serv
     assert result["forage_output"] == pytest.approx(available - .25)
     assert sim.cancel_enlisted_service() is True
     bridge.close()
+
+
+def test_timber_collection_and_escrow_credit_use_real_unary_native_protocol():
+    from types import SimpleNamespace as NS
+    from chronicler import money as M
+    from chronicler.timber_orders import BATCH
+    from tests.test_money import _world
+    world, bridge, people, aid, _ = _service_sim()
+    sim = bridge._sim
+    w = _world((50, 50))
+    book = M.MoneyBook()
+    before = next(p["wealth"] for p in people if p["id"] == aid)
+    # Real native code refuses the old pairwise aliases even for a debit.
+    with pytest.raises(ValueError, match="settle_pairs"):
+        sim.transfer_wealth(2, 8, BATCH, [(aid, -100)])
+    purchase = M.Bill(purpose="timber_purchase", batch=BATCH, phase="phase10",
+                      payee=M.treasury(0), lines=((M.agent(aid), 100),))
+    assert M.pay(w, purchase, turn=2, book=book, sim=sim).applied == 100
+    escrow = NS(cash=200)
+    freight = M.Bill(purpose="timber_freight", batch=BATCH, phase="phase10",
+                     payer=M.escrow(0), lines=((M.agent(aid), 200),))
+    assert M.pay(w, freight, turn=2, book=book, sim=sim, escrows={0: escrow}).applied == 200
+    assert escrow.cash == 0
+    after = next(p["wealth"] for p in __import__("pyarrow").record_batch(sim.get_snapshot()).to_pylist() if p["id"] == aid)
+    assert after == pytest.approx(before + .1, abs=1e-6)
+    assert w.civilizations[0].treasury * 1000 + book.carry["0:timber_purchase"] == 50100
+    assert M.pay(w, freight, turn=2, book=book, sim=sim, escrows={0: escrow}).reason == "already_settled"
+    M.check_book(book)
