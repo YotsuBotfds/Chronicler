@@ -1,0 +1,25 @@
+{
+  "source": "6e73827324551c685b1773396acca34860912ea6",
+  "checkout": "/workspace/Chronicler",
+  "interpreter": "/workspace/cw-b3-offline/bin/python",
+  "command": [
+    "-m",
+    "pytest",
+    "-q",
+    "-p",
+    "no:cacheprovider",
+    "tests/test_cw_rework_screen.py"
+  ],
+  "sha256": {
+    "scripts/cw_rework_screen.py": "f8409b1b76be49dbff968323f9eee2f65229e5c1280e0c349fe2e2a3927e4fef",
+    "tests/test_cw_rework_screen.py": "63224e39e317d79e30c35842332a28ea967e6c03bc64827b31c2e8b8945e0b7d"
+  },
+  "status": "PASS",
+  "tests_passed": 48,
+  "elapsed_seconds": 0.18,
+  "exit_code": 0,
+  "native_or_simulation_required": false,
+  "original_log": "/workspace/evidence/cwr-evaluation/extractor-48-pass-6e738273.log",
+  "original_log_sha256": "d9d58f3a018328e7cd4f44d14de2469213445fe7d15ea40601f90f49b17d4cd6",
+  "pytest_output": "................................................                         [100%]\n48 passed in 0.18s\n\nexit_code 0"
+}
