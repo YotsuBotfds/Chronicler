@@ -270,6 +270,8 @@ fn best_migration_target_observed<O: DecisionObserver>(
     let mut best_news = 0.0f32;
     let mut best_voluntary = VoluntaryPull::default();
     let mut gate_open = [false; VOLUNTARY_DRIVERS];
+    let mut unadapted_best = own_score;
+    let mut unadapted_target = region_id as u16;
     for &adj_id in &regions[region_id].adjacency {
         let adj = adj_id as usize;
         if adj >= regions.len() {
@@ -385,6 +387,11 @@ fn best_migration_target_observed<O: DecisionObserver>(
             }
         }
 
+        if with_pull(adj_score, pull) > unadapted_best {
+            unadapted_best = with_pull(adj_score, pull);
+            unadapted_target = adj as u16;
+        }
+        if let Some(a) = &pool.adaptive_migration { adj_score += a.score(pool.ids[slot], adj as u16); }
         let became_best = with_pull(adj_score, pull) > best_adj_score;
         if became_best {
             best_adj_score = with_pull(adj_score, pull);
@@ -397,6 +404,9 @@ fn best_migration_target_observed<O: DecisionObserver>(
         if O::ENABLED { observer.end_candidate(pull, adj_score, river, pre_news_score, became_best); }
     }
 
+    if best_adj_id != unadapted_target {
+        if let Some(a) = &pool.adaptive_migration { a.changed(); }
+    }
     MigrationChoice {
         target: best_adj_id,
         opportunity: (best_base_score - own_score).max(0.0),

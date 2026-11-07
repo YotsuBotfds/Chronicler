@@ -370,9 +370,9 @@ impl AgentSimulator {
     /// RS0: `priority_ids` (one list for every site) puts listed eligible
     /// ids first, in the listed order; None or empty keeps the default order.
     #[allow(clippy::type_complexity)]
-    #[pyo3(signature = (sites, enlisted_ids, turn=None, *, priority_ids=None))]
+    #[pyo3(signature = (sites, enlisted_ids, turn=None, *, priority_ids=None, declined_ids=None))]
     pub fn plan_workshop_crews(&mut self, sites: Vec<(u16, u16, u16, f32, u8)>, enlisted_ids: Vec<u32>, turn: Option<u32>,
-                               priority_ids: Option<Vec<u32>>)
+                               priority_ids: Option<Vec<u32>>, declined_ids: Option<Vec<u32>>)
         -> PyResult<Vec<(u16, u16, u16, u32, u32, u32, u32, u32, Vec<u32>, Vec<u16>, f32)>> {
         if !self.initialized {
             return Err(PyValueError::new_err("workshop crews require initialized agents"));
@@ -384,8 +384,9 @@ impl AgentSimulator {
             return Err(PyValueError::new_err("workshop site region out of range"));
         }
         let enlisted: std::collections::HashSet<u32> = enlisted_ids.into_iter().collect();
-        let rows = crate::workshop_work::plan_crews_with_priority(&self.pool, &requests, &enlisted, turn,
-                                                                  priority_ids.as_deref().unwrap_or(&[]))
+        let declined: std::collections::HashSet<u32> = declined_ids.unwrap_or_default().into_iter().collect();
+        let rows = crate::workshop_work::plan_crews_with_choice(&self.pool, &requests, &enlisted, turn,
+                                                                  priority_ids.as_deref().unwrap_or(&[]), &declined)
             .map_err(PyValueError::new_err)?;
         if let Some(turn) = turn {
             let crew: Vec<(u32, f32)> = rows.iter().zip(&requests)
@@ -989,6 +990,61 @@ impl AgentSimulator {
     /// RS4: stable ids of living agents away on a merchant trip, ascending (reads only).
     pub fn trip_agent_ids(&self) -> Vec<u32> {
         crate::wealth_transfer::trip_ids(&self.pool)
+    }
+
+    /// A6: signed per-person, adjacent-destination score deltas; abs <= 0.3.
+    pub fn set_adaptive_migration(&mut self, turn: u32, mut rows: Vec<(u32,u16,f32)>) -> PyResult<()> {
+        rows.sort_unstable_by_key(|r| (r.0,r.1));
+        if rows.windows(2).any(|w| (w[0].0,w[0].1) == (w[1].0,w[1].1))
+            || rows.iter().any(|r| r.1 as usize >= self.num_regions || !r.2.is_finite() || r.2.abs() > 0.3) {
+            return Err(PyValueError::new_err("invalid adaptive migration score rows"));
+        }
+        if self.pool.adaptive_migration.is_some() || self.pool.adaptive_migration_receipt.is_some() {
+            return Err(PyValueError::new_err("adaptive migration pending or receipt untaken"));
+        }
+        self.pool.adaptive_migration = Some(crate::adaptive_migration::AdaptiveMigration::new(turn, rows));
+        Ok(())
+    }
+    pub fn cancel_adaptive_migration(&mut self) -> bool { self.pool.adaptive_migration.take().is_some() }
+    #[allow(clippy::type_complexity)]
+    pub fn take_adaptive_migration_receipt(&mut self) -> Option<(u32,Vec<(u32,u16,u16,u8)>,u32,u32)> {
+        self.pool.adaptive_migration_receipt.take().map(|r| (r.turn,r.refused,r.used,r.changed))
+    }
+
+    /// D4: replace one turn's roster service input before economy / agent tick.
+    /// Food is the army's actual fed fraction, never a new civilian ration.
+    #[pyo3(signature = (turn, rows, suppress_war_mortality=false))]
+    pub fn set_enlisted_service(&mut self, turn: u32, mut rows: Vec<(u32, f32)>, suppress_war_mortality: bool) -> PyResult<()> {
+        rows.sort_unstable_by_key(|r| r.0);
+        if rows.windows(2).any(|w| w[0].0 == w[1].0)
+            || rows.iter().any(|r| !r.1.is_finite() || !(0.0..=1.0).contains(&r.1)) {
+            return Err(PyValueError::new_err("invalid enlisted service rows"));
+        }
+        if self.pool.enlisted_service.as_ref().is_some_and(|s| s.turn != turn) {
+            return Err(PyValueError::new_err("another turn's enlisted service is pending"));
+        }
+        self.pool.enlisted_service = Some(crate::enlisted_service::EnlistedService { turn, rows, suppress_war_mortality });
+        Ok(())
+    }
+    pub fn cancel_enlisted_service(&mut self) -> bool { self.pool.enlisted_service.take().is_some() }
+
+    /// A1-2: arm a one-tick observational ledger; untaken or stale observations
+    /// are refused, never silently attributed to another turn.
+    pub fn set_wealth_observation(&mut self, turn: u32) -> PyResult<()> {
+        if self.pool.wealth_observation.is_some() {
+            return Err(PyValueError::new_err("wealth observation already pending or untaken"));
+        }
+        self.pool.wealth_observation = Some(crate::wealth_observation::WealthObservation::new(turn));
+        Ok(())
+    }
+    pub fn cancel_wealth_observation(&mut self) -> bool { self.pool.wealth_observation.take().is_some() }
+    #[allow(clippy::type_complexity)]
+    pub fn take_wealth_observation(&mut self) -> PyResult<Option<(u32, Vec<(u16, String, f64)>)>> {
+        if self.pool.wealth_observation.as_ref().is_some_and(|o| !o.complete) {
+            return Err(PyValueError::new_err("wealth observation tick has not completed"));
+        }
+        Ok(self.pool.wealth_observation.take().map(|o| (o.turn,
+            o.rows.into_iter().map(|((r, k), v)| (r, k, v)).collect())))
     }
 
     /// Livelihoods L6a: transfer purposes in declaration order (append only).
@@ -1785,6 +1841,15 @@ impl AgentSimulator {
             if plan.source_turn != turn || plan.consumed {
                 return Err(PyValueError::new_err("teaching work must be prepared for this tick"));
             }
+        }
+        if self.pool.adaptive_migration.as_ref().is_some_and(|a| a.turn != turn) {
+            return Err(PyValueError::new_err("adaptive migration must be installed for this tick"));
+        }
+        if self.pool.enlisted_service.as_ref().is_some_and(|s| s.turn != turn) {
+            return Err(PyValueError::new_err("enlisted service must be installed for this tick"));
+        }
+        if self.pool.wealth_observation.as_ref().is_some_and(|o| o.turn != turn || o.complete) {
+            return Err(PyValueError::new_err("wealth observation must be armed for this tick"));
         }
         crate::learning_work::check_tick(&self.pool, turn).map_err(PyValueError::new_err)?;
         crate::relocation::check_tick(&self.pool, turn, liquid_requirement).map_err(PyValueError::new_err)?;
@@ -3652,9 +3717,9 @@ impl AgentSimulator {
             let mut merchant_count = 0u32;
             let mut wealthy_count = 0u32;
             for &slot in slots {
-                population += 1;
+                if !self.pool.enlisted(slot) { population += 1; }
                 match Occupation::from_u8(self.pool.occupation(slot)) {
-                    Some(Occupation::Farmer) => farmer_count += 1,
+                    Some(Occupation::Farmer) if !self.pool.enlisted(slot) => farmer_count += 1,
                     Some(Occupation::Soldier) => soldier_count += 1,
                     Some(Occupation::Merchant) => {
                         // M58a: Transit merchants counted by origin region in second pass

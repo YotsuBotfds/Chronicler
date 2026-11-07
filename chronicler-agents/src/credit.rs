@@ -102,6 +102,7 @@ fn transfer(pool: &mut AgentPool, slots: &[usize], amount: f64) -> f64 {
     for (i, &s) in slots.iter().enumerate() {
         let new = (target[i] as f32).clamp(0.0, MAX_WEALTH);
         pool.wealth[s] = new;
+        pool.observe_transfer(s, before[i], new as f64 - before[i]);
         applied += new as f64 - before[i];
     }
     applied
