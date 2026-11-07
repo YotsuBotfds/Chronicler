@@ -94,9 +94,9 @@ a documented, tested disposition in the slice named.
 | A legacy JSON state-file resume runs neither L2 nor retail hooks | evidence gap (with `--agents hybrid` both run) + defect (a saved L2 outside hybrid ran silently inert; a saved retail world raised a traceback) + intentional boundary (an inexact resume closes id-bound claims) | S2 (A5-1) | A saved L2 outside hybrid is refused with a `--no-food-allocation` hint; both saved-switch refusals exit cleanly (`LivelihoodsRefusal`, no traceback). Open item for the lead: the stale `world.agent_mode` on the default path. Tests: `test_household_retail_war.py::test_a_saved_food_allocation_outside_hybrid_is_refused_cleanly_with_its_hint`, `::test_a_legacy_resume_of_a_saved_retail_world_without_hybrid_exits_without_a_traceback`; `test_household_retail_war_native.py::test_a_legacy_state_file_resume_with_hybrid_settles_every_resumed_turn` |
 | A pilot region can hold up to one turn's harvest above the storage cap between close and the next opening (storage-cap timing) | defect (narrow: Phase 10 granary procurement bought owned grain above the cap that the next opening destroys); the title on offer whole at phase 0.7, before the cap, is an intentional boundary | S1 (A2R) | Reproduced on development worlds (template 7 and 42, procedural 13 and 21, retail everywhere, 200 turns): granaries bought 25.0, 17.6, 305.2 and 42.1 food units of owned grain from above the cap, 36-54% of the owned grain they bought. Rules version 2 with granaries on: `household_retail.phase10_before_reserves` cuts a pilot market's grain above this turn's storage cap before Phase 10 procurement, split pro rata between the commons net of merchants' committed grain (never cut) and owned stock as the native opening cap splits it (owned: flow `cap_overflow`, counter `owned_grain_above_cap_milli`; commons: `commons_grain_above_cap_milli`; once per turn, also when a convoy dumped cargo there first), so no grain above the cap is bought; it runs before the next opening's decay; resource checks PASS on four worlds (measured with the owners-only cut; one world, procedural 13, rerun by the S1 review under the pro-rata rule); version 1 unchanged. War losses come at Phase 5/5b, before the title is eaten, so they reach no cap-doomed stock. Residual boundaries, as without retail: a population that falls between Phase 2 and Phase 10, and commons raised above the cap by an escheat after the tick (pinned `grain_reserves.py` seam). Tests: `test_household_retail_evidence.py::test_owned_grain_above_the_cap_is_lost_before_the_granaries_buy`, `::test_without_granaries_or_within_the_cap_nothing_is_cut`, `::test_the_rl4_cut_splits_the_excess_pro_rata_and_runs_once_a_turn`, `::test_a_convoy_returned_into_a_pilot_market_before_retails_hook_is_cut_pro_rata` |
 | Purchases by person are not in the snapshot (person-level purchase evidence) | evidence gap | S1 (A2R) | Rules version 2: household-group cohorts per provisioned pilot region-turn (crew members, their co-resident children, children without a co-resident adult, non-farm adults, other farm households; persons, priced out, paid, refunded, credited, income replaced, crew wages), computed at settlement from the money rows, income receipt, native sample, crew receipts and the Phase 2 roster; aggregates only, each field exact or null with its reason, never an estimate (paid, refunded, credited and income replaced are checked against the region's totals, persons by count; crew wages are exact by construction from the applied receipts and have no total to check). With the `schedule` boundary the wage can be compared at a frozen enrollment: an arm replays another's recorded pilot intervals exactly, closures and reopenings included, subject to the replaying world's controller filter (the first-turn schedule format is approximate once the source closes a region); first-turn replays matched exactly on template 7 and 23 and procedural 7, where no region closed. Tests: `test_household_retail_evidence.py::test_cohorts_partition_the_provisioned_people_and_sum_to_the_region_totals` and its unknown cases, `test_household_retail_evidence_native.py::test_cohorts_on_a_natural_paid_work_run_are_exact_or_marked_unknown`, `::test_replaying_the_paid_arms_openings_in_the_unpaid_arm_reproduces_its_enrollment`; viewer `householdRetailEvidence.test.ts` |
-| The labour cost of expeditions is not separated from a no-expedition arm (expedition labour controls) | evidence gap | S1 | — |
-| PL3's withheld income does not split granary from workshop crews | evidence gap | S1 | — |
-| Five viewer readers return null for both an absent and a malformed record | defect (viewer) | S1 | — |
+| The labour cost of expeditions is not separated from a no-expedition arm (expedition labour controls) | evidence gap | S1 (CW1) | CW1 arm CH_noTS (CHAIN without timber supply): money credited fell in every procedural world (-778) relative to A; coverage fell in 3 of 5 template worlds |
+| PL3's withheld income does not split granary from workshop crews | evidence gap | S1 (A1) | ledger attributes every paid-work row to one package; PL3 granary + workshop = PL3 total every turn (lane A1) |
+| Five viewer readers return null for both an absent and a malformed record | defect (viewer) | S1 (E1) | all five readers distinguish disabled/absent/malformed/unobserved/recorded-zero; granary panel via layer cwe1 (lane E1) |
 
 The wage investigation (A2) starts from checkpoint 3's explanation — the farm income retail
 replaces outweighs the wages, and paid crews bring more regions under retail at the `paid_work`
@@ -208,6 +208,47 @@ open questions follow each summary.
   mortality authority. Armies and hostages are not restricted by a closure (intentional boundary);
   the legacy multiplier stays the default reference until an owner promotion decision; C2's
   funding authority and C1b's gate placement are decided when those slices start.
+- **C2 decisions (lead, 2026-11-07; [epidemic care](../../integration/epidemic-care.md)):**
+  1. Switch `--epidemic-care` with mode `care`/`cost_only`, omitted = off and byte-identical;
+     hybrid only, refused elsewhere; registered in the catalog. *As implemented:* the
+     livelihoods convention (a boolean switch and `--epidemic-care-mode`), not one choice
+     option, so forwarding, manifest, resume conflicts and the catalog's symmetric exclusion
+     reuse the tested framework (a recorded deviation).
+  2. **Funding (Q-C5, decided): one authority**, an L9 provider `epidemic_care` appended to
+     `local_budgets.PROVIDERS` (group `relief`; one divisible proposal per civ for all its
+     outbreak regions, rounded up once to L9's coin, after review m1); C2 requires
+     `--local-budgets`; each civ's wage bill is quoted at payment before any income is withheld
+     (review m2); wages are
+     transfers through `money.py` (purpose `care_wage`, appended; exactly once per (turn,
+     purpose, batch)); no treasury authority of its own, no flat charge. B3's L9 proposal
+     appends after or before it, whichever merges second.
+  3. Carers: named adult farmers in sorted stable-id order (no draw); farm time out in Phase 2
+     through `farm_labor_factor` (`recovery_crews.remove_farm_time`); one labour reservation
+     across health care rows, the native work registry (workshop, learning, apprentice and
+     repair crews, woodcutters, carers), trips, the enlisted and seated mentors
+     (`labour_reservations.booked`, read-only, for D3 to reuse).
+  4. Capacity applies to the next tick only, as dated checkpointed state; a stale or future
+     row is refused, never applied.
+  5. Effect: `c = min(1, capacity / infectious)`, `CFR x (1 - 0.3 c)` in the tick's modifier
+     list under one floor with practised medicine; deaths only through `_apply_deaths`;
+     endemic (M35b) mortality untouched. Constants declared in the integration page.
+  6. `cost_only`: the same carers, wages and farm time, no effect (the cost control).
+  7. Supplies (C2b): **deferred** (a real food cost needs its own receipts and buyer).
+  8. Open items: **sanitation (C2c)** waits for B3's infrastructure service level;
+     **crowding/displacement** waits for the lead's displacement contract (D3, A6).
+  9. C3 invariants are tests (`tests/test_epidemic_care.py`).
+  10. Viewer: the Epidemics panel's care record (six reading states).
+  11. Pinned files: `batch_manifest.py` and its test only; layer `cwc2`.
+  12. A1 (`--wealth-accounting`) and C2 exclude each other until the ledger itemizes care
+      wages and withheld care income (an A1 frame change the lead integrates). The
+      Python-only lane rides `care_wage` on the native purpose `repair_wage` (batches from
+      `0xC2000`) and reserves carers under the registry's `repair` category (the shared query
+      labels them `registry_care`): a native build may append dedicated codes later. Open
+      items: A1 itemization of `care_wage` and `withheld_care`; per-pathogen care reductions.
+  13. Review of `3e5ee44d` (approve with changes; deviations accepted): the CW5c
+      preregistration was redesigned before the freeze (primaries unconditioned or on the
+      cost-only arm's cells; the own-covered ratio a mechanism check; reach and attenuation
+      reported) and the code findings m1-m8 and nits n1-n9 addressed.
 
 ### 5.4 D institutions, war, attribution and the owned-stock lifecycle ([audit](../audits/connected-world/audit-d-institutions-war-owned-stock.md))
 
@@ -320,6 +361,13 @@ open questions follow each summary.
 
 Maintained as slices land.
 
+| Step | Slice | Owner |
+| --- | --- | --- |
+| Phase 1 epidemic tick, before population change is absorbed: consume care capacity dated T - 1 (CFR factor, one floor with techniques) | C2 | `epidemic_care.care_factors` |
+| Phase 2, after every other package's `prepare_phase2`: name and reserve carers, lower `farm_labor_factor` | C2 | `epidemic_care.prepare_phase2` (livelihoods order: before D2 and A1) |
+| Phase 2 after the economy tick: withhold income share, pay wages (`care_wage`), date capacity T | C2 | `epidemic_care.finish_phase2` |
+| Phase 10: L9 settles care envelopes, then proposes T + 1's from T's reported outbreaks | C2 / L9 | `local_budgets.phase10` with `epidemic_care.BUDGET_PROVIDER` |
+
 ## 7. Seeds
 
 Development worlds (inspected freely) are unchanged: template 1, 3, 7, 9, 11, 23, 42;
@@ -337,6 +385,7 @@ before each run.
 | CW3: S3 watershed and infrastructure (procedural stratum; template refused) | 751–756 | 851–856 |
 | CW4: S3 quarantine and public health | 761–766 | 861–866 |
 | CW5: S4 trade, forest and water, care, attribution, requisition | 771–776 | 871–876 |
+| CW5c: S4 epidemic care (C2), its own fresh cohort | 3301–3306 | 3401–3406 |
 | CW6: S5 adaptive decisions, cross-border organization, war; the integrated evaluation | 781–786 | 881–886 |
 | Reserve (a held-run failure needs a new cohort) | 791–796 | 891–896 |
 

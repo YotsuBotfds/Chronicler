@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "board_version": 15,
+  "board_version": 16,
   "title": "Connected-world program (A livelihoods and trade, B watersheds and infrastructure, C public health, D institutions and war, E stories and evidence) operational board",
   "plan": "docs/superpowers/roadmaps/connected-world-program.md",
   "owner_instruction": "2026-11-06 (after #82): own the A-E program end to end with parallel workers, integrating and evaluating each slice and continuing across slice boundaries; merges of this program authorized after independent review, green premerge Tests on the reviewed head and verified main CI; new systems opt-in and off by default; no default promotion; full 200-seed and procedural qualification gates restricted; bounded held screens (procedural included) authorized; no purchases, paid credits, paid narration APIs, deployments, credential or sharing changes. Amendment (same day): tiers sequence work and are not stopping points; failures block the affected merge, not the program; pin 8abc1acb as the original reference; default-path changes behind a switch or rules version.",
@@ -123,8 +123,8 @@
       "id": "B2",
       "branch": "claude/cw-b2-flow",
       "scope": "recalibrated watershed constants; flow mode replacing native water terms, irrigation bonus and cascade",
-      "status": "approved; CW3 run and checked; PR",
-      "head": "71df8e4c"
+      "status": "merged (#90)",
+      "head": "5122b89d"
     },
     {
       "id": "C1b",
@@ -145,12 +145,32 @@
       "id": "A4",
       "branch": "claude/cw-a4-titled-trade",
       "scope": "A3-2 firm-output column (--workshop-economics-rules 2) + A4-1 --titled-trade; one native build",
-      "status": "implemented (544224b0, native 2ba123ab); review running"
+      "status": "approved (code re-checked; carrier decision fix); CW2 and CW5 frozen, run, checking",
+      "head": "be15b29b",
+      "native": "43cbd22a"
     },
     {
       "id": "B3",
       "branch": "claude/cw-b3-infrastructure",
       "scope": "--infrastructure-condition: irrigation then roads; sibling record infrastructure_works; money.py; one L9 envelope",
+      "status": "approved (re-check, two delta reviews; flow x condition; works' timber via PL1); CW3b frozen and running"
+    },
+    {
+      "id": "C2",
+      "branch": "claude/cw-c2-care",
+      "scope": "--epidemic-care care|cost_only: L9-funded named carers, labour_reservations query, dated capacity lowering the epidemic's own CFR",
+      "status": "approved (review + re-check); CW5c run and checked"
+    },
+    {
+      "id": "X1",
+      "branch": "claude/cw-x1-residence",
+      "scope": "--residence-ledger: the lead-owned displacement contract (record-only; home, residence, attachment, spells)",
+      "status": "implemented; review running"
+    },
+    {
+      "id": "D1",
+      "branch": "claude/cw-d1-institutions",
+      "scope": "--reform-services (poor relief buys real food) and --guild-leagues (cross-border guild leagues, real purse transfers)",
       "status": "active"
     }
   ],
@@ -332,9 +352,19 @@
       "premerge_run": 42328958939,
       "main_run": 42330174480,
       "date": "2026-11-07"
+    },
+    {
+      "pr": 90,
+      "slice": "B2 watershed flow mode + CW3",
+      "merge_commit": "bac45cb5f7554145b406c1cd68e77ff025d876cb",
+      "merge_tree": "9be647c7",
+      "reviewed_head": "5122b89d",
+      "premerge_run": 42332351997,
+      "main_run": 42333485333,
+      "date": "2026-11-07"
     }
   ],
-  "next": "Merge the B2 PR; A4 fixes then re-check, CW2/CW5 screens; B3 fixes then re-check; then C2 care, D4 requisition/restitution, E linked histories, A1-2 native observer, D1, D3, A6, C4.",
+  "next": "Merge the checked lanes in turn (C2, A4, B3, X1; each merges main and rebuilds its layer last); then D4 requisition/restitution/reconstruction, E linked histories, A1-2 native observer, D3 and A6-1 (one native build), C4; D1 active.",
   "baseline": {
     "oracle_lane": "PASS, 63 chunks, 295.5 s, slowest 32.4 s of 110 s",
     "native_check": "check_python_env --expect native PASS (101a4cd5)",
@@ -347,7 +377,8 @@
     "E": "docs/superpowers/audits/connected-world/audit-e-verification-playbook.md",
     "A1-A2": "docs/superpowers/audits/connected-world/audit-a1-a2-income-wealth.md",
     "A3": "docs/superpowers/audits/connected-world/audit-a3-workshop-economics.md",
-    "A4": "docs/superpowers/audits/connected-world/audit-a4-merchants-owned-cargo.md"
+    "A4": "docs/superpowers/audits/connected-world/audit-a4-merchants-owned-cargo.md",
+    "A6": "docs/superpowers/audits/connected-world/audit-a6-adaptive-decisions.md"
   },
   "decisions": {
     "livelihoods_switch_order": "existing switches, then household_retail, watershed, workshop_economics, wealth_accounting last (observer after every payer); pinned by a test at integration"
@@ -386,8 +417,18 @@
       "primaries": "F_CP-F downstream water -0.0031 (2/3), food shortfall +0.0071 (4/1), interaction +0.0024 (2/3): all null",
       "secondaries": "cost alone raised downstream food shortfall 6/6 (cost not held equal); flow vs old index wetter 5/6, less shortfall 6/6",
       "page": "docs/superpowers/progress/connected-world-screens-cw3.md"
+    },
+    "CW5c": {
+      "status": "run 2026-11-07",
+      "frozen": "ca2e1c84 (code c854215a)",
+      "cohort": "template 3301-3306, procedural 3401-3406",
+      "held": "36 runs, 0 failed, 0.152 of 0.50 core-hours",
+      "primaries": "EF-EC: world epidemic death rate t 6/6 lower, p mixed 3/3; ITT fatality at EC-covered cells t 6/6, p 5/6 lower; world deaths per infectious person-turn t 6/6, p 5/6 lower",
+      "secondaries": "per pathogen EF lower in all 36 readings; p3404 reversed by a pestilence outbreak only EF had",
+      "harms": "food shortfall EF-EC higher t 5/6 (+294), p 2 up / 4 down",
+      "page": "docs/superpowers/progress/connected-world-screens-cw5c.md"
     }
   },
-  "events": ["2026-11-07 ~00:10Z: container restart stopped lanes A3, B2, D2 mid-task; all resumed from saved transcripts with no work lost; shared native venv rebuilt from main ae94bca6 (e724072d)."],
+  "events": ["2026-11-07 ~00:10Z: container restart stopped lanes A3, B2, D2 mid-task; all resumed from saved transcripts with no work lost; shared native venv rebuilt from main ae94bca6 (e724072d).", "2026-11-07 ~04:40Z: second container restart stopped lanes X1, B3 and the C2/A4 reviews; all resumed from saved transcripts, no work lost; native venvs intact.", "2026-11-07: held runs serialized with a shared lock (the runner charges elapsed seconds against each ceiling)."],
   "defects_for_owner": ["seven decision sites read causal provenance (4 default-path: cities, diplomacy, epidemiology, nomads; 3 behind --scholarship); recorded by D2, not changed", "merchant income computed by origin but paid by current region", "natural deaths booked as army casualties (17% of soldier deaths on development worlds)"]
 }

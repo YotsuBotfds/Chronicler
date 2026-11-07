@@ -6,6 +6,7 @@ import {
 import { StatTile, StripLegend, SystemEventList, TurnStrip } from "./SystemParts";
 import { HealthCare } from "./HealthCare";
 import { QuarantineRules } from "./QuarantineRules";
+import { EpidemicCare } from "./EpidemicCare";
 import { observationEventKnown } from "../../lib/observedSystems";
 
 export function EpidemicsPanel({
@@ -37,6 +38,7 @@ export function EpidemicsPanel({
         <div className="phase75-empty-state">No epidemiology record at turn {at}.</div>
       )}
       {epidemicsRecorded && <QuarantineRules epidemics={epidemics} at={at} />}
+      <EpidemicCare bundle={bundle} snapshot={snapshot} currentTurn={currentTurn} />
 
       <div className="systems-columns">
         <div className="systems-stack">
