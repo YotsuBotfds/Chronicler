@@ -14,6 +14,10 @@
  * - `recorded_zero`: a valid record saying nothing happened this turn;
  * - `recorded`: a valid record with something in it.
  *
+ * The X1 residence ledger (`residenceLedger.ts`) is read the same way
+ * (`readResidenceLedger`); its strict reader returns null for an absent or
+ * malformed record.
+ *
  * The readers keep their contract (the recovery chain composes them the same
  * way, `recoveryChain.ts`). The granary storage panel (`GranaryStorage.tsx`,
  * pinned by the crisis-candidate witness through livelihoods layer `cwe1`)
@@ -24,6 +28,7 @@ import { foodAllocationAt, type FoodAllocationRecord } from "./foodAllocation";
 import { granaryStorageAt } from "./granaries";
 import { remittancesAt, type RemittancesRecord } from "./remittances";
 import { repairProjectsAt, type RepairProjectsRecord } from "./repairProjects";
+import { residenceLedgerAt, residenceZero, type ResidenceLedgerRecord } from "./residenceLedger";
 import { timberStockAt, type TimberStockRecord } from "./timberStock";
 
 export type RecordState = "disabled" | "absent" | "malformed" | "unobserved" | "recorded_zero" | "recorded";
@@ -179,6 +184,14 @@ export const GRANARY_STORAGE: RecordSpec<GranaryStorageFrame> = {
   zero: "no storage work delivered or paid and no grain returned to market",
 };
 
+export const RESIDENCE_LEDGER: RecordSpec<ResidenceLedgerRecord> = {
+  key: "residence_ledger", label: "Residence ledger", flag: "--residence-ledger", livelihoods: true,
+  carries: inLivelihoods("residence_ledger"), read: (s, regions) => residenceLedgerAt(s, regions),
+  observed: (r) => r.frame !== null,
+  empty: (r) => r.frame !== null && residenceZero(r.frame),
+  zero: "no one was displaced or attached to an army, and no one moved, left, returned, resettled or died",
+};
+
 export const readRepairProjects = (bundle: Bundle | null | undefined, snapshot: TurnSnapshot | null, turn?: number) =>
   readRecord(REPAIR_PROJECTS, bundle, snapshot, turn);
 export const readTimberStock = (bundle: Bundle | null | undefined, snapshot: TurnSnapshot | null, turn?: number) =>
@@ -190,3 +203,6 @@ export const readFoodAllocation = (bundle: Bundle | null | undefined, snapshot: 
 /** The granary storage state, rendered by GranaryStorage.tsx. */
 export const readGranaryStorage = (bundle: Bundle | null | undefined, snapshot: TurnSnapshot | null, turn?: number) =>
   readRecord(GRANARY_STORAGE, bundle, snapshot, turn);
+/** The residence ledger (X1), rendered by ResidenceLedger.tsx. */
+export const readResidenceLedger = (bundle: Bundle | null | undefined, snapshot: TurnSnapshot | null, turn?: number) =>
+  readRecord(RESIDENCE_LEDGER, bundle, snapshot, turn);
