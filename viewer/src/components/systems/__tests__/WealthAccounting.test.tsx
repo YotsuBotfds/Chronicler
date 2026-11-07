@@ -72,3 +72,15 @@ it("shows a failed closure on an observed frame instead of rejecting it", () => 
   expect(screen.getByText(/Closures that did not hold: Remittances \(RS4\): located flows do not exceed the package's total \(1115 against 1500\)/)).toBeInTheDocument();
   expect(screen.getByRole("table", { name: "Agent wealth at snapshot 10" })).toBeInTheDocument();
 });
+
+it("shows native modeled effects and transfer receipt differences as distinct observations", () => {
+  const native = { source_turn: 9, rows: [{ region: 0, component: "income_applied", amount: 5 },
+    { region: 0, component: "decay", amount: -3.5 }, { region: 1, component: "transfer_actual", amount: 2 }],
+    totals: { income_applied: 5, decay: -3.5, transfer_actual: 2 }, modeled_net: 1.5, transfer_actual: 2,
+    balance_closure: 0, typed_receipt_difference: 0, typed_rounding_or_unobserved: 0, observed_complete: true,
+    coverage: "native stages and exact transfer deltas observed; receipt rounding reported separately" };
+  render(<WealthAccounting {...props({ wealth_accounting: record({ frame: { ...frame, native } }) })} />);
+  expect(screen.getByRole("table", { name: "Native wealth stages at snapshot 10" })).toHaveTextContent("decay-3.5");
+  expect(screen.getByText(/Modeled stage net: 1.5.*Actual transfer delta: 2.*Balance closure discrepancy: 0/)).toBeInTheDocument();
+  expect(screen.queryByText("Native model residual")).toBeNull();
+});

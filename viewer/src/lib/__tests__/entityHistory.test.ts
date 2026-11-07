@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { entityHistory, indexEntityHistory } from "../entityHistory";
 import { chainBundle, snapshotOf, without } from "./recoveryChainFixture";
+import { RECORD_122, REGION_NAMES } from "./residenceLedgerFixture";
+import { trade } from "./titledTradeFixture";
 import type { Bundle } from "../../types";
 
 const person = { kind: "person", id: 13 } as const;
@@ -59,4 +61,25 @@ describe("linked histories: natural seed-23 records and labelled constructed var
     expect(indexEntityHistory(bundle).entities).toEqual([]);
     expect(read(bundle).every((r) => r.state === "disabled")).toBe(true);
   });
+});
+
+
+it("joins a natural displacement event by its id, without inventing every residence", () => {
+  const bundle = { world_state: { regions: REGION_NAMES.map((name) => ({ name })), civilizations: [] },
+    history: [{ turn: 122, livelihoods: { schema_version: 1, residence_ledger: structuredClone(RECORD_122) } }] } as unknown as Bundle;
+  const event = RECORD_122.events[0];
+  const rows = entityHistory(indexEntityHistory(bundle), { kind: "person", id: event.id });
+  const row = rows.find((r) => r.package === "residence_ledger")!;
+  expect(row.state).toBe("recorded");
+  expect(row.source).toBe("/history/0/livelihoods/residence_ledger/events/0");
+  expect(row.text).toContain("does not record every residence");
+});
+
+it("joins a constructed titled shipment and holder without claiming origin is location", () => {
+  const bundle = { world_state: { regions: [0, 1, 2].map((i) => ({ name: `R${i}` })), civilizations: [] },
+    history: [{ turn: 5, livelihoods: { schema_version: 1, titled_trade: structuredClone(trade) } }] } as unknown as Bundle;
+  const holder = trade.shipments[0].holder;
+  const rows = entityHistory(indexEntityHistory(bundle), { kind: "person", id: holder });
+  expect(rows.find((r) => r.package === "titled_trade")?.text).toContain("origin context only");
+  expect(rows.find((r) => r.package === "titled_trade")?.related[0].kind).toBe("shipment");
 });

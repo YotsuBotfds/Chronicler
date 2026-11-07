@@ -83,12 +83,25 @@ export interface WealthTreasury {
   by_civ: ({ civ: number } & Record<string, number>)[];
 }
 
+export const NATIVE_COMPONENTS = ["income_gross", "withheld_enlisted", "withheld_teaching", "withheld_learning",
+  "withheld_paid_work", "withheld_retail", "withheld_health", "income_applied", "income_rounding", "decay",
+  "ceiling_floor", "birth_endowment", "estate_out", "inheritance_in", "estate_unclaimed", "estate_overflow",
+  "transfer_actual", "transfer_nominal", "transfer_rounding"] as const;
+export interface NativeWealthFrame {
+  source_turn: number; rows: { region: number; component: string; amount: number }[];
+  totals: Record<string, number>; modeled_net: number; transfer_actual: number;
+  balance_closure: number; typed_receipt_difference: number; typed_rounding_or_unobserved: number;
+  observed_complete: boolean; coverage: string;
+}
+
 export interface WealthFrame {
   turn: number; continuity: WealthContinuity; typed_complete: boolean; world: WealthWorldRow;
   regions: WealthRegionRow[]; typed: WealthTypedRow[]; closures: WealthClosure[];
   /** Null when neither a paid-work package nor retail is active. */
   withheld: WealthWithheld | null;
   treasury: WealthTreasury;
+  /** Absent on historical bundles; null when no native stage observation exists. */
+  native?: NativeWealthFrame | null;
 }
 
 export interface WealthAccountingRecord {
@@ -193,6 +206,34 @@ function treasuryProblem(x: unknown, civs: number): string | null {
   return null;
 }
 
+function nativeProblem(x: unknown, source: number, regions: number, world: WealthWorldRow): string | null {
+  if (x === undefined || x === null) return null;
+  const known = (k: string) => (NATIVE_COMPONENTS as readonly string[]).includes(k);
+  if (!object(x) || x.source_turn !== source || !Array.isArray(x.rows) || !object(x.totals)
+    || !Object.entries(x.totals).every(([k, v]) => known(k) && finite(v))
+    || ![x.modeled_net, x.transfer_actual, x.balance_closure, x.typed_receipt_difference, x.typed_rounding_or_unobserved].every(finite)
+    || typeof x.observed_complete !== "boolean" || typeof x.coverage !== "string") return "malformed native wealth observation";
+  const f = x as unknown as NativeWealthFrame;
+  const seen = new Set<string>(), sums: Record<string, number> = {};
+  for (const r of f.rows) {
+    if (!object(r) || !count(r.region) || r.region >= regions || typeof r.component !== "string" || !known(r.component) || !finite(r.amount))
+      return "malformed native wealth component";
+    const key = `${r.region}:${r.component}`;
+    if (seen.has(key)) return "duplicate native wealth component";
+    seen.add(key);
+    sums[r.component] = (sums[r.component] ?? 0) + r.amount;
+  }
+  if (NATIVE_COMPONENTS.some((k) => !near(sums[k] ?? 0, f.totals[k] ?? 0))) return "native component totals do not sum";
+  const modeled = ["income_applied", "decay", "ceiling_floor", "birth_endowment", "estate_out", "inheritance_in"]
+    .reduce((a, k) => a + (f.totals[k] ?? 0), 0);
+  if (!near(modeled, f.modeled_net) || !near(f.transfer_actual, f.totals.transfer_actual ?? 0)
+    || !near(world.delta - f.modeled_net - f.transfer_actual, f.balance_closure)
+    || !near(f.transfer_actual - world.typed_net_milli / 1000, f.typed_receipt_difference)
+    || !near(f.typed_receipt_difference, f.typed_rounding_or_unobserved)) return "native wealth identity does not close";
+  if (f.observed_complete !== (Math.abs(f.balance_closure) <= 1e-8)) return "native coverage disagrees with balance closure";
+  return null;
+}
+
 function frameProblem(f: unknown, source: number, regions: number, civs: number): string | null {
   if (!object(f) || f.turn !== source) return "misdated frame";
   const c = f.continuity;
@@ -218,7 +259,7 @@ function frameProblem(f: unknown, source: number, regions: number, civs: number)
     || typed.reduce((a, r) => a + r.out_milli, 0) !== w.typed_out_milli) return "typed flows do not sum to the world row";
   if (!f.closures.every((x) => object(x) && typeof x.channel === "string" && typeof x.check === "string"
     && finite(x.lhs) && finite(x.rhs) && typeof x.closes === "boolean")) return "malformed closure";
-  return withheldProblem(f.withheld) ?? treasuryProblem(f.treasury, civs);
+  return nativeProblem(f.native, source, regions, f.world as WealthWorldRow) ?? withheldProblem(f.withheld) ?? treasuryProblem(f.treasury, civs);
 }
 
 /** Strict reading of one history snapshot's ledger record. */

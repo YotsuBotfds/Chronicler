@@ -10,12 +10,15 @@ const CHANNEL_LABEL: Record<string, string> = {
   food_purchase: "Food purchases (L6b)", remittance: "Remittances (RS4)", relocation_fare: "Relocation fares (L7)",
   domestic_credit: "Domestic credit, net", wares_purchase: "Wares bought from workshop firms (A3)",
   cargo_purchase: "Owned food bought by merchants (A4)",
+  care_wage: "Epidemic care wages", restitution: "War restitution",
+  timber_purchase: "Timber bought by carriers", timber_freight: "Delivered timber paid from escrow",
 };
 const PACKAGE_LABEL: Record<string, string> = {
   workshop_payroll: "Workshop crews (L6a)", apprenticeship: "Attached apprentices (RS1)",
   recovery_crews_granary: "Granary crews (PL3)", recovery_crews_workshop: "Workshop repair crews (PL3)",
   repair_projects: "Workshop repair crews (RS2, without PL3)", timber_supply: "Woodcutters (PL1)",
   titled_trade: "Merchants carrying titled cargo (A4)",
+  epidemic_care: "Epidemic carers", timber_orders: "Merchants carrying timber orders",
 };
 const UNCHECKED: Record<string, string> = {
   first_turn: "the ledger's first observed turn", pool_reset: "the agent pool was rebuilt (a legacy resume)",
@@ -57,13 +60,14 @@ export function WealthAccounting({ bundle, snapshot, currentTurn, onSelectRegion
       ? `Something wrote agent wealth between the previous closing and this opening: ${show(c.difference)} in all, ${show(c.agents_difference, 0)} people.`
       : `The opening was not checked against a closing: ${UNCHECKED[c.reason ?? ""] ?? c.reason ?? "no reason recorded"}.`;
   const failed = failedClosures(frame);
+  const native = frame.native;
   const wh = frame.withheld;
   const tr = frame.treasury;
   const paidFromTreasuries = Object.values(tr.to_households_milli).reduce((a, v) => a + v, 0);
   const charged = Object.values(tr.charged).reduce((a, v) => a + v, 0);
   const unlocated = Math.max(0, w.unlocated_in_milli) + Math.max(0, w.unlocated_out_milli);
   return <section className="systems-section" aria-label="Wealth accounting">{heading}
-    <p className="systems-note">Simulation turn {source}. An observation-only ledger of agent wealth (the one spendable balance, not conserved cash): the balance at the Phase 2 opening and after every payer of Phase 10, the typed flows the packages recorded, and the rest labelled as native model flows, not itemized yet (occupational income net of withheld shares, decay, the wealth ceiling, birth endowments, estates without heirs). Balances in wealth units.</p>
+    <p className="systems-note">Simulation turn {source}. An observation-only ledger of agent wealth (the one spendable balance, not conserved cash): the balance at the Phase 2 opening and after every payer of Phase 10, the typed flows the packages recorded, and {native ? "itemized native model stages and actual transfer deltas. Native stage effects and diagnostic withholding are shown separately; diagnostics are not added to the balance twice." : "the rest labelled as native model flows, not itemized in this historical record (occupational income net of withheld shares, decay, the wealth ceiling, birth endowments, estates without heirs)."} Balances in wealth units.</p>
     <p className="systems-note">{continuity}</p>
     <div className="systems-table-wrap"><table className="systems-table" aria-label={`Agent wealth at snapshot ${source + 1}`}>
       <thead><tr><th>World</th><th>Amount</th></tr></thead>
@@ -72,11 +76,21 @@ export function WealthAccounting({ bundle, snapshot, currentTurn, onSelectRegion
         <tr><td>Closing balance (people)</td><td>{show(w.close)} ({w.agents_close})</td></tr>
         <tr><td>Change</td><td>{show(w.delta)}</td></tr>
         <tr><td>Typed flows in · out</td><td>{show(units(w.typed_in_milli))} · {show(units(w.typed_out_milli))}</td></tr>
-        <tr><td>Native model residual</td><td>{show(w.native_model)}</td></tr>
+        <tr><td>{native ? "Change beyond typed receipts" : "Native model residual"}</td><td>{show(w.native_model)}</td></tr>
         <tr><td>Born (closing balances) · died (opening balances)</td><td>{w.births} ({show(w.births_close)}) · {w.deaths} ({show(w.deaths_open)})</td></tr>
         <tr><td>Moved between regions (balances carried)</td><td>{w.moved} ({show(w.moved_close)})</td></tr>
       </tbody>
     </table></div>
+    {native ? <>
+      <div className="systems-table-wrap"><table className="systems-table" aria-label={`Native wealth stages at snapshot ${source + 1}`}>
+        <thead><tr><th>Observed component (wealth units)</th><th>Signed amount</th></tr></thead>
+        <tbody>{Object.entries(native.totals).map(([key, value]) => <tr key={key}><td>{key.replace(/_/g, " ")}</td><td>{show(value, 9)}</td></tr>)}</tbody>
+      </table></div>
+      <p className="systems-note">Modeled stage net: {show(native.modeled_net, 9)}. Actual transfer delta: {show(native.transfer_actual, 9)}. Transfer minus typed receipts (rounding or unobserved receipt channels): {show(native.typed_receipt_difference, 9)}. Balance closure discrepancy: {show(native.balance_closure, 9)}. {native.observed_complete ? "Native observation closes against the measured balance." : "Native observation is incomplete; the discrepancy remains visible."} Coverage: {native.coverage}.</p>
+      <details><summary>Regional native components</summary><div className="systems-table-wrap"><table className="systems-table" aria-label="Regional native wealth stages">
+        <thead><tr><th>Region</th><th>Component</th><th>Signed amount</th></tr></thead><tbody>{native.rows.map((row) => <tr key={`${row.region}:${row.component}`}><td>{regionName(row.region)}</td><td>{row.component.replace(/_/g, " ")}</td><td>{show(row.amount, 9)}</td></tr>)}</tbody>
+      </table></div></details>
+    </> : <p className="systems-note">Native stage itemization is not observed in this record; unknown, not zero.</p>}
     {frame.typed.length === 0 ? <p className="systems-note">No paying package is active: no typed flow is recorded this turn.</p> : <>
       <div className="systems-table-wrap"><table className="systems-table" aria-label={`Typed flows at snapshot ${source + 1}`}>
         <thead><tr><th>Channel</th><th>Payer to payee</th><th>Into households</th><th>Out of households</th><th>Not located</th></tr></thead>
