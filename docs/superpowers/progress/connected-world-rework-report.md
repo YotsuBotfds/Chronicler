@@ -280,7 +280,7 @@ PYTHONPATH=src RAYON_NUM_THREADS=1 python scripts/cw_rework_screen.py run NEW/pi
   --screen CWR1 --cohort pilot --jobs 1 --keep-first
 PYTHONPATH=src python scripts/cw_rework_screen.py check --screen CWR1 \
   --cohort pilot --metrics NEW/pilot/metrics.jsonl
-python scripts/cw_bundle_archive.py --source RUN/chronicle_bundle.json \
+PYTHONPATH=src python scripts/cw_bundle_archive.py --source RUN/chronicle_bundle.json \
   --output NEW/chronicle_bundle.json.gz
 ```
 
