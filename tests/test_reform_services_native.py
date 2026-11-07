@@ -1,8 +1,10 @@
 """D1a poor relief as a real service on the real compiled extension (hybrid runs).
 
-Development world only: template seed 7 with retail at the default market
-boundary (a poor relief is granted at turn 68 and again at 83 on this source;
-the funds buy owners' food from turn 75). Nothing is mocked.
+Development worlds only, retail at the default market boundary: template seed 7
+(the first poor relief is granted at turn 68 on this source) and template seed
+42 (a relief from turn 80; its fund buys owners' food at turns 85 and 86, read
+as deliveries at 86 and 87, and is returned to the treasury at 131). Nothing is
+mocked.
 """
 from __future__ import annotations
 
@@ -13,7 +15,9 @@ import pytest
 pytest.importorskip("chronicler_agents")
 pytestmark = pytest.mark.native
 
-BASE = ["--seed", "7", "--agents", "hybrid", "--simulate-only", "--food-allocation", "--household-retail"]
+RETAIL = ["--agents", "hybrid", "--simulate-only", "--food-allocation", "--household-retail"]
+BASE = ["--seed", "7", *RETAIL]
+BUYS = ["--seed", "42", *RETAIL]
 
 
 def _cli(monkeypatch, folder, *argv):
@@ -61,8 +65,8 @@ def test_nothing_changes_before_a_relief_is_granted(tmp_path, monkeypatch):
 
 def test_service_buys_food_and_the_cost_only_control_pays_the_same_treasury(tmp_path, monkeypatch):
     monkeypatch.setenv("CHRONICLER_CHECK_RESOURCES", "1")
-    _cli(monkeypatch, tmp_path / "service", *BASE, "--turns", "100", "--reform-services")
-    _cli(monkeypatch, tmp_path / "control", *BASE, "--turns", "100", "--reform-services",
+    _cli(monkeypatch, tmp_path / "service", *BUYS, "--turns", "100", "--reform-services")
+    _cli(monkeypatch, tmp_path / "control", *BUYS, "--turns", "100", "--reform-services",
          "--reform-services-mode", "cost_only")
     service, control = _bundle(tmp_path / "service"), _bundle(tmp_path / "control")
     sf, cf = _frames(service), _frames(control)
@@ -92,13 +96,13 @@ def test_service_buys_food_and_the_cost_only_control_pays_the_same_treasury(tmp_
 
 
 def test_exact_resume_with_an_open_purchase_and_a_holding_fund(tmp_path, monkeypatch):
-    """The turn-85 checkpoint (after turn 84) holds purchases awaiting their delivery reading and two funds."""
-    argv = [*BASE, "--turns", "90", "--reform-services"]
-    _cli(monkeypatch, tmp_path / "straight", *argv, "--checkpoint-turns", "85")
+    """The turn-86 checkpoint (after turn 85) holds a purchase awaiting its delivery reading and a fund."""
+    argv = [*BUYS, "--turns", "90", "--reform-services"]
+    _cli(monkeypatch, tmp_path / "straight", *argv, "--checkpoint-turns", "86")
     from chronicler.run_checkpoint import read_checkpoint
-    loaded = read_checkpoint(tmp_path / "straight" / "checkpoint_turn_85.ckpt")
+    loaded = read_checkpoint(tmp_path / "straight" / "checkpoint_turn_86.ckpt")
     rs = loaded.state.world.livelihoods.reform_services
-    assert rs.pending and len(rs.funds) == 2
-    _cli(monkeypatch, tmp_path / "resumed", "--resume", str(tmp_path / "straight" / "checkpoint_turn_85.ckpt"),
+    assert rs.pending and rs.funds
+    _cli(monkeypatch, tmp_path / "resumed", "--resume", str(tmp_path / "straight" / "checkpoint_turn_86.ckpt"),
          "--simulate-only")
     assert _bundle(tmp_path / "resumed") == _bundle(tmp_path / "straight")

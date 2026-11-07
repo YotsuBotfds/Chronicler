@@ -126,13 +126,15 @@ treasury side (`treasury.relief_fund`) with three closures.
 - With an institution, only Commons Management's pro-rata share of the enforcement payment (as covered
   that turn) is redirected; if the reform names the institution and the payment covered none, nothing
   is (`institution_share_unknown`).
-- Turn order: the purchase sees this turn's provisioning and feeds the next turn's free pool.
+- Turn order: the purchase sees this turn's provisioning and feeds the next turn's free pool. With A4's
+  `--titled-trade`, whose purchases run inside retail's Phase 10, relief buys first: merchants buy from
+  the owners' surplus that remains.
 
 ## Tests
 
 `tests/test_reform_services.py` (offline: label, deposits and cap, cost-only, institution share,
 governance cost identity, purchase, refusals, deliveries, refunds, switch-off, record states) in oracle
 chunk `connected-world-d1`; `tests/test_money.py::test_a_relief_fund_is_its_treasurys_purse_and_pays_agents_or_back`;
-`tests/test_reform_services_native.py` (identity before the first relief, service vs cost-only with
-resource checks, exact resume with an open purchase and two funds); viewer
+`tests/test_reform_services_native.py` (template 7: identity before the first relief; template 42:
+service vs cost-only with resource checks, exact resume with an open purchase and a holding fund); viewer
 `reformServices.test.ts`, `ReformServices.test.tsx`.
