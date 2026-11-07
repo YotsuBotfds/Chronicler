@@ -65,7 +65,7 @@ npm --prefix viewer test -- --maxWorkers=1
 npm --prefix viewer run lint
 npm --prefix viewer run build
 node docs/superpowers/progress/connected-world-rework-viewer-compatibility/verify-archive.mjs --root "$PWD" --plain /path/chronicle_bundle.json --archive /path/chronicle_bundle.json.gz --out /tmp/archive-equivalence.json
-NODE_PATH=/path/to/playwright/node_modules CHROMIUM_EXECUTABLE=/usr/bin/chromium PYTHONPATH=src node docs/superpowers/progress/connected-world-rework-viewer-compatibility/profile-archive.mjs --config archive-profile-config.json --out /tmp/archive-profile --python /path/to/python
+NODE_PATH=/path/to/playwright/node_modules CHROMIUM_EXECUTABLE=/usr/bin/chromium PYTHONPATH=src node docs/superpowers/progress/connected-world-rework-viewer-compatibility/profile-archive.mjs --config docs/superpowers/progress/connected-world-rework-viewer-compatibility/archive-profile-config.json --out /tmp/archive-profile --python /path/to/python
 NODE_PATH=/path/to/playwright/node_modules CHROMIUM_EXECUTABLE=/usr/bin/chromium PYTHONPATH=src node viewer/scripts/qa-connected-world.mjs --build viewer/dist --bundle /path/chronicle_bundle.json.gz --out /tmp/archive-browser --python /path/to/python --journey history --turns 27
 node docs/superpowers/progress/connected-world-rework-viewer-compatibility/validate-corrected.mjs "$PWD" /path/corrected/chronicle_bundle.json /tmp/corrected-records.json
 NODE_PATH=/path/to/playwright/node_modules PYTHONPATH=src node docs/superpowers/progress/connected-world-rework-viewer-compatibility/journey-corrected.mjs "$PWD/viewer/dist" /path/corrected/chronicle_bundle.json /tmp/corrected-browser /path/to/python
