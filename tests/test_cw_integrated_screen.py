@@ -55,6 +55,7 @@ def test_five_arms_three_unconditioned_primaries_and_fixed_enrollment(CW):
     assert len(CW.SCREEN.arms) == 5 and len(CW.SCREEN.primaries()) == 3
     assert CW.SCREEN.held == {"template": tuple(range(781, 787)), "procedural": tuple(range(881, 887))}
     assert CW.BASE[CW.BASE.index("--household-retail-boundary") + 1] == "all"
+    assert CW.BASE[CW.BASE.index("--turns") + 1] == "120"
     assert CW.SR.check_screen(CW.SCREEN) == []
     assert CW.activation({}, ()) == (True, "Every enrolled world, including zero mechanism activation; validation is separate")
 
@@ -218,9 +219,10 @@ def test_resume_rejects_modified_plan_configuration(CW, changed):
     spec = importlib.util.spec_from_file_location("cw_integrated_resume_plan_under_test", path)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
-    b = {"metadata": {"seed": 5, "total_turns": 200}, "world_state": {"seed": 5, "regions": [{}] * 8},
-         "history": [{"turn": t, "livelihoods": {}} for t in range(1, 201)], "_cw6_events": {"present": True, "sha256": "a" * 64}}
-    plan = {"stratum": "template", "seed": 5, "turns": 200, "cli": module.cli_for("template", 5),
+    horizon = module.declared_turns()
+    b = {"metadata": {"seed": 5, "total_turns": horizon}, "world_state": {"seed": 5, "regions": [{}] * 8},
+         "history": [{"turn": t, "livelihoods": {}} for t in range(1, horizon + 1)], "_cw6_events": {"present": True, "sha256": "a" * 64}}
+    plan = {"stratum": "template", "seed": 5, "turns": horizon, "cli": module.cli_for("template", 5),
             "transitions": module.transition_points(b), "event_sidecar": deepcopy(b["_cw6_events"])}
     module.validate_plan_configuration(plan, b)
     if changed == "cli":

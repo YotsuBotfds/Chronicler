@@ -13,7 +13,7 @@ isolating every mechanism. Original reserved, still-unrun CW6 worlds are
 template 781–786 and procedural 881–886 (32 regions, ten initial civilizations).
 The shared development/timing pilots are template 5 and procedural 19. The
 lead schedules execution only after source and native identities are stable.
-Use one simulation process at a time, `RAYON_NUM_THREADS=1`, for 200 turns.
+Use one simulation process at a time, `RAYON_NUM_THREADS=1`, for 120 turns.
 
 The exact executable flags are in `scripts/cw_integrated_screen.py`. All arms
 use hybrid simulation, all-region household retail rules 2, the same existing
@@ -126,7 +126,34 @@ PYTHONPATH=src python scripts/cw_integrated_screen.py check --screen CW6 --cohor
 
 Use the equivalent template-5 resume plan as needed to cover categories absent
 in procedural 19. The resume tool preserves the exact JSON bundle and Arrow
-sidecar identities, checks the actual seed/stratum and complete 200-turn run,
+sidecar identities, checks the actual seed/stratum and complete declared-horizon run,
 reconstructs the declared FULL CLI and selected active states, and refuses an
 edited plan. Categories observed only at the final turn are explicitly not
 resumable within that same run; they are not counted as checked lifecycles.
+
+## Horizon amendment, before any held seed (2026-11-07)
+
+The final bounded horizon is 120 turns; the one-core-hour ceiling is unchanged.
+The first 200-turn diagnostic pilot at `ccc864a9` contained seven native timber
+payment failures and is preserved as failed evidence. Its corrected 200-turn
+development pilot at `43f02cca` completed all ten cases. Simulation plus
+extraction took 596.6 seconds for those two development worlds; extrapolating
+six held worlds per stratum with the runner's 1.5 margin projects 1.4915 core-
+hours. A linear 150-turn projection still exceeds the cap (1.1186 core-hours).
+The corresponding 120-turn projection is approximately 0.895 core-hours.
+
+All seven broad resume-state categories were observed by turn 67 in the
+development FULL procedural-19 bundle. This supports bounded mechanism
+coverage, not efficacy or activation on unseen held worlds. War returns were
+zero on that development world and the lead identified a distinct anchored-
+home defect before held execution; its correction and review precede the
+final pilot. The timber L9 repair-stake dimension correction also precedes
+the final pilot. Those older diagnostic source runs cannot qualify the final
+runtime or supply held effect conclusions.
+
+The final source receives a fresh complete 120-turn pilot and a fresh timing
+projection before freeze. If its 1.5-margin projection does not fit, no held
+run starts. The final evidence covers a shorter horizon than the original
+200-turn proposal; late war, return, climate and institutional outcomes may
+remain unobserved. The original diagnostic runs and failures are preserved,
+and no held outcome informed this amendment.

@@ -21,6 +21,10 @@ KINDS = ("army_meal_or_requisition", "war_injury_or_release", "moving_timber_esc
          "paid_infrastructure_work", "dated_health_report_or_guard", "personal_a6_memory", "x1_displacement")
 
 
+def declared_turns():
+    return int(CW.BASE[CW.BASE.index("--turns") + 1])
+
+
 def transition_points(bundle):
     """Return completed-turn checkpoints whose *saved states* really activated.
 
@@ -81,8 +85,9 @@ def make_plan(bundle_path, stratum, seed):
     path = Path(bundle_path).resolve()
     bundle = CW.load_bundle_file(path)
     validate_pilot_world(bundle, stratum, seed)
-    if len(bundle.get("history") or []) != 200 or bundle.get("metadata", {}).get("total_turns") != 200:
-        raise ValueError("active resume selection requires the complete 200-turn integrated pilot")
+    horizon = declared_turns()
+    if len(bundle.get("history") or []) != horizon or bundle.get("metadata", {}).get("total_turns") != horizon:
+        raise ValueError(f"active resume selection requires the complete {horizon}-turn integrated pilot")
     metrics, problems = CW.extract(bundle, CW.ARMS["FULL"][0])
     if problems:
         raise ValueError("cannot choose resume transitions from invalid pilot: " + "; ".join(problems))
@@ -140,9 +145,10 @@ def validate_plan_configuration(plan, bundle):
     validate_pilot_world(bundle, plan.get("stratum"), plan.get("seed"))
     if plan.get("cli") != cli_for(plan["stratum"], plan["seed"]):
         raise ValueError("resume plan CLI differs from the exact declared FULL pilot configuration")
-    if plan.get("turns") != 200 or len(bundle.get("history") or []) != 200 \
-            or bundle.get("metadata", {}).get("total_turns") != 200:
-        raise ValueError("resume plan does not describe the complete 200-turn integrated pilot")
+    horizon = declared_turns()
+    if plan.get("turns") != horizon or len(bundle.get("history") or []) != horizon \
+            or bundle.get("metadata", {}).get("total_turns") != horizon:
+        raise ValueError(f"resume plan does not describe the complete {horizon}-turn integrated pilot")
     if plan.get("transitions") != transition_points(bundle):
         raise ValueError("resume plan selected transitions differ from the actual pilot states")
     sidecar = plan.get("event_sidecar")

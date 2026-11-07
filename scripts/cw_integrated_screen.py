@@ -16,7 +16,7 @@ import screen_runner as SR
 
 MODULE = Path(__file__).resolve()
 PREREG = SR.REPO / "docs/superpowers/progress/connected-world-screens-cw6-integrated.md"
-BASE = ("--turns", "200", "--agents", "hybrid", "--simulate-only", "--campaigns", "--health-care",
+BASE = ("--turns", "120", "--agents", "hybrid", "--simulate-only", "--campaigns", "--health-care",
         "--grain-reserves", "--grain-storage", "--public-grain-shipments", "--grain-convoys",
         "--scholarship", "--academy-services", "--learning-cohorts", "--workshops", "--workshop-payroll",
         "--workshop-economics", "--workshop-economics-rules", "2", "--apprenticeship", "--operating-wear", "--veteran-reintegration",
