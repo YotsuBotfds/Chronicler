@@ -55,6 +55,48 @@ describe("residenceLedgerAt", () => {
     d.events_dropped = RECORD_122.events.length - 3;
     expect(residenceLedgerAt(snap(122, d), regions)).not.toBeNull();
   });
+  it("keeps optional physical arrivals distinct from motive spells and closes their counts", () => {
+    const make = () => {
+      const r = clone(RECORD_122) as Rec;
+      r.frame.arrival_diagnostics = { window_turns: 20, coverage_complete: true, window_complete: true, complete: true };
+      for (const row of r.frame.regions) Object.assign(row, { recent_residence_arrivals: 0, recent_residence_arrivals_unknown_reason: 0 });
+      const row = r.frame.regions.find((x: Rec) => x.residents >= 2);
+      row.recent_residence_arrivals = 2; row.recent_residence_arrivals_unknown_reason = 1;
+      Object.assign(r.frame.totals, { recent_residence_arrivals: 2, recent_residence_arrivals_unknown_reason: 1 });
+      return r;
+    };
+    expect(residenceLedgerAt(snap(122, make()), regions)).not.toBeNull();
+    for (const defect of ["missing", "sum", "unknown", "population", "complete", "window", "type"]) {
+      const r = make();
+      if (defect === "missing") delete r.frame.arrival_diagnostics;
+      if (defect === "sum") r.frame.totals.recent_residence_arrivals = 3;
+      if (defect === "unknown") r.frame.totals.recent_residence_arrivals_unknown_reason = 3;
+      if (defect === "population") r.frame.regions[0].recent_residence_arrivals = r.frame.regions[0].residents + 1;
+      if (defect === "complete") r.frame.arrival_diagnostics.coverage_complete = false;
+      if (defect === "window") r.frame.arrival_diagnostics.window_turns = 5;
+      if (defect === "type") r.frame.totals.recent_residence_arrivals = null;
+      expect(residenceLedgerAt(snap(122, r), regions), defect).toBeNull();
+    }
+    const partial = make();
+    Object.assign(partial.frame.arrival_diagnostics, { window_complete: false, complete: false });
+    expect(residenceLedgerAt(snap(122, partial), regions)).not.toBeNull();
+    // A newly observed resident with a recent arrival is meaningful even with no
+    // motive-classified activity this turn; old records keep their old zero rule.
+    const quiet = make();
+    for (const key of TOTAL_KEYS) quiet.frame.totals[key] = 0;
+    for (const row of quiet.frame.regions) for (const key of Object.keys(row)) if (key !== "region") row[key] = 0;
+    const row = quiet.frame.regions[0];
+    Object.assign(row, { residents: 2, recent_residence_arrivals: 2, recent_residence_arrivals_unknown_reason: 1 });
+    Object.assign(quiet.frame.totals, { alive: 2, observed: 2 }); quiet.events = [];
+    const observed = residenceLedgerAt(snap(122, quiet), regions)!;
+    expect(observed).not.toBeNull();
+    expect(residenceZero(observed.frame!)).toBe(false);
+    delete quiet.frame.arrival_diagnostics;
+    for (const key of ["recent_residence_arrivals", "recent_residence_arrivals_unknown_reason"]) {
+      delete quiet.frame.totals[key]; for (const row of quiet.frame.regions) delete row[key];
+    }
+    expect(residenceZero(residenceLedgerAt(snap(122, quiet), regions)!.frame!)).toBe(true);
+  });
 });
 
 describe("readResidenceLedger: six readings stay distinct", () => {

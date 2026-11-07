@@ -13,10 +13,14 @@ export interface PublicHealthDecision {
 export interface PublicHealthEnvironment {
   region: number; source_turn: number; residence_observed: boolean; sanitation_observed: boolean;
   displaced_share: number; water_service: number; crowding_factor: number; flux_factor: number;
+  crowding_basis: "density_only" | "legacy_displacement";
+  crowding_source_turn: number;
+  recent_arrival_share: number | null; arrival_diagnostics_complete: boolean | null;
 }
 export interface PublicHealthRecord {
   schema_version: 1; source_turn: number; enabled: boolean; mode: "active" | "cost_only";
   policy: "evidence" | "shuffled"; report_delay: number; report_turn: number | null;
+  crowding: "density_only" | "legacy_displacement"; crowding_recorded: boolean;
   decisions: PublicHealthDecision[]; environment_turn: number | null; environment: PublicHealthEnvironment[];
   supply_turn: number | null; supplies: PublicHealthSupply[]; totals: Record<string, number>;
   guard_turn: number | null; guards: PublicHealthGuard[];
@@ -44,11 +48,13 @@ export function publicHealthAt(snapshot: TurnSnapshot, regions: number, civs: nu
   const container = (snapshot as unknown as Record<string, unknown>).livelihoods;
   const r = object(container) ? container.public_health : undefined;
   if (!object(r) || r.schema_version !== 1 || r.source_turn !== snapshot.turn - 1
-    || typeof r.enabled !== "boolean" || !["active", "cost_only"].includes(String(r.mode))
-    || !["evidence", "shuffled"].includes(String(r.policy)) || !integer(r.report_delay) || r.report_delay > 20
+    || typeof r.enabled !== "boolean" || !["active", "cost_only"].includes(r.mode as string)
+    || !["evidence", "shuffled"].includes(r.policy as string) || !integer(r.report_delay) || r.report_delay > 20
     || ![r.report_turn, r.environment_turn, r.supply_turn].every(t => t === null || t === r.source_turn)
     || !Array.isArray(r.supplies) || !Array.isArray(r.decisions) || !Array.isArray(r.environment)
     || !object(r.totals) || !Object.values(r.totals).every(nonnegative)) return null;
+  const crowding = r.crowding === undefined ? "legacy_displacement" : r.crowding;
+  if (typeof crowding !== "string" || !["density_only", "legacy_displacement"].includes(crowding)) return null;
   if (!r.supplies.every(s => object(s) && s.turn === r.source_turn && idx(s.civ, civs) && idx(s.region, regions)
     && nullableIdx(s.source, regions) && nullableIdx(s.seller, civs)
     && [s.need_milli, s.food_milli, s.charged_milli, s.internal_milli].every(integer)
@@ -67,6 +73,20 @@ export function publicHealthAt(snapshot: TurnSnapshot, regions: number, civs: nu
     && typeof e.residence_observed === "boolean" && typeof e.sanitation_observed === "boolean"
     && share(e.displaced_share) && share(e.water_service) && number(e.crowding_factor)
     && e.crowding_factor >= 1 && e.crowding_factor <= 1.25 && share(e.flux_factor))) return null;
+  if (!r.environment.every(e => {
+    if (!object(e)) return false;
+    const basis = e.crowding_basis === undefined ? "legacy_displacement" : e.crowding_basis;
+    if (basis !== crowding || (r.crowding !== undefined && e.crowding_basis === undefined)) return false;
+    const expected = basis === "density_only" ? 1 : 1 + .25 * Number(e.displaced_share);
+    if (Math.abs(Number(e.crowding_factor) - expected) > 1e-6) return false;
+    const source = basis === "density_only" ? r.source_turn : e.source_turn;
+    if (e.crowding_source_turn !== undefined && e.crowding_source_turn !== source
+      || basis === "density_only" && e.crowding_source_turn === undefined) return false;
+    const complete = e.arrival_diagnostics_complete, recent = e.recent_arrival_share;
+    if (complete === undefined && recent === undefined) return r.crowding === undefined;
+    if (!(complete === null || typeof complete === "boolean") || (typeof complete === "boolean" && e.residence_observed !== true)) return false;
+    return complete === true ? share(recent) : recent === null;
+  })) return null;
   if (r.guard_turn !== undefined && r.guard_turn !== null && r.guard_turn !== r.source_turn) return null;
   if (r.guards !== undefined && (!Array.isArray(r.guards) || !r.guards.every(g => object(g)
     && g.turn === r.source_turn && idx(g.civ, civs) && idx(g.target, civs) && g.civ !== g.target
@@ -89,7 +109,12 @@ export function publicHealthAt(snapshot: TurnSnapshot, regions: number, civs: nu
     && Number(f.care_cash_milli) + Number(f.supply_cash_milli) + Number(f.guard_cash_milli) <= Number(f.envelope_milli)
     && Number(f.care_cash_milli) + Number(f.care_carry_before) === Number(f.care_paid_milli) + Number(f.care_carry_after)
     && Number(f.guard_cash_milli) + Number(f.guard_carry_before) === Number(f.guard_paid_milli) + Number(f.guard_carry_after)))) return null;
-  return { ...r, guard_turn: r.guard_turn ?? null, guards: r.guards ?? [],
+  return { ...r, crowding, crowding_recorded: r.crowding !== undefined,
+    environment: r.environment.map(e => ({ ...e as object, crowding_basis: (e as Record<string, unknown>).crowding_basis ?? "legacy_displacement",
+      crowding_source_turn: (e as Record<string, unknown>).crowding_source_turn ?? (e as Record<string, unknown>).source_turn,
+      recent_arrival_share: (e as Record<string, unknown>).recent_arrival_share ?? null,
+      arrival_diagnostics_complete: (e as Record<string, unknown>).arrival_diagnostics_complete ?? null })),
+    guard_turn: r.guard_turn ?? null, guards: r.guards ?? [],
     funding_turn: r.funding_turn ?? null, funding: r.funding ?? [] } as unknown as PublicHealthRecord;
 }
 
@@ -102,5 +127,5 @@ export const readPublicHealth = (bundle: Bundle, snapshot: TurnSnapshot | null, 
     observed: r => r.environment_turn !== null || r.supply_turn !== null || r.report_turn !== null || r.funding_turn !== null,
     empty: r => r.supplies.length === 0 && r.decisions.length === 0 && r.guards.length === 0
       && r.funding.every(f => f.care_paid_milli + f.guard_paid_milli + f.care_cash_milli + f.supply_cash_milli + f.guard_cash_milli === 0)
-      && r.environment.every(e => e.displaced_share === 0 && e.water_service === 0),
+      && r.environment.every(e => e.displaced_share === 0 && e.water_service === 0 && (e.recent_arrival_share === null || e.recent_arrival_share === 0)),
     zero: "no patient supplies, delivered foreign reports or water service" }, bundle, snapshot, turn);
