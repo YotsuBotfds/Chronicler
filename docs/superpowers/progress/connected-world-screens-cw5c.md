@@ -246,8 +246,92 @@ direction only when its sign is the same in at least 5 of 6 activated worlds of 
 
 ## Extractor validation (pilot and development worlds, before any held run)
 
-PENDING-PILOT
+- **Timing pilot** (template 5, procedural 19; the runner deleted its bundles), source `3938aa69`,
+  clean tree: `connected-world-screens-cw5c/pilot/` (metrics, report, source): 6 runs, 0 failed,
+  every outcome extracted (`check --metrics ... --cohort pilot`: complete); 78 s of simulation and
+  extraction (0.022 core-hours), 41 s wall on 2 jobs. Seconds per run: E0 p 17.6, t 6.6; EC p
+  18.1, t 6.3; EF p 16.7, t 6.5. Projection for the held run (36 runs): 0.129 core-hours, x1.5 =
+  0.194; **ceiling 0.50** (revision 1's pilot under a load average of 7-9 took 0.042 core-hours,
+  about 2 x this one). Identity lines (`pilot/source.txt`): `scripts/connected_world_screens.py`
+  `5c90a4254a03305bad02963313cc08dc152515b2439065897f7ee6b4b7b10b3c`, `scripts/screen_runner.py`
+  `55b7e2c5e12c01f36e143dc90d251eb62dc2722f569fc61e13e8e78ef2ce7b72`, registry content
+  `fa4731ea0d40d3dc7b6c29521f51df4199c68454fcb04196b8e9b054033a3b59`, native `20e77f99...`.
+  The pilot's metrics file holds each care run's cells (192 KB for 6 runs; about 1.2 MB expected
+  for the held run).
+- **Activation and the pilot's mechanism and reach tables** (never evidence): EC and EF activated
+  on both worlds. Mechanism check: the EF/EC ratio of own-covered fatality per infectious
+  person-turn was 0.59 (t5) and 0.60 (p19) against EF's mean applied factor 0.70: the arms' own
+  covered sets differ (EF covers more region-turns), so the check is approximate. Reach 0.60
+  (t5) and 0.72 (p19).
+- **Independent checker** (outside the repository,
+  `/home/user/evidence/c2/cw5c/validate/validate_cw5c.py`, reading the raw bundles, never
+  importing the screen module) on the same pilot with bundles kept and on development worlds
+  template 1 and 42, procedural 7 and 13 (all three arms, `--cohort dev --keep-first`, 200 turns,
+  source `3938aa69`; 18 runs, 0 failed): **186,141 checks, 0 failures**. It recomputes the world
+  death rate (and that per-turn deaths sum to `deaths_total`), L9 coins by service and, in care
+  arms: every snapshot's record, mode and date; that each tick applies exactly the capacity the
+  previous snapshot left (dated w - 1, same patients); coverage, the factor applied and the one it
+  would apply; that the tick regions' deaths equal `epidemics.deaths` and each applied row's
+  infectious person-turns equal its region's; carers unique per turn; care time, farm time,
+  patients and the wage rule; that each frame row spends an open care envelope of its civ from
+  the previous snapshot and each envelope's wages stay within its coins; the ledger's envelope
+  coins and its closure on the treasury; that a refused bill pays nobody; the cells, EC's covered
+  cells, world deaths per infectious person-turn, own-covered fatality and reach against the
+  extractor; and **primary 2 recomputed from the two raw bundles** (EF and EC at EC's covered
+  cells) against the same reading of the metrics rows. Development worlds are inspected freely
+  and are never evidence; their outcome values are not reported here.
+- `tests/test_cw5c_screen.py` covers the arms and primaries, the cells, the paired reading (and the
+  runner's subtraction and its refusal without a control), continuing-outbreak region-turns,
+  hunger, stability and unrest, activation, missing or inconsistent records and the report's
+  mechanism and reach tables.
 
 ## C2 verification (commands and results)
 
-PENDING-VERIFICATION
+On the revision-2 head (source `39af589a`, unchanged since `c0111425`; screen `3938aa69`); native
+runs with `~/.venvs/native-a3` (extension `20e77f99...`, `main`'s Rust); the offline lane with the
+worktree's `.venv` (no extension).
+
+- **Focused tests:** `tests/test_epidemic_care.py` 49 passed (offline and native venv), including
+  the review's: one proposal per civ rounded up once, one envelope serving its regions most
+  infectious first, a bill refused at payment (nothing withheld or paid, no capacity, settled as a
+  treasury shortfall), `nothing_due`, `cost_rose`, the `registry_care` label, the tick's region
+  record, out-of-range and unconsumed capacity, prepaid units split over regions, and m7 (no
+  switch after `epidemic_care` plans work); `tests/test_epidemic_care_native.py` 5 passed;
+  `tests/test_cw5c_screen.py` 9 passed.
+- **Affected suites:** offline 807 passed, 3 skipped; under the native venv 852 passed.
+- **Offline lane** `python scripts/run_python_oracle_checks.py`: PASS, 71 chunks in 349.6 s (shared
+  load); `connected-world-c2` 57 tests in 1.5 s of 110 s; slowest chunk `systems-2` 35.4 s.
+- **Witness suites** (sprint with layer `cwc2` last, restoration, scenarios, information x2,
+  academy, household mobility, crisis, food accounting, grain release, public grain shipments,
+  regional population, health care policy, practice observer x2, native shards, preflight): 574
+  passed, 61 subtests. `refactor_preflight --git-diff origin/main`: the only enforced source
+  witnesses are `batch_manifest.py` and its test, unchanged since `cwc2` (its current digests
+  match), so the layer was not rebuilt.
+- **Feature-off identity** (`turn_speed_identity.py`, each side its own `git archive` source
+  tree, the same extension), head source `39af589a`: against the `8abc1acb` reference outputs
+  **9 cases, 399 files, 0 differences**; against `main` `bac45cb5` **9 cases, 399 files, 0
+  differences**; with `--no-epidemiology` against the reference's **9 cases, 399 files, 0
+  differences**; with L9 on (`--grain-reserves --local-budgets`, four hybrid cases) against
+  `bac45cb5` **4 cases, 327 files, 0 differences**; with `--wealth-accounting` (hybrid 42) the
+  only difference in 111 files is A1's `parameters.channels` label list (deviation 2).
+- **Enabled exact resume** (`checkpoint_identity.py`):
+  - `hybrid_s42` with `--grain-reserves --local-budgets --epidemic-care`: **PASS, 59 resume
+    points, 0 differences**; writing checkpoints changes nothing (45 files); 23 resume points
+    during a reported outbreak with carers named and capacity pending, 24 with a prepaid carry;
+  - **all enabled minus A1 (m8)**: `proc32_hybrid_s11` (procedural, 40 turns) with the catalog's
+    all-enabled hybrid procedural selection, `--wealth-accounting` dropped and `--epidemic-care`
+    kept, plus `--health-care` (30 switches and choices: grain reserves, shipments, storage,
+    scholarship, academy services, workshops, food allocation, timber stock, convoys, commons
+    rules, learning cohorts, payroll, relocation costs, local budgets, apprenticeship, repair
+    projects, veteran reintegration, remittances, clearing protection, operating wear, timber
+    supply, recovery crews, maintenance obligation, household retail, watershed, workshop
+    economics, epidemic care, attribution records, quarantine closure of trade and migration):
+    **PASS, 39 resume points, 0 differences**; writing checkpoints changes nothing (41 files); 6
+    resume points during an outbreak with carers named and capacity pending, 7 with a carry.
+- **Refusals:** a duplicate keyed bill, a second settlement or plan, a plan of another turn and a
+  stale, future or out-of-range capacity row are refused (tests); a saved C2 world resumed with
+  `--agents off` exits with one `Error:` line (`LivelihoodsRefusal`), rc 1.
+- **Viewer** (`npm test -- --maxWorkers=1`): 163 files, 1,613 passed, 2 skipped; `npm run lint`
+  clean; `npm run build` passes.
+- **Not run:** the 200-seed and procedural qualification gates (restricted); the CW5c held cohort
+  (awaits the freeze); `cargo` builds and Rust tests (no Rust change); browser journeys.

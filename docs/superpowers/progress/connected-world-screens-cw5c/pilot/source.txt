@@ -1,13 +1,13 @@
-source e4150456073215d49d39d63c660ad6ef41a6abfa
+source 3938aa699bcabf7f2479c7c63d113887711b9e97
 dirty 0 tracked files
 dirty-code 0 tracked code files
 chronicler /home/user/wt/c2-care/src/chronicler/__init__.py
 native /root/.venvs/native-a3/lib/python3.13/site-packages/chronicler_agents/chronicler_agents.cpython-313-x86_64-linux-gnu.so 20e77f9945efa71d597c142e99069337586cc865ddee7a17c6d20948a2c0c1ca
 interpreter /root/.venvs/native-a3/bin/python
-runner 3463b5cb7bb46a96634e7cade8e76ca097005740f6f631e1ff852ab5181651b5 scripts/screen_runner.py
-screens 6e54ee3ae52da70a90b224e72f73ed1f91f73187754db603e88088e54fb5bad9 scripts/connected_world_screens.py
+runner 55b7e2c5e12c01f36e143dc90d251eb62dc2722f569fc61e13e8e78ef2ce7b72 scripts/screen_runner.py
+screens 5c90a4254a03305bad02963313cc08dc152515b2439065897f7ee6b4b7b10b3c scripts/connected_world_screens.py
 registry 97bff813662c524d2b7fbf59dc8588a35c4a9fa2917c97c50ade6ca4a0b0ff5b scripts/seed_registry.json
 registry-content fa4731ea0d40d3dc7b6c29521f51df4199c68454fcb04196b8e9b054033a3b59 (cohorts and seeds)
 run: screen CW5c; cohort pilot; seeds all; arms E0,EC,EF; jobs 2; worlds -; turns -; rows already written 0
-started 2026-11-07T04:12:19Z
-finished 2026-11-07T04:13:37Z: 6 runs, 0 failed, 153 s of simulation and extraction (0.042 core-hours in all), 77.7 s wall
+started 2026-11-07T05:13:04Z
+finished 2026-11-07T05:13:44Z: 6 runs, 0 failed, 78 s of simulation and extraction (0.022 core-hours in all), 40.7 s wall
