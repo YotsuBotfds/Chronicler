@@ -2,7 +2,7 @@
   "status": "PREPARED; no simulation or resume execution started",
   "preparation_source": "b5d4c66e43016503352e2cff8c3d3c39747a63a3",
   "driver_external": "/workspace/evidence/cwr-resume/driver.py",
-  "driver_sha256": "63a5ee40b0b0333599264a4156d1c36788ad7b9e9c318bb8c77d3edfe06d6c77",
+  "driver_sha256": "f68f71f7eed531a88be767d317cc06519b6f59bdd841e316e459af326076bea3",
   "python": "3.12.14 (main, Aug 25 2026, 14:00:49) [Clang 22.1.3 ]",
   "self_check": "seven declaration refusals, four constructed source guard refusals including package-initializer versus compiled-extension distinction, five invalid wall budgets, positive native-hash guard fixture, actual-field category fixtures, checkpoint-zero exclusion, 12-point cap, escrow cash required; no runtime or native import",
   "unrun": [
@@ -20,6 +20,7 @@
   "held_seeds": 0,
   "review_corrections": [
     "Initial adapter imported the Python chronicler_agents package and would hash __init__.py; corrected before any execution to import chronicler_agents.chronicler_agents and require an extension suffix even when an initializer hash matches.",
-    "Initial wall guard allowed NaN/infinity; corrected before execution to require a finite positive numeric budget."
+    "Initial wall guard allowed NaN/infinity; corrected before execution to require a finite positive numeric budget.",
+    "Official pilot source.txt appends run/started metadata. Planning now uses existing screen_runner.identity_of and requires recorded_run=(CWR1,pilot), retaining the full file hash; direct splitlines comparison would have refused the valid pilot."
   ]
 }

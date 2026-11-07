@@ -212,7 +212,10 @@ def make_plan(args):
     screen, _, _, native = load_runtime(args.source_root)
     frozen = freeze_identity(args.source_root, args.expected_source, args.expected_native_sha256, screen, native)
     pilot_source = Path(args.pilot_source).resolve()
-    if screen.SR.identity_key(pilot_source.read_text().splitlines()) != screen.SR.identity_key(frozen["source_identity"]):
+    pilot_source_text = pilot_source.read_text()
+    if screen.SR.recorded_run(pilot_source_text) != ("CWR1", "pilot"):
+        raise ValueError("source record does not declare the CWR1 pilot cohort")
+    if screen.SR.identity_key(screen.SR.identity_of(pilot_source_text)) != screen.SR.identity_key(frozen["source_identity"]):
         raise ValueError("recorded pilot source/extension/extractor identity differs from freeze")
     path = Path(args.bundle).resolve()
     bundle = screen.load_bundle_file(path)
