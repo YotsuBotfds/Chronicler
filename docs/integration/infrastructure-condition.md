@@ -297,7 +297,7 @@ stalled work as the directly recorded "underfunded public works" story.
 
 ### Tests
 
-- `tests/test_infrastructure_condition.py` (offline, 47 tests): identity matching and lifecycle
+- `tests/test_infrastructure_condition.py` (offline, 68 tests): identity matching and lifecycle
   (every end cause, removal, rebuild, mid-turn damage skipping an ended record), wear, service and
   failure (failed is not rebuilt), service failing closed for an unknown region, consumers
   bit-identical when off and in `record_only` (arable capacity, `has_irrigation`, the road range
@@ -314,13 +314,26 @@ stalled work as the directly recorded "underfunded public works" story.
   switch), the payment registration, and watershed `flow` x condition: withdrawal scaling with
   service and account closure (flow alone and condition `record_only` at service 1.0, the
   `record_only` account's gate), a failed work withdrawing nothing, flood damage once at the onset
-  with the event as cause and never on the ongoing flood, a withheld onset damaging nothing, and a
-  pickle resume inside an open flood with damaged works.
+  with the event as cause and never on the ongoing flood, a withheld onset damaging nothing, a
+  pickle resume inside an open flood with damaged works, and the PL1 timber link on PL1's
+  constructed line (one forest between two regions): the works get woodcutters only after RS2 (an
+  RS2 need in a higher-indexed region takes the one forest, the works' row is refused
+  `forest_busy`; alone the works' need launches PL1's crew; in RS2's own region one expedition
+  serves both, RS2's want counted first), the works ask only for open works that can use timber
+  (no farmer, L9 roads and L9's predicted `granary_first` ask nothing; `record_only`/`wear_only`
+  never ask), RS2 and PL1 byte-identical over eight turns when the works ask for nothing (no
+  work, a work its own stockpile covers, `record_only`, `wear_only`), every load the works use cut
+  by PL1's crew and passed through the store exactly once (delivered = used + released, held -
+  returned = used, the store kept until the work completed), and an exact pickle resume with a
+  works' expedition outstanding.
 - `tests/test_infrastructure_condition_native.py` (real extension, about 17 s): procedural seed 31
   60 turns with `CHRONICLER_CHECK_RESOURCES=1` (every receipt and ledger closes; the sink equals the
   charges; conquest damage and scorched records occur); an exact checkpoint resume at turn 37
   inside open works (history, world state and `state.json` byte-identical); template seed 11 40
-  turns `record_only` equal to the switch off except the record.
+  turns `record_only` equal to the switch off except the record; procedural seed 13 with flow, an
+  exact resume inside an open flood with damaged works; template seed 11 with PL1, an exact
+  checkpoint resume at turn 45 while the expedition the works' need launched at turn 43 is cutting
+  (it delivers after the resume).
 
 ### Development activation (development worlds only; not a screen, no held seed)
 
