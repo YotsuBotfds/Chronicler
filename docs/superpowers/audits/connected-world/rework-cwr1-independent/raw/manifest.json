@@ -1,0 +1,21 @@
+{
+  "status": "PARTIAL_RAW_REVIEW_PASS",
+  "runtime": "b45c1e99572d4d6a60fb01fbd75cb7688aa54e93",
+  "scope": "p4201 firstworld only; fullheld/t4101 notcomplete and no causal comparison",
+  "selftest_methods": 6,
+  "selftest_output": "test_all_declared_controls_accept_nonzero_record_only_d3 (__main__.RawTests.test_all_declared_controls_accept_nonzero_record_only_d3) ... ok\ntest_arrow_ids_routes_unknown_reason_and_death_are_distinct (__main__.RawTests.test_arrow_ids_routes_unknown_reason_and_death_are_distinct) ... ok\ntest_capped_components_are_explicitly_unverified (__main__.RawTests.test_capped_components_are_explicitly_unverified) ... ok\ntest_control_and_source_mutations_fail (__main__.RawTests.test_control_and_source_mutations_fail) ... ok\ntest_no_relief_retains_positive_free_food (__main__.RawTests.test_no_relief_retains_positive_free_food) ... ok\ntest_t_minus_one_window_completion_and_neutral_density (__main__.RawTests.test_t_minus_one_window_completion_and_neutral_density) ... ok\n\n----------------------------------------------------------------------\nRan 6 tests in 0.007s\n\nOK\n",
+  "files": {
+    "README.md": "40ad075a4374d1aa6a9d5e65c9e315d39e50f3b42df92b2cfe20baddc5f52ae6",
+    "admission-AD-p4201.json": "47b9638366d999867fb0f8e5da3f58146f10eee75a96a046cfa7e90c0cbd57bd",
+    "admission.py": "d7f0e2554465a6cd35dbc0188e1a41b969b771c050a576349f863b326fc49d39",
+    "check.py": "ab4a94100f8ff61fbf8181e099b305c6d5f5d25c49847596fa4cb7908bc18129",
+    "coverage-pilot-AD-p19.json": "afacd5f7897b15fa8aa73366c76d0770ccc2d9d22418434b05b96caa2743e2cb",
+    "coverage_trace.py": "9551f63902f1b49d86ec867c34e4a90718c5d06066b522494199e7483cc23db3",
+    "readback-p4201.json": "8f64d26675faec35dc79468d74a3f05069f540ba8abfe13b88a7290a6f83078d",
+    "selftest.py": "587440c1c925caa95d132ecaa7999ee62e218d44fcb032fcc630236342d6fa7b"
+  },
+  "cumulative_cpu_seconds": 61.476258,
+  "remaining_cpu_seconds": 58.523742,
+  "simulation_runs": 0,
+  "chronicler_agents_imported": false
+}

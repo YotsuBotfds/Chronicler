@@ -1,0 +1,41 @@
+{
+  "kind": "closed-case decode/Arrow admission only",
+  "case": "AD-p4201",
+  "simulation_runs": 0,
+  "partial_cohort_effect_claim": false,
+  "cpu_limit_seconds": 20,
+  "status": "PASS",
+  "source": "b45c1e99572d4d6a60fb01fbd75cb7688aa54e93",
+  "codec": "/workspace/cwr-held-runtime/src/chronicler/bundle_codec.py",
+  "pyarrow": "26.0.0",
+  "source_identity": "98c7bb2accb18b04e68f0585780ba58f85f03ece77c987d82ff67ceb7d9370a8",
+  "bundle_bytes": 41294378,
+  "bundle_sha256": "953d05115a2051cc2dbef83bc63c45d8b318d002195f01895d84cf05a47b1ae1",
+  "snapshots": 120,
+  "raw_primary_observations": {
+    "food_shortfall": 7344.74582925532,
+    "epidemic_deaths": 440,
+    "person_turns": 101466
+  },
+  "arrow_events": 25317,
+  "event_kinds": {
+    "occupation_switch": 3779,
+    "death": 1490,
+    "birth": 1872,
+    "migration": 4935,
+    "dissolution": 8446,
+    "rebellion": 4409,
+    "loyalty_flip": 386
+  },
+  "arrow_sha256": "fedf5a5bee463dc8151e426a36c97d600ab82f855164e45dddf5c2f3619fd5bf",
+  "imported_chronicler_modules": [
+    "chronicler",
+    "chronicler.bundle_codec"
+  ],
+  "native_module_imported": false,
+  "frame_contract_checks": "not yet performed; admission only",
+  "wall_seconds": 4.120298559002549,
+  "cpu_user_seconds": 3.855444,
+  "cpu_system_seconds": 0.25709299999999996,
+  "max_single_process_rss_kib": 737652
+}
