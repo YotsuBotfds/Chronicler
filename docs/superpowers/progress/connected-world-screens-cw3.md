@@ -392,6 +392,36 @@ Nulls as nulls: priced-out persons and children and the timber stand are `not re
 extractor`. Values are mean [min, max] and > 0 / < 0 counts; the full rows, per world, with the
 sign-flip distributions, are in `held/report.md`.
 
+### Supplementary (deterministic completion after an infrastructure failure)
+
+**Not part of the result.** The frozen result above stands on five worlds; this is a sensitivity
+line only (the lead's decision, 2026-11-07). The failed run, F_CP on procedural 851, failed on
+the shared machine's full disk during another lane's build, before its bundle was written; the
+simulation is deterministic. It was re-run once, exactly and alone (nothing else was re-run), on
+a `git archive` of the frozen held source `b9170bef`, with the same shared native extension
+(SHA-256 `e724072d7888888ede86acccb8db745c219c445fd47644ec9abe8ed5493e865b`, verified), the
+runner's own `run_one` (the same command line, environment and extractor) and the same identity
+checks, into a separate output directory (disk free before: 12 GB). Its identity lines equal the
+held run's in every line (source, dirty 0 / 0, native, interpreter, runner `bd443414…`, screen
+module `ca65e38d…`, registry `a18c129d…` and content `a703a850…`, preregistration `f834f8ef…`)
+except the `chronicler` path, which names the archive's copy of the same source. The run: rc 0,
+activated (200 settled flow turns, index gap 5.0e-5; 1,762 protected region-turns kept 26.18
+cover), every outcome extracted, closure 1.5e-15 relative. Retained in
+`connected-world-screens-cw3/supplementary/` (`source.txt`, `metrics.jsonl`,
+`six_world_primaries.json`, the driver `run_supp.py`).
+
+Six-world primaries with it (sensitivity only; 851's values: water +0.0059, food shortfall
++0.0101, interaction −0.0066):
+
+| Primary (6 worlds) | Mean [min, max] | > 0 / < 0 | Sign-flip (of 64) | Frozen 5-world result |
+| --- | --- | --- | --- | --- |
+| `cw3_ds_water_flow` | −0.0016 [−0.0075, +0.0059] | 3 / 3 | 32 as extreme | −0.0031, 2 / 3, 8 of 32 |
+| `cw3_ds_food_flow` | +0.0076 [−0.0114, +0.0239] | 5 / 1 | 12 as extreme | +0.0071, 4 / 1, 10 of 32 |
+| `cw3_ds_water_interaction` | +0.0009 [−0.0191, +0.0427] | 2 / 4 | 60 as extreme | +0.0024, 2 / 3, 28 of 32 |
+
+The sixth world leaves the reading unchanged: no clear downstream water effect of protection under
+flow, a small rise in downstream food shortfall, no flow-specific interaction.
+
 ### What CW3 shows (and does not)
 
 On these six procedural worlds, funded upstream forest protection did not produce a clear
