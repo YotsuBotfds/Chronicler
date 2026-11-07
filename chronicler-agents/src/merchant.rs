@@ -1556,12 +1556,16 @@ pub fn merchant_mobility_phase_at(
     // tick's delivery tally (see `MarketTally`).
     let mut origin_tables: std::collections::HashMap<u16, PathTable> = std::collections::HashMap::new();
     let mut planners: Vec<usize> = Vec::new();
+    // A4 titled trade: a merchant carrying a titled shipment this turn holds a
+    // `trade` work reservation and does no native trade (none without one).
+    let carriers = crate::workshop_work::trade_holders(pool, turn);
     for slot in 0..cap {
         if !pool.is_alive(slot) || pool.trip_phase[slot] != TRIP_PHASE_IDLE { continue; }
         if pool.occupations[slot] != crate::agent::Occupation::Merchant as u8 { continue; }
         // A merchant that delivered this turn is still at the market; it
         // returns home before planning again.
         if pool.trip_home_region[slot] != crate::agent::TRIP_HOME_NONE { continue; }
+        if carriers.contains(&pool.ids[slot]) { continue; }
         planners.push(slot);
     }
     planners.sort_by_key(|&slot| (pool.regions[slot], pool.ids[slot]));
@@ -1971,6 +1975,34 @@ mod tests {
         assert_eq!((to_1, to_2), (2, 2));
         // The plans reserve four units of the origin's grain.
         assert_eq!(ledger.reserved[0][0], 4.0);
+    }
+
+    #[test]
+    fn test_titled_trade_carriers_are_never_planned_and_others_are_unchanged() {
+        use crate::workshop_work::{reserve, CATEGORY_REPAIR, CATEGORY_TRADE};
+        let run = |reserve_turn: Option<(u32, u8)>| {
+            let (mut pool, regions, graph) = herding_world(4);
+            if let Some((turn, category)) = reserve_turn {
+                let rows = [(pool.ids[0], 1.0f32), (pool.ids[2], 1.0f32)];
+                reserve(&mut pool, turn, category, &rows).unwrap();
+            }
+            let mut ledger = ShadowLedger::new(3);
+            let mut buf = DeliveryBuffer::new(3);
+            buf.physical_stock = true;
+            merchant_mobility_phase_at(&mut pool, &regions, &graph, &mut ledger, &[0; 32], 7, Some(&mut buf));
+            (pool.trip_phase.clone(), pool.trip_dest_region.clone(),
+             pool.trip_cargo_qty.iter().map(|v| v.to_bits()).collect::<Vec<u32>>(), ledger.reserved[0][0])
+        };
+        let plain = run(None);
+        // Trade reservations of another turn, or other work categories, change nothing.
+        assert_eq!(run(Some((6, CATEGORY_TRADE))), plain);
+        assert_eq!(run(Some((7, CATEGORY_REPAIR))), plain);
+        // This turn's carriers stay idle; the other two merchants plan as the tally lets them.
+        let (phase, _, qty, reserved) = run(Some((7, CATEGORY_TRADE)));
+        assert_eq!((phase[0], phase[2]), (TRIP_PHASE_IDLE, TRIP_PHASE_IDLE));
+        assert_eq!((phase[1], phase[3]), (TRIP_PHASE_LOADING, TRIP_PHASE_LOADING));
+        assert_eq!((qty[0], qty[2]), (0.0f32.to_bits(), 0.0f32.to_bits()));
+        assert_eq!(reserved, 2.0);
     }
 
     #[test]

@@ -49,6 +49,15 @@ No random draws; every order is by account identity. Native transfers go
 through ``AgentSimulator.transfer_wealth`` (append-only purposes; this seam
 verifies the extension names the purpose, or the native purpose it rides
 (``NATIVE_ALIASES``), at the code it uses).
+
+**Pairwise payments** (A4 titled trade): a bill whose payer is an agent and
+whose payee lines are agents, under a pairwise purpose
+(``PAIRWISE_PURPOSES``: ``cargo_purchase``, ``cargo_sale``), is settled by
+the native ``settle_pairs`` (no fee, no trip rule) through the one router
+``_native_pairs``. Before any move the payer's wealth must cover the whole
+bill and every payee must be alive (one fresh snapshot read); a payee's
+ceiling refusal never leaves the payer (``return_to_payer``, recorded as the
+line's residual); a payer row the native limits is an error (a stale read).
 """
 from __future__ import annotations
 
@@ -61,11 +70,14 @@ from pydantic import BaseModel, Field
 MILLI = 1000
 
 #: Native ``wealth_transfer::PURPOSES`` in declaration order (append only;
-#: never renumber). ``wares_purchase`` (7) was appended by A3.
+#: never renumber). ``wares_purchase`` (7) was appended by A3,
+#: ``cargo_purchase`` (8) and ``cargo_sale`` (9) by A4 (pairwise).
 NATIVE_PURPOSES: tuple[str, ...] = (
     "workshop_wage", "relocation_fare", "apprentice_stipend", "repair_wage", "remittance",
-    "food_purchase", "food_procurement", "wares_purchase",
+    "food_purchase", "food_procurement", "wares_purchase", "cargo_purchase", "cargo_sale",
 )
+#: Purposes an agent may pay agents for (``settle_pairs``; append only).
+PAIRWISE_PURPOSES: tuple[str, ...] = ("cargo_purchase", "cargo_sale")
 #: Purposes Python-only accounts use (treasury <-> firm cash, treasury <->
 #: relief fund); they never reach native code (append only). D1a appended
 #: ``relief_budget`` (treasury -> relief fund) and ``relief_refund`` (relief
@@ -109,11 +121,26 @@ class MoneyError(RuntimeError):
     """A payment the seam refuses to make or a settlement that does not close."""
 
 
+def _is_none(value) -> bool:
+    return value is None
+
+
+class _Backfilled(BaseModel):
+    """Exact pickle restoration bypasses defaults: fields added later (A4's
+    ``payer_region``) read their default when an older pickle lacks them."""
+
+    def __setstate__(self, state):
+        super().__setstate__(state)
+        for name, field in type(self).model_fields.items():
+            if name not in self.__dict__:
+                self.__dict__[name] = field.get_default(call_default_factory=True)
+
+
 # ---------------------------------------------------------------------------
 # Persisted book (owned by the calling package's state) and its flows
 # ---------------------------------------------------------------------------
 
-class MoneyFlow(BaseModel):
+class MoneyFlow(_Backfilled):
     """One applied line of a settled bill. ``requested`` = ``applied`` +
     ``residual``; ``residual_to`` is ``"payer"`` or ``"sink:<name>"`` when a
     residual exists. Treasury sides record the whole units moved and the
@@ -134,9 +161,12 @@ class MoneyFlow(BaseModel):
     treasury_units: int = 0
     carry_before: int | None = None
     carry_after: int | None = None
+    #: A pairwise payment (A4): the paying agent's region (``region`` is the
+    #: payee's); omitted otherwise, so earlier books keep their bytes.
+    payer_region: int | None = Field(default=None, exclude_if=_is_none)
 
 
-class FlowTotal(BaseModel):
+class FlowTotal(_Backfilled):
     """The exact sum of one settled turn's applied flows of one purpose
     between two account kinds in one region (never truncated, unlike the
     flow list): what the ledger reads. A treasury side keeps its civilization
@@ -155,9 +185,11 @@ class FlowTotal(BaseModel):
     count: int = 0
     treasury_units: int = 0
     carry_change: int = 0
+    #: A pairwise payment's payer region (A4; ``region`` is the payee's).
+    payer_region: int | None = Field(default=None, exclude_if=_is_none)
 
 
-class MoneyBook(BaseModel):
+class MoneyBook(_Backfilled):
     """What one package's payments through the seam must remember."""
 
     #: Settled keys of the latest settled turn: ``[turn, purpose, batch]``.
@@ -203,6 +235,8 @@ class Bill:
     payee: Account | None = None
     residual: str = "return_to_payer"
     regions: tuple[int | None, ...] | None = None
+    #: A pairwise bill (an agent paying agents): the payer's region.
+    payer_region: int | None = None
 
 
 @dataclass(frozen=True)
@@ -289,7 +323,19 @@ def _validate_shape(bill: Bill) -> None:
     if bill.residual != "return_to_payer":
         if not bill.residual.startswith("sink:") or bill.residual[5:] not in SINKS:
             raise MoneyError(f"undeclared residual policy {bill.residual!r}")
-    if bill.payer is not None:
+    pairwise = bill.payer is not None and bill.payer.kind == "agent_wealth"
+    if pairwise:
+        # A4: an agent pays agents only under a pairwise purpose, by the
+        # native settle_pairs, returning ceiling refusals to itself.
+        if bill.purpose not in PAIRWISE_PURPOSES:
+            raise MoneyError(f"purpose {bill.purpose!r} is not a pairwise purpose")
+        if any(a.kind != "agent_wealth" for a, _ in bill.lines):
+            raise MoneyError("a pairwise bill pays agents")
+        if bill.residual != "return_to_payer":
+            raise MoneyError("a pairwise bill returns refused credits to its payer")
+    elif bill.purpose in PAIRWISE_PURPOSES:
+        raise MoneyError(f"purpose {bill.purpose!r} is paid only by an agent to agents")
+    elif bill.payer is not None:
         if bill.payer.kind in ("agent_wealth", "sink"):
             raise MoneyError("an agent or a sink pays only through a collection line")
         if bill.payer.kind == "civ_treasury" and any(a.kind == "agent_wealth" for a, _ in bill.lines) \
@@ -317,7 +363,7 @@ def _validate_shape(bill: Bill) -> None:
     if bill.payer is not None and bill.payer.kind == "civ_treasury" and any(a % MILLI for _, a in bill.lines) \
             and not _treasury_to_agents(bill):
         raise MoneyError("a treasury pays whole units")
-    if any(a.kind == "agent_wealth" for a, _ in bill.lines):
+    if pairwise or any(a.kind == "agent_wealth" for a, _ in bill.lines):
         if PURPOSES[bill.purpose] is None:
             raise MoneyError(f"purpose {bill.purpose!r} has no native code and cannot move agent wealth")
         from chronicler.wealth_accounting_state import MONEY_PURPOSE_CHANNELS
@@ -369,6 +415,17 @@ def quote(world, bill: Bill, *, turn: int, book: MoneyBook, acc=None, sim=None,
             raise MoneyError(f"unknown civilization {account.ident}")
         if account.kind in _PURSES:
             _purse(account, firms, funds)
+    if bill.payer is not None and bill.payer.kind == "agent_wealth":
+        # Pairwise: the payer covers the whole bill and every payee is alive,
+        # from one fresh snapshot read.
+        payer = int(bill.payer.ident)
+        holdings = _wealth(sim, [payer] + [int(a.ident) for a, _ in bill.lines])
+        if payer not in holdings:
+            return Quote(False, "payer_absent", total, None)
+        if any(int(a.ident) not in holdings for a, _ in bill.lines):
+            return Quote(False, "payee_absent", total, holdings[payer])
+        held = holdings[payer]
+        return Quote(held >= total, None if held >= total else "payer_short", total, held)
     if bill.payer is not None:
         if bill.payer.kind == "civ_treasury":
             available = _civ_budget(world, int(bill.payer.ident), acc) * MILLI
@@ -394,6 +451,16 @@ def _native_transfer(sim, turn: int, purpose: str, batch: int, rows):
     (``wealth_accounting_state.WEALTH_ROUTERS``); ``pay`` is its only caller."""
     code = _native_code(sim, purpose)
     return sim.transfer_wealth(turn, code, batch, rows)
+
+
+def _native_pairs(sim, turn: int, purpose: str, batch: int, rows):
+    """The seam's one pairwise native call (A4): ``(payer, payee, amount)``
+    rows for ``purpose`` and ``batch`` through ``settle_pairs``. A declared
+    router of the ledger's payer registry; ``pay`` is its only caller."""
+    code = _native_code(sim, purpose)
+    if not callable(getattr(sim, "settle_pairs", None)):
+        raise MoneyError("pairwise payments need a native build with settle_pairs (rebuild chronicler-agents)")
+    return sim.settle_pairs(turn, code, batch, rows)
 
 
 def _native_code(sim, purpose: str) -> int:
@@ -469,13 +536,15 @@ def _record(book: MoneyBook, turn: int, flows: list[MoneyFlow]) -> None:
     def civ(account):
         return int(account[1]) if account[0] == "civ_treasury" else None
 
-    index = {(t.purpose, t.payer_kind, t.payer_civ, t.payee_kind, t.payee_civ, t.region): t for t in book.totals}
+    index = {(t.purpose, t.payer_kind, t.payer_civ, t.payee_kind, t.payee_civ, t.region, t.payer_region): t
+             for t in book.totals}
     for f in flows:
-        key = (f.purpose, f.payer[0], civ(f.payer), f.payee[0], civ(f.payee), f.region)
+        key = (f.purpose, f.payer[0], civ(f.payer), f.payee[0], civ(f.payee), f.region, f.payer_region)
         total = index.get(key)
         if total is None:
             total = index[key] = FlowTotal(purpose=f.purpose, payer_kind=f.payer[0], payee_kind=f.payee[0],
-                                           region=f.region, payer_civ=civ(f.payer), payee_civ=civ(f.payee))
+                                           region=f.region, payer_civ=civ(f.payer), payee_civ=civ(f.payee),
+                                           payer_region=f.payer_region)
             book.totals.append(total)
         total.applied += f.applied
         total.residual += f.residual
@@ -498,7 +567,28 @@ def pay(world, bill: Bill, *, turn: int, book: MoneyBook, acc=None, sim=None,
     regions = bill.regions or (None,) * len(bill.lines)
     order = sorted(range(len(bill.lines)), key=lambda i: bill.lines[i][0].key())
     applied_total = residual_total = sunk = units_total = 0
-    if bill.payer is not None:
+    if bill.payer is not None and bill.payer.kind == "agent_wealth":
+        payer = int(bill.payer.ident)
+        rows = [(payer, int(bill.lines[i][0].ident), bill.lines[i][1]) for i in order]
+        got = _native_pairs(sim, turn, bill.purpose, bill.batch, rows)
+        if len(got) != len(rows):
+            raise MoneyError("native pairwise rows do not match the bill")
+        for i, row, (gp, ge, requested, sent, credited, refunded, status) in zip(order, rows, got, strict=True):
+            if (int(gp), int(ge), int(requested)) != row:
+                raise MoneyError("native pairwise rows do not match the bill")
+            sent, credited, refunded = int(sent), int(credited), int(refunded)
+            if int(status) == 2 or sent != int(requested):
+                raise MoneyError("a pairwise payer row was not paid in full (stale wealth read)")
+            if credited + refunded != sent or min(credited, refunded) < 0:
+                raise MoneyError("native pairwise rows do not close")
+            applied_total += credited
+            residual_total += refunded
+            flows.append(MoneyFlow(turn=turn, phase=bill.phase, purpose=bill.purpose, batch=bill.batch,
+                                   payer=("agent_wealth", payer), payee=("agent_wealth", row[1]),
+                                   region=regions[i], requested=row[2], applied=credited, residual=refunded,
+                                   residual_to="payer" if refunded else None,
+                                   status="limited" if refunded else "applied", payer_region=bill.payer_region))
+    elif bill.payer is not None:
         payer = bill.payer
         native = {}
         rows = [(int(a.ident), amount) for a, amount in bill.lines if a.kind == "agent_wealth"]
@@ -591,9 +681,9 @@ def pay(world, bill: Bill, *, turn: int, book: MoneyBook, acc=None, sim=None,
 # The register the A1 ledger reads
 # ---------------------------------------------------------------------------
 
-#: Packages whose persisted state keeps a :class:`MoneyBook` (``state.book``)
-#: (append only; D1a appended ``reform_services``).
-MONEY_BOOKS: tuple[str, ...] = ("workshop_economics", "epidemic_care", "reform_services")
+#: Packages whose persisted state keeps a :class:`MoneyBook` (``state.book``;
+#: append only; D1a appended ``reform_services``).
+MONEY_BOOKS: tuple[str, ...] = ("workshop_economics", "epidemic_care", "titled_trade", "reform_services")
 
 
 def flows_for_turn(world, turn: int) -> list[MoneyFlow] | None:
@@ -644,8 +734,9 @@ def check_book(book: MoneyBook) -> None:
         raise MoneyError("the turn's flow totals do not count every flow")
     if not book.flows_dropped:
         for t in book.totals:
-            applied = sum(f.applied for f in book.flows if (f.purpose, f.payer[0], f.payee[0], f.region)
-                          == (t.purpose, t.payer_kind, t.payee_kind, t.region)
+            applied = sum(f.applied for f in book.flows if (f.purpose, f.payer[0], f.payee[0], f.region,
+                                                             f.payer_region)
+                          == (t.purpose, t.payer_kind, t.payee_kind, t.region, t.payer_region)
                           and (t.payer_civ is None or f.payer[1] == t.payer_civ)
                           and (t.payee_civ is None or f.payee[1] == t.payee_civ))
             if applied != t.applied:

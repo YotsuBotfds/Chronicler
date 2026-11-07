@@ -14,10 +14,11 @@ connected-world program's ``reform_services`` (D1a, declared before
 ``household_retail`` so its Phase 10 hook buys before retail closes the turn's
 frame), ``watershed`` (B1), ``workshop_economics`` (A3,
 inserted before the ledger; it has no hooks of its own: the workshop and
-payroll seams call it), ``guild_leagues`` (D1b, cross-border guild leagues, after C2
-and before D2's observer), ``epidemic_care`` (C2, named, paid epidemic carers
-funded by L9 envelopes; inserted before D2 and the ledger so its Phase 2 work
-comes after every other work consumer), ``attribution_records`` (D2,
+payroll seams call it), ``titled_trade`` (A4, inserted before the ledger; its
+Phase 10 runs inside retail's), ``epidemic_care`` (C2, named, paid epidemic carers
+funded by L9 envelopes; inserted before D2 and the ledger, after titled trade, so its
+Phase 2 work comes after every other work consumer), ``guild_leagues`` (D1b,
+cross-border guild leagues, after C2 and before D2's observer), ``attribution_records`` (D2,
 observation-only records of actor, victim and cause, after every acting package) and
 ``wealth_accounting`` (A1, an observation-only ledger, kept last so its hooks
 run after every payer). Each
@@ -51,6 +52,7 @@ from chronicler.remittances_state import RemittancesState
 from chronicler.repair_projects_state import RepairProjectsState
 from chronicler.timber_stock_state import TimberStockState
 from chronicler.timber_supply_state import TimberSupplyState
+from chronicler.titled_trade_state import TitledTradeState
 from chronicler.veteran_reintegration_state import VeteranReintegrationState
 from chronicler.watershed_state import WatershedState
 from chronicler.wealth_accounting_state import WealthAccountingState
@@ -66,7 +68,7 @@ LIVELIHOODS_SWITCHES: tuple[str, ...] = ("workshops", "food_allocation", "timber
                                          "remittances", "clearing_protection",
                                          "operating_wear", "timber_supply",
                                          "recovery_crews", "maintenance_obligation", "reform_services",
-                                         "household_retail", "watershed", "workshop_economics",
+                                         "household_retail", "watershed", "workshop_economics", "titled_trade",
                                          "epidemic_care", "guild_leagues", "attribution_records",
                                          "wealth_accounting")
 
@@ -99,6 +101,7 @@ class LivelihoodsState(BaseModel):
     household_retail: HouseholdRetailState | None = Field(default=None, exclude_if=_is_none)
     watershed: WatershedState | None = Field(default=None, exclude_if=_is_none)
     workshop_economics: WorkshopEconomicsState | None = Field(default=None, exclude_if=_is_none)
+    titled_trade: TitledTradeState | None = Field(default=None, exclude_if=_is_none)
     epidemic_care: EpidemicCareState | None = Field(default=None, exclude_if=_is_none)
     guild_leagues: GuildLeagueState | None = Field(default=None, exclude_if=_is_none)
     attribution_records: AttributionRecordsState | None = Field(default=None, exclude_if=_is_none)

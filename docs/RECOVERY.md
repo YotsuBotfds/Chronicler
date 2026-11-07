@@ -1,6 +1,6 @@
 # Source, recovery and archive index
 
-Updated 2026-11-06 after PRs #73, #74, #76, #78, #80, #81, #83, #84, #85, #86, #87, #88, #89 and #90. This is the starting map for future agents;
+Updated 2026-11-06 after PRs #73, #74, #76, #78, #80, #81, #83, #84, #85, #86, #87, #88, #89, #90 and #91. This is the starting map for future agents;
 dated reports keep their original source, platform and qualification limits.
 
 ## Current source and evidence
@@ -122,6 +122,15 @@ Use fetched `main` for new work.
   - Premerge Tests run 42332351997 on that head passed all nine jobs (the first run, 42331445447 at
     `706e7af4`, failed native module shard 0 on a test that assumed the extension is absent).
   - [Main Tests run 42333485333](https://github.com/YotsuBotfds/Chronicler/actions/runs/42333485333)
+    tested the merge SHA on `push`, attempt 1: success.
+
+- [PR #91](https://github.com/YotsuBotfds/Chronicler/pull/91) (connected-world C2: bounded epidemic care
+  capacity, L9-funded carers, and the CW5c screen) merged on 2026-11-07 at
+  `d8a5277bf813bd6efc86c914f2e90c308c6c41d1`.
+  - Its tree, `e9bf2f7c`, equals the tree of the reviewed head `3e126151` (code approved at `dbbd64e2`;
+    the later code delta confirmed by the independent results check; results text and docs after).
+  - Premerge Tests run 42346858851 on that head passed all nine jobs.
+  - [Main Tests run 42347765865](https://github.com/YotsuBotfds/Chronicler/actions/runs/42347765865)
     tested the merge SHA on `push`, attempt 1: success.
 
 Every livelihoods, recovery-skills and productive-recovery switch is off by default. These merges do not complete the 200-seed or
