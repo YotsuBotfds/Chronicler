@@ -124,7 +124,9 @@ CPU seconds, before freezing the suite budget. The proposed paired-suite ceiling
 is 2,700 process CPU seconds (0.75 core-hours), split into 1,350 per source and
 subject to that pilot; stop and
 record failures rather than raising a limit. This is separate from the offline
-110-second chunk limit, which remains unchanged. Schedule one profiling process
+110-second chunk limit, which remains unchanged. Each child also receives a kernel
+process-CPU ceiling equal to the remaining suite budget rounded up to a whole
+second; its plan records the rounding. Schedule one profiling process
 at a time after the lead releases the native-build/storage-benchmark slot.
 
 The tool records complete per-turn and stage CSVs, CPU and wall time separately,
@@ -141,7 +143,7 @@ only `metadata.generated_at`. Exact checkpoint exports bind each artifact and
 compare native bytes, decoded world/history and every persisted livelihood
 component, including JSON-excluded X1 person rows. Source identities in the
 envelopes legitimately differ; no mismatched-source checkpoint is restored.
-The [tool controls](measurement-tools-controls.json) pass 14 synthetic positive
+The [tool controls](measurement-tools-controls.json) pass 15 synthetic positive
 and negative checks, including unknown-to-zero, identity, signed-zero, private
 X1 state, artifact binding, flags, native identity and truncated CSV rejection.
 These controls are not simulation evidence or a qualification claim.

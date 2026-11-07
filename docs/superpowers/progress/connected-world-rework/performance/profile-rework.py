@@ -35,6 +35,13 @@ def option(flags, key):
     return values[-1] if values else None
 
 
+def cpu_limit_seconds(remaining):
+    """A kernel process-CPU ceiling, rounded up to RLIMIT_CPU's seconds."""
+    if not math.isfinite(remaining) or remaining <= 0:
+        raise ValueError("remaining CPU budget must be finite and positive")
+    return math.ceil(remaining)
+
+
 def core(source, *, expected_case=None):
     path = source / "scripts/cw_program_profile.py"
     spec = importlib.util.spec_from_file_location("cwr_profile_core", path)
@@ -94,6 +101,10 @@ def core(source, *, expected_case=None):
 
 def child(plan_path):
     plan = json.loads(Path(plan_path).read_text())
+    limit = cpu_limit_seconds(plan["remaining_cpu_budget_seconds"])
+    if limit != plan["kernel_cpu_limit_seconds"]:
+        raise RuntimeError("CPU limit differs from the frozen measurement plan")
+    resource.setrlimit(resource.RLIMIT_CPU, (limit, limit))
     if sha(__file__) != plan["wrapper_sha256"]:
         raise RuntimeError("measurement wrapper changed after planning")
     source, out = Path(plan["source"]), Path(plan["out"])
@@ -271,7 +282,9 @@ def run(args):
         directory.mkdir()
         plan = {"source": str(source), "source_snapshot": frozen, "native_sha256": args.native_sha256,
                 "out": str(directory), "case": case, "rayon_threads": 1,
-                "tool_sha256": core_sha, "wrapper_sha256": wrapper_sha}
+                "tool_sha256": core_sha, "wrapper_sha256": wrapper_sha,
+                "remaining_cpu_budget_seconds": args.cpu_budget_seconds - charged,
+                "kernel_cpu_limit_seconds": cpu_limit_seconds(args.cpu_budget_seconds - charged)}
         plan_path = directory / "plan.json"
         plan_path.write_text(json.dumps(plan, indent=2) + "\n")
         command = [args.python, str(Path(__file__).resolve()), "child", str(plan_path)]
