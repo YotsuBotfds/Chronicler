@@ -1,0 +1,22 @@
+{
+  "status": "PREPARED_SELFTEST_PASS",
+  "reviewed_contract_source": "8792be88dd36ba4d7c22e480de6a19dd64ea1300",
+  "command": [
+    "/workspace/cw-b3-offline/bin/python",
+    "docs/superpowers/audits/connected-world/rework-cwr1-independent/selftest.py"
+  ],
+  "python": "3.13.16",
+  "exit_code": 0,
+  "test_methods": 8,
+  "mutation_cases": 19,
+  "output": "test_complete_pilot_positive_free_food_and_d3_record_only_are_valid (__main__.CheckerTests.test_complete_pilot_positive_free_food_and_d3_record_only_are_valid) ... ok\ntest_descriptive_signs_and_analysis_rng (__main__.CheckerTests.test_descriptive_signs_and_analysis_rng) ... ok\ntest_frozen_held_protocol_and_registry_source_hashes (__main__.CheckerTests.test_frozen_held_protocol_and_registry_source_hashes) ... ok\ntest_legitimate_unknown_access_is_retained_without_dropping_world (__main__.CheckerTests.test_legitimate_unknown_access_is_retained_without_dropping_world) ... ok\ntest_mutations_fail_and_withhold_incomplete_world_summaries (__main__.CheckerTests.test_mutations_fail_and_withhold_incomplete_world_summaries) ... ok\ntest_primary_report_rendering_is_independently_checked (__main__.CheckerTests.test_primary_report_rendering_is_independently_checked) ... ok\ntest_source_identity_failure_precedes_effect_summary (__main__.CheckerTests.test_source_identity_failure_precedes_effect_summary) ... ok\ntest_zero_infectious_denominator_remains_null (__main__.CheckerTests.test_zero_infectious_denominator_remains_null) ... ok\n\n----------------------------------------------------------------------\nRan 8 tests in 0.126s\n\nOK\n",
+  "files": {
+    "check.py": "ec86e8c0933a0c27727e587ff2080691bf011eafd64bbd032d27769f07ef2715",
+    "selftest.py": "a0f22db6b67f98b948a8f7146f01fcec80027c128f728c097f8c53ab28e30664",
+    "README.md": "75bfe62f01a207879ececaa82d4a687eb7e15961e3990db262f2028c538010f5"
+  },
+  "evaluated_actual_pilot_or_held_metrics": false,
+  "simulation_runs": 0,
+  "held_seeds_spent": 0,
+  "source_native_imports": false
+}
