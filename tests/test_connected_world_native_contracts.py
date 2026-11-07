@@ -231,3 +231,107 @@ def test_service_economy_consumes_only_civilians_and_health_uses_civilian_farmer
     sim.finish_health_work(0, 0.0)
     assert sim.cancel_enlisted_service() is True
     bridge.close()
+
+
+def test_integrated_food_title_uses_final_native_labor_input_after_late_care(tmp_path, monkeypatch):
+    """Development procedural world: actual care, no mocked work/outcomes.
+
+    This reproduces the first integration failure at turn 11. The spies copy
+    the final native input and full named plans, then call every real authority.
+    A passing clock-only run without care activation cannot satisfy this test.
+    """
+    from pathlib import Path
+    import chronicler
+    from chronicler import household_retail as HR
+    from chronicler.epidemic_care import farm_time as care_farm_time
+    from chronicler.public_health import farm_time as guard_farm_time
+    from chronicler.main import _build_parser, execute_run
+    monkeypatch.syspath_prepend(str(Path(chronicler.__file__).resolve().parents[2] / "scripts"))
+    import cw_integrated_screen as CW
+    final, observations = {}, []
+    finalize, check = HR.finalize_phase2_input, HR.check_farm_labour
+
+    def observe_final(world, region_input):
+        final[world.turn] = region_input.column("farm_labor_factor").to_pylist()
+        finalize(world, region_input)
+
+    def observe_check(world, p2, economy_result, removed, granary):
+        # The independent copy is the exact float32 input fed to tick_economy,
+        # after care/guards have lowered it, not a reconstructed average.
+        assert p2.factor == {rid: float(final[world.turn][rid]) for rid in p2.pilots}
+        care = care_farm_time(world, world.turn)
+        guard = guard_farm_time(world, world.turn)
+        for plan in (care, guard):
+            for aid, amount in plan.items():
+                if any(aid == person for rows in p2.work.values() for person, _, _ in rows):
+                    assert removed[aid] >= amount - 1e-8
+        observations.append((world.turn, sum(care.values()), sum(guard.values())))
+        check(world, p2, economy_result, removed, granary)
+
+    monkeypatch.setattr(HR, "finalize_phase2_input", observe_final)
+    monkeypatch.setattr(HR, "check_farm_labour", observe_check)
+    args = _build_parser().parse_args([*CW.BASE, *CW.ARMS["FULL"][0],
+        "--worldgen", "procedural", "--regions", "32", "--civs", "10", "--seed", "7", "--turns", "16",
+        "--output", str(tmp_path / "chronicle.md"), "--state", str(tmp_path / "state.json")])
+    execute_run(args)
+    assert len(observations) == 16
+    assert sum(care for _, care, _ in observations) > 0, "this regression must exercise real late care work"
+
+
+@pytest.mark.parametrize("urban_service", [False, True])
+def test_service_rebases_urban_farm_average_before_named_work_removal(urban_service):
+    """Constructed mixed rural/urban census, checked against native output."""
+    import pyarrow as pa
+    from chronicler.agent_bridge import build_signals
+    from chronicler.cities import URBAN_FARM_LABOR
+    from chronicler.cities_state import City, CityState
+    from chronicler.economy import build_economy_region_input_batch, build_economy_trade_route_batch
+    from chronicler.livelihoods_state import LivelihoodsState
+    from chronicler.recovery_crews import farm_labour, remove_farm_time
+    from chronicler.war_requisition import prepare_service_economy
+    from chronicler.war_requisition_state import WarRequisitionState
+    from tests.war_fixtures import place_army
+    world, bridge, _, _, _ = _service_sim()
+    sim = bridge._sim
+    # One actual spatial cell becomes urban during the ordinary native tick.
+    sim.set_settlement_footprints(pa.record_batch({
+        "region_id": pa.array([0], type=pa.uint16()), "settlement_id": pa.array([10], type=pa.uint16()),
+        "cell_x": pa.array([0], type=pa.uint8()), "cell_y": pa.array([2], type=pa.uint8())}))
+    sim.tick(0, build_signals(world), 1.0)
+    world.turn = 1
+    snapshot = sim.get_snapshot()
+    farmers = [p for p in pa.record_batch(snapshot).to_pylist() if p["region"] == 0 and p["occupation"] == 0]
+    assert any(p["settlement_id"] == 10 for p in farmers) and any(p["settlement_id"] == 0 for p in farmers)
+    enlisted = next(p["id"] for p in farmers if (p["settlement_id"] == 10) == urban_service and p["age"] >= 20)
+    world.livelihoods = LivelihoodsState(war_requisition=WarRequisitionState())
+    world.cities = CityState(cities=[City(settlement_id=10, region=0, name="Constructed quarter",
+                                          founded_turn=0, founder=0, rank=2)])
+    place_army(world, world.regions[0].controller, world.regions[0].name, 1, "constructed",
+               roster=[(enlisted, 0)])
+    world._war_roster_sim = id(sim)
+    batch = build_economy_region_input_batch(world)
+    for name in batch.schema.names:
+        values = None
+        if name.startswith("resource_type_"): values = [255] * len(world.regions)
+        elif name.startswith(("farm_labor_", "slot_labor_")): values = [0.0] * len(world.regions)
+        elif name == "subsistence_yield": values = [1.0] * len(world.regions)
+        elif name == "stockpile_grain": values = [1000.0] * len(world.regions)
+        if values is not None:
+            index = batch.schema.get_field_index(name)
+            batch = batch.set_column(index, name, pa.array(values, type=batch.schema.field(index).type))
+    batch = prepare_service_economy(world, batch, bridge, snapshot, None)
+    civilian = [p for p in farmers if p["id"] != enlisted]
+    urban_share = URBAN_FARM_LABOR[2]
+    available = sum(urban_share if p["settlement_id"] == 10 else 1.0 for p in civilian)
+    assert farm_labour(world, snapshot)[0] == len(civilian)
+    factor = batch.column("farm_labor_factor")[0].as_py()
+    assert factor * len(civilian) == pytest.approx(available)
+    # A quarter-turn named job must reduce exactly a quarter-turn of native
+    # output, regardless of whether the excluded farmer lived in the city.
+    batch = remove_farm_time(world, batch, snapshot, {0: .25}, sim=sim)
+    routes = build_economy_trade_route_batch(world, active_trade_routes=[])
+    result = pa.record_batch(sim.tick_economy(batch, routes, 0, False, 1.0)[0]).to_pylist()[0]
+    assert result["food_produced"] == pytest.approx(available - .25)
+    assert result["forage_output"] == pytest.approx(available - .25)
+    assert sim.cancel_enlisted_service() is True
+    bridge.close()

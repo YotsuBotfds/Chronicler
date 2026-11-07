@@ -167,9 +167,54 @@ iteration used a 16-year-old health worker (native adulthood is 20) and a dorman
 first yield slot; its expected-positive checks failed until these fixture
 assumptions were corrected. Production source was unchanged.
 
-All 13 tests in the native contract module passed in 4.14 seconds, using root
-Python source at `c3fe2b6c` plus the lead's contemporaneous Python-only integration
-edits and the unchanged reviewed extension SHA256
+All 13 tests in the native contract module passed in 4.14 seconds, using the
+lane Python source and the unchanged reviewed extension SHA256
 `59f536b8f4a6c2bc82c51eeaec55f3aff6b0a1c5c8f1a324049ad15b42c51617`.
 These diagnostics do not replace the complete integrated lifecycle/resume or
 held evaluation gates.
+
+A later integrated-test setup caught the checkout's pytest `pythonpath = ["src"]`
+overriding `PYTHONPATH`. The direct native checks above remained valid, but did
+not exercise the lead's newer Python service hooks. Tests against the lead must
+pass `-o pythonpath=/workspace/Chronicler/src` as well as the intended environment.
+The missing new care helper failed import before any simulation; no held seed
+was used. Integrated labor evidence below records the corrected invocation.
+
+The corrected integrated invocation passed all **16 native contract tests in
+5.76 seconds** against the lead's actual Python import path, with the unchanged
+reviewed extension. In addition to the six direct service cases, this includes:
+
+- A 16-turn, 32-region, ten-civilization procedural development world (seed 7)
+  with CW6's FULL flags. It copies the actual final float32 economy input after
+  every preparation hook, verifies retail stores exactly those operands, calls
+  the real farm/title conservation authority every turn, and requires positive
+  natural C2 farm removal. Outcome selection and labor are not mocked.
+- Two constructed mixed urban/rural native pools. An actual spatial cell is
+  assigned to a rank-2 city through ordinary native settlement assignment, then
+  a real farmer in either that cell or the countryside enters the census. Native
+  linear-forage output must equal the sum of civilian urban/rural farm shares
+  minus an actual quarter-turn named work removal. Both cases passed.
+
+The independent review found and the lead corrected an intermediate retail
+factor captured before late C2/guard preparation, and a new-pool rebind that
+could change rural health exclusions after preparation. The final factor is
+now copied after all preparation hooks. Changed rosters trigger the same native
+health preparation again before any livelihood work consumer. IC named work
+already settles through RS2's explicit callback before retail; no second
+allocation authority or settlement reorder was required. The initially raised
+IC-order concern was withdrawn after following that callback in actual source.
+
+Reproduce the integrated tests while this lane's test file is still separate:
+
+```sh
+PYTHONPATH=/workspace/Chronicler/src RAYON_NUM_THREADS=2 \
+  /workspace/cw-evidence-native/bin/python -m pytest -q \
+  -o pythonpath=/workspace/Chronicler/src \
+  tests/test_connected_world_native_contracts.py
+```
+
+Test source is the lane checkout; production Python is the lead's integrated
+checkout with its reviewed labor-boundary edits, not this lane's older Python.
+Once integrated into one checkout, its normal `pythonpath = ["src"]` is correct.
+These cases do not claim naturally activated named IC repairs or guards, and
+remain distinct from the planned whole-program lifecycle/resume and held gates.
