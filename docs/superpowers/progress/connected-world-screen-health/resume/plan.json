@@ -1,0 +1,219 @@
+{
+  "source_identity": [
+    "source 2dd4af5d544583e22e8416a60bb5131d1bd80674",
+    "dirty 0 tracked files",
+    "dirty-code 0 tracked code files",
+    "chronicler /workspace/cw-health/src/chronicler/__init__.py",
+    "native /workspace/cw-evidence-native/lib/python3.13/site-packages/chronicler_agents/chronicler_agents.cpython-313-x86_64-linux-gnu.so 59f536b8f4a6c2bc82c51eeaec55f3aff6b0a1c5c8f1a324049ad15b42c51617",
+    "interpreter /workspace/cw-evidence-native/bin/python",
+    "runner 5ded5f3548bb6403b1df25e9d31e5c5ce638631aa5fd1b4fabdcfb8510b5cadb scripts/screen_runner.py",
+    "screens cfa5d1116ee49716017bf5119c8e26dc704ea6d98f645c48da875b2e537a7e32 scripts/cw_health_screen.py",
+    "registry e67ce34a9045a9d4b2acf72327abe7605a599859cef981cd00e4733fef8c8b8e scripts/seed_registry.json",
+    "registry-content 511f5d7e80053650e6de7e54f5c9d1b1fc0e79c4f2986e8198bb1089ad29e81a (cohorts and seeds)"
+  ],
+  "bundle": "/workspace/evidence/health/pilot-v2/runs/PA-p19/chronicle_bundle.json",
+  "bundle_sha256": "76eb18ab7f22adc150005890997e5d71fe14a7aafa0960a07af470bcdc979fc0",
+  "driver_sha256": "ab2f083c754657f1902899b2b1fc67db73c0866966a480c1877e7d68b1d30a89",
+  "categories": {
+    "delayed_outbreak_report_pending": 6,
+    "supplied_paid_care_with_prepaid_carry": 7,
+    "paid_staffed_guard": 23,
+    "guard_prepaid_carry_reused": 24
+  },
+  "ks": [
+    6,
+    7,
+    23,
+    24
+  ],
+  "missing": [],
+  "checkpoint_states": {
+    "6": {
+      "source_turn": 5,
+      "active": [
+        "delayed_outbreak_report_pending"
+      ],
+      "food_milli": 0,
+      "care_paid_milli": 0,
+      "staffed_guards": 0,
+      "funding": []
+    },
+    "7": {
+      "source_turn": 6,
+      "active": [
+        "supplied_paid_care_with_prepaid_carry",
+        "delayed_outbreak_report_pending"
+      ],
+      "food_milli": 361,
+      "care_paid_milli": 72,
+      "staffed_guards": 0,
+      "funding": [
+        {
+          "turn": 6,
+          "civ": 7,
+          "envelope_milli": 2000,
+          "care_paid_milli": 72,
+          "care_cash_milli": 1000,
+          "care_carry_before": 0,
+          "care_carry_after": 928,
+          "supply_cash_milli": 1000,
+          "guard_cash_milli": 0,
+          "guard_paid_milli": 0,
+          "guard_carry_before": 0,
+          "guard_carry_after": 0
+        }
+      ]
+    },
+    "23": {
+      "source_turn": 22,
+      "active": [
+        "paid_staffed_guard",
+        "delayed_outbreak_report_pending"
+      ],
+      "food_milli": 0,
+      "care_paid_milli": 2605,
+      "staffed_guards": 1,
+      "funding": [
+        {
+          "turn": 22,
+          "civ": 0,
+          "envelope_milli": 2000,
+          "care_paid_milli": 496,
+          "care_cash_milli": 0,
+          "care_carry_before": 696,
+          "care_carry_after": 200,
+          "supply_cash_milli": 0,
+          "guard_cash_milli": 0,
+          "guard_paid_milli": 0,
+          "guard_carry_before": 0,
+          "guard_carry_after": 0
+        },
+        {
+          "turn": 22,
+          "civ": 2,
+          "envelope_milli": 2000,
+          "care_paid_milli": 133,
+          "care_cash_milli": 0,
+          "care_carry_before": 348,
+          "care_carry_after": 215,
+          "supply_cash_milli": 0,
+          "guard_cash_milli": 0,
+          "guard_paid_milli": 0,
+          "guard_carry_before": 0,
+          "guard_carry_after": 0
+        },
+        {
+          "turn": 22,
+          "civ": 3,
+          "envelope_milli": 5000,
+          "care_paid_milli": 784,
+          "care_cash_milli": 1000,
+          "care_carry_before": 0,
+          "care_carry_after": 216,
+          "supply_cash_milli": 0,
+          "guard_cash_milli": 0,
+          "guard_paid_milli": 0,
+          "guard_carry_before": 0,
+          "guard_carry_after": 0
+        },
+        {
+          "turn": 22,
+          "civ": 4,
+          "envelope_milli": 4000,
+          "care_paid_milli": 568,
+          "care_cash_milli": 0,
+          "care_carry_before": 921,
+          "care_carry_after": 353,
+          "supply_cash_milli": 0,
+          "guard_cash_milli": 0,
+          "guard_paid_milli": 0,
+          "guard_carry_before": 0,
+          "guard_carry_after": 0
+        },
+        {
+          "turn": 22,
+          "civ": 9,
+          "envelope_milli": 3000,
+          "care_paid_milli": 624,
+          "care_cash_milli": 1000,
+          "care_carry_before": 240,
+          "care_carry_after": 616,
+          "supply_cash_milli": 0,
+          "guard_cash_milli": 1000,
+          "guard_paid_milli": 500,
+          "guard_carry_before": 0,
+          "guard_carry_after": 500
+        }
+      ]
+    },
+    "24": {
+      "source_turn": 23,
+      "active": [
+        "paid_staffed_guard",
+        "guard_prepaid_carry_reused",
+        "delayed_outbreak_report_pending"
+      ],
+      "food_milli": 0,
+      "care_paid_milli": 3768,
+      "staffed_guards": 2,
+      "funding": [
+        {
+          "turn": 23,
+          "civ": 0,
+          "envelope_milli": 3000,
+          "care_paid_milli": 602,
+          "care_cash_milli": 1000,
+          "care_carry_before": 200,
+          "care_carry_after": 598,
+          "supply_cash_milli": 0,
+          "guard_cash_milli": 0,
+          "guard_paid_milli": 0,
+          "guard_carry_before": 0,
+          "guard_carry_after": 0
+        },
+        {
+          "turn": 23,
+          "civ": 3,
+          "envelope_milli": 10000,
+          "care_paid_milli": 2035,
+          "care_cash_milli": 2000,
+          "care_carry_before": 216,
+          "care_carry_after": 181,
+          "supply_cash_milli": 0,
+          "guard_cash_milli": 0,
+          "guard_paid_milli": 0,
+          "guard_carry_before": 0,
+          "guard_carry_after": 0
+        },
+        {
+          "turn": 23,
+          "civ": 4,
+          "envelope_milli": 4000,
+          "care_paid_milli": 312,
+          "care_cash_milli": 0,
+          "care_carry_before": 353,
+          "care_carry_after": 41,
+          "supply_cash_milli": 0,
+          "guard_cash_milli": 1000,
+          "guard_paid_milli": 500,
+          "guard_carry_before": 0,
+          "guard_carry_after": 500
+        },
+        {
+          "turn": 23,
+          "civ": 9,
+          "envelope_milli": 4000,
+          "care_paid_milli": 819,
+          "care_cash_milli": 1000,
+          "care_carry_before": 616,
+          "care_carry_after": 797,
+          "supply_cash_milli": 0,
+          "guard_cash_milli": 0,
+          "guard_paid_milli": 500,
+          "guard_carry_before": 500,
+          "guard_carry_after": 0
+        }
+      ]
+    }
+  }
+}

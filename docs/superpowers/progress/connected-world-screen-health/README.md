@@ -67,5 +67,115 @@ At completed snapshots 6, 7, 23 and 24 it records, respectively, a pending
 delayed report, paid supplied care with prepaid wage carry, a fully paid
 staffed border guard, and reuse of guard wage carry. A separate exact-resume
 driver tests those actual saved states against uninterrupted execution using
-the existing byte comparator. Resume, browser journeys, held outcomes and main
-CI remain separate gates and are not claimed by this pilot freeze receipt.
+the existing byte comparator. The completed receipts below cover the health
+resume, browser and held gates. Whole-program integration and main CI remain
+the lead's separate gates.
+
+## Completed held screen
+
+All **36/36** registered cases passed strict extraction on frozen source
+`8d38f8b49e2db7635ee9ba074edde1d422fbc030`, with the same native artifact and
+screen module as the actual pilot. The worktree remained clean and immutable
+through the run. Each of template 3901–3906 and procedural 4001–4006 appears
+once in each of PC, PS and PA, for 200 completed turns. All twelve worlds enter
+each comparison; template 3905 had zero covered care and remains included.
+Every primary ratio was defined. There were no failed or unrun held cases.
+Simulation plus extraction took **820.0 seconds / 0.227778 core-hours**, below
+the unchanged 0.75 ceiling.
+
+The [complete report](held-v1/report.md), [metrics](held-v1/metrics.jsonl),
+[source identity](held-v1/source.txt), [strict check](held-v1/check.txt),
+[compact summary](held-v1/summary.json) and original run ledger are retained.
+The separate independent `health/pilot_review` agent checked all 36 unique
+case identities and all six retained first-world raw bundles, including
+metadata/history, modes, T−1 exposure, mortality authority, cash and gross
+envelopes, carry conservation, named credits, full paid guard capacity and
+dated arrivals with valid polity actors. It independently matched the report's
+paired summaries and all 64 sign-flip assignments in each stratum, and approved
+the completed held evidence on 2026-11-07.
+
+| Primary contrast | Template mean [min, max] | Procedural mean [min, max] |
+| --- | --- | --- |
+| PA−PC epidemic deaths per 1,000 end-turn person-turns | −0.291436 [−1.659973, +1.150341] | −0.222941 [−2.125897, +2.158216] |
+| PA−PC epidemic deaths per infectious person-turn | −0.009231 [−0.049150, +0.022257] | −0.009507 [−0.052639, +0.038629] |
+| PA−PS cross-polity epidemic arrivals | −7 [−18, +1] | +20.833333 [−45, +102] |
+
+These are heterogeneous bounded results. Deaths per 1,000 person-turns rose in
+two of six template and three of six procedural worlds. Mean absolute epidemic
+deaths changed by −9 template and **+2.833333 procedural**, despite the lower
+mean procedural person-turn rate. Evidence-policy arrivals increased in four
+of six procedural worlds, with a maximum of **+102**. Mean food shortfall after
+relief increased by **247.1719 template / 175.0409 procedural**; famine-region-
+turns changed by **+11.333333 / −50**. The full report retains all harms and
+per-world signs. This evidence supports no universal benefit, scientific
+qualification or default promotion.
+
+Paid-worker income deductions without a native wealth-stage observation remain
+unknown. Care/guard unknown person-turn counts total **140/73 PC**, **127/65
+PS**, and **141/71 PA**. Deduction sums are observed subtotals. Famine- and war-
+cause mortality and forest outcomes are unrecorded in this screen, rather than
+assumed zero. These treatment contrasts do not isolate wages or overturn the
+earlier fixed-enrollment finding that wages raised household money credits.
+They include disease, population, labor, migration and retail feedback.
+
+The registry was not rewritten by this lane. The validated two
+[marked rows](held-v1/registry-marked-rows.json) are returned to the lead for
+id-based integration, preserving other lanes' registry amendments.
+
+```sh
+PYTHONPATH=src RAYON_NUM_THREADS=1 /workspace/cw-evidence-native/bin/python scripts/cw_health_screen.py run /workspace/evidence/health/held-v1 --screen CW-health --cohort held --jobs 1 --pilot /workspace/evidence/health/pilot-v2/metrics.jsonl --keep-first
+PYTHONPATH=src /workspace/cw-evidence-native/bin/python scripts/cw_health_screen.py check --screen CW-health --metrics /workspace/evidence/health/held-v1/metrics.jsonl --cohort held
+PYTHONPATH=src /workspace/cw-evidence-native/bin/python scripts/cw_health_screen.py report /workspace/evidence/health/held-v1/metrics.jsonl --screen CW-health
+```
+
+The cohort is now used: preserve these outputs and do not spend it again as a
+fresh held cohort. Raw first-world examples remain outside git at
+`/workspace/evidence/health/held-v1/runs/PA-p4001/chronicle_bundle.json` and
+`/workspace/evidence/health/held-v1/runs/PA-t3901/chronicle_bundle.json`.
+
+## Exact resume and actual browser journeys
+
+The [resume report](resume/report.json), [actual-state plan](resume/plan.json)
+and executed [driver](resume/driver.py) retain the complete command/configuration
+and hashes. The PA-p19 timing world used naturally active completed snapshots:
+6 pending delayed report; 7 paid supplied care with prepaid care carry;
+23 fully paid staffed guard; 24 reuse of prepaid guard carry. No lifecycle
+category was missing. Uninterrupted execution versus execution with a checkpoint
+every turn compared **16 files with zero differences**. Each resumed branch
+at 6, 7, 23 and 24 independently compared **16 files with zero differences**.
+All processes ran serially, with no narration API. The source was the successful
+pilot's Python code; later changes before the held run were documentation and
+the public-health observation-date display only.
+
+The bounded plain run took 34.64 seconds and checkpoint-every-turn run 196.22
+seconds. Identity success does not imply negligible checkpoint overhead. These
+measurements cover the natural 32-region world and do not replace the lead's
+declared-scale profiling.
+
+History's real production-viewer [browser receipt](browser/report.json) passed
+**82 checks** across desktop and phone on the same natural PA-p19 bundle
+SHA256 `76eb18ab7f22adc150005890997e5d71fe14a7aafa0960a07af470bcdc979fc0`,
+at snapshots 6, 7, 23 and 24. It checked actual cash/envelope/care and guard
+carry, patient food versus foreign cash or internal value, prior exposure dates,
+delivered report ids and own-fatality observation, stable named guard ids,
+next-turn capacity, explicit unobserved states, layout and runtime errors.
+There were no construction markers or runtime errors. The
+[phone snapshot](browser/phone-snapshot23.png) was also visually reviewed.
+Measured saved-bundle load was 2,967ms desktop / 2,857ms phone; complete journeys
+took 10,584ms / 8,605ms on this environment. These are bounded UI measurements.
+
+## Remaining model and verification limits
+
+Supplies are real grain from local or directly adjacent reachable commons.
+Maintained irrigation service is the stated water/sanitation proxy; water
+quality and medicines are not modeled. The policy uses delayed reports and a
+recorded goods-contact cost proxy because imported food cost by origin is
+unobserved. The screen does not isolate guards from all other feedback or care
+from maintained-water protection. Regional epidemic fractions, individual
+injury-care episodes and mortality authority remain separate. No individual
+infection, treatment or survival is inferred from regional capacity or work.
+
+The separately restricted full 200-seed and procedural qualification gates were
+not run. Whole-program source compatibility, final union resume, declared-scale
+profiling, independent PR review, reviewed-head CI, merges and final main CI are
+recorded by the lead; this lane does not claim those gates from its own results.

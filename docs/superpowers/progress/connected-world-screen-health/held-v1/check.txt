@@ -1,0 +1,5 @@
+CW-health note: template pilot seed 5 was also used by m-af1-t (M-AF1 runtime-correctness baseline and post batches); a timing pilot is never held
+CW-health note: template pilot seed 5 was also used by m58b-t (M58b development run); a timing pilot is never held
+CW-health: seeds OK (pilot {'template': (5,), 'procedural': (19,)}, held {'template': '3901-3906', 'procedural': '4001-4006'})
+CW-health: extractor, packages, 3 arms and 24 outcomes (3 primary): OK
+36 runs: complete, every outcome extracted
