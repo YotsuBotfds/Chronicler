@@ -1015,22 +1015,21 @@ def test_the_cw3b_screen_is_declared_with_its_cohort_and_reads_the_record():
                 "m": {"pre_ok": True, "irrigated_set_sha": sha, "irrigation_serving_share_after": value}}
     rows = [row("C_T", 1, "a", 0.75), row("W_T", 1, "a", 0.5), row("C_T", 2, "a", 0.9), row("W_T", 2, "b", 0.1)]
     primary = next(o for o in screen.outcomes if o.id == "cw3b_service_treasury")
-    assert all(o.pair is not None and o.why is not None for o in screen.outcomes if o.primary)
-    cells, values = cws.SR.paired_values(rows, screen, "C_T", "W_T", primary.read, "t", [1, 2], pair=primary.pair,
-                                         why=primary.why)
+    assert all(o.pair is not None for o in screen.outcomes if o.primary)
+    cells, values = cws.SR.paired_values(rows, screen, "C_T", "W_T", primary.read, "t", [1, 2], pair=primary.pair)
     assert values == [0.25] and cells[1] == "2: excluded: sets differ"
     failed = [row("C_T", 1, "a", 0.75), {**row("W_T", 1, "a", 0.5), "m": {"pre_ok": False}}]
-    cells, values = cws.SR.paired_values(failed, screen, "C_T", "W_T", primary.read, "t", [1], pair=primary.pair,
-                                         why=primary.why)
+    cells, values = cws.SR.paired_values(failed, screen, "C_T", "W_T", primary.read, "t", [1], pair=primary.pair)
     assert values == [] and cells == ["1: excluded: pre-treatment check"]
     # Stateless: the reading depends only on the two rows, not on the order or history of calls
     # (the first gate kept the arm's set between calls and needed the arm row read first).
     a2, c2, a1, c1 = rows[2], rows[3], rows[0], rows[1]
     assert primary.pair(c1, a1) == (0.5, 0.75)                      # reversed read order: same gate
-    assert primary.pair(a2, c2) == (0.9, None) and primary.pair(c2, a2) == (0.1, None)
-    assert [primary.pair(*r) for r in ((a2, c2), (a1, c1), (a1, c1))] == [(0.9, None), (0.75, 0.5), (0.75, 0.5)]
+    assert primary.pair(a2, c2) == primary.pair(c2, a2) == "excluded: sets differ"
+    assert [primary.pair(*r) for r in ((a2, c2), (a1, c1), (a1, c1))] == ["excluded: sets differ", (0.75, 0.5),
+                                                                          (0.75, 0.5)]
     cells_rev, values_rev = cws.SR.paired_values(list(reversed(rows)), screen, "C_T", "W_T", primary.read, "t", [2, 1],
-                                                 pair=primary.pair, why=primary.why)
+                                                 pair=primary.pair)
     assert values_rev == [0.25] and cells_rev[0] == "2: excluded: sets differ"
     report = "\n".join(cws._cw3b_report(rows, {"t": [1, 2]}))
     assert "| t | 2 | C_T - W_T | DIFFERENT SETS | excluded from the primaries |" in report

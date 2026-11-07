@@ -1,4 +1,4 @@
-"""The connected-world screen runner, its seed registry and the CW2, CW3, CW5 and CW6 stubs.
+"""The connected-world screen runner, its seed registry and the CW6 stub.
 
 Offline: constructed bundles and a fake runtime (no simulation, no child process);
 the real parser and feature catalog check arm command lines. Nothing here runs a
@@ -89,7 +89,7 @@ def test_registry_union_covers_the_audit_union(SR, registry):
 
 
 #: Screens whose held run ``mark-run`` recorded in the registry (complete).
-RECORDED = {"CW4", "CW1"}
+RECORDED = {"CW4", "CW1", "CW2", "CW5"}
 #: CW3's held run, recorded incomplete (one run failed: the disk was full), procedural only;
 #: its template reservation is recorded as unused by design (never_run).
 RECORDED_INCOMPLETE = {"CW3"}
@@ -165,15 +165,15 @@ def _mutate(registry, change):
     elif change == "unknown key":
         by["ls1-held-t"]["note"] = "x"
     elif change == "reservation overlaps":
-        by["cw2-held-t"]["seeds"] = [[736, 741]]
+        by["cw6-held-t"]["seeds"] = [[776, 781]]
     elif change == "reservation in the gate":
-        by["cw2-held-t"]["seeds"] = [[231, 236]]
+        by["cw6-held-t"]["seeds"] = [[231, 236]]
     elif change == "no gate entry":
         reg["entries"] = [e for e in reg["entries"] if e["id"] != "gate200-t"]
     elif change == "ranges changed":
         reg["restricted_ranges"]["template"] = [[42, 141]]
     elif change == "held reservation without screen":
-        by["cw2-held-t"]["screen"] = None
+        by["cw6-held-t"]["screen"] = None
     return reg
 
 
@@ -519,8 +519,8 @@ class FakeRuntime:
 @pytest.mark.parametrize("cohort", ["held", "pilot"])
 def test_stub_screens_are_refused(SR, CW, tmp_path, cohort):
     fake = FakeRuntime(SR)
-    with pytest.raises(SystemExit, match="CW2 is not ready"):
-        SR.run_main([str(tmp_path / "out"), "--screen", "CW2", "--cohort", cohort], CW.SCREENS, fake.rt)
+    with pytest.raises(SystemExit, match="CW6 is not ready"):
+        SR.run_main([str(tmp_path / "out"), "--screen", "CW6", "--cohort", cohort], CW.SCREENS, fake.rt)
     assert fake.calls == []
 
 
@@ -658,8 +658,10 @@ def test_registry_content_hash_ignores_run_records_only(SR, registry):
 def test_check_command_reports_stubs_not_ready(SR, CW, capsys):
     assert CW.main(["check", "--screen", "all"]) == 2
     text = capsys.readouterr().out
-    for name in ("CW2", "CW5", "CW6"):
-        assert f"{name}: seeds OK" in text and f"{name}: NOT READY" in text
+    assert "CW6: seeds OK" in text and "CW6: NOT READY" in text
+    # CW2 is declared by slices A3-1/A3-2 and CW5 by slice A4-1 (tests/test_cw2_screen.py, test_cw5_screen.py).
+    assert "CW2: seeds OK" in text and "CW2: extractor, packages, 5 arms and 47 outcomes (3 primary): OK" in text
+    assert "CW5: seeds OK" in text and "CW5: extractor, packages, 2 arms and 41 outcomes (2 primary): OK" in text
     # CW3 is declared by slice B2 (tests/test_cw3_screen.py).
     assert "CW3: seeds OK" in text and "CW3: extractor, packages, 5 arms and 42 outcomes (3 primary): OK" in text
     # CW1 is declared by slice S1 (tests/test_cw1_screen.py).
@@ -670,7 +672,8 @@ def test_check_command_reports_stubs_not_ready(SR, CW, capsys):
     assert CW.main(["check", "--screen", "DEV"]) == 0
     assert CW.main(["registry"]) == 0
     out = capsys.readouterr().out
-    assert "reserved cw2-held-t: template 741-746" in out and "reserved cw1-held-t" not in out   # CW1 was run
+    assert "reserved cw6-held-t: template 781-786" in out and "reserved cw1-held-t" not in out   # CW1 was run
+    assert "reserved cw2-held-t" not in out and "reserved cw5-held-t" not in out                 # CW2, CW5 were run
 
 
 def test_arm_command_lines_are_checked_by_the_parser_and_catalog(SR, CW):
@@ -1060,3 +1063,63 @@ def test_the_registry_content_hash_is_the_one_every_recorded_identity_used(SR, r
     next(e for e in reserved["entries"] if e["id"] == "cw2-held-t")["unused"] = {
         "reason": "x", "out": "y", "recorded": "z"}
     assert any("never_run entry" in p for p in SR.validate_registry(reserved))
+
+
+# --- Paired readings (Outcome.pair) -------------------------------------------------
+
+def _pair_screen(SR, CW, outcomes):
+    dev = CW.SCREENS["DEV"]
+    return SR.Screen(name="PAIR", title="paired readings", preregistration=None, base=dev.base,
+                     arms={"W": ((), None), "TS": (("--timber-stock",), "W")}, root="W", pilot={}, held={},
+                     outcomes=tuple(outcomes), activation=dev.activation, ready=True, module=dev.module)
+
+
+def _pair_rows(values):
+    rows = []
+    for seed, (w, ts) in values.items():
+        rows.append({"arm": "W", "stratum": "t", "seed": seed, "rc": 0, "m": {"v": w}})
+        rows.append({"arm": "TS", "stratum": "t", "seed": seed, "rc": 0, "m": {"v": ts},
+                     "activation": {"activated": True}})
+    return rows
+
+
+def test_a_paired_reading_needs_a_control_and_no_difference_of_differences(SR, CW):
+    read = lambda r: (r.get("m") or {}).get("v")  # noqa: E731
+    pair = lambda a, c: (read(a), read(c))  # noqa: E731
+    ok = _pair_screen(SR, CW, [SR.Outcome("p1", "paired", "TS", "W", read, primary=True, pair=pair),
+                               SR.Outcome("p2", "plain", "TS", "W", read, primary=True)])
+    assert SR.check_preregistration(ok, held=False) == []
+    alone = _pair_screen(SR, CW, [SR.Outcome("p1", "paired", "TS", None, read, primary=True, pair=pair),
+                                  SR.Outcome("p2", "plain", "TS", "W", read, primary=True)])
+    assert any("a paired reading needs a control" in p for p in SR.check_preregistration(alone, held=False))
+    dod = _pair_screen(SR, CW, [SR.Outcome("p1", "paired", "TS", "W", read, primary=True, pair=pair,
+                                           minus=("TS", "W")),
+                                SR.Outcome("p2", "plain", "TS", "W", read, primary=True)])
+    assert any("a paired reading needs a control" in p for p in SR.check_preregistration(dod, held=False))
+
+
+def test_a_paired_reading_reads_both_rows_names_an_exclusion_and_never_falls_back(SR, CW):
+    read = lambda r: (r.get("m") or {}).get("v")  # noqa: E731
+    screen = _pair_screen(SR, CW, [])
+    rows = _pair_rows({1: (2.0, 5.0), 2: (4.0, 1.0)})
+    # The pair sees the arm's row and the control's row of the same world.
+    seen = []
+
+    def pair(arm_row, control_row):
+        seen.append((arm_row["arm"], control_row["arm"], arm_row["seed"]))
+        return read(arm_row) * 10, read(control_row)
+    cells, values = SR.paired_values(rows, screen, "TS", "W", read, "t", [1, 2], pair=pair)
+    assert values == [48.0, 6.0] and seen == [("TS", "W", 1), ("TS", "W", 2)]
+    # A str names why the world has no value; the cell shows it and no value is taken.
+    cells, values = SR.paired_values(rows, screen, "TS", "W", read, "t", [1, 2],
+                                     pair=lambda a, c: "excluded by the window" if a["seed"] == 1 else (1.0, 0.5))
+    assert cells == ["1: excluded by the window", "2: +0.5"] and values == [0.5]
+    # (None, value) is an unknown cell, as for a plain reading.
+    cells, values = SR.paired_values(rows, screen, "TS", "W", read, "t", [1], pair=lambda a, c: (None, 1.0))
+    assert cells == ["1: unknown"] and values == []
+    # A pair that returns None raises: it never falls back to ``read``.
+    with pytest.raises(TypeError):
+        SR.paired_values(rows, screen, "TS", "W", read, "t", [1], pair=lambda a, c: None)
+    # Without a control the pair is not used (and check_preregistration refuses such an outcome).
+    cells, values = SR.paired_values(rows, screen, "TS", None, read, "t", [1], pair=lambda a, c: None)
+    assert values == [5.0]

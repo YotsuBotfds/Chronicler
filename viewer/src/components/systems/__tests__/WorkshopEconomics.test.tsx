@@ -58,3 +58,16 @@ it("names closed firms and their reason", () => {
   const row = within(screen.getByRole("table", { name: "Workshop firms' economics at snapshot 5" })).getAllByRole("row")[1];
   expect(row).toHaveTextContent("closed (idle)");
 });
+
+it("says whether the firms' output passed through the commons (rules 1) or was owned from the start (rules 2)", () => {
+  render(<WorkshopEconomics {...props(a3(economics))} />);
+  expect(screen.getByText(/Rules 1: the tick's output passes through the region's commons/)).toBeInTheDocument();
+  cleanup();
+  const owned = { ...receipt, titled: 600, free_use_upper_bound: 0, inventory_close: 625, unsold_inventory: 625 };
+  render(<WorkshopEconomics {...props(a3({ ...economics, rules_version: 2, receipts: [owned],
+    counters: { ...economics.counters, owned_output: 600 } }))} />);
+  expect(screen.getByText(/Owned output \(rules 2\)/)).toBeInTheDocument();
+  const funnel = within(screen.getByRole("table", { name: "Workshop economics funnel to snapshot 5" }));
+  expect(funnel.getByRole("row", { name: /used before title/ })).toHaveTextContent("None: output owned from the start");
+  expect(funnel.getByRole("row", { name: /straight into inventory/ })).toHaveTextContent("0.6");
+});

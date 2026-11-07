@@ -166,6 +166,8 @@ REQUIREMENTS: dict[str, tuple[dict, ...]] = {
     "household_retail": (_HYBRID, _feature("food_allocation")),
     "watershed": (_setting("procedural_world"),),
     "workshop_economics": (_HYBRID, _feature("workshop_payroll")),
+    "titled_trade": (_HYBRID, _feature("household_retail"), _choice("household_retail_mode", "retail", "no_relief"),
+                     _choice("household_retail_rules", "2")),
     # B3: every mode needs hybrid; the work modes (repair, the default, and
     # cost_only) repair through RS2.
     "infrastructure_condition": (_HYBRID, _any(_choice("infrastructure_condition_mode", "record_only", "wear_only"),

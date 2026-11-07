@@ -1703,6 +1703,8 @@ def reconstruct_economy_result(
         result.conservation["in_transit_delta"] = pylist(conservation_batch.column("in_transit_delta"))[0]
     if "woodcut_outflow" in schema_names(conservation_batch):   # PL1: crews' harvest, never stocked
         result.conservation["woodcut_outflow"] = pylist(conservation_batch.column("woodcut_outflow"))[0]
+    if "workshop_owned_outflow" in schema_names(conservation_batch):   # A3-2: firms' own output
+        result.conservation["workshop_owned_outflow"] = pylist(conservation_batch.column("workshop_owned_outflow"))[0]
 
     # --- M58b: Oracle shadow imports (nullable columns, zero when no oracle) ---
     if "oracle_imports_food" in schema_names(observability_batch):

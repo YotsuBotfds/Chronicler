@@ -32,10 +32,17 @@ from chronicler.money import MoneyBook
 #: ``free_inputs`` (cost control): inputs are planned and recorded but not
 #: charged; ``academy_only`` (demand control): no household customers.
 MODES: tuple[str, ...] = ("market", "free_inputs", "academy_only")
+#: Rules versions (``--workshop-economics-rules`` choices are their strings;
+#: the first is the default of a new state). 1: A3-1 (the tick's output
+#: enters the commons before title); 2: A3-2 (a native column keeps each
+#: firm's output out of the commons: it reaches users only by sale).
+RULES_VERSIONS: tuple[int, ...] = (1, 2)
 #: Why a firm-turn bought no inputs (append only).
 NO_INPUT_REASONS: tuple[str, ...] = (
     "price_unknown", "budget_exhausted", "not_funded", "no_crew", "not_built", "worn", "no_firm",
     "price_discovery", "not_operating",
+    # Rules version 2 (A3-2): no room left in the firm's inventory for output.
+    "inventory_full",
 )
 #: Why a firm-turn sold to nobody (append only): ``no_inventory``,
 #: ``no_controller``; academies: ``no_academy`` (no fully informed purchaser of
@@ -70,6 +77,12 @@ COUNTERS: tuple[str, ...] = (
     "demand_absent_firm_turns", "unpaid_conversion",
     "unbought_need", "plan_price_realm_turns", "opening_refused_no_input_price", "opening_refused_closed_city",
     "idle_no_conversion_turns",
+    # Rules version 2 (A3-2): output the firm took straight into its inventory
+    # (never in the commons) and the operating firm-turns that produced it.
+    "owned_output", "owned_output_turns",
+    # Rules version 2: unsold wares a closing firm handed to the region's ruler
+    # (owner of the commons) at liquidation, milli-loads.
+    "liquidation_to_owner",
 )
 
 
@@ -163,10 +176,17 @@ class EconomicsRecord(BaseModel):
     detail: dict[str, Any] = Field(default_factory=dict)
 
 
+def _is_one(value) -> bool:
+    return value == 1
+
+
 class WorkshopEconomicsState(BaseModel):
     schema_version: Literal[1] = 1
     enabled: bool = True
     mode: Literal["market", "free_inputs", "academy_only"] = "market"
+    #: Rules version (RULES_VERSIONS); 1 when absent (an A3-1 state) and
+    #: omitted while 1, so A3-1 dumps keep their bytes; a saved state keeps it.
+    rules_version: Literal[1, 2] = Field(default=1, exclude_if=_is_one)
     firms: list[FirmTerms] = Field(default_factory=list)
     closed: list[FirmTerms] = Field(default_factory=list)
     prices: list[PriceObservation] = Field(default_factory=list)
@@ -200,3 +220,8 @@ class WorkshopEconomicsState(BaseModel):
             object.__setattr__(self, "__pydantic_private__", {"_turn": None})
         else:
             self.__pydantic_private__.setdefault("_turn", None)
+
+    @property
+    def rules(self) -> str:
+        """The rules version as the ``--workshop-economics-rules`` choice."""
+        return str(self.rules_version)

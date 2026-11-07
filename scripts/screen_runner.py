@@ -158,8 +158,9 @@ class Outcome:
     ``arm2``). With ``pair`` the two values are read together from the arm's and the
     control's rows of the same world, ``pair(arm_row, control_row) -> (arm value,
     control value)``, for a measure both arms read on cells one of them defines (CW5c:
-    the control's covered region-turns); ``read`` is then unused. ``why(row)`` names a
-    missing value in the report (the row whose value is missing; default "unknown")."""
+    the control's covered region-turns); ``read`` is then unused. ``pair`` may instead
+    return a ``str`` naming why the world has no value (CW5: "excluded by the window"),
+    which the outcome's cell shows; it never returns None (that raises)."""
     id: str
     label: str
     arm: str
@@ -167,8 +168,7 @@ class Outcome:
     read: Callable[[dict], float | None]
     primary: bool = False
     minus: tuple[str, str] | None = None
-    pair: Callable[[dict, dict], tuple[float | None, float | None]] | None = None
-    why: Callable[[dict], str] | None = None
+    pair: Callable[[dict, dict], tuple[float | None, float | None] | str] | None = None
 
 
 @dataclass(frozen=True)
@@ -1911,7 +1911,14 @@ def paired_values(rows, screen: Screen, arm: str, control: str | None, read, tag
         if need_activation and any(act is not True for act in acts):
             cells.append(f"{seed}: {'not activated' if False in acts else 'activation unknown'}")
             continue
-        vals = list(pair(got[0], got[1])) if pair is not None and control else [read(r) for r in got]
+        if pair is not None and control:
+            paired = pair(got[0], got[1])
+            if isinstance(paired, str):
+                cells.append(f"{seed}: {paired}")
+                continue
+            vals = list(paired)                 # a pair that returns None raises (never falls back to read)
+        else:
+            vals = [read(r) for r in got]
         if any(v is None for v in vals):
             cells.append(f"{seed}: {why(got[[v is None for v in vals].index(True)])}")
             continue
@@ -2007,7 +2014,7 @@ def report_lines(rows, screen: Screen, cohort_map: Mapping[str, Sequence[int]] |
         for o in outcomes:
             for tag, seeds in strata.items():
                 cells, values = paired_values(rows, screen, o.arm, o.control, o.read, tag, seeds, minus=o.minus,
-                                              pair=o.pair, **({"why": o.why} if o.why is not None else {}))
+                                              pair=o.pair)
                 summary, signs, flip = _summary_cells(values, paired=o.control is not None)
                 out.append(f"| {o.id}: {o.label} | {tag} | {'; '.join(cells)} | {summary} | {signs} | {flip} |")
 

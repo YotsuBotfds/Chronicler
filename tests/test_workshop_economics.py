@@ -62,6 +62,10 @@ class FakeSim:
     def wealth_transfer_purposes(self):
         return list(M.NATIVE_PURPOSES)
 
+    def economy_capabilities(self):
+        """A3-2: the stand-in economy honours the owned-output column."""
+        return ["workshop_owned_crafts"]
+
     def plan_workshop_crews(self, requests, enlisted, turn=None):
         self.requests.append(list(requests))
         rows = []
@@ -143,7 +147,7 @@ def _region(i, controller="Civ0"):
     return SimpleNamespace(name=f"R{i}", controller=controller, stockpile=SimpleNamespace(goods={"crafts": 0.0}))
 
 
-def _world(mode="market", payroll="paid", treasury=(1000, 1000), regions=4):
+def _world(mode="market", payroll="paid", treasury=(1000, 1000), regions=4, rules=1):
     civs = [SimpleNamespace(name=f"Civ{i}", treasury=t) for i, t in enumerate(treasury)]
     world = SimpleNamespace(
         turn=20, agent_mode="hybrid", civilizations=civs, regions=[_region(i) for i in range(regions)],
@@ -153,9 +157,10 @@ def _world(mode="market", payroll="paid", treasury=(1000, 1000), regions=4):
     world.livelihoods.workshops = WorkshopState(mode="operate")
     world.livelihoods.workshop_payroll = WorkshopPayrollState(mode=payroll)
     if mode is not None:
-        world.livelihoods.workshop_economics = WorkshopEconomicsState(mode=mode)
+        world.livelihoods.workshop_economics = WorkshopEconomicsState(mode=mode, rules_version=rules)
     world.academy = False
     world.raw = 100.0                  # raw loads on hand in the site region each turn
+    world.honour_owned = True          # the stand-in economy honours A3-2's column
     world.prices = {"raw_material": 0.5, "craft": 2.0}
     return world
 
@@ -206,12 +211,20 @@ def _turn(world, sim, lord=0):
     goods = [[0.0] * len(FIXED_GOODS) for _ in world.regions]
     goods[SITE][TIMBER], goods[SITE][ORE] = output * 0.75, output * 0.25
     sim.inputs = goods
+    owned = (E.OWNED_COLUMN in batch.schema.names
+             and batch.column(E.OWNED_COLUMN).to_pylist()[SITE] is not None)
+    conservation = {"workshop_owned_outflow": output if owned else 0.0} if owned and world.honour_owned else {}
     economy = SimpleNamespace(craft_output={r.name: (output if i == SITE else 0.0) for i, r in enumerate(world.regions)},
-                              market_prices={r.name: dict(world.prices) for r in world.regions})
+                              market_prices={r.name: dict(world.prices) for r in world.regions},
+                              conservation=conservation)
     W.finish_phase2(world, economy, bridge, None)
-    # The tick: output enters the commons, the people draw their demand free.
+    # The tick: output enters the commons (A3-1), or the firm's inventory
+    # (A3-2's native column), and the people draw their demand free from the commons.
     region = world.regions[SITE]
-    stock = region.stockpile.goods["crafts"] + output
+    world.last_owned = owned
+    # A stale extension (honour_owned False) ignores the column: the output enters the commons.
+    stock = region.stockpile.goods["crafts"] + (0.0 if owned and world.honour_owned else output)
+    world.last_free_draw = min(stock, 0.01 * _residents(sim))
     region.stockpile.goods["crafts"] = max(0.0, stock - 0.01 * _residents(sim))
     world.last_ceiling, world.last_output = ceiling, output
     try:
@@ -907,3 +920,186 @@ def test_per_civ_capital_and_input_attribution_is_exact_beyond_the_flow_list_bou
     assert capital_seen == E.CAPITAL and inputs_seen > 0
     # The capital flow itself was dropped from the two-line list on its turn, yet attributed.
     assert _econ(world).book.flows_dropped >= 0
+
+
+# --- A3-2: owned output (``--workshop-economics-rules 2``) -----------------------------
+
+
+def test_rules_1_keeps_a3_1_bytes_and_a_conflicting_rules_value_is_refused():
+    from chronicler.livelihoods import LIVELIHOODS_CHOICES, livelihoods_resume_conflicts
+    from chronicler.main import _build_parser
+    assert LIVELIHOODS_CHOICES["workshop_economics_rules"] == ("1", "2")
+    state = WorkshopEconomicsState()
+    assert state.rules_version == 1 and "rules_version" not in state.model_dump()
+    assert WorkshopEconomicsState(rules_version=2).model_dump()["rules_version"] == 2
+    world = _world()
+    sim = FakeSim()
+    _build(world, sim)
+    for _ in range(3):
+        batch = _turn(world, sim)
+        assert E.OWNED_COLUMN not in batch.schema.names           # the A3-1 batch, unchanged
+    parse = _build_parser().parse_args
+    assert livelihoods_resume_conflicts(world, parse(["--workshop-economics-rules", "2"]), {}) == [
+        "--workshop-economics-rules '2' conflicts with the checkpoint (saved: '1')"]
+    with pytest.raises(ValueError, match="conflicts"):
+        E.set_workshop_economics_enabled(world, True, args=SimpleNamespace(workshop_economics_rules="2"))
+
+
+def test_owned_output_never_enters_the_commons_and_is_titled_whole():
+    world = _world(rules=2)
+    sim = FakeSim()
+    _build(world, sim)
+    firm, state = _firm(world), _econ(world)
+    produced = 0
+    for _ in range(5):
+        inventory = firm.inventory
+        batch = _turn(world, sim)
+        _check_turn(world)
+        r = _receipt(world)
+        column = batch.column(E.OWNED_COLUMN).to_pylist()
+        assert column[SITE] == pytest.approx(inventory / 1000) and all(v is None for i, v in enumerate(column)
+                                                                        if i != SITE)
+        assert world.last_owned is True
+        assert r.produced == r.titled == math.floor(world.last_output * 1000)
+        assert r.free_use_upper_bound == 0                       # no same-tick free use
+        produced += r.titled
+    assert produced > 0 and state.counters["owned_output"] == produced
+    assert state.counters.get("free_use_upper_bound", 0) == 0
+    payroll = world.livelihoods.workshop_payroll
+    titles = [m for m in payroll.materials if m.kind == "title"]
+    assert titles and all(m.source == ("workshop_output", firm.site) for m in titles)
+
+
+def test_firm_output_reaches_households_only_by_sale():
+    world = _world(rules=2)
+    sim = FakeSim(adults=tuple(range(30, 45)), children=(), wealth=5.0)
+    _build(world, sim)
+    firm = _firm(world)
+    seen = 0
+    for _ in range(6):
+        commons = world.regions[SITE].stockpile.goods["crafts"]
+        _turn(world, sim)
+        _check_turn(world)
+        r = _receipt(world)
+        bought = (r.households or {}).get("bought_milli", 0)
+        # The people's free draw took only the commons there before the tick:
+        # the firm's output was in its inventory, never available free.
+        assert world.last_free_draw <= commons + 1e-9
+        # The commons gained exactly what households paid for (and nothing of the output).
+        after = world.regions[SITE].stockpile.goods["crafts"]
+        assert after == pytest.approx(max(0.0, commons - 0.01 * _residents(sim)) + bought / 1000)
+        seen += bought > 0
+    assert seen and firm.totals["household_delivered"] > 0
+
+
+def test_the_ceiling_never_exceeds_the_inventory_room():
+    from chronicler.workshop_payroll import INVENTORY_CAP
+    world = _world(rules=2)
+    sim = FakeSim(adults=(), children=())                    # nobody to sell to
+    _build(world, sim)
+    firm = _firm(world)
+    extra = INVENTORY_CAP - 300 - firm.inventory          # constructed stock, kept on the books
+    firm.inventory += extra
+    firm.totals["titled"] = firm.totals.get("titled", 0) + extra
+    for _ in range(6):
+        if not world.livelihoods.workshop_payroll.firms:
+            break
+        room = INVENTORY_CAP - firm.inventory
+        batch = _turn(world, sim)
+        _check_turn(world)
+        # One raw load makes one load of wares: the ceiling stays within the room,
+        # so nothing the firm makes is ever lost or left in the commons.
+        assert batch.column("craft_raw_demand").to_pylist()[SITE] * 1000 <= room + 1e-3
+        assert firm.inventory <= INVENTORY_CAP and _receipt(world).free_use_upper_bound == 0
+    # A full inventory is a declared reason not to operate (and counts idle).
+    assert "inventory_full" in E.IDLE_REASONS
+
+
+def test_the_rules_option_requires_workshop_economics_and_a_new_state_takes_it():
+    from chronicler.livelihoods import configure_livelihoods
+    from chronicler.main import _build_parser
+    from chronicler.world_gen import generate_world
+    parse = _build_parser().parse_args
+    world = generate_world(seed=42)
+    with pytest.raises(ValueError, match="requires --workshop-economics"):
+        configure_livelihoods(world, parse(["--workshop-economics-rules", "2"]), agent_mode="hybrid")
+    assert world.livelihoods is None
+    world = _world(mode=None)
+    E.set_workshop_economics_enabled(world, True, args=SimpleNamespace(workshop_economics_rules="2"))
+    state = _econ(world)
+    assert state.rules_version == 2 and state.log[-1].detail["rules_version"] == 2
+    assert E.owned_output(world) and state.model_dump()["rules_version"] == 2
+
+
+def test_a3_2_refuses_an_extension_without_the_owned_column_at_startup_resume_and_run_time(monkeypatch):
+    """Review M2: a stale extension would put the output into the commons and
+    the firm's inventory both; A3-2 refuses it."""
+    from chronicler.livelihoods import LivelihoodsRefusal, configure_livelihoods
+    from chronicler.main import _build_parser
+    parse = _build_parser().parse_args
+    argv = ["--workshop-economics", "--workshop-economics-rules", "2"]   # payroll and workshops are saved on
+    monkeypatch.setattr(E, "native_owned_supported", lambda: False)
+    world = _world(mode=None)
+    with pytest.raises(ValueError, match="honours the workshop_owned_crafts column"):
+        configure_livelihoods(world, parse(argv), agent_mode="hybrid")
+    assert world.livelihoods.workshop_economics is None
+    monkeypatch.setattr(E, "native_owned_supported", lambda: True)
+    configure_livelihoods(world, parse(argv), agent_mode="hybrid")
+    assert world.livelihoods.workshop_economics.rules_version == 2
+    # On resume (saved rules 2) a stale extension is refused until the switch is ended.
+    monkeypatch.setattr(E, "native_owned_supported", lambda: False)
+    with pytest.raises(LivelihoodsRefusal, match="no-workshop-economics"):
+        configure_livelihoods(world, parse([]), agent_mode="hybrid")
+    # Rules 1 never asks the extension.
+    monkeypatch.setattr(E, "native_owned_supported", lambda: pytest.fail("rules 1 asked the extension"))
+    configure_livelihoods(_world(mode=None), parse(argv[:1]), agent_mode="hybrid")
+    # At run time: a simulator without the capability is refused before the economy.
+    world2 = _world(rules=2)
+    sim = FakeSim()
+    _build(world2, sim)
+    sim.economy_capabilities = lambda: []
+    with pytest.raises(RuntimeError, match="honours the workshop_owned_crafts column"):
+        _turn(world2, sim)
+
+
+def test_a3_2_reconciles_the_native_outflow_with_the_titled_output_every_turn():
+    """Review M2: the native must report the owned outflow, equal to the owned
+    regions' output, all of it titled by their firms."""
+    world = _world(rules=2)
+    sim = FakeSim()
+    _build(world, sim)
+    _turn(world, sim)
+    assert world.last_owned and _receipt(world).titled > 0
+    world.honour_owned = False                           # an extension that ignored the column
+    with pytest.raises(RuntimeError, match="ignored the workshop_owned_crafts column"):
+        _turn(world, sim)
+
+
+def test_the_owned_column_skips_a_firm_whose_site_closed_this_turn():
+    """Review m2: only firms of open, planned sites are marked owned."""
+    world = _world(rules=2)
+    sim = FakeSim()
+    _build(world, sim)
+    firm = _firm(world)
+    assert E.owned_column(world, {firm.site}) is not None
+    assert E.owned_column(world, set()) is None          # its site is not open this turn
+    assert E._turn(_econ(world), world).owned == {}
+
+
+def test_liquidation_under_rules_2_hands_the_wares_to_the_owner_and_is_recorded():
+    world = _world(rules=2)
+    sim = FakeSim(adults=(), children=())
+    _build(world, sim)
+    firm = _firm(world)
+    _turn(world, sim)
+    stock = firm.inventory
+    assert stock > 0
+    fallen = world.cities.cities.pop()                        # the city falls: the firm liquidates
+    world.cities.fallen.append(fallen)
+    _turn(world, sim)
+    state = _econ(world)
+    closed = [r for r in state.log if r.kind == "closed"]
+    assert closed, "the firm did not close"
+    assert closed[-1].detail["owner"] == 0 and closed[-1].detail["inventory_to_owner"] > 0
+    assert state.counters["liquidation_to_owner"] == closed[-1].detail["inventory_to_owner"]
+    assert world.livelihoods.workshop_payroll.closed[-1].totals["returned"] == closed[-1].detail["inventory_to_owner"]

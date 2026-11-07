@@ -60,6 +60,9 @@ export interface FirmTermsRecord {
 
 export interface WorkshopEconomicsRecord {
   schema_version: 1; stage: "A3"; mode: "market" | "free_inputs" | "academy_only"; source_turn: number;
+  /** A3-2 (``--workshop-economics-rules 2``): firms hold their own output, never in the commons;
+   * absent for rules version 1 (A3-1). */
+  rules_version?: 2;
   units: { money: string; wares: string; price: string; milli: 1000 };
   firms: FirmTermsRecord[]; closed: FirmTermsRecord[];
   receipts: EconomicsReceiptRecord[] | null;
@@ -114,7 +117,7 @@ function validHouseholds(x: unknown): boolean {
     && x.gap_milli === Math.max(0, (x.demand_milli as number) - (x.commons_milli as number));
 }
 
-function validReceipt(x: unknown, regions: number, source: number): boolean {
+function validReceipt(x: unknown, regions: number, source: number, owned = false): boolean {
   if (!object(x) || x.turn !== source || !count(x.firm) || !count(x.region) || x.region >= regions
     || typeof x.operating !== "boolean" || !validInputs(x.inputs) || !validHouseholds(x.households)
     || !Array.isArray(x.customer_absent) || !x.customer_absent.every((r) => ABSENCE.includes(r as string))) return false;
@@ -131,7 +134,9 @@ function validReceipt(x: unknown, regions: number, source: number): boolean {
       - (inputs?.charged_milli ?? 0) - n("wages_paid") - n("distributed") - n("written_off")
     && n("inventory_close") === n("inventory_open") + n("titled") - n("academy_sold") - (households?.bought_milli ?? 0)
       - n("worn") - n("returned")
-    && n("unsold_inventory") === n("inventory_close") && n("titled") <= n("produced");
+    && n("unsold_inventory") === n("inventory_close") && n("titled") <= n("produced")
+    // A3-2: the whole output is titled straight from the native column (no free use).
+    && (!owned || (n("titled") === n("produced") && n("free_use_upper_bound") === 0));
 }
 
 function payrollPresent(livelihoods: Record<string, unknown>): boolean {
@@ -152,11 +157,14 @@ export function workshopEconomicsAt(snapshot: TurnSnapshot | null, regionCount: 
     || !count(x.source_turn) || x.source_turn + 1 !== snapshot?.turn || !object(x.units) || x.units.milli !== 1000
     || !Array.isArray(x.firms) || x.firms.length > 4 || !x.firms.every((f) => validTerms(f, regionCount))
     || !Array.isArray(x.closed) || x.closed.length > 8 || !x.closed.every((f) => validTerms(f, regionCount))
-    || !object(x.counters) || !Object.values(x.counters).every(count) || !object(x.parameters)) {
+    || !object(x.counters) || !Object.values(x.counters).every(count) || !object(x.parameters)
+    || ("rules_version" in x && x.rules_version !== 2)) {
     return { status: "malformed", record: null };
   }
+  const owned = x.rules_version === 2;
   if (x.receipts === null) return { status: "unobserved", record: x as unknown as WorkshopEconomicsRecord };
-  if (!Array.isArray(x.receipts) || !x.receipts.every((r) => validReceipt(r, regionCount, x.source_turn as number))) {
+  if (!Array.isArray(x.receipts)
+    || !x.receipts.every((r) => validReceipt(r, regionCount, x.source_turn as number, owned))) {
     return { status: "malformed", record: null };
   }
   return { status: "observed", record: x as unknown as WorkshopEconomicsRecord };
@@ -172,6 +180,8 @@ export interface EconomicsFunnel {
   pricedOutHouseholds: number; freeUseUpperBound: number; closedIdle: number; closedInsolvent: number;
   closedOther: number; assetSubsidyFirmUnits: number; sitesWithoutFirmTurns: number;
   householdShareOfSales: number | null;
+  /** A3-2: output the firms took straight into inventory (null under rules version 1). */
+  ownedOutput: number | null;
 }
 
 /** Lifetime funnel from the counters (units, not milli-units). Recorded zeros stay zeros. */
@@ -189,5 +199,6 @@ export function economicsFunnel(record: WorkshopEconomicsRecord): EconomicsFunne
     closedIdle: c("closed_idle"), closedInsolvent: c("closed_insolvent"), closedOther: c("closed_other"),
     assetSubsidyFirmUnits: c("asset_subsidy_firm_units"), sitesWithoutFirmTurns: c("sites_without_firm_turns"),
     householdShareOfSales: academy + households > 0 ? households / (academy + households) : null,
+    ownedOutput: record.rules_version === 2 ? units(c("owned_output")) : null,
   };
 }

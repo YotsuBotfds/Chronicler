@@ -410,15 +410,15 @@ and uncalibrated; nothing was tuned on these or any held worlds.
 The first gate (`_cw3b_gated`, frozen code `dbfcd84a`) read each row separately and kept the arm's
 irrigated set between calls, so it depended on the runner reading a world's arm row before its
 control row (it failed closed: a reversed order would have dropped the pair as "unknown", never
-included it wrongly). When `main`'s runner gained `Outcome.pair` (PR #91), the gated outcomes moved
-to a stateless pair reading (`_cw3b_pair`: both runs pass the pre-treatment check and share the
-set) with a label for an excluded cell (`Outcome.why`: "excluded: pre-treatment check" or
-"excluded: sets differ"; a one-field addition to the runner, default unchanged). The stored held
-and pilot reports regenerate with every number identical: the pilot report byte for byte, the
-held report with only its 14 "unknown" cells of excluded pairs now reading "excluded:
-pre-treatment check" (a test checks this, `tests/test_infrastructure_condition.py`), and every
-other stored screen report (CW1, CW3, CW4, CW4b, CW5c, held and pilot) byte for byte under the
-merged runner. The stored `report.md` files are left as the run wrote them.
+included it wrongly). When `main`'s runner gained `Outcome.pair` (PR #91; PR #92 lets a pair
+return the reason a world has no value), the gated outcomes moved to a stateless pair reading
+(`_cw3b_pair`: both runs pass the pre-treatment check and share the set, else "excluded:
+pre-treatment check" or "excluded: sets differ"); the runner is `main`'s, unchanged by this lane.
+The stored held and pilot reports regenerate with every number identical: the pilot report byte
+for byte, the held report with only its 14 "unknown" cells of excluded pairs now reading
+"excluded: pre-treatment check" (a test checks this, `tests/test_infrastructure_condition.py`), and
+every other stored screen report (CW1, CW2, CW3, CW4, CW4b, CW5, CW5c, held and pilot) byte for
+byte under the merged runner. The stored `report.md` files are left as the run wrote them.
 
 ### Corrections after the independent check (2026-11-07)
 

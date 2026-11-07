@@ -465,7 +465,13 @@ def finish_phase2(world, economy_result, agent_bridge, acc):
         titled, basis = 0, None
         firm = _firm(state, receipt.site)
         held = firm.inventory if firm is not None else 0
-        if output is not None and output > 0:
+        if output is not None and output > 0 and economics is not None and economics.owned_output(world):
+            # A3-2: the native column kept the whole output out of the commons;
+            # the firm takes all of it (its ceiling was bounded by its room).
+            titled = math.floor(output * MILLI)
+            if titled > INVENTORY_CAP - held:
+                raise RuntimeError(f"workshop firm {receipt.site} produced beyond its inventory room")
+        elif output is not None and output > 0:
             if commitments is None:
                 from chronicler.mutual_aid import read_stockpile_commitments
                 commitments = read_stockpile_commitments(world, sim)
@@ -500,13 +506,15 @@ def finish_phase2(world, economy_result, agent_bridge, acc):
         if output:
             _bump(state, "output", math.floor(output * MILLI))
         if titled:
-            goods = world.regions[firm.region].stockpile.goods
-            goods["crafts"] = goods.get("crafts", 0.0) - titled / MILLI
+            owned = economics is not None and economics.owned_output(world)
+            if not owned:
+                goods = world.regions[firm.region].stockpile.goods
+                goods["crafts"] = goods.get("crafts", 0.0) - titled / MILLI
             firm.inventory += titled
             _total(firm, "titled", titled)
             _bump(state, "titled", titled)
-            _material(t, firm, "title", ("region_market", firm.region), ("workshop_inventory", firm.site),
-                      titled, "phase2")
+            _material(t, firm, "title", ("workshop_output", firm.site) if owned else ("region_market", firm.region),
+                      ("workshop_inventory", firm.site), titled, "phase2")
     if economics is not None:                     # A3: charge the inputs used, observe prices
         economics.charge_inputs(world, t, acc, economy_result)
     open_sites = {s.site for s in ws.sites}
