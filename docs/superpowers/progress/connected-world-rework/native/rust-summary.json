@@ -1,0 +1,20 @@
+{
+  "command": "CARGO_HOME=/workspace/shared/cargo RUSTUP_HOME=/workspace/shared/rustup PATH=/workspace/shared/cargo/bin:$PATH CARGO_TARGET_DIR=/workspace/cwr-native-target CARGO_BUILD_JOBS=2 PYO3_PYTHON=/workspace/cwr-native/bin/python VIRTUAL_ENV=/workspace/cwr-native LIBRARY_PATH=/workspace/cwr-link-lib LD_LIBRARY_PATH=/workspace/cwr-link-lib cargo test --locked (chronicler-agents/)",
+  "suites": 40,
+  "passed": 1339,
+  "failed": 0,
+  "ignored": 2,
+  "ignored_lines": [
+    "test regression_10k_24r_under_6s ... ignored",
+    "test regression_6k_24r_under_3s ... ignored"
+  ],
+  "log_sha256": "df2f632b71587018d8145d13e810c1c097c3d399abeb40a696e277c257f4cffb",
+  "log_path": "/workspace/evidence/cwr-rust-full.log",
+  "native_build_input_sha256": "f55df55d453ac37694410246c4a9728c56f3f6148f679fde8efc21ffd8775acf",
+  "build_log_sha256": "df2af8ffad8c77a6983cdd9d398c2389f2d0c6b65c66743a36bd753e8d63b62c",
+  "retained_failures": [
+    "release Rust test attempt could not locate libpython3.13 development symlink; owned private linker directory fixed lookup without repository change",
+    "release full-suite compilation was interrupted to use standard cargo test; full standard suite then passed"
+  ],
+  "scope": "Full standard Rust suite plus added physical-identity tests, not the two manual timing benches or either separately restricted qualification gate."
+}
