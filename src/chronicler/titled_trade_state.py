@@ -49,7 +49,7 @@ from chronicler.money import MoneyBook
 #: value, as the holder's claim there: no cargo travels without a reserved
 #: carrier, and no holder's new income stacks with a margin.
 OUTCOMES: tuple[str, ...] = ("delivered", "returned", "escheated", "pool_reset", "switched_off",
-                             "released_returned")
+                             "released_returned", "seized")
 #: Why a shipment returned (append only).
 RETURN_CAUSES: tuple[str, ...] = (
     "destination_conquered", "quarantine_closure", "route_lost", "destination_left_pilot",
@@ -66,7 +66,7 @@ LOG_KINDS: tuple[str, ...] = (
     "switched_on", "switched_off", "dispatched", "closed", "carrier_released", "pool_reset",
 )
 #: Loss kinds of a shipment's cargo (append only).
-LOSS_KINDS: tuple[str, ...] = ("transit_decay", "sea_loss")
+LOSS_KINDS: tuple[str, ...] = ("transit_decay", "sea_loss", "war_seizure")
 
 MAX_SHIPMENTS = 64
 MAX_CLOSED = 32
@@ -93,6 +93,7 @@ COUNTERS: tuple[str, ...] = (
     "released_returned_enlisted", "released_returned_on_trip", "released_returned_other_work",
     # Review nit: delivered lots beyond MAX_LOTS are not tracked for sales attribution.
     "lots_untracked_milli",
+    "seized", "war_seizure_milli",
 )
 
 

@@ -40,6 +40,8 @@ def _requisition(region: "Region", factor: float, world=None, *, cause: str | No
     ``occupation``) and ``actor`` (the besieger or occupier) are recorded where
     the event reaches owned stock."""
     from chronicler.economy import FOOD_GOODS
+    from chronicler.war_requisition import capture_loss, finish_loss
+    opening = capture_loss(world, region)
     for good in FOOD_GOODS:
         if good in region.stockpile.goods:
             region.stockpile.goods[good] *= factor
@@ -61,6 +63,7 @@ def _requisition(region: "Region", factor: float, world=None, *, cause: str | No
         # losses of this event with actor and victim (a no-op unless active).
         from chronicler.attribution_records import note_requisition
         note_requisition(world, region, factor, cause, actor)
+    finish_loss(world, region, actor, cause, opening)
 
 
 def start_occupation(ctx: WarContext, region: "Region", occupier: "Civilization",

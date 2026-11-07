@@ -774,6 +774,9 @@ def phase10(world, acc, economy_result, agent_bridge):
     state.money = t.money[-MAX_TRANSFERS:]
     state.materials = t.materials[-MAX_TRANSFERS:]
     state.last_payroll_turn = t.turn
+    from chronicler.adaptive_livelihoods import record_payroll
+    record_payroll(world, t.work, t.receipt, t.money,
+                   {f.site: f.region for f in state.firms + state.closed})
     state._turn = None
     _bump(state, "payroll_turns")
     if economics is not None:

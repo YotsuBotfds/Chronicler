@@ -87,8 +87,10 @@ def test_the_switch_is_inserted_before_the_ledger_with_cli_catalog_and_manifest_
     # After every acting package: A3, A4's titled trade, C2's epidemic care, then X1's
     # residence ledger (record-only, immediately before D2).
     assert LIVELIHOODS_SWITCHES.index("attribution_records") == LIVELIHOODS_SWITCHES.index("residence_ledger") + 1
-    assert LIVELIHOODS_SWITCHES.index("residence_ledger") == LIVELIHOODS_SWITCHES.index("epidemic_care") + 1
-    assert LIVELIHOODS_SWITCHES.index("epidemic_care") == LIVELIHOODS_SWITCHES.index("titled_trade") + 1
+    assert LIVELIHOODS_SWITCHES.index("residence_ledger") == LIVELIHOODS_SWITCHES.index("guild_leagues") + 1
+    assert LIVELIHOODS_SWITCHES.index("guild_leagues") == LIVELIHOODS_SWITCHES.index("epidemic_care") + 1
+    assert LIVELIHOODS_SWITCHES.index("epidemic_care") == LIVELIHOODS_SWITCHES.index("infrastructure_condition") + 1
+    assert LIVELIHOODS_SWITCHES.index("infrastructure_condition") == LIVELIHOODS_SWITCHES.index("titled_trade") + 1
     assert LIVELIHOODS_SWITCHES.index("titled_trade") == LIVELIHOODS_SWITCHES.index("workshop_economics") + 1
     assert LV.LIVELIHOODS_ARG_KEYS[-2:] == ("attribution_records", "wealth_accounting")
     assert "attribution_records" not in LV.LIVELIHOODS_CHOICES
@@ -551,6 +553,7 @@ NOTE_SITES = {
     ("action_engine", "apply_region_conquest", "note_conquest"): 1,
     ("cities", "_commerce", "note_city_dues"): 1,
     ("cities", "_sack", "note_city_sack"): 1,
+    ("infrastructure_condition", "war_damage", "note_infrastructure_damage"): 1,
 }
 
 
@@ -819,3 +822,77 @@ def test_no_more_deaths_are_labelled_war_drain_than_the_drains_staged():
     rows = {(r["cause"], r["actor"]): r["deaths"] for r in _rows(frame, victim=B)}
     assert rows == {("war_drain", A): 1, ("natural", None): 2}
     assert [(d["staged"], d["labelled"], d["beyond_staged"]) for d in frame["casualties"]["war_drains"]] == [(1, 1, 2)]
+
+
+@pytest.mark.parametrize("mode", ["repair", "cost_only", "record_only"])
+def test_infrastructure_damage_records_actual_condition_once_with_event_parties(mode):
+    from chronicler import infrastructure_condition as IC
+    from chronicler.models import Infrastructure, InfrastructureType
+
+    from chronicler.grain_storage import enable_storage
+    world = _world()
+    _granaries(world)
+    enable_storage(world)
+    LV.configure_livelihoods(world, parse("--repair-projects", "--infrastructure-condition",
+                                        "--infrastructure-condition-mode", mode), agent_mode="hybrid")
+    _ctx, war = start_war(world)
+    region = world.regions[CRAG]
+    region.infrastructure = [Infrastructure(type=kind, builder_civ="B", built_turn=1)
+                             for kind in (InfrastructureType.IRRIGATION, InfrastructureType.ROADS)]
+    # Capture the event's defender explicitly even after the controller changed.
+    region.controller = "A"
+    IC.war_damage(world, region, "conquest", "A", "B")
+    IC.war_damage(world, region, "sack", "A", "B")
+    state = world.livelihoods.infrastructure_condition
+    assert len(state.damages) == 2 and len(state.skipped_damages) == 2
+    frame = _commit(world)
+    entries = _entries(frame, "infrastructure_war_damage")
+    assert len(entries) == 2
+    assert all((e["actor"], e["victim"], e["nature"], e["unit"], e["cause"])
+               == (A, B, "destroyed", "condition", "conquest") for e in entries)
+    assert {e["receipt"]["damage"] for e in entries} == {d.did for d in state.damages}
+    assert all(e["receipt"]["war"] == war.war_key and e["receipt"]["war_start_turn"] == war.start_turn
+               for e in entries)
+    assert sum(e["amount"] for e in entries) == pytest.approx(sum(d.amount for d in state.damages))
+    assert all(e["amount"] == pytest.approx(e["detail"]["condition_before"] - e["detail"]["condition_after"])
+               for e in entries)
+    pair = next(p for p in frame["burdens"]["pairs"] if p["kind"] == "infrastructure_war_damage")
+    assert pair["amount"] == pytest.approx(0.5) and pair["events"] == 2 and not pair["internal"]
+
+
+def test_infrastructure_observer_off_does_not_change_condition_and_flood_has_no_foreign_actor():
+    from chronicler import infrastructure_condition as IC
+    from chronicler.models import Infrastructure, InfrastructureType
+
+    def damaged(observe, *, flood=False):
+        from chronicler.grain_storage import enable_storage
+        world = _world()
+        _granaries(world)
+        enable_storage(world)
+        LV.configure_livelihoods(world, parse("--repair-projects", "--infrastructure-condition"), agent_mode="hybrid")
+        if not observe:
+            AR.set_attribution_records_enabled(world, False, agent_mode="hybrid")
+        region = world.regions[CRAG]
+        region.infrastructure = [Infrastructure(type=InfrastructureType.IRRIGATION, builder_civ="B", built_turn=1)]
+        if flood:
+            IC.flood_damage(world, CRAG, 2.0, ref="flood:2:5")
+        else:
+            IC.war_damage(world, region, "conquest", "A", "B")
+        return world
+
+    off, on = damaged(False), damaged(True)
+    assert off.livelihoods.infrastructure_condition.model_dump() == on.livelihoods.infrastructure_condition.model_dump()
+    assert off.livelihoods.attribution_records._turn is None
+    flood = damaged(True, flood=True)
+    assert _entries(_commit(flood), "infrastructure_war_damage") == []
+    assert flood.livelihoods.infrastructure_condition.damages[0].event == "flood"
+
+
+def test_infrastructure_burden_appends_declarations_without_reordering_historical_keys():
+    old_kinds = tuple(k for k in BURDEN_KINDS if k != "infrastructure_war_damage")
+    historical = (*(f"deaths_{cause}" for cause in CASUALTY_CAUSES[:5]),
+                  *(f"burden_{kind}" for kind in old_kinds), *(f"burden_{kind}_events" for kind in old_kinds),
+                  "deaths_war_drain", "deaths_possibly_enemy")
+    assert LIFETIME[:len(historical)] == historical
+    assert LIFETIME[len(historical):] == ("burden_infrastructure_war_damage", "burden_infrastructure_war_damage_events")
+    assert BURDEN_UNITS[-1] == "condition"

@@ -438,7 +438,12 @@ def fund_institutions_phase2(world: "WorldState", acc=None) -> list[Event]:
                 income += int(math.floor(base * effect.governing_cost_rebate * weight))
             if effect.treasury_per_region:
                 income += int(math.floor(effect.treasury_per_region * len(civ.regions) * weight))
-        _apply_stat(world, acc, civ_idx, civ, "treasury", income - paid, "keep")
+        # --reform-services (D1a, service mode): the Commons Management share of
+        # the payment, when a poor relief in force has it as its institution, is
+        # paid into the realm's relief fund instead of sunk (0 otherwise).
+        from chronicler.reform_services import institution_upkeep
+        held = institution_upkeep(world, acc, civ_idx, snapshot, paid, demand)
+        _apply_stat(world, acc, civ_idx, civ, "treasury", income - (paid - held), "keep")
         gov.funding_turn = turn
         gov.funding_treasury_before = projected
         gov.funding_treasury_after = projected - paid

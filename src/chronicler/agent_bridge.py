@@ -275,6 +275,12 @@ def _has_infra(region, infra_type_name: str) -> bool:
     return any(i.active and i.type == target for i in region.infrastructure)
 
 
+def _serves(world, region, kind: str) -> bool:
+    """B3 (``--infrastructure-condition``): the work still serves (service >= 0.5); True while off."""
+    from chronicler.infrastructure_condition import serves
+    return serves(world, region, kind)
+
+
 def _get_active_focus(region, world) -> int:
     """Return the controlling civ's tech focus as u8, 0 = None."""
     if region.controller is None:
@@ -633,7 +639,8 @@ def build_region_batch(world: WorldState, economy_result=None) -> pa.RecordBatch
         "resource_suspension_0": pa.array([_get_suspension_for_slot(r, 0) for r in world.regions], type=pa.bool_()),
         "resource_suspension_1": pa.array([_get_suspension_for_slot(r, 1) for r in world.regions], type=pa.bool_()),
         "resource_suspension_2": pa.array([_get_suspension_for_slot(r, 2) for r in world.regions], type=pa.bool_()),
-        "has_irrigation": pa.array([_has_infra(r, "IRRIGATION") for r in world.regions], type=pa.bool_()),
+        "has_irrigation": pa.array([_has_infra(r, "IRRIGATION") and _serves(world, r, "irrigation")
+                                    for r in world.regions], type=pa.bool_()),
         "has_mines": pa.array([_has_infra(r, "MINES") for r in world.regions], type=pa.bool_()),
         "active_focus": pa.array([_get_active_focus(r, world) for r in world.regions], type=pa.uint8()),
         "prev_turn_water": pa.array([r.prev_turn_water for r in world.regions], type=pa.float32()),

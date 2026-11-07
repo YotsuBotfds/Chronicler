@@ -626,6 +626,8 @@ def apply_region_conquest(
     names the path for records (``war``; an annexation passes its reason:
     ``treaty``, ``consolidated``, ``owner_gone``); it changes nothing else.
     """
+    from chronicler.war_requisition import capture_loss, finish_loss
+    requisition_opening = capture_loss(world, contested)
     contested.controller = attacker.name
     contested.pending_build = None
     # M48: Transient memory signals — conquest and victory
@@ -654,6 +656,7 @@ def apply_region_conquest(
         # (a no-op unless active).
         from chronicler.attribution_records import note_conquest
         note_conquest(world, contested, attacker, defender, via=via)
+    finish_loss(world, contested, attacker, "conquest", requisition_opening)
     contested.last_conquered_turn = world.turn
     attacker.regions.append(contested.name)
     defender.regions = [r for r in defender.regions if r != contested.name]

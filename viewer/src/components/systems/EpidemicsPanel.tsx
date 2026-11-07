@@ -1,3 +1,4 @@
+import { PublicHealth } from "./PublicHealth";
 import { useMemo } from "react";
 import {
   epidemicRows, eventsOfTypes, formatShare, pathogenColor, pathogenLabel, recordedPathogens, recordedSpan,
@@ -38,6 +39,7 @@ export function EpidemicsPanel({
         <div className="phase75-empty-state">No epidemiology record at turn {at}.</div>
       )}
       {epidemicsRecorded && <QuarantineRules epidemics={epidemics} at={at} />}
+      <PublicHealth bundle={bundle} snapshot={snapshot} currentTurn={currentTurn} />
       <EpidemicCare bundle={bundle} snapshot={snapshot} currentTurn={currentTurn} />
 
       <div className="systems-columns">

@@ -88,27 +88,24 @@ def _state(world) -> WealthAccountingState:
 
 #: The livelihoods switches in declaration order (hook order in every phase):
 #: append only; household retail runs after L2, B1's watershed after it, the
-#: observation ledger last (its hooks run after every payer).
+#: observation ledger last (its hooks run after every payer). D1a's relief
+#: services are declared right before household retail: its Phase 10 hook buys
+#: after the granaries' procurement and before retail closes the turn's frame.
 SWITCH_ORDER = ("workshops", "food_allocation", "timber_stock", "grain_convoys", "commons_rules",
         "learning_cohorts", "workshop_payroll", "relocation_costs", "local_budgets", "apprenticeship",
         "repair_projects", "veteran_reintegration", "remittances", "clearing_protection", "operating_wear",
-        "timber_supply", "recovery_crews", "maintenance_obligation", "household_retail", "watershed",
-        "workshop_economics", "titled_trade", "epidemic_care", "residence_ledger", "attribution_records",
-        "wealth_accounting")   # A3, A4, C2's carers (after every other work consumer), X1's ledger, then D2's observer
+        "timber_supply", "timber_orders", "recovery_crews", "maintenance_obligation", "reform_services",
+        "household_retail", "watershed", "workshop_economics", "titled_trade", "infrastructure_condition",
+        "harvest_cover", "epidemic_care", "guild_leagues", "war_requisition", "war_consequences",
+        "adaptive_livelihoods", "public_health", "movement_branches", "residence_ledger", "attribution_records",
+        "wealth_accounting")
 
 
 def test_switch_is_appended_last_with_cli_catalog_and_manifest_keys():
     assert LIVELIHOODS_SWITCHES == SWITCH_ORDER and LIVELIHOODS_SWITCHES[-1] == "wealth_accounting"
-    assert LV.LIVELIHOODS_ARG_KEYS[-1] == "wealth_accounting"
-    # Every switch's own keys come right after it (a choice belongs to the switch before it).
-    assert LV.LIVELIHOODS_ARG_KEYS[-13:] == ("household_retail_boundary", "household_retail_rules", "watershed",
-                                             "watershed_mode", "workshop_economics", "workshop_economics_mode",
-                                             "workshop_economics_rules", "titled_trade", "epidemic_care",
-                                             "epidemic_care_mode", "residence_ledger", "attribution_records",
-                                             "wealth_accounting")
-    assert "wealth_accounting" not in LV.LIVELIHOODS_CHOICES            # no modes in slice 1
-    # C2 (epidemic care) and the ledger exclude each other: care wages are not itemized.
-    assert REQUIREMENTS["wealth_accounting"] == ({"agents": ["hybrid"]}, {"not": {"feature": "epidemic_care"}})
+    assert LV.LIVELIHOODS_ARG_KEYS[-2:] == ("wealth_accounting", "wealth_accounting_mode")
+    assert LV.LIVELIHOODS_CHOICES["wealth_accounting_mode"] == ("observe", "strict")
+    assert REQUIREMENTS["wealth_accounting"] == ({"agents": ["hybrid"]},)
     assert "wealth_accounting" in SIMULATION_ARG_KEYS
     default = parse()
     assert default.wealth_accounting is None
@@ -120,8 +117,8 @@ def test_switch_is_appended_last_with_cli_catalog_and_manifest_keys():
     assert "observation-only" in LV._HELP["wealth_accounting"] and "hybrid" in LV._HELP["wealth_accounting"]
     for fn in ("set_wealth_accounting_enabled", "wealth_accounting_active", "snapshot_summary"):
         assert callable(getattr(WA, fn))
-    # No agent-tick hook: the post-tick snapshot hand-over is unchanged.
-    assert not hasattr(WA, "before_agent_tick") and not hasattr(WA, "after_agent_tick")
+    # A1-2 arms and takes a transient read-only native observation.
+    assert callable(WA.before_agent_tick)
 
 
 @pytest.mark.parametrize("mode", ["off", "shadow", "demographics-only"])
@@ -501,7 +498,7 @@ def test_every_paid_work_row_is_attributed_once_and_pl3_splits_granary_from_work
     wh = frame["withheld"]
     by = {r["package"]: r for r in wh["packages"]}
     # A4's carriers have a row only while titled trade is active (not here).
-    assert [r["package"] for r in wh["packages"]] == [p for p in WITHHELD_PACKAGES if p != "titled_trade"]
+    assert [r["package"] for r in wh["packages"]] == [p for p in WITHHELD_PACKAGES if p not in ("titled_trade", "epidemic_care", "timber_orders", "public_health", "infrastructure_condition")]
     assert {k: r["rows"] for k, r in by.items()} == {
         "workshop_payroll": 2, "apprenticeship": 1, "recovery_crews_granary": 1, "recovery_crews_workshop": 2,
         "repair_projects": 0, "timber_supply": 2}
@@ -650,9 +647,9 @@ def test_record_shape_and_reader_states_are_distinct():
     assert record["schema_version"] == 1 and record["stage"] == "A1" and record["source_turn"] == 0
     assert set(record) == {"schema_version", "stage", "source_turn", "units", "frame", "lifetime", "counters", "log",
                            "log_dropped", "labels", "parameters"}
-    assert set(record["frame"]) == set(WA.FRAME_KEYS)
+    assert set(record["frame"]) == set(WA.FRAME_KEYS) | {"native"}
     assert set(record["lifetime"]) <= set(LIFETIME) and set(record["counters"]) <= set(COUNTERS)
-    assert "native model flows" in record["labels"]["native_model"]
+    assert "native separately itemizes actual income" in record["labels"]["native_model"]
     observed = {"livelihoods": {"wealth_accounting": record}}
     status, frame = WA.record_status(observed)
     assert status == "observed" and frame["world"]["typed_in_milli"] == 0       # a recorded zero
@@ -812,3 +809,39 @@ def test_the_guard_counts_call_sites_and_fails_closed_on_dynamic_references(tmp_
     assert problems == ["helper:2: transfer_wealth takes its purpose from a parameter of route, "
                         "which is not a declared router (WEALTH_ROUTERS)"]
     assert not any(key in WEALTH_WRITERS for key in paths)
+
+
+def test_strict_native_balance_closure_rejects_unobserved_writer_but_observe_keeps_evidence(monkeypatch):
+    world = _world()
+    state = _state(world)
+    state.mode = "strict"
+    WA.prepare_phase2(world, None, None, _batch({1: (0, 1.0)}), None)
+    state._turn.native = {"source_turn": world.turn, "rows": []}
+    with pytest.raises(RuntimeError, match="strict wealth accounting failed"):
+        WA.phase10(world, None, None, _Bridge({1: (0, 2.0)}))
+    assert state.frame is None
+    state.mode = "observe"
+    WA.prepare_phase2(world, None, None, _batch({1: (0, 1.0)}), None)
+    state._turn.native = {"source_turn": world.turn, "rows": []}
+    WA.phase10(world, None, None, _Bridge({1: (0, 2.0)}))
+    assert state.frame["native"]["balance_closure"] == 1.0
+    assert state.frame["native"]["observed_complete"] is False
+    with pytest.raises(ValueError, match="mode"):
+        WA.set_wealth_accounting_enabled(world, True, args=SimpleNamespace(wealth_accounting_mode="guess"))
+
+
+def test_new_package_adapter_reads_uncapped_totals_and_closes_treasury_carry(monkeypatch):
+    from chronicler import money
+    world = _world()
+    total = money.FlowTotal(purpose="care_wage", payer_kind="civ_treasury", payee_kind="agent_wealth",
+                            region=0, payer_civ=0, applied=600, count=2000, treasury_units=-1, carry_change=400)
+    st = SimpleNamespace(frame_turn=world.turn,
+        book=money.MoneyBook(flows_turn=world.turn, flows=[], totals=[total], flows_dropped=2000))
+    monkeypatch.setattr(WA, "_active", lambda _world, name: st if name == "epidemic_care" else None)
+    monkeypatch.setattr(money, "totals_for_turn", lambda _world, turn: [total])
+    book = WA._Book(len(world.regions))
+    WA._seam_package(world, book, world.turn, "epidemic_care")
+    assert book.rows[0]["in_milli"] == 600
+    assert book.treasury["to_households_milli"]["care_wage"] == 600
+    assert all(row["closes"] for row in book.closures)
+    assert book.civ[0]["charged"] == 1

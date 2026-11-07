@@ -3,6 +3,7 @@ import { useBundle } from "./hooks/useBundle";
 import { useLiveConnection } from "./hooks/useLiveConnection";
 import { useTimeline } from "./hooks/useTimeline";
 import { AppShell, type AppSurface } from "./components/phase75/AppShell";
+import { ConstructedNotice } from "./components/ConstructedNotice";
 
 // --- Error Boundary ---
 
@@ -158,7 +159,7 @@ function App() {
   };
 
   return (
-    <AppShell
+    <><ConstructedNotice bundle={bundle}/><AppShell
       surface={surface}
       onSurfaceChange={handleSurfaceChange}
       bundle={bundle}
@@ -205,7 +206,7 @@ function App() {
       liveCheckpointStatus={liveConn.checkpointStatus}
       liveSaveCheckpoint={liveConn.saveCheckpoint}
       liveReconnecting={!liveConn.connected && !!wsUrl}
-    />
+    /></>
   );
 }
 

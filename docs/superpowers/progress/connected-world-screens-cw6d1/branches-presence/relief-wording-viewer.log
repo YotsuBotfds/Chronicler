@@ -1,0 +1,12 @@
+
+> viewer@0.0.0 test
+> vitest run --run src/components/systems/__tests__/ReformServices.test.tsx
+
+
+ RUN  v4.1.0 /workspace/cw-d1c-final/viewer
+
+
+ Test Files  1 passed (1)
+      Tests  3 passed (3)
+   Start at  15:14:20
+   Duration  2.53s (transform 1.00s, setup 67ms, import 1.36s, tests 531ms, environment 450ms)

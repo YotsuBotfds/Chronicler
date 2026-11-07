@@ -40,6 +40,7 @@ def set_public_health_enabled(world, value, *, args=None, agent_mode=None):
     for field in ("mode", "policy", "report_delay"):
         given = getattr(args, f"public_health_{field}", None) if args is not None else None
         if given is not None:
+            given = int(given) if field == "report_delay" else given
             if state.report_turn is not None and given != getattr(state, field):
                 raise ValueError(f"--public-health-{field.replace('_', '-')} conflicts with the saved world")
             # Validate even callers outside argparse.

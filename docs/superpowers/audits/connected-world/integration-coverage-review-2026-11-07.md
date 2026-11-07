@@ -1,0 +1,79 @@
+# Connected World A–E integration coverage review, 2026-11-07
+
+Independent coverage reviewer: B3 integration agent. This is a second pass over
+the original program, amendment, contract audits, recovery coverage matrix and
+actual integration source. It is not a completion declaration or merge receipt.
+The integration checkout was inspected at commit
+`366e6150966c6a3176ffdac3da24f10246a178b0`, with timber-order edits in progress.
+The fetched main at this checkpoint was `4cabac21` (B3 integration); later
+integration commits listed here were not established as merged by this review.
+The lead must update the durable board with exact PR/CI results after landing.
+
+The original request and amendment remain the scope. An audit's proposed first
+slice does not dispose of its explicitly separate follow-ons. Conversely, an
+unrun restricted qualification gate is not permission to run it. The one
+spendable native wealth balance, X1's single Phase 10 writer and guarded T−1
+readers, stable native identities and opt-in behavior remain the contracts.
+
+| Original scope | Actual implementation inspected / reviewed | Evidence or remaining gate at this checkpoint |
+| --- | --- | --- |
+| A1-1 package wealth | Landed Python opening/closing book and explicit money channels remain. Root integrates new payers and aliases into the same book. | Historic A1 evidence is preserved. New IC, care, guards, relief, requisition, branch and escrow paths need the integrated no-hidden-writer, alias/book and exact closure tests. |
+| A1-2 native sources/sinks | Native stages observe occupational income, decay, ceiling, birth and estate operands; Python itemizes them rather than naming the residual modeled income. Actual transfer deltas preserve f32 rounding; signed treasury payer units fixed in `2dcb2ce2`. Care/guard/IC withholding has named channels. | Independent actual-source approval of native batch through `9e001701` and signed-unit correction is recorded separately. Integrated native strict closure and declared-scale tolerance remain gates. This is not conserved global cash. |
+| A2 wages/enrollment | Frozen enrollment replay and household cohorts remain, with wage effects separated from enrollment and replaced farm income. | Preserve CW1 result: wages raised household credits; priced-out-rate effect null. Do not return to the superseded wage-causes-credit-fall inference. |
+| A3 firms/demand | Paid raw inputs, real household demand, one ruler capital contribution, idle closure and rules-2 owned output exclusion remain. New personal payroll/workshop offer adapters use actual individual receipts. | Existing CW2 null/adverse results remain. Integrated A6-enabled payroll/planner and resume tests must establish the new adapter path. |
+| A4-1 titled food | Stable holder/shipment title, direct purchase and retail resale, withheld carrier model income remain. | Historical CW5 mixed results are not timber evidence. D4 and A6 now add custody outcomes and dated own trade experience to this path. |
+| A4-2 custody | D4 captures actual hostile field custody before/after a hop, closes food shipments once and links acquired-cost liability. Destination conquest at a distance remains a return, not fictional seizure. | Exact-source D4 tests and enabled active-transition native restore/integrated physical closure must pass. Death, released carrier, cession, rebuild and switch-off outcomes remain separately recorded. |
+| A4-3 timber | Root `timber_orders.py` uses real merchant purchase, funded destination escrow, dated price, graph capacity, one hop/turn and existing PL1 store delivery; terminal delivery/loss/refund/seizure close physical and money books. | Unit contracts are present. Natural activation, enabled resume, real browser, held evaluation and scale still need integrated receipts. **Found follow-on:** A6 trade packet/return-memory gate was present only on titled food at inspection; lead/history owner is integrating the same contract for timber. |
+| A5 stock lifecycle | Rules-2 each-event conquest/siege/occupation; heirs/escheat, remote title and pool reset stay with original authorities. D4 transfer/restitution adds no second ownership store. | Retain existing lifecycle controls and test mixed D4/A4/retail transition resumes. Controllerless confiscation and timber deposited into real commons after terminal custody are explicit boundaries, not invented refunds. |
+| A6 migration/work/training/information/trade | Existing native migration remains sole mover; bounded prior own refusal/quick-departure memory, T−1 X1 own-row information, dated bonds/packets and home prior replace foreign truth under rules 2. Workshop, academy and apprenticeship have actual decision adapters; repair/granary/woodcut/IC adapters are independently reviewed in `6a50f275`; care/guards have their own reviewed adapters. Titled-food trade uses own trade packets and dated returned/seized cargo memory. | Empty record-only decision/RNG/legacy driver bytes tested by author. Active A6 explicitly refuses unsupported raw legacy attribution instead of labeling experience as news/religion. Personal work utility remains null where title or mixed withheld cost is unknown. Fresh activation, held effects/harms, integrated native crew decline and active-transition restore remain evidence gates. Timber trade extension above is a genuine follow-on, not covered by food implementation. |
+| B1/B2 water | Conserved procedural drainage account; flow replaces native hydrology/cascade/legacy flood effect, while unrelated draws remain. | Historical CW3 disk-full failure and five-world primary analysis plus supplementary completion remain intact. No qualification claim; templates still refuse watershed because no elevation authority exists. |
+| B3 irrigation/roads | Recovered source merged with X1, independent service guard fix at `be524a60`; named PL3 adult farmer crews, actual wages/refused returns and distinct material sink in `d647c3a5`; no anonymous fallback for named requests. One finite treasury/envelope quote covers wage and material bills before either executes. | B3 fresh offline/native/resume/browser/profile evidence recorded in `b3-integration-verification-2026-11-07.md`; root owns exact PR/main CI. **Functional boundary still requiring lead disposition:** all roads are excluded from L9 proposals, timber needs and repair envelopes. Roads repair without L9; integrated L9 roads are not funded. No road→food relief valuation has been invented. |
+| B3 ports | Maritime has no consumer for PORTS infrastructure service. | Explicit dependency deferral authorized by original plan; no cosmetic condition effect should be claimed. |
+| B3 war burden | Local exact addon `500274dd` records only newly accepted conquest/sack damage in separate `condition` units, event actor/victim and asset/damage/war ids. Skipped duplicate events, wear and floods create no foreign burden. | 127 D2/IC Python and 8 viewer tests passed, lint/build passed; D1 independent review requested. Historical declaration order is preserved. Root must integrate this addon and its CI. |
+| B4 timber/cover/water | `17454c47` uses the sole L3 standing stock to reduce only unsupported canopy, bounded loss and existing ecology regrowth/lag; record-only control and dated ledger. | Independent D1 source review, focused and constructed native restore/identity passed on that source. Constructed depleted stock is mechanism evidence, not natural harvest activation. Integrated natural/held downstream outcomes remain to be reported honestly. |
+| B5 environment/public works viewer | Dated basin arrows and cross-border region-control context; strict condition/works panels, histories/stall story; root `366e6150` adds namespaced asset/work/person histories through strict B3 records. | New watershed timeline context assigned to history owner; public-works chain must keep id links separate from regional arable/yield/L9 context. Browser against final integrated bundle still required, not replaced by component tests. |
+| C1 protection costs | Existing targeted closure, migration gate and lagged contacts remain; public health now replaces anonymous enforcement with dated named guard teams and actual wages/farm time. | Preserve CW4 null and CW4b mixed/food-harm results. Named guard staffing T−1 authority and cost-only control need final integrated lifecycle/browser/screen evidence. |
+| C2/C3 care/supplies/sanitation/crowding | Real dated-price grain supplies consume physical uncommitted stock and record external cash versus internal allocation; actual irrigation service is an explicit water-management proxy; T−1 X1 crowding affects regional susceptibility. Carer wages/withholding and supply gaps remain visible. | Separation of regional epidemic fractions, individual injury episodes, endemic mortality and existing epidemic death authority preserved. Proxy is not fictional sanitation infrastructure. Fresh screens must report lost farm time, food opportunity cost and survivor food harms. |
+| C4 informed choice | Dated reports, delivery/expiry, prior own mortality experience, explicit expected-loss/cost comparison and shuffled signal control; soldier/pilgrim contacts not counted as preventable trade/migration benefit. | Report target/prevalence at issuance, stable ids, named guard capacity and no-experience uncertainty are in actual source. Policy cost uses labeled goods-contact proxy because food-import origin is not recorded. Final informed-vs-shuffled effects/nulls/adverse outcomes remain evidence work. |
+| D1a relief | Recovered implementation buys real unsold owned food through finite relief funds and removes synthetic relief credit. | Independent final integration review `23053bde`, exact inverse to B3 main verified. **Review follow-up:** positive delivery lower bound needs gross outgoing-food survival proof; net food transport plus short commons/cap-zero is insufficient. Author correcting; no final approval of that proof until reviewed. Historical held receipts preserved. |
+| D1b leagues | Real native-delivery links establish stable cross-border leagues, purse dues and actual bounded claim payouts; not a new grievance stack. | Final source union and phone layout reviewed; author's fresh native/viewer/browser and held screen in progress. Exact-head CI and main CI still needed. |
+| D1c branches | Core `2e1e1626`, follow-on `4956c5af`: local adults pay real dues, stable movement/host branch, exact T−1 permission plus current public boundary filters. Existing native lapse/recruitment remains sole authority. | Independently reviewed actual source. Viewer historical names and fee-permission distinction tested. New native funded transition restore and record-only identity tests must run after root hooks. Branches are not established merely by guild leagues. |
+| D2 attribution/default defects | Existing actor/victim/cause and transfer/mint/destruction/restriction observer retained; B3 addon above. | Default provenance-consuming decisions, merchant origin/current-region income mismatch and natural-death army casualty booking remain explicitly recorded. Intentional corrections must stay under opt-in/rules paths. |
+| D3 human consequences | Opt-in campaign-selected surviving wounds use existing health episodes; roster/population/death counts separate; X1 kin separation; dated own threat evacuation/peace-bound home return feeds native migration. | Actual source resolves earlier conflicting audits: enlisted agents can migrate natively; attachment is not residence. No Python teleport or safety guarantee. Natural wounds/evacuation/return activation and enabled lifecycle restore need final evidence; constructed tests alone do not establish natural activation. |
+| D4 supply/restoration | Army.rations is sole carried store; physical commons withdrawal replaces minted initial/refill/forage kits, capped requisition and dated actual consumed/demand feeding, civilian farm/title/food exclusions and release meal continuity. Actual treasury restitution is separate from nonspendable liability. Existing RS2/B3 repair remains reconstruction authority. | Reconstructed source, not claimed recovery of inaccessible unpushed D4 work. Shared native whole-batch/stale-input/persistence contracts independently reviewed. Integrated physical/income/civilian census, active supply/restitution checkpoint and pool reset tests remain gates. |
+| E histories/stories/provenance | Root strict entity index now links named persons, orders, cargo, claims, armies and IC assets/works with source pointers/dates/states; exact saved-record citations and stable-key causal guard; finder `32fb5a15` reads saved bundles without narration calls. | **Coverage gaps passed to history owner:** household inferred-key and firm identity adapters; watershed context; history entry from chain/region/search; constructed metadata/banner. Finder must refuse malformed package facts rather than using pointer existence as semantic validation. Natural adaptation/failure/mixed examples must be generated on development bundles with command/source/extension/turns; absence stays null, no seed fishing on held cohorts. |
+| E whole-program verification | Catalog, old bundles/imports, exact inverse witnesses, 110-second offline chunks, isolated native source identities, historical registries and bounded held cohorts retained. | Lead owns final union of aliases/schema/turn order/native/pins, full integrated offline/Python/native/Rust/viewer/browser gates, active-transition exact restore, both feature-off references, declared-scale CPU/RSS/bytes/checkpoint/sidecar metrics, final independent review and green exact-head PR plus main CI. B3 profile lacked validation-sidecar metrics; integrated V11 must measure them. |
+
+## Explicit boundaries and final evidence obligations
+
+The following are honest model boundaries: ports lack a service consumer;
+wealth is not global conserved cash; irrigation is a declared sanitation proxy;
+reports and public costs are incomplete information; a separation or evacuation
+record proves neither motive nor safety; a liability is not cash; region joins
+never assign totals to an individual; sample absence cannot establish death or
+inactivity. They must remain visible in final examples and viewer text.
+
+The L9-road funding omission, D1 delivery lower-bound proof, timber A6 adapter,
+and E identity/navigation/validation gaps above are implementation/review work,
+not automatically justified deferrals. This audit requested concrete action
+from the owners. Later corrections should update this dated disposition with
+exact source and evidence rather than silently rewriting historical results.
+
+No default promotion, paid narration, deployment, purchase, credential/sharing
+change or restricted full 200-seed/procedural qualification was performed by
+this review. Bounded screens and constructed transition checks must keep their
+actual labels. Main red blocks feature merges, not independent repair work.
+
+## Road L9 follow-on after this checkpoint
+
+The lead resolved the B3/L9 functional gap identified above: both kinds must share
+one finite works envelope, with road relief in explicit remaining repair
+worker-turns for patricians, never food. The implementation now scopes stable work
+IDs, preserves proportional per-kind expectations and reports actual delivery
+and credited work by kind. A mixed partial grant cannot keep its road promise
+by spending only on irrigation. Named crews use the canonical whole-service
+finite envelope; absent per-person post-tick income rows remain unknown, matching
+PL3's lifecycle semantics. The historical matrix and earlier CW3/CW3b evidence
+above remain dated records. This follow-on's source review, 248 focused tests and
+native activation/resume evidence are recorded in the current B3 integration
+contract; landing and final integrated evidence are still lead gates.

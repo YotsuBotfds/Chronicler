@@ -194,6 +194,8 @@ pub struct AgentSimulator {
     /// Detached decision observations; neither configuration nor frame persists.
     decision_delivery_config: Option<crate::decision_delivery::DeliveryConfig>,
     decision_delivery_frame: Option<crate::decision_delivery::DeliveryFrame>,
+    /// The legacy driver budget has no independently declared A6 term.
+    adaptive_driver_budget_unavailable: bool,
     mobility_gate_frame: Option<crate::household::MobilityGateFrame>,
     /// Transient teaching receipt; not an additional persistent work account.
     teaching_result: Option<crate::teaching_work::TeachingPlan>,
@@ -256,6 +258,7 @@ impl AgentSimulator {
             transaction_receipts_limit: None,
             decision_delivery_config: None,
             decision_delivery_frame: None,
+            adaptive_driver_budget_unavailable: false,
             mobility_gate_frame: None,
             teaching_result: None,
             last_teaching_turn: None,
@@ -370,9 +373,9 @@ impl AgentSimulator {
     /// RS0: `priority_ids` (one list for every site) puts listed eligible
     /// ids first, in the listed order; None or empty keeps the default order.
     #[allow(clippy::type_complexity)]
-    #[pyo3(signature = (sites, enlisted_ids, turn=None, *, priority_ids=None))]
+    #[pyo3(signature = (sites, enlisted_ids, turn=None, *, priority_ids=None, declined_ids=None))]
     pub fn plan_workshop_crews(&mut self, sites: Vec<(u16, u16, u16, f32, u8)>, enlisted_ids: Vec<u32>, turn: Option<u32>,
-                               priority_ids: Option<Vec<u32>>)
+                               priority_ids: Option<Vec<u32>>, declined_ids: Option<Vec<u32>>)
         -> PyResult<Vec<(u16, u16, u16, u32, u32, u32, u32, u32, Vec<u32>, Vec<u16>, f32)>> {
         if !self.initialized {
             return Err(PyValueError::new_err("workshop crews require initialized agents"));
@@ -384,8 +387,9 @@ impl AgentSimulator {
             return Err(PyValueError::new_err("workshop site region out of range"));
         }
         let enlisted: std::collections::HashSet<u32> = enlisted_ids.into_iter().collect();
-        let rows = crate::workshop_work::plan_crews_with_priority(&self.pool, &requests, &enlisted, turn,
-                                                                  priority_ids.as_deref().unwrap_or(&[]))
+        let declined: std::collections::HashSet<u32> = declined_ids.unwrap_or_default().into_iter().collect();
+        let rows = crate::workshop_work::plan_crews_with_choice(&self.pool, &requests, &enlisted, turn,
+                                                                  priority_ids.as_deref().unwrap_or(&[]), &declined)
             .map_err(PyValueError::new_err)?;
         if let Some(turn) = turn {
             let crew: Vec<(u32, f32)> = rows.iter().zip(&requests)
@@ -676,6 +680,39 @@ impl AgentSimulator {
         self.movements.rows = crate::movements::parse_movement_table(&rb).map_err(arrow_err)?;
         self.movements.enabled = true;
         Ok(())
+    }
+
+    /// D1c: funded branch hosts observed at T-1, consumed once by T.
+    /// Validate the whole input before mutation. Rebuilt after restore.
+    pub fn set_movement_branches(&mut self, source_turn: u32, target_turn: u32,
+                                movement_ids: Vec<u16>, hosts: Vec<u8>) -> PyResult<()> {
+        if source_turn.checked_add(1) != Some(target_turn) {
+            return Err(PyValueError::new_err("movement branches require a T-1 source frame"));
+        }
+        if movement_ids.len() != hosts.len()
+            || movement_ids.iter().any(|&id| id == 0)
+            || hosts.iter().any(|&civ| civ == 255) {
+            return Err(PyValueError::new_err("invalid movement branch hosts"));
+        }
+        let mut pairs: Vec<(u16, u8)> = movement_ids.into_iter().zip(hosts).collect();
+        pairs.sort_unstable();
+        if pairs.windows(2).any(|w| w[0] == w[1]) {
+            return Err(PyValueError::new_err("duplicate movement branch host"));
+        }
+        if self.movements.branch_turn.is_some() {
+            return Err(PyValueError::new_err("movement branches already pending"));
+        }
+        self.movements.branch_hosts = pairs;
+        self.movements.branch_turn = Some(target_turn);
+        Ok(())
+    }
+    pub fn cancel_movement_branches(&mut self, target_turn: u32) -> PyResult<bool> {
+        if self.movements.branch_turn.is_some_and(|t| t != target_turn) {
+            return Err(PyValueError::new_err("cannot cancel another turn's movement branches"));
+        }
+        let pending = self.movements.branch_turn.take().is_some();
+        self.movements.branch_hosts.clear();
+        Ok(pending)
     }
 
     /// Agent movements: replace the lasting reforms in force (creed u8, civ
@@ -989,6 +1026,88 @@ impl AgentSimulator {
     /// RS4: stable ids of living agents away on a merchant trip, ascending (reads only).
     pub fn trip_agent_ids(&self) -> Vec<u32> {
         crate::wealth_transfer::trip_ids(&self.pool)
+    }
+
+    /// A6-3 dated own-residence knowledge, extended by the person's existing
+    /// living bonds and unexpired pre-turn packets. Source masks: 1 own,
+    /// 2 bond, 4 packet; transient and consumed once by the native tick.
+    pub fn set_adaptive_information(&mut self, turn: u32, own_known: Vec<(u32,u16)>) -> PyResult<Vec<(u32,u16,u8)>> {
+        if own_known.iter().any(|r| r.1 as usize >= self.num_regions) {
+            return Err(PyValueError::new_err("adaptive information region out of range"));
+        }
+        if self.pool.adaptive_information.is_some() { return Err(PyValueError::new_err("adaptive information already pending")); }
+        if self.decision_delivery_config.is_some() {
+            return Err(PyValueError::new_err("adaptive information refuses the legacy decision observer"));
+        }
+        let (mut input, mut receipt) = crate::adaptive_information::build(&self.pool,turn,&own_known);
+        input.known.retain(|r| (r.1 as usize) < self.num_regions);
+        receipt.retain(|r| (r.1 as usize) < self.num_regions);
+        self.pool.adaptive_information = Some(input);
+        Ok(receipt)
+    }
+    pub fn cancel_adaptive_information(&mut self) -> bool { self.pool.adaptive_information.take().is_some() }
+    /// Read-only batch query; only the named carrier's own dated trade packets.
+    pub fn usable_trade_destinations(&self, agent_ids: Vec<u32>, turn: u32) -> Vec<(u32,Vec<u16>)> {
+        crate::adaptive_information::trade_destinations(&self.pool,&agent_ids,turn).into_iter()
+            .map(|(id, mut rows)| { rows.retain(|&r| (r as usize) < self.num_regions); (id,rows) }).collect()
+    }
+
+    /// A6: signed per-person, adjacent-destination score deltas; abs <= 0.3.
+    pub fn set_adaptive_migration(&mut self, turn: u32, mut rows: Vec<(u32,u16,f32)>) -> PyResult<()> {
+        rows.sort_unstable_by_key(|r| (r.0,r.1));
+        if rows.windows(2).any(|w| (w[0].0,w[0].1) == (w[1].0,w[1].1))
+            || rows.iter().any(|r| r.1 as usize >= self.num_regions || !r.2.is_finite() || r.2.abs() > 0.3) {
+            return Err(PyValueError::new_err("invalid adaptive migration score rows"));
+        }
+        if self.pool.adaptive_migration.is_some() || self.pool.adaptive_migration_receipt.is_some() {
+            return Err(PyValueError::new_err("adaptive migration pending or receipt untaken"));
+        }
+        if !rows.is_empty() && self.decision_delivery_config.is_some() {
+            return Err(PyValueError::new_err("adaptive migration refuses the legacy decision observer"));
+        }
+        self.pool.adaptive_migration = Some(crate::adaptive_migration::AdaptiveMigration::new(turn, rows));
+        Ok(())
+    }
+    pub fn cancel_adaptive_migration(&mut self) -> bool { self.pool.adaptive_migration.take().is_some() }
+    #[allow(clippy::type_complexity)]
+    pub fn take_adaptive_migration_receipt(&mut self) -> Option<(u32,Vec<(u32,u16,u16,u8)>,u32,u32)> {
+        self.pool.adaptive_migration_receipt.take().map(|r| (r.turn,r.refused,r.used,r.changed))
+    }
+
+    /// D4: replace one turn's roster service input before economy / agent tick.
+    /// Food is the army's actual fed fraction, never a new civilian ration.
+    #[pyo3(signature = (turn, rows, suppress_war_mortality=false))]
+    pub fn set_enlisted_service(&mut self, turn: u32, mut rows: Vec<(u32, f32)>, suppress_war_mortality: bool) -> PyResult<()> {
+        rows.sort_unstable_by_key(|r| r.0);
+        if rows.windows(2).any(|w| w[0].0 == w[1].0)
+            || rows.iter().any(|r| !r.1.is_finite() || !(0.0..=1.0).contains(&r.1)) {
+            return Err(PyValueError::new_err("invalid enlisted service rows"));
+        }
+        if self.pool.enlisted_service.as_ref().is_some_and(|s| s.turn != turn) {
+            return Err(PyValueError::new_err("another turn's enlisted service is pending"));
+        }
+        self.pool.enlisted_service = Some(crate::enlisted_service::EnlistedService { turn, rows, suppress_war_mortality });
+        Ok(())
+    }
+    pub fn cancel_enlisted_service(&mut self) -> bool { self.pool.enlisted_service.take().is_some() }
+
+    /// A1-2: arm a one-tick observational ledger; untaken or stale observations
+    /// are refused, never silently attributed to another turn.
+    pub fn set_wealth_observation(&mut self, turn: u32) -> PyResult<()> {
+        if self.pool.wealth_observation.is_some() {
+            return Err(PyValueError::new_err("wealth observation already pending or untaken"));
+        }
+        self.pool.wealth_observation = Some(crate::wealth_observation::WealthObservation::new(turn));
+        Ok(())
+    }
+    pub fn cancel_wealth_observation(&mut self) -> bool { self.pool.wealth_observation.take().is_some() }
+    #[allow(clippy::type_complexity)]
+    pub fn take_wealth_observation(&mut self) -> PyResult<Option<(u32, Vec<(u16, String, f64)>)>> {
+        if self.pool.wealth_observation.as_ref().is_some_and(|o| !o.complete) {
+            return Err(PyValueError::new_err("wealth observation tick has not completed"));
+        }
+        Ok(self.pool.wealth_observation.take().map(|o| (o.turn,
+            o.rows.into_iter().map(|((r, k), v)| (r, k, v)).collect())))
     }
 
     /// Livelihoods L6a: transfer purposes in declaration order (append only).
@@ -1786,6 +1905,21 @@ impl AgentSimulator {
                 return Err(PyValueError::new_err("teaching work must be prepared for this tick"));
             }
         }
+        if self.pool.adaptive_information.as_ref().is_some_and(|a| a.turn != turn) {
+            return Err(PyValueError::new_err("adaptive information must be installed for this tick"));
+        }
+        if self.pool.adaptive_migration.as_ref().is_some_and(|a| a.turn != turn) {
+            return Err(PyValueError::new_err("adaptive migration must be installed for this tick"));
+        }
+        if self.pool.enlisted_service.as_ref().is_some_and(|s| s.turn != turn) {
+            return Err(PyValueError::new_err("enlisted service must be installed for this tick"));
+        }
+        if self.pool.wealth_observation.as_ref().is_some_and(|o| o.turn != turn || o.complete) {
+            return Err(PyValueError::new_err("wealth observation must be armed for this tick"));
+        }
+        if self.movements.branch_turn.is_some_and(|t| t != turn) {
+            return Err(PyValueError::new_err("movement branches must be armed for this tick"));
+        }
         crate::learning_work::check_tick(&self.pool, turn).map_err(PyValueError::new_err)?;
         crate::relocation::check_tick(&self.pool, turn, liquid_requirement).map_err(PyValueError::new_err)?;
         crate::migration_closure::check_tick(&self.pool, turn).map_err(PyValueError::new_err)?;
@@ -1852,6 +1986,8 @@ impl AgentSimulator {
             _ => None,
         };
 
+        let adaptive_budget_unavailable = self.pool.adaptive_information.is_some()
+            || self.pool.adaptive_migration.as_ref().is_some_and(|a| !a.rows.is_empty());
         let targeted_deaths = std::mem::take(&mut self.pending_targeted_deaths);
         let tick_options = self.tick_options;
         let delivery_config = self.decision_delivery_config.as_ref();
@@ -1912,6 +2048,7 @@ impl AgentSimulator {
         self.formation_stats = formation_stats;
         self.demographic_debug = demo_debug;
         self.household_stats = household_stats;
+        self.adaptive_driver_budget_unavailable = adaptive_budget_unavailable;
         self.merchant_trip_stats = merchant_stats;
         if let Some(limit) = self.transaction_receipts_limit {
             // A successful tick without merchant state did not observe mobility.
@@ -2623,7 +2760,11 @@ impl AgentSimulator {
     /// `get_household_stats`). Diagnostic only; production Python does not
     /// read it.
     #[pyo3(name = "get_migration_driver_stats")]
-    pub fn get_migration_driver_stats(&self) -> std::collections::HashMap<String, f64> {
+    pub fn get_migration_driver_stats(&self) -> PyResult<std::collections::HashMap<String, f64>> {
+        if self.adaptive_driver_budget_unavailable || self.pool.adaptive_information.is_some()
+            || self.pool.adaptive_migration.as_ref().is_some_and(|a| !a.rows.is_empty()) {
+            return Err(PyValueError::new_err("legacy migration driver budget is unavailable with active adaptive inputs"));
+        }
         let d = &self.household_stats.migration_drivers;
         let mut m = std::collections::HashMap::new();
         m.insert("evaluated".into(), d.evaluated as f64);
@@ -2645,7 +2786,7 @@ impl AgentSimulator {
         for (i, count) in d.community_ties.iter().enumerate() {
             m.insert(format!("community_ties_{i}"), *count as f64);
         }
-        m
+        Ok(m)
     }
 
     /// M50b: Return ALL relationship edges as an Arrow RecordBatch.
@@ -3652,9 +3793,9 @@ impl AgentSimulator {
             let mut merchant_count = 0u32;
             let mut wealthy_count = 0u32;
             for &slot in slots {
-                population += 1;
+                if !self.pool.enlisted(slot) { population += 1; }
                 match Occupation::from_u8(self.pool.occupation(slot)) {
-                    Some(Occupation::Farmer) => farmer_count += 1,
+                    Some(Occupation::Farmer) if !self.pool.enlisted(slot) => farmer_count += 1,
                     Some(Occupation::Soldier) => soldier_count += 1,
                     Some(Occupation::Merchant) => {
                         // M58a: Transit merchants counted by origin region in second pass
@@ -4328,6 +4469,10 @@ impl AgentSimulator {
     #[pyo3(signature = (enabled, max_agent_rows = 4096, max_candidate_rows = 16384, selected_agent_ids = None, *, max_move_rows = 16384))]
     pub fn configure_decision_delivery(&mut self, enabled: bool, max_agent_rows: usize,
         max_candidate_rows: usize, selected_agent_ids: Option<Vec<u32>>, max_move_rows: usize) -> PyResult<()> {
+        if enabled && (self.pool.adaptive_information.is_some()
+            || self.pool.adaptive_migration.as_ref().is_some_and(|a| !a.rows.is_empty())) {
+            return Err(PyValueError::new_err("legacy decision observer refuses active adaptive inputs"));
+        }
         let config = if enabled {
             Some(crate::decision_delivery::DeliveryConfig::new(max_agent_rows,
                 max_candidate_rows, selected_agent_ids).and_then(|c| c.with_move_limit(max_move_rows)).map_err(PyValueError::new_err)?)
@@ -5673,7 +5818,7 @@ crate::persist_struct!(AgentSimulator {
     merchant_trip_stats, knowledge_stats, hybrid_economy_mode, pending_targeted_deaths,
     movements, pending_movement_leaders, pending_promotion_memories, tick_options,
 } skip { snapshot_cache } transient {
-    health_work, transaction_receipts_limit, decision_delivery_config, decision_delivery_frame, mobility_gate_frame,
+    health_work, transaction_receipts_limit, decision_delivery_config, decision_delivery_frame, adaptive_driver_budget_unavailable, mobility_gate_frame,
     teaching_result, last_teaching_turn, last_craft_input
 });
 

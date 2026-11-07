@@ -80,22 +80,28 @@ PUBLIC = HOOKS | set(ACCESSORS) | RECORD_READERS | CONSTANTS
 #: may read a person's own row.
 OWN_ROW_MODULES = frozenset({"adaptive_livelihoods"})
 #: D3's modules, registered by the lead with D3's review (none yet).
-SEPARATION_MODULES: frozenset[str] = frozenset()
+SEPARATION_MODULES: frozenset[str] = frozenset({"war_consequences"})
 #: Modules that decide no simulation outcome (narration, curation, bundle analysis).
 RECORD_MODULES = frozenset({"narrative", "narration_context", "narration_expansion_context", "narration_inputs",
                             "narration_provenance", "narration_audit", "curator", "historiography",
                             "history_forensics", "expansion_audit", "scientific_receipts_audit"})
-WIRING_MODULES = frozenset({"livelihoods", "feature_catalog", "batch_manifest"})
+WIRING_MODULES = frozenset({"livelihoods", "feature_catalog", "batch_manifest", "public_health"})
 
 #: (module, enclosing function, read) -> (occurrences, classification).
 LEDGER_READS: dict[tuple[str, str, str], tuple[int, str]] = {
+    # Reviewed T-1 consumers: one own row, aggregate environment and separation.
+    ("adaptive_livelihoods", "phase10", "own_row_accessor"): (1, "own_row"),
+    ("adaptive_livelihoods", "_known_residences", "own_row_accessor"): (1, "own_row"),
+    ("public_health", "check_request", "const:residence_ledger"): (1, "wiring"),
+    ("public_health", "environment_factors", "read_frame"): (1, "aggregate"),
+    ("war_consequences", "before_agent_tick", "separation"): (1, "separation"),
     # The switch value (``--residence-ledger``) in the prerequisite check, not the state.
     ("livelihoods", "_check_prerequisites", "['residence_ledger']"): (1, "wiring"),
-    ("livelihoods", "_check_prerequisites", "const:residence_ledger"): (2, "wiring"),
+    ("livelihoods", "_check_prerequisites", "const:residence_ledger"): (4, "wiring"),
     # The parser destination and its help text.
     ("livelihoods", "<module>", "const:residence_ledger"): (2, "wiring"),
     # The catalog's declared requirements.
-    ("feature_catalog", "<module>", "const:residence_ledger"): (1, "wiring"),
+    ("feature_catalog", "<module>", "const:residence_ledger"): (4, "wiring"),
     # The manifest's simulation keys (recorded only when given).
     ("batch_manifest", "<module>", "const:residence_ledger"): (1, "wiring"),
     ("batch_manifest", "simulation_config", "const:residence_ledger"): (1, "wiring"),
@@ -239,7 +245,7 @@ def test_every_ledger_read_outside_its_owners_is_registered():
 def test_each_read_is_allowed_for_its_class_and_module():
     assert _class_problems(LEDGER_READS) == []
     # No decision module reads the ledger today; every consumer registers here.
-    assert {cls for _n, cls in LEDGER_READS.values()} == {"wiring"}
+    assert {cls for _n, cls in LEDGER_READS.values()} == {"wiring", "own_row", "aggregate", "separation"}
 
 
 def test_the_class_rules_refuse_person_rows_and_state_outside_their_owners():

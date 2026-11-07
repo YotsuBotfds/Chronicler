@@ -77,3 +77,26 @@ it("reads a frame with a failed closure as observed, like the Python reference",
   expect(read(withFrame({ typed: [{ ...frame.typed[1], unlocated_in_milli: 900 }, frame.typed[0], frame.typed[2]] })))
     .toEqual({ status: "malformed", reason: "unlocated flows exceed their total" });
 });
+
+const native = {
+  source_turn: 9, rows: [{ region: 0, component: "income_applied", amount: 5 }, { region: 0, component: "decay", amount: -3.5 },
+    { region: 1, component: "transfer_actual", amount: 2 }], totals: { income_applied: 5, decay: -3.5, transfer_actual: 2 },
+  modeled_net: 1.5, transfer_actual: 2, balance_closure: 0, typed_receipt_difference: 0, typed_rounding_or_unobserved: 0,
+  observed_complete: true, coverage: "native stages and exact transfer deltas observed; receipt rounding reported separately",
+};
+it("reads itemized native stages separately from receipt rounding; old null/absent frames stay loadable", () => {
+  expect(read(withFrame({ native })).status).toBe("observed");
+  expect(read(withFrame({ native: null })).status).toBe("observed");
+  expect(read(withFrame({ native: undefined })).status).toBe("observed");
+  for (const bad of [
+    { ...native, source_turn: 99 }, { ...native, rows: [...native.rows, native.rows[0]] },
+    { ...native, totals: { ...native.totals, income_applied: 6 } },
+    { ...native, balance_closure: 1 }, { ...native, typed_receipt_difference: 1 },
+    { ...native, observed_complete: false }, { ...native, totals: { invented: 3 } },
+  ]) expect(read(withFrame({ native: bad })).status).toBe("malformed");
+});
+it("retains an honestly recorded native coverage discrepancy as observed", () => {
+  const incomplete = { ...native, modeled_net: 1.4, totals: { ...native.totals, income_applied: 4.9 },
+    rows: native.rows.map((r) => r.component === "income_applied" ? { ...r, amount: 4.9 } : r), balance_closure: .1, observed_complete: false };
+  expect(read(withFrame({ native: incomplete })).status).toBe("observed");
+});

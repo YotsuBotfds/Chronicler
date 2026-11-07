@@ -5,7 +5,9 @@ beside the water index and changes nothing; ``--watershed-mode flow`` (B2)
 makes the derived index the index the simulation uses, replacing (never
 stacking on) the native water climate terms, the irrigation water bonus and
 the downstream deforestation cascade, and lets each flood event act once at
-its onset (native ecology only). See :mod:`chronicler.livelihoods` and
+its onset (native ecology only; with ``--infrastructure-condition`` that act
+also damages the region's irrigation works and roads, and an irrigation work's
+withdrawal capacity scales with its service). See :mod:`chronicler.livelihoods` and
 docs/integration/watershed.md.
 
 Graph. Built once at enable from the world's saved procedural geography
@@ -34,7 +36,8 @@ by exactly one path and a confluence sums its tributaries' outflows once::
     I   = sum of the outflows of the regions draining here          downstream transfer, same turn
     A   = S + P + X_in - X_out + I
     E   = min(A, EVAPORATION_BASE x phase x terrain x (1 + TRANSPIRATION x cover))
-    W   = min(A - E, IRRIGATION_DEMAND) with an active irrigation work, else 0
+    W   = min(A - E, IRRIGATION_DEMAND x service) with an active irrigation work, else 0
+          (service: B3's ``min(1, condition / 0.5)`` in ``flow`` with ``--infrastructure-condition``, else 1)
     S'  = (1 - BASEFLOW) x min(A - E - W, C);  Q = A - E - W - S'   (baseflow and overflow)
     Q  -> I of the destination | outflow to the sea | sink loss (a closed basin evaporates it)
 
@@ -469,9 +472,27 @@ def derived_index(region, storage: float, withdrawal: float, cap: float) -> floa
     return INDEX_FLOOR + (index_cap(region) - INDEX_FLOOR) * max(0.0, fill)
 
 
-def _irrigated(region) -> bool:
+def _irrigated(world, region, *, gate: bool) -> bool:
+    """An active irrigation work; with ``gate`` (the ``record_only`` account),
+    one that also serves (B3: service >= 0.5 while ``--infrastructure-condition``
+    acts; True for an active work when it is off or in its ``record_only``).
+    The ``flow`` mode reads every active work and scales its withdrawal
+    capacity by the work's service instead (:func:`_irrigation_service`)."""
     from chronicler.models import InfrastructureType
-    return any(i.type == InfrastructureType.IRRIGATION and i.active for i in region.infrastructure)
+    active = any(i.type == InfrastructureType.IRRIGATION and i.active for i in region.infrastructure)
+    if not (active and gate):
+        return active
+    from chronicler.infrastructure_condition import serves
+    return serves(world, region, "irrigation")
+
+
+def _irrigation_service(world, region) -> float:
+    """``flow``: the service of the region's irrigation work (B3,
+    ``infrastructure_condition.service``: ``min(1, condition / 0.5)``), which
+    scales the work's withdrawal capacity continuously; exactly 1.0 while the
+    condition switch is off or in its ``record_only``."""
+    from chronicler.infrastructure_condition import service
+    return service(world, region, "irrigation")
 
 
 def open_account(world, graph: WatershedGraph, mode: str = "record_only") -> WatershedState:
@@ -533,6 +554,10 @@ class RegionInput(NamedTuple):
     cap: float
     #: The coastal flood's index gain this turn (``coastal_flood_gain``), or None.
     flood_gain: float | None
+    #: ``flow`` with ``--infrastructure-condition`` (B3): the irrigation work's
+    #: service in [0, 1], which scales its withdrawal capacity; 1.0 otherwise
+    #: (flow without the condition switch, and every ``record_only`` account).
+    irrigation_service: float = 1.0
 
 
 def region_inputs(world, state: WatershedState) -> tuple[int, str, float, list[RegionInput]]:
@@ -544,13 +569,16 @@ def region_inputs(world, state: WatershedState) -> tuple[int, str, float, list[R
     trend = climate_trend_share(world)
     shocks = region_harvest_shocks(world)
     inputs = []
+    flow = state.mode == "flow"
     for r, region in enumerate(world.regions):
         water = float(region.ecology.water)
+        irrigated = _irrigated(world, region, gate=not flow)
         inputs.append(RegionInput(
             terrain=region.terrain, moisture=float(region.geo.moisture), cover=_cover(region), water=water,
             exposure=float(climate_exposure(region.latitude_band, phase)), shock=float(shocks[r]),
-            irrigated=_irrigated(region), river=bool(region.river_mask), cap=index_cap(region),
-            flood_gain=coastal_flood_gain(world, region) if water > float(state.last_index[r]) else None))
+            irrigated=irrigated, river=bool(region.river_mask), cap=index_cap(region),
+            flood_gain=coastal_flood_gain(world, region) if water > float(state.last_index[r]) else None,
+            irrigation_service=_irrigation_service(world, region) if flow and irrigated else 1.0))
     return turn, phase.value, trend, inputs
 
 
@@ -584,7 +612,8 @@ def account_step(graph: WatershedGraph, storage: list[float], last_index: list[f
     own = [params.precipitation_base * (0.2 + inp.moisture)
            + (params.tundra_melt if key == "warming" and inp.terrain == "tundra" else 0.0) for inp in inputs]
     through = [max(0.0, own[r] - params.evaporation_base * params.terrain_evaporation.get(inp.terrain, 1.0)
-                   * (1.0 + params.transpiration * inp.cover) - (params.irrigation_demand if inp.irrigated else 0.0))
+                   * (1.0 + params.transpiration * inp.cover)
+                   - (params.irrigation_demand * inp.irrigation_service if inp.irrigated else 0.0))
                for r, inp in enumerate(inputs)]
     normal_arrivals = list(own)
     for r in graph.order:
@@ -624,7 +653,9 @@ def account_step(graph: WatershedGraph, storage: list[float], last_index: list[f
                  * params.terrain_evaporation.get(inp.terrain, 1.0) * (1.0 + params.transpiration * cover))
         e = min(a, e_pot)
         t = a - e
-        w = min(t, params.irrigation_demand) if inp.irrigated else 0.0
+        # W, a declared term of the account: the demand x the work's service
+        # (B3 under flow; 1.0 otherwise, so ``demand x 1.0 == demand``).
+        w = min(t, params.irrigation_demand * inp.irrigation_service) if inp.irrigated else 0.0
         b = t - w
         s2 = (1.0 - params.baseflow) * min(b, cap)
         q = b - s2
@@ -798,6 +829,12 @@ def _apply_flow(world, plan: _Plan, state: WatershedState) -> None:
         region.ecology.soil = soil_after
         plan.consequences[r] = FloodConsequence(capacity_modifier=modifier, cooldown=cooldown,
                                                 soil_before=soil_before, soil_after=soil_after)
+        if getattr(getattr(world, "livelihoods", None), "infrastructure_condition", None) is not None:
+            # B3: the flood damages the region's irrigation works and roads, once,
+            # at the onset (a withheld onset damages nothing), with the flood
+            # event's identity (region, start turn) as the cause.
+            from chronicler.infrastructure_condition import flood_damage
+            flood_damage(world, r, excess, ref=f"flood:{r}:{plan.turn}")
         if modifier < before:
             state.active_consequences.append(ActiveConsequence(
                 region=r, expires_turn=plan.turn + cooldown, modifier=modifier, before=before))

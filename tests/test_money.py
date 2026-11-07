@@ -460,3 +460,45 @@ def test_a_book_pickled_before_pairwise_flows_loads_and_checks():
     assert all(f.payer_region is None for f in back.flows) and all(t.payer_region is None for t in back.totals)
     M.check_book(back)
     assert back.model_dump() == M.MoneyBook.model_validate(back.model_dump()).model_dump()
+
+
+def test_a_relief_fund_is_its_treasurys_purse_and_pays_agents_or_back():
+    """D1a: a civilization's relief fund (``relief_fund``) is paid only by its own
+    treasury (whole units), pays agents (``relief_purchase``, keyed natively
+    under ``food_procurement``; a ceiling's residual returns to the fund) and pays
+    back only its own treasury (``relief_refund``, sub-unit credits carried)."""
+    world, book = _world(treasury=(10, 3)), M.MoneyBook()
+    funds = {0: _firm(0)}
+    deposit = M.Bill(purpose="relief_budget", batch=0, phase="phase10", payer=M.treasury(0),
+                     lines=((M.relief_fund(0), 4000),))
+    assert M.pay(world, deposit, turn=1, book=book, funds=funds).ok
+    assert world.civilizations[0].treasury == 6 and funds[0].cash == 4000
+    sim = FakeSim({7: 99.5, 8: 1.0})
+    buy = M.Bill(purpose="relief_purchase", batch=3, phase="phase10", payer=M.relief_fund(0),
+                 lines=((M.agent(7), 900), (M.agent(8), 1100)), regions=(2, 2))
+    got = M.pay(world, buy, turn=1, book=book, sim=sim, funds=funds)
+    assert got.ok and got.applied == 500 + 1100 and got.residual == 400        # 7 is near the ceiling
+    assert funds[0].cash == 4000 - 1600 and sim.keys == [(1, M.NATIVE_PURPOSES.index("food_procurement"), 3)]
+    refund = M.Bill(purpose="relief_refund", batch=0, phase="phase10", payer=M.relief_fund(0),
+                    lines=((M.treasury(0), 2400),))
+    got = M.pay(world, refund, turn=1, book=book, funds=funds)
+    assert got.ok and funds[0].cash == 0 and world.civilizations[0].treasury == 8
+    assert book.carry == {"0:relief_refund": 400}                              # held, not rounded away
+    M.check_book(book)
+    for bad, message in [
+        (M.Bill(purpose="relief_budget", batch=1, phase="p", payer=M.treasury(1),
+                lines=((M.relief_fund(0), 1000),)), "own civilization's treasury pays into"),
+        (M.Bill(purpose="relief_refund", batch=1, phase="p", payer=M.relief_fund(0),
+                lines=((M.treasury(1), 10),)), "pays agents or its own"),
+        (M.Bill(purpose="relief_refund", batch=1, phase="p", payer=M.relief_fund(0),
+                lines=((M.firm_cash(1), 10),)), "pays agents or its own"),
+        (M.Bill(purpose="relief_purchase", batch=1, phase="p", payee=M.relief_fund(0),
+                lines=((M.agent(8), 10),)), "paid only by its own"),
+    ]:
+        with pytest.raises(M.MoneyError, match=message):
+            M.pay(world, bad, turn=1, book=book, sim=sim, funds=funds, firms={1: _firm(0)})
+    with pytest.raises(M.MoneyError, match="unknown relief fund"):
+        M.pay(world, M.Bill(purpose="relief_budget", batch=2, phase="p", payer=M.treasury(1),
+                            lines=((M.relief_fund(1), 1000),)), turn=1, book=book, funds=funds)
+    short = M.Bill(purpose="relief_purchase", batch=4, phase="p", payer=M.relief_fund(0), lines=((M.agent(8), 1),))
+    assert M.pay(world, short, turn=1, book=book, sim=sim, funds=funds).reason == "payer_short"

@@ -1,0 +1,254 @@
+"""B3 infrastructure condition on the real compiled extension.
+
+Development worlds only: procedural 32x10 seed 31 (irrigation and roads
+built from the first turns, wear works open from turn 30, a progressing
+irrigation work at turn 36, conquest damage and scorched records) and
+template seed 11 (with PL1, the works' first woodcutters leave region 2 at
+turn 43). Every run uses ``--agents hybrid --grain-reserves
+--grain-storage --repair-projects``.
+"""
+from __future__ import annotations
+
+import json
+import sys
+
+import pytest
+
+pytest.importorskip("chronicler_agents")
+pytestmark = pytest.mark.native
+
+FLAGS = ["--agents", "hybrid", "--simulate-only", "--grain-reserves", "--grain-storage", "--repair-projects"]
+PROCEDURAL = ("--worldgen", "procedural", "--civs", "10", "--regions", "32")
+
+
+def _cli(monkeypatch, folder, *argv):
+    import chronicler.main as main_mod
+    monkeypatch.setattr(sys, "argv", ["chronicler", *argv, "--output", str(folder / "chronicle.md"),
+                                      "--state", str(folder / "state.json")])
+    main_mod.main()
+
+
+def _bundle(folder):
+    from chronicler.bundle_codec import load_bundle
+    bundle = load_bundle(folder / "chronicle_bundle.json")
+    bundle["metadata"].pop("generated_at", None)
+    return bundle
+
+
+def test_works_close_their_books_on_the_real_extension(tmp_path, monkeypatch):
+    from chronicler import infrastructure_condition as IC
+    monkeypatch.setenv("CHRONICLER_CHECK_RESOURCES", "1")
+    _cli(monkeypatch, tmp_path, "--seed", "31", "--turns", "60", *FLAGS, *PROCEDURAL, "--infrastructure-condition")
+    history = _bundle(tmp_path)["history"]
+    delivered = charged = 0
+    for snap in history:
+        record = snap["livelihoods"]["infrastructure_condition"]
+        assert record["mode"] == "repair" and record["stage"] == "B3"
+        for a in record["assets"]:
+            assert a["status"] in ("serving", "failed")
+            assert a["service"] == pytest.approx(min(1.0, a["condition"] / IC.SERVICE_FULL))
+        for r in record["receipts"] or []:
+            rate = IC.TIMBER_PER_WORK[r["kind"]]
+            assert r["delivered"] <= r["requested"] + 1e-9
+            assert r["timber_used"] == pytest.approx(r["delivered"] * rate)
+            assert r["timber_held"] == pytest.approx(r["timber_used"] + r["timber_returned"])
+            assert (r["status"] == "progress") == (r["delivered"] > 0)
+            delivered += r["delivered"]
+        for row in record["ledger"] or []:
+            assert row["charged"] * 1000 + row["prepaid_before_milli"] == row["coin_cost_milli"] + row["prepaid_after_milli"]
+            charged += row["charged"]
+    last = history[-1]["livelihoods"]["infrastructure_condition"]
+    assert delivered > 0 and charged > 0
+    assert last["sink_milli"] == charged * 1000 == last["counters"]["charged"] * 1000
+    assert last["counters"]["damages_conquest"] >= 1 and last["counters"]["assets_inactive"] >= 1
+    json.dumps(last)
+
+
+def test_exact_checkpoint_resume_inside_an_open_work(tmp_path, monkeypatch):
+    straight = tmp_path / "straight"
+    _cli(monkeypatch, straight, "--seed", "31", "--turns", "44", *FLAGS, *PROCEDURAL, "--infrastructure-condition",
+         "--checkpoint-turns", "37")
+    ckpt = straight / "checkpoint_turn_37.ckpt"
+    assert ckpt.exists()
+    resumed = tmp_path / "resumed"
+    _cli(monkeypatch, resumed, "--resume", str(ckpt))
+    a, b = _bundle(straight), _bundle(resumed)
+    record = a["history"][36]["livelihoods"]["infrastructure_condition"]
+    assert record["works"], "the checkpoint must hold open works"
+    assert a["history"] == b["history"] and a["world_state"] == b["world_state"]
+    assert (straight / "state.json").read_bytes() == (resumed / "state.json").read_bytes()
+
+
+def _without(value):
+    if isinstance(value, dict):
+        return {k: _without(v) for k, v in value.items() if k != "infrastructure_condition"}
+    if isinstance(value, list):
+        return [_without(v) for v in value]
+    return value
+
+
+def test_record_only_equals_the_switch_off_except_its_record(tmp_path, monkeypatch):
+    off, on = tmp_path / "off", tmp_path / "on"
+    _cli(monkeypatch, off, "--seed", "11", "--turns", "40", *FLAGS)
+    _cli(monkeypatch, on, "--seed", "11", "--turns", "40", *FLAGS, "--infrastructure-condition",
+         "--infrastructure-condition-mode", "record_only")
+    a, b = _bundle(off), _bundle(on)
+    assert b["history"][-1]["livelihoods"]["infrastructure_condition"]["assets"]
+    assert _without(a["history"]) == _without(b["history"])
+    assert _without(a["world_state"]) == _without(b["world_state"])
+    sa, sb = (json.loads((p / "state.json").read_text(encoding="utf-8")) for p in (off, on))
+    assert _without(sa) == _without(sb)
+
+
+FLOW = ("--watershed", "--watershed-mode", "flow")
+
+
+def test_exact_resume_inside_an_open_flood_with_damaged_works(tmp_path, monkeypatch):
+    """Watershed flow x condition (procedural 13, 32x10, 10 civs): a flood starts
+    at turn 30 in region 10 and damages its irrigation work once, at the onset;
+    a checkpoint at turn 33 lies inside the open flood, and the resume is
+    byte-identical with no second flood damage."""
+    straight = tmp_path / "straight"
+    _cli(monkeypatch, straight, "--seed", "13", "--turns", "37", *FLAGS, *PROCEDURAL, *FLOW,
+         "--infrastructure-condition", "--checkpoint-turns", "33")
+    ckpt = straight / "checkpoint_turn_33.ckpt"
+    assert ckpt.exists()
+    resumed = tmp_path / "resumed"
+    _cli(monkeypatch, resumed, "--resume", str(ckpt))
+    a, b = _bundle(straight), _bundle(resumed)
+    snap = next(s for s in a["history"] if s["turn"] == 33)
+    assert any(e["start_turn"] < 33 for e in snap["livelihoods"]["watershed"]["flood_events"]["open"])
+    floods = [d for d in snap["livelihoods"]["infrastructure_condition"]["damages"] if d["event"] == "flood"]
+    assert floods and all(d["ref"] == f"flood:{d['region']}:{d['turn']}" for d in floods)
+    assert a["history"] == b["history"] and a["world_state"] == b["world_state"]
+    assert (straight / "state.json").read_bytes() == (resumed / "state.json").read_bytes()
+    last = a["history"][-1]["livelihoods"]["infrastructure_condition"]["counters"]
+    assert last["damages_flood"] == len(floods)                         # once, at the onset
+
+
+TIMBER = ("--timber-stock", "--timber-supply")
+
+
+def test_exact_resume_with_an_outstanding_timber_order(tmp_path, monkeypatch):
+    """Template seed 11 with PL1: the works' need launched expedition 0 from
+    region 2 at turn 43 (after RS2's rows); at the turn-45 checkpoint it is
+    cutting with the works' order outstanding, and it delivers after the resume."""
+    straight = tmp_path / "straight"
+    _cli(monkeypatch, straight, "--seed", "11", "--turns", "49", *FLAGS, *TIMBER, "--infrastructure-condition",
+         "--checkpoint-turns", "45")
+    ckpt = straight / "checkpoint_turn_45.ckpt"
+    assert ckpt.exists()
+    resumed = tmp_path / "resumed"
+    _cli(monkeypatch, resumed, "--resume", str(ckpt))
+    a, b = _bundle(straight), _bundle(resumed)
+    launched = {r["eid"] for snap in a["history"]
+                for r in snap["livelihoods"]["infrastructure_condition"].get("timber_needs") or []
+                if r["status"] == "launched"}
+    at = a["history"][44]["livelihoods"]
+    live = {e["eid"] for e in at["timber_supply"]["expeditions"]}
+    rows = at["infrastructure_condition"]["timber_needs"]
+    assert launched & live and any(r["status"] == "expedition" and r["eid"] in launched for r in rows), \
+        "the checkpoint must hold a live expedition the works' need launched"
+    after = a["history"][-1]["livelihoods"]["timber_supply"]
+    assert any(e["eid"] in launched and e["status"] == "delivered" for e in after["closed"])
+    assert a["history"] == b["history"] and a["world_state"] == b["world_state"]
+    assert (straight / "state.json").read_bytes() == (resumed / "state.json").read_bytes()
+
+
+def test_harvest_cover_exact_resume_during_a_constructed_depleted_stand(tmp_path, monkeypatch):
+    """Constructed B4 transition, not a natural depletion/held efficacy claim."""
+    import chronicler.main as main_mod
+    from chronicler.livelihoods_state import LivelihoodsState
+    from chronicler.timber_stock import set_timber_stock_enabled
+    generate = main_mod.generate_world
+
+    def depleted(*args, **kwargs):
+        world = generate(*args, **kwargs)
+        world.livelihoods = LivelihoodsState()
+        set_timber_stock_enabled(world, True)
+        for stand in world.livelihoods.timber_stock.stocks:
+            stand.stock *= 0.02
+        return world
+
+    monkeypatch.setattr(main_mod, "generate_world", depleted)
+    straight, resumed = tmp_path / "straight", tmp_path / "resumed"
+    _cli(monkeypatch, straight, "--seed", "31", "--turns", "12", *FLAGS, *PROCEDURAL,
+         "--timber-stock", "--harvest-cover", "--checkpoint-turns", "6")
+    _cli(monkeypatch, resumed, "--resume", str(straight / "checkpoint_turn_6.ckpt"))
+    a, b = _bundle(straight), _bundle(resumed)
+    assert a["history"] == b["history"] and a["world_state"] == b["world_state"]
+    assert (straight / "state.json").read_bytes() == (resumed / "state.json").read_bytes()
+    cover = a["history"][5]["livelihoods"]["harvest_cover"]
+    assert cover["counters"]["cover_loss"] > 0
+    assert any(row["loss"] > 0 for row in cover["rows"])
+
+
+def test_harvest_cover_record_only_keeps_native_outputs_identical(tmp_path, monkeypatch):
+    off, on = tmp_path / "off", tmp_path / "on"
+    args = ("--seed", "23", "--turns", "12", *FLAGS, "--timber-stock")
+    _cli(monkeypatch, off, *args)
+    _cli(monkeypatch, on, *args, "--harvest-cover", "--harvest-cover-mode", "record_only")
+    def without(value):
+        if isinstance(value, dict):
+            return {k: without(v) for k, v in value.items() if k != "harvest_cover"}
+        if isinstance(value, list):
+            return [without(v) for v in value]
+        return value
+    a, b = _bundle(off), _bundle(on)
+    assert without(a["history"]) == without(b["history"])
+    assert without(a["world_state"]) == without(b["world_state"])
+    assert without(json.loads((off / "state.json").read_text())) == without(json.loads((on / "state.json").read_text()))
+
+
+def test_named_infrastructure_native_paid_work_and_exact_resume(tmp_path, monkeypatch):
+    from chronicler.wealth_accounting_state import MONEY_PURPOSE_CHANNELS
+    monkeypatch.setitem(MONEY_PURPOSE_CHANNELS, "infrastructure_wage", "infrastructure_wage")
+    straight, resumed = tmp_path / "straight", tmp_path / "resumed"
+    _cli(monkeypatch, straight, "--seed", "31", "--turns", "72", *FLAGS, *PROCEDURAL,
+         "--infrastructure-condition", "--recovery-crews", "--timber-stock", "--timber-supply", "--checkpoint-turns", "61")
+    _cli(monkeypatch, resumed, "--resume", str(straight / "checkpoint_turn_61.ckpt"))
+    a, b = _bundle(straight), _bundle(resumed)
+    assert a["history"] == b["history"] and a["world_state"] == b["world_state"]
+    assert (straight / "state.json").read_bytes() == (resumed / "state.json").read_bytes()
+    members = [m for s in a["history"] for r in s["livelihoods"]["infrastructure_condition"]["receipts"] or [] for m in r.get("members") or []]
+    assert members and sum(m["wages_milli"] for m in members) > 0
+    assert sum(m["income_replaced"] for m in members if m["income_replaced"] is not None) > 0
+    for snap in a["history"]:
+        receipts = snap["livelihoods"]["infrastructure_condition"]["receipts"] or []
+        ids = [m["agent_id"] for row in receipts for m in row.get("members") or []]
+        assert len(ids) == len(set(ids))
+        for row in receipts:
+            assert sum(m["worked"] for m in row["members"]) == pytest.approx(row["delivered"])
+
+
+def test_l9_named_road_repair_and_per_kind_promises_resume_exactly(tmp_path, monkeypatch):
+    """Development procedural seed 31: actual L9 award and paid road work.
+
+    This is bounded activation/resume evidence, not held qualification. PL1's
+    timber procurement authority is exercised alongside the named work seam.
+    """
+    from chronicler.wealth_accounting_state import MONEY_PURPOSE_CHANNELS
+    monkeypatch.setitem(MONEY_PURPOSE_CHANNELS, "infrastructure_wage", "infrastructure_wage")
+    straight, resumed = tmp_path / "straight", tmp_path / "resumed"
+    _cli(monkeypatch, straight, "--seed", "31", "--turns", "72", *FLAGS, *PROCEDURAL,
+         "--infrastructure-condition", "--recovery-crews", "--timber-stock", "--timber-supply",
+         "--local-budgets", "--checkpoint-turns", "66")
+    _cli(monkeypatch, resumed, "--resume", str(straight / "checkpoint_turn_66.ckpt"))
+    a, b = _bundle(straight), _bundle(resumed)
+    assert a["history"] == b["history"] and a["world_state"] == b["world_state"]
+    assert (straight / "state.json").read_bytes() == (resumed / "state.json").read_bytes()
+    roads = [r for s in a["history"] for r in s["livelihoods"]["infrastructure_condition"]["receipts"] or []
+             if r["kind"] == "roads" and r["delivered"] > 0]
+    assert roads and sum(m["wages_milli"] for r in roads for m in r["members"]) > 0
+    assert all(r["envelope"] > 0 and r["timber_used"] > 0 for r in roads)
+    promises = [c for s in a["history"] for c in s["livelihoods"]["local_budgets"]["open"]
+                if c["service"] == "infrastructure_works" and c["detail"].get("expected_roads_work", 0) > 0]
+    assert promises and all(any(claim.startswith("infrastructure_work:") for claim in c["claims"]) for c in promises)
+    at_checkpoint = next(s for s in a["history"] if s["turn"] == 66)
+    assert any(c["detail"].get("expected_roads_work", 0) > 0
+               for c in at_checkpoint["livelihoods"]["local_budgets"]["open"]
+               if c["service"] == "infrastructure_works"), "resume must cross a funded road promise"
+    settlements = [c for s in a["history"] for c in s["livelihoods"]["local_budgets"]["settled"]
+                   if c["service"] == "infrastructure_works"]
+    assert any(c["detail"].get("delivered_roads_work", 0) > 0 for c in settlements)
+    assert any(s["livelihoods"]["timber_supply"]["closed"] for s in a["history"])

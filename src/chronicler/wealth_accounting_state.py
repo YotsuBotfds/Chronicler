@@ -43,10 +43,16 @@ CHANNELS: tuple[tuple[str, str | None, str], ...] = (
     ("relocation_fare", "relocation_costs", "movers -> travel sink (L7)"),
     ("domestic_credit", None, "treasury <-> merchants, net applied (domestic credit)"),
     ("wares_purchase", "workshop_economics", "households -> workshop firm cash, wares bought by id (A3)"),
-    # C2 (epidemic care): registered for the payment seam; the ledger does not
-    # itemize it (``--epidemic-care`` and ``--wealth-accounting`` exclude each other).
-    ("care_wage", "epidemic_care", "treasury -> epidemic carers by id (C2; not itemized: excluded with A1)"),
+    # C2 wages and withheld income are itemized when A1 observation is active.
+    ("care_wage", "epidemic_care", "treasury -> epidemic carers by id (C2)"),
     ("cargo_purchase", "titled_trade", "merchant -> owners of surplus food, titled cargo bought by id (A4)"),
+    ("restitution", "war_requisition", "liable treasury -> living owners of seized food/cargo (D4)"),
+    ("relief_purchase", "reform_services", "relief fund -> owners of food bought for poor relief, by id (D1a)"),
+    ("timber_purchase", "timber_orders", "carriers -> origin treasury for real timber"),
+    ("timber_freight", "timber_orders", "destination escrow -> carriers only for delivered timber"),
+    ("guard_wage", "public_health", "treasury -> named border guard"),
+    ("infrastructure_wage", "infrastructure_condition", "treasury -> named public works crew"),
+    ("branch_dues", "movement_branches", "named abroad members -> host treasury local meeting service"),
 )
 CHANNEL_NAMES: tuple[str, ...] = tuple(c[0] for c in CHANNELS)
 
@@ -57,9 +63,9 @@ CHANNEL_NAMES: tuple[str, ...] = tuple(c[0] for c in CHANNELS)
 #: while PL3 is active (PL3 widens RS2's pool; RS2 installs the share).
 WITHHELD_PACKAGES: tuple[str, ...] = (
     "workshop_payroll", "apprenticeship", "recovery_crews_granary", "recovery_crews_workshop",
-    "repair_projects", "timber_supply",
+    "repair_projects", "timber_supply", "timber_orders", "public_health", "infrastructure_condition",
     # A4: a titled shipment's carrier (its whole ordinary income; row only while A4 is active).
-    "titled_trade",
+    "titled_trade", "epidemic_care",
 )
 
 #: Withheld channels that are not paid work (no money moves). ``withheld_retail``:
@@ -89,7 +95,7 @@ WEALTH_ROUTERS: dict[str, tuple[str, ...]] = {
     # The shared payment seam (connected-world A3): ``money.pay`` routes every
     # agent-wealth line of a bill through ``money._native_transfer``; the
     # purposes it may carry are ``MONEY_PURPOSE_CHANNELS``.
-    "_native_transfer": ("wares_purchase", "care_wage"),
+    "_native_transfer": ("wares_purchase", "care_wage", "restitution", "relief_purchase", "timber_purchase", "timber_freight", "guard_wage", "infrastructure_wage", "branch_dues"),
     # A4: ``money.pay`` routes a pairwise bill (an agent paying agents)
     # through ``money._native_pairs`` (native ``settle_pairs``).
     "_native_pairs": ("cargo_purchase",),
@@ -110,6 +116,8 @@ WEALTH_PATH_ARGS: dict[str, tuple[tuple[int | None, str], ...]] = {
 #: call sites, or a stale row, so a payer cannot vanish into the native-model
 #: residual. A new payer path adds one row (and its channel). Append only.
 WEALTH_WRITERS: dict[tuple[str, str, str, str], tuple[int, tuple[str, ...]]] = {
+    ("public_health", "finish_phase2", "extend_paid_work", ""): (1, ("public_health",)),
+    ("infrastructure_crews", "settle", "extend_paid_work", ""): (1, ("infrastructure_condition",)),
     ("workshop_payroll", "finish_phase2", "install_paid_work", ""): (1, ("workshop_payroll",)),
     ("workshop_payroll", "_pay", "transfer_wealth", "purpose=PURPOSE_WORKSHOP_WAGE,batch=firm.site"):
         (1, ("workshop_wage",)),
@@ -140,24 +148,34 @@ WEALTH_WRITERS: dict[tuple[str, str, str, str], tuple[int, tuple[str, ...]]] = {
     ("health_care", "prepare_health_care", "prepare_health_work", ""): (2, ("withheld_health",)),
     # A3 (the payment seam): the router's one native call, and its two callers in
     # ``money.pay`` (a payment's agent credits, a collection's agent debits).
-    ("money", "_native_transfer", "transfer_wealth", "purpose=code,batch=batch"): (1, ("wares_purchase", "care_wage")),
-    ("money", "pay", "_native_transfer", "purpose=bill.purpose"): (2, ("wares_purchase", "care_wage")),
+    ("money", "_native_transfer", "transfer_wealth", "purpose=code,batch=batch"): (1, ("wares_purchase", "care_wage", "restitution", "relief_purchase", "timber_purchase", "timber_freight", "guard_wage", "infrastructure_wage", "branch_dues")),
+    ("money", "pay", "_native_transfer", "purpose=bill.purpose"): (2, ("wares_purchase", "care_wage", "restitution", "relief_purchase", "timber_purchase", "timber_freight", "guard_wage", "infrastructure_wage", "branch_dues")),
     # C2 (epidemic care): carers' ordinary income withheld for their care time.
-    ("epidemic_care", "finish_phase2", "extend_paid_work", ""): (1, ("withheld_care",)),
+    ("epidemic_care", "finish_phase2", "extend_paid_work", ""): (1, ("withheld_care", "epidemic_care")),
     # A4 (titled trade): the pairwise router's one native call and its caller in
     # ``money.pay``; the carriers' paid share (their whole ordinary income).
     ("money", "_native_pairs", "settle_pairs", "purpose=code,batch=batch"): (1, ("cargo_purchase",)),
     ("money", "pay", "_native_pairs", "purpose=bill.purpose"): (1, ("cargo_purchase",)),
     ("titled_trade", "finish_phase2", "extend_paid_work", ""): (1, ("titled_trade",)),
+    ("timber_orders", "finish_phase2", "extend_paid_work", ""): (1, ("timber_orders",)),
 }
 #: Purposes ``money.pay`` may move agent wealth for, with the ledger channel
 #: each is read as (``money.flows_for_turn``); ``money`` refuses any other
 #: agent-wealth purpose at run time, so a new payer through the seam must add
 #: its row here (and its channel). Append only.
 MONEY_PURPOSE_CHANNELS: dict[str, str] = {
+    "branch_dues": "branch_dues",
+    "guard_wage": "guard_wage",
+    "infrastructure_wage": "infrastructure_wage",
     "wares_purchase": "wares_purchase",
     "care_wage": "care_wage",
     "cargo_purchase": "cargo_purchase",
+    "restitution": "restitution",
+    # D1a: a relief fund pays owners for food (``money.NATIVE_ALIASES``: native
+    # ``food_procurement``, batches 1 + region; retail's own credit keeps batch 0).
+    "relief_purchase": "relief_purchase",
+    "timber_purchase": "timber_purchase",
+    "timber_freight": "timber_freight",
 }
 #: Every bill built for the payment seam outside ``money`` itself:
 #: ``(module under chronicler, enclosing function) -> purposes`` (a literal
@@ -165,12 +183,27 @@ MONEY_PURPOSE_CHANNELS: dict[str, str] = {
 #: and fails on an unregistered or stale caller, a non-literal purpose, or an
 #: agent-wealth purpose without a ledger channel. Append only.
 MONEY_BILLS: dict[tuple[str, str], tuple[str, ...]] = {
+    ("movement_branches", "phase10"): ("branch_dues",),
+    ("public_health", "finish_phase2"): ("guard_wage",),
+    ("public_health", "supply_care"): ("care_supply",),
+    ("infrastructure_crews", "settle"): ("infrastructure_wage",),
     ("workshop_economics", "charge_inputs"): ("firm_input_purchase",),
     ("workshop_economics", "sell_to_households"): ("wares_purchase",),
     ("workshop_economics", "open_firms"): ("firm_capital",),
     # C2: carers' wages, treasury to agents (prepaid carry rule).
     ("epidemic_care", "_quote_bills"): ("care_wage",),
     ("titled_trade", "_buy"): ("cargo_purchase",),
+    ("war_requisition", "_settle"): ("restitution",),
+    # B3: infrastructure works' whole-unit charge, treasury to the public_works sink.
+    ("infrastructure_condition", "_bill"): ("infrastructure_repair",),
+
+    # D1a: the relief fund's payments in, out to owners and back to the treasury.
+    ("reform_services", "_deposit"): ("relief_budget",),
+    ("reform_services", "_refund"): ("relief_refund",),
+    ("reform_services", "_purchases"): ("relief_purchase",),
+    ("timber_orders", "_refund"): ("timber_escrow",),
+    ("timber_orders", "_close"): ("timber_freight",),
+    ("timber_orders", "dispatch"): ("timber_purchase", "timber_escrow"),
 }
 #: Every reference to a writer or router name that is not a call: the name
 #: strings packages use to check the extension has a method
@@ -235,7 +268,15 @@ LIFETIME: tuple[str, ...] = (
     "firm_inputs_to_treasury_milli", "asset_subsidy_units",
     # A4 (titled trade), appended: its typed channel and its carriers' withheld income.
     "cargo_purchase_in_milli", "cargo_purchase_out_milli", "withheld_titled_trade",
+    # D1a (reform services), appended: its typed channel.
+    "relief_purchase_in_milli", "relief_purchase_out_milli",
+    "care_wage_in_milli", "care_wage_out_milli", "withheld_epidemic_care", "withheld_care",
 )
+
+# Future registered channels append their counters without changing historical
+# declaration order or duplicating explicitly recorded channel counters.
+LIFETIME += tuple(f"{name}_{side}_milli" for name in CHANNEL_NAMES for side in ("in", "out")
+                  if f"{name}_{side}_milli" not in LIFETIME)
 
 #: Lifetime counters (declaration order; append only).
 COUNTERS: tuple[str, ...] = (
@@ -275,6 +316,7 @@ class LedgerRecord(BaseModel):
 class WealthAccountingState(BaseModel):
     schema_version: Literal[1] = 1
     enabled: bool = True
+    mode: Literal["observe", "strict"] = "observe"
     #: The last observed closing (None: none yet, or dropped by a pool reset
     #: or a switch-off: the next opening is then unchecked).
     closing: Closing | None = Field(default=None, exclude_if=_is_none)

@@ -213,9 +213,10 @@ def test_switch_registry_cli_catalog_and_manifest_keys():
     order = LIVELIHOODS_SWITCHES
     assert order.index("titled_trade") == order.index("workshop_economics") + 1
     # Before C2's carers (booked after every other work consumer), D2's observer and the ledger.
-    assert order.index("titled_trade") == order.index("epidemic_care") - 1
-    # X1's record-only residence ledger sits between C2 and D2 (it books no labour).
-    assert order.index("epidemic_care") == order.index("residence_ledger") - 1
+    assert order[order.index("titled_trade") + 1:order.index("epidemic_care")] == ("infrastructure_condition",)
+    # Acting packages precede X1, then D2.
+    assert order.index("epidemic_care") == order.index("guild_leagues") - 1
+    assert order.index("guild_leagues") == order.index("residence_ledger") - 1
     assert order.index("residence_ledger") == order.index("attribution_records") - 1
     assert order[-1] == "wealth_accounting"
     assert order.index("household_retail") < order.index("titled_trade")

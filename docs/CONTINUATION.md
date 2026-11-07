@@ -1,3 +1,15 @@
+# 2026-11-07 — B3 merged; whole program integration active
+
+PR #94 merged at `4cabac21f41ba6683f4fd7106bd5c11292c4978b`, tree equals independently reviewed `be524a60`; premerge Tests `42381096201` all nine green. Main Tests `42382492574` pending: no further feature merge before verified green. B3 fresh identities both original and preceding main: 9 cases, 399 files, zero differences each; offline 72 chunks/7618 passed/69 skipped on 3.13.16, five native lifecycle resumes, real desktop/phone and 14 declared-scale off/on runs. Prior 3.13.5 argparse failure preserved. See `superpowers/audits/connected-world/b3-integration-verification-2026-11-07.md`.
+
+D1 PR #95: held source frozen `808726b8` on fresh reserved 3701/3801 cohort; held running, real browser journeys passed; #94 integration and final reviewed-head CI still pending. Lead `codex/cw-lead` holds reconstructed D4 and integrated follow-ons A1-2/A4-3/B4-B5/named works/C2/C4/guards/D3/A6/E; these are unmerged, witness/compatibility/native gates in progress. Native independent review found A6 attribution and A1 generic treasury-sign blockers, author fixing with regression tests; do not bypass. Movement branches D1c active. Check the coverage matrix, not a stale short next string, for remaining scope.
+
+# 2026-11-07 — Codex live recovery (program continues)
+
+Fetched main is `e3bce686` after #93; exact-head Tests `42354356085` passed all nine jobs. X1 is merged. Original feature-off reference remains `8abc1acb`. Clean accessible checkout had one worktree; recovered B3 `83abd666` and D1 `e12ba7ec` into isolated worktrees. D4 remote branch is absent and no original D4 worktree was accessible in the bounded workspace search; reconstruction follows durable contracts, without a claim that unpublished work was lost. Board now names live next tasks. Registry reconciled across all fetched CW branches: CW3b 3501/3601 used, CW5c 3301/3401 used, fresh D1 3701/3801 reserved; historical CW3 disk failure retained.
+
+Six isolated workers own B3, D1, D4, independent coverage/evidence, health follow-ons and linked histories. Lead owns shared schemas/native/FFI, registry and integration. Actual resources: 5 CPUs, 17 GiB RAM, 30 GiB free disk; two native builds maximum. Superseding stale next/status fields below does not supersede dated historical evidence.
+
 # Current continuation — connected-world program (A–E), 2026-11-06
 
 ## Connected-world program: slice S0 (plan, audits, tooling) and the first lanes
@@ -137,6 +149,20 @@
   `--infrastructure-condition` (CW3b run and checked; merging after X1); D1 `--reform-services` and
   `--guild-leagues` (review running); D4 `--war-requisition` with A4-2 cargo seizure and restitution
   (native purpose 10).
+- **D1 lane** (`claude/cw-d1-institutions`, unmerged; merged with `main` `4ecfb54d`; layer `cwd1` last):
+  D1a `--reform-services` (modes `service`, `cost_only`) withholds the poor-relief label credit from the
+  native reform table; in `service` the treasury's unchanged relief payment (upkeep or the Commons
+  Management enforcement share) goes into a capped relief fund (`money.py` account `relief_fund`,
+  purposes `relief_budget`, `relief_refund`, `relief_purchase` under native `food_procurement`) that buys
+  owners' unsold food, paid by id, where the realm's own retail markets recorded people priced out, into
+  the commons of the next free pool ([page](integration/reform-services.md)). D1b `--guild-leagues`
+  (modes `mutual`, `dues_only`): guilds of different realms linked by recorded merchant deliveries form
+  leagues (one member per realm, at most 4), pay capped dues into a fund that pays members' recorded levy
+  shares and sack plunder ([page](integration/guild-leagues.md)). Development activation is low (relief
+  purchases 0-2 per world; procedural leagues 8-10 with about 107 levy claims each). Offline lane,
+  identity (9 cases, 399 files, 0 differences vs `8abc1acb` and vs `4ecfb54d`), checkpoint resumes
+  (relief alone and an all-enabled procedural case) and viewer suites pass; prereg draft
+  [CW6-D1](superpowers/progress/connected-world-screens-cw6d1.md), cohort for the lead.
 - **A6 audit** ([audit-a6](superpowers/audits/connected-world/audit-a6-adaptive-decisions.md)): no
   livelihood choice reads experience today; failed attempts are recorded but unread; the native
   "displaced" counter means moved-in-the-last-5-turns and the birth region never updates — hence the

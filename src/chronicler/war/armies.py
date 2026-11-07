@@ -212,6 +212,13 @@ def raise_army(ctx: WarContext, civ: "Civilization", war: "WarRecord", toward: s
         roster=roster,
         raised_turn=world.turn,
     )
+    from chronicler.war_requisition import war_requisition_active, supply
+    if war_requisition_active(world):
+        from chronicler.war.logistics import supply_sources
+        requested, army.rations = army.rations, 0
+        refill, _ = supply(world, army, requested, 0, supply_sources(ctx, civ.name),
+                           ctx.graph, ctx.index[staging], initial=True)
+        army.rations = refill
     army.general = pick_general(world, civ)
     state.armies.append(army)
     led = f", led by {army.general}" if army.general else ""
@@ -329,8 +336,13 @@ def apply_casualties(ctx: WarContext, army: "Army", count: int, *, cause: str) -
         rng = war_rng(ctx, "casualty", army.army_id, cause)
         pool = sorted(army.roster)
         victims = pool if count >= len(pool) else rng.sample(pool, count)
-        dead = set(victims)
-        army.roster = [entry for entry in army.roster if entry not in dead]
+        removed = set(victims)
+        from chronicler.war_consequences import split_victims
+        victims, wounded = split_victims(ctx.world, army, victims, cause)
+        army.roster = [entry for entry in army.roster if entry not in removed]
+        if wounded:
+            army.soldiers -= len(wounded)
+            note_released(ctx.world, army, wounded, "wounded", bridge=ctx.bridge)
         queue_deaths(ctx, [aid for aid, _ in victims])
         for _, reg in victims:
             if 0 <= reg < len(ctx.world.regions):
@@ -359,6 +371,8 @@ def note_released(world, army: "Army", entries, cause: str, *, bridge=None, comm
     livelihoods container, and inside :mod:`chronicler.veteran_reintegration`
     unless that switch is active; it never changes the army or draws RNG."""
     if entries and getattr(world, "livelihoods", None) is not None:
+        from chronicler.war_consequences import note_release
+        note_release(world, army, entries, cause)
         from chronicler.veteran_reintegration import capture_release
         capture_release(world, army, entries, cause, bridge=bridge, commit=commit)
 
@@ -466,7 +480,15 @@ def rebind_rosters(ctx: WarContext) -> None:
     except Exception:
         live = set()
     for army in sorted(world.war_state.armies, key=lambda a: a.army_id):
-        if army.roster and all(aid in live for aid, _ in army.roster):
+        from chronicler.war_consequences import war_consequences_active
+        from chronicler.war_requisition import war_requisition_active
+        consequences = getattr(getattr(world, "livelihoods", None), "war_consequences", None)
+        # A numerically reused id in a new pool is not evidence that its old
+        # army attachment survived. Both opted-in service paths must rebuild
+        # through the ordinary recruit authority, even without active D3.
+        repair_identity = (war_requisition_active(world)
+                           or war_consequences_active(world) and consequences.mode == "active")
+        if army.roster and all(aid in live for aid, _ in army.roster) and not repair_identity:
             continue
         civ = world.civ_map.get(army.civ)
         army.roster = []

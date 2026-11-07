@@ -59,6 +59,17 @@ it("timber supply shows the gains with their costs: labour away, wages, stock de
   expect(p.onSelectRegion).toHaveBeenCalledWith("Oldmere");
 });
 
+it("timber supply counts the expeditions launched for infrastructure works apart from RS2's", () => {
+  const counters = { ...timberSupply.counters, launched_works: 2 };
+  render(<TimberSupply {...props({ timber_supply: { ...timberSupply, counters } })} />);
+  const launched = row("Timber supply accounts to snapshot 10", /Expeditions launched/);
+  expect(launched).toHaveTextContent(String((timberSupply.counters.launched ?? 0) + 2));
+  expect(launched).toHaveTextContent("2 of them for infrastructure works' timber, after every repair-project need");
+  cleanup();
+  render(<TimberSupply {...props({ timber_supply: timberSupply })} />);
+  expect(row("Timber supply accounts to snapshot 10", /Expeditions launched/)).not.toHaveTextContent("infrastructure works");
+});
+
 it("timber supply labels the cost-only control and keeps unknown turns and malformed records visible", () => {
   render(<TimberSupply {...props({ timber_supply: { ...timberSupply, receipts: null, ledger: null, stores: null, needs: null,
     needs_dropped: null, deposits: null } })} />);

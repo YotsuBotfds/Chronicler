@@ -522,7 +522,9 @@ def before_crews(world, sim, requests: list) -> None:
                 st.missed[aid] = "away"
             else:
                 continuing.append(aid)
-        pool = [a for a in local if a not in held and a not in apprenticing and a not in army]
+        from chronicler.adaptive_livelihoods import accepts_offer
+        pool = [a for a in local if a not in held and a not in apprenticing and a not in army
+                and accepts_offer(world, a, "apprenticeship")]
         st.candidates = len(pool)
         vets = [v for v in _veterans(world, region) if v in set(pool)]
         ordered = vets + [a for a in pool if a not in set(vets)]
@@ -1055,8 +1057,10 @@ def _before_crews_v2(world, sim, state: ApprenticeshipState, p: _Pending, reques
         st.residents = len(local)
         # Age rule: youngest first, and nobody who would reach AGE_ELDER before
         # completing (D2: 80% of qualifications ended in death within the run).
+        from chronicler.adaptive_livelihoods import accepts_offer
         pool = [aid for age, aid in sorted(local)
-                if age <= oldest and aid not in held and aid not in apprenticing and aid not in army]
+                if age <= oldest and aid not in held and aid not in apprenticing and aid not in army
+                and accepts_offer(world, aid, "apprenticeship")]
         # Veterans keep RS3's own order (earliest release first, as on every
         # opening RS3 prioritises); the age rule still bounds who is eligible.
         vets = [v for v in _veterans(world, st.region) if v in set(pool)]
@@ -1491,6 +1495,17 @@ def phase10(world, acc, economy_result, agent_bridge) -> list:
         _bump(state, "stipends_paid", paid)
         _bump(state, "stipends_residual", total - paid)
         receipt.stipend_status = status or ("paid" if paid == total else "no_cash" if paid == 0 else "partial")
+    from chronicler.adaptive_livelihoods import note_work, forgone_title
+    for receipt in p.receipts.values():
+        for seat in receipt.seats:
+            # Crew-attached training has no additional diverted time; wages
+            # are accounted as workshop work separately, never paid twice.
+            on_crew = getattr(seat, "aboard", None) == "crew"
+            note_work(world, seat.agent_id, "apprenticeship", paid_milli=seat.stipend_paid,
+                      withheld_milli=0 if on_crew else (round(seat.income_forgone * 1000)
+                                                        if seat.income_forgone is not None else None),
+                      title_forgone_milli=0 if on_crew else forgone_title(world, receipt.region),
+                      progress=seat.outcome == "attended", source="apprenticeship:personal seat + stipend receipt")
     state.last_settled_turn = p.turn
     return []
 

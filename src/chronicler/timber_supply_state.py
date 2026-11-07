@@ -64,7 +64,7 @@ COUNTERS: frozenset[str] = frozenset({
     "person_turns", "cut", "lost", "delivered", "released", "store_held", "store_returned",
     "wages_due_milli", "wages_milli", "wage_residual_milli", "charged", "prepaid_written_off_milli",
     "income_withheld", "away_requested", "away_delivered", "crew_labor", "veterans_placed",
-    "pool_resets", "launched_veterans",
+    "pool_resets", "launched_veterans", "launched_works",
     "abandoned_cargo", "unpaid_turns", "recalls", "ended", "ended_wages_milli", "ended_person_turns",
     "ended_away", "ended_cut", "ended_delivered", "ended_unpaid_turns",
     "returned_expeditions", "soldier_veterans", "switched_off_cargo", "switched_off_store",

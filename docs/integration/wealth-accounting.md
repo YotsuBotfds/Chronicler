@@ -20,6 +20,37 @@ leaves it is destroyed by the model (the 2% decay, the ceiling, estates
 without heirs). No check covered it as a whole. This package makes the books
 visible: it does not change them, and it never calls them conserved.
 
+## A1-2 native stage observation
+
+The native observer is transient and off unless `--wealth-accounting` is on.
+It starts at the Phase 2 opening before payers, observes the native tick and
+all Phase 10 payers, and is taken at the final closing. It copies existing
+`f32` balance operands into `f64` observations without writing wealth or
+changing a random stream. Checkpoint bytes and the checkpoint layout omit it.
+A rollback cancels the unfinished observation; a stale or untaken observation
+fails closed instead of being attributed to another turn.
+
+New frames include optional `native` detail. Historical frames without it
+retain their original interpretation. `native.rows` itemizes actual income
+addition, decay, ceiling/floor, birth endowments, estate removal, heir credits,
+and exact transfer deltas by the region at each write. Diagnostic rows expose
+gross income, withholding by native stage, addition rounding, unclaimed or
+overflowing estates, and nominal transfer versus actual transfer rounding.
+Only the six physical stage components enter `modeled_net`; diagnostic gross
+amounts are never added again. The global independent closure is
+`world.delta = native.modeled_net + native.transfer_actual` within `1e-8`.
+`balance_closure` retains any discrepancy and `observed_complete` reports it.
+`typed_receipt_difference` compares actual transfer deltas with typed milliunit
+receipts, keeping f32 rounding visible. The old `native_model` field remains
+for old readers and per-region migration accounting, but its global residual
+can now be checked against observed stages instead of guessed.
+
+Care wages use the committed payment seam; care income withholding uses the
+uncapped care counter and live pending carer identities. Aggregate epidemic
+fractions, individual care episodes and mortality remain separate authorities.
+This accounting adds neither a second spendable balance nor global cash
+conservation: native income and decay remain modeled sources and sinks.
+
 ## What it observes
 
 | When | What | Source |
@@ -282,9 +313,9 @@ Registered in `feature_catalog.REQUIREMENTS` (`--agents hybrid`), in
   cases (205 files) with only `wealth_accounting` removed: 0 differences; the
   raw comparison differs only in `chronicle_bundle.json` and `state.json`.
 
-## Limits (slice 1)
+## Historical slice 1 limits
 
-- `native_model` is a residual, not itemized; slice 2 (a transient native
+- Historical records: `native_model` is a residual, not itemized; slice 2 (a transient native
   observer, witness layers for `tick.rs`, `pool.rs`, `household.rs`,
   `ffi/mod.rs`) will split it into income by occupation, each withheld share,
   decay, the ceiling, births, and estates to spouse, children, overflow and no
@@ -344,3 +375,8 @@ with these flags `hybrid_s42_long` PASS at 19 resume points and
 expedition, 17 after a retail settlement turn, granary crews working at 20 of
 them). Overhead on the all-switch `hybrid_s42` case: wall time unchanged
 within noise, bundle 8.0 -> 8.6 MB over 200 turns.
+
+Strict observation is available through `--wealth-accounting-mode strict`.
+It stops before committing a frame when native stage coverage is absent or
+`abs(balance_closure) > 1e-8`; `observe` retains that discrepancy for inspection.
+The mode does not alter any payer, rounding rule, income source or death rule.

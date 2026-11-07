@@ -231,6 +231,8 @@ def before_agent_tick(world, agent_bridge, economy_result) -> None:
                 rows.append((aid, cohort.region, ATTENDANCE_FRACTION))
         turns.append(ct)
     for (seat_id, seat), (_members, recruits, _counts) in zip(forming, plans[len(open_):], strict=True):
+        from chronicler.adaptive_livelihoods import accepts_offer
+        recruits = [r for r in recruits if accepts_offer(world, int(r[0]), "academy_training")]
         if len(recruits) < MIN_COHORT:
             continue
         cohort = Cohort(cohort_id=state.next_cohort_id + sum(t.new for t in turns), seat_id=seat_id,
@@ -354,6 +356,10 @@ def after_agent_tick(world, agent_bridge) -> list:
         charged = 0.0
         for aid in ct.reserved:
             region, outcome, _income, cost = outcomes[aid]
+            from chronicler.adaptive_livelihoods import note_work, forgone_title
+            note_work(world, aid, "academy_training", paid_milli=0, withheld_milli=round(cost * 1000),
+                      title_forgone_milli=forgone_title(world, region, occupation=active[aid].occupation),
+                      progress=outcome == "attended", source="learning_cohorts:personal native attendance receipt")
             if region != cohort.region:
                 raise RuntimeError("native attendance region does not match the cohort")
             m = active[aid]

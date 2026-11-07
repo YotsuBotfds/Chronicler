@@ -66,7 +66,14 @@ def prepare_phase2(world, region_input, agent_bridge, snapshot, acc):
     """
     state = _state(world)
     counts = [0] * len(world.regions)
-    for r in snapshot.column("region").to_pylist():
+    from chronicler.war_requisition import enlisted_ids
+    enlisted = set(enlisted_ids(world))
+    if enlisted:
+        rows = zip(snapshot.column("id").to_pylist(), snapshot.column("region").to_pylist(), strict=True)
+        regions = (r for aid, r in rows if int(aid) not in enlisted)
+    else:
+        regions = snapshot.column("region").to_pylist()
+    for r in regions:
         if 0 <= r < len(counts):
             counts[r] += 1
     state._phase2 = (world.turn, None, counts)

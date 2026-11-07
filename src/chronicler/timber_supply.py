@@ -31,6 +31,20 @@ region launches one, or records why not (``REFUSALS``, first failing check):
 * ``no_coins``: the controller's projected treasury cannot pay the whole
   expedition's wages and its other live expeditions' remaining wages.
 
+B3's works (``--infrastructure-condition`` in ``repair`` or ``cost_only``)
+are served after every RS2 need row of the turn, by the same planner
+(``_plan_works``): per region with open works that can use timber next Phase
+2 (``infrastructure_condition.timber_wants``: only works already opened, one
+turn at their per-turn cap), the works' want against what the free timber and
+the cargo on its way leave after RS2's want there; a region with a live
+expedition gets no second one, and a gap of at least ``MIN_GAP`` launches one
+under the same checks, crew rule, wages and work reservation (no other labour
+authority), or records the refusal. The rows go to B3's record; this
+package's need rows and their counters stay RS2's, and the works' launches
+count in ``launched_works`` (``launched`` stays RS2's). The store is kept
+only in regions whose works ask (the same screen). Off, and in B3's
+``record_only``/``wear_only``, nothing here changes.
+
 Who goes. At most ``CREW_CAP`` living adults resident in the home region,
 of any occupation but Soldier, not on an army roster, not away on a merchant
 trip and not on another crew; eligible RS3 veterans first
@@ -70,9 +84,11 @@ Cargo and store. Cut timber is carried home and loses the economy's timber
 transit decay per hop (``TRANSIT_DECAY``). On arrival (Phase 10) it is
 credited to an RS2-earmarked store of the home region. RS2 reads the store as
 free timber ahead of the stockpile, and its holds take from the store first
-(the PL1 seam in ``repair_projects``); nothing else can take it (it is not in
-the native stockpile). Timber left in a region without an open RS2 project
-is released to the region's stockpile, and the release is recorded.
+(the PL1 seam in ``repair_projects``; B3's works hold through RS2's holds);
+nothing else can take it (it is not in the native stockpile). Timber left in
+a region without an open RS2 project (or, with B3's works on, an open work
+that asks for timber) is released to the region's stockpile, and the release
+is recorded.
 
 A turn the controller cannot pay recalls the expedition: the crew stops
 cutting and walks home with the cargo, and every return-leg turn it cannot
@@ -440,6 +456,25 @@ def store_free(world, region: int) -> float:
     return amount
 
 
+
+def deliver_ordered_store(world, region: int, amount: float) -> None:
+    """A4-3 delivery into the existing repair store, included in PL1's account.
+
+    Called after ``phase10_before_reserves`` and before PL1 closes its frame.
+    No independent store is created and the delivery is not free commons stock.
+    """
+    state = _state(world)
+    if state is None or not timber_supply_active(world):
+        raise RuntimeError("ordered timber delivery requires active timber supply")
+    if not isinstance(region, int) or not 0 <= region < len(world.regions) or not math.isfinite(amount) or amount < 0:
+        raise ValueError("invalid ordered timber delivery")
+    t = state._turn
+    if t is None or t.turn != world.turn:
+        raise RuntimeError("ordered timber delivery outside the PL1 open turn")
+    t.store_open.setdefault(region, state.store.get(region, 0.0))
+    state.store[region] = state.store.get(region, 0.0) + amount
+    t.delivered[region] = t.delivered.get(region, 0.0) + amount
+
 def take_store(world, region: int, amount: float) -> float:
     """RS2 seam (its holds, before the native economy): take up to ``amount``
     from the region's store first; returns what was taken (0.0 without a
@@ -582,6 +617,7 @@ def reserve_first(world, agent_bridge, snapshot) -> None:
     if not live:
         return
     facts = _facts(snapshot, {a for e in live for a in e.crew})
+    t.individual_occupations = {aid: fact[1] for aid, fact in facts.items()}
     enlisted = _enlisted(world)
     trips = _trips(sim)
     open_veterans = frozenset()
@@ -731,6 +767,7 @@ def finish_phase2(world, economy_result, agent_bridge, acc):
         for aid, requested, got, residual, status in sim.transfer_wealth(
                 world.turn, PURPOSE_REPAIR_WAGE, WAGE_BATCH, wages):
             applied[int(aid)] = (int(got), int(residual) if status != 2 else int(requested))
+    t.individual_wages = applied
     accounts = _settled_accounts(world)
     turn = world.turn
     ledger: dict[int, dict] = {}
@@ -907,6 +944,12 @@ def after_agent_tick(world, agent_bridge):
         if r.crew:
             r.income_withheld = math.fsum(receipt[a][2] for a in r.crew if a in receipt)
             _bump(state, "income_withheld", r.income_withheld)
+            from chronicler.work_experience import record
+            for aid in r.crew:
+                record(world, aid, "woodcut", paid_milli=getattr(t, "individual_wages", {}).get(aid, (0, 0))[0],
+                       receipt=receipt, share=SHARE, region=r.home,
+                       occupation=getattr(t, "individual_occupations", {}).get(aid),
+                       source="timber_supply:untruncated individual wage + keyed paid-work receipt")
             exp = by_eid.get(r.eid)
             if exp is not None:
                 exp.income_withheld += r.income_withheld
@@ -1038,7 +1081,8 @@ def _choose_crew(world, state, snapshot, home: int, enlisted, trips) -> tuple[li
         pool = set(eligible)
         first = [int(a) for a in priority_ids(world, home) if int(a) in pool]
     seen = set(first)
-    order = (first + [a for a in eligible if a not in seen])[:CREW_CAP]
+    from chronicler.work_experience import accepts_offer
+    order = [a for a in first + [a for a in eligible if a not in seen] if accepts_offer(world, a, "woodcut")][:CREW_CAP]
     return order, {a for a in order if a in soldiers}
 
 
@@ -1086,7 +1130,7 @@ def phase10_before_reserves(world, acc, economy_result, agent_bridge):
         if not exp.crew:
             _end(world, state, exp, turn, "crew_lost")
     from chronicler.repair_projects import _state as rp_state
-    open_regions = {p.region for p in rp_state(world).projects}
+    open_regions = {p.region for p in rp_state(world).projects} | _works_regions(world)
     for region in sorted(state.store):
         amount = state.store[region]
         if region in open_regions:
@@ -1133,12 +1177,74 @@ def _arrive(world, state, t, exp: Expedition, turn: int) -> None:
     _close(state, exp)
 
 
-def _plan_launches(world, state, snapshot, sim, acc, enlisted, trips):
-    from chronicler import repair_projects as RP
+def _works_wants(world) -> list:
+    """B3 seam: the open infrastructure works' timber need per region
+    (``infrastructure_condition.timber_wants``); empty unless the works are on."""
+    if getattr(getattr(world, "livelihoods", None), "infrastructure_condition", None) is None:
+        return []
+    from chronicler.infrastructure_condition import timber_wants
+    return timber_wants(world)
+
+
+def _works_regions(world) -> frozenset[int]:
+    """B3 seam: regions whose open infrastructure works ask for timber (the
+    screen of ``timber_wants``; the store is kept there for them, as for an
+    open RS2 project); empty unless the works are on."""
+    if getattr(getattr(world, "livelihoods", None), "infrastructure_condition", None) is None:
+        return frozenset()
+    from chronicler.infrastructure_condition import timber_regions
+    return timber_regions(world)
+
+
+def _try_launch(world, state, snapshot, civ: int, region: int, gap: float, acc, enlisted, trips, wage: int,
+                turn: int, counter: str = "launched") -> tuple[str | None, Expedition | None]:
+    """Launch an expedition from ``region`` for ``gap``, or name the first
+    failing check (``REFUSALS`` order): ``(None, expedition)`` or ``(reason, None)``.
+    ``counter``: ``launched`` for RS2's need, ``launched_works`` for B3's works."""
     from chronicler.mutual_aid import _treasury_budget
+    forest, reason = _choose_forest(world, state, civ, region)
+    crew, soldiers = [], set()
+    if reason is None:
+        crew, soldiers = _choose_crew(world, state, snapshot, region, enlisted, trips)
+        if not crew:
+            reason = "no_crew"
+    if reason is None:
+        hops = forest[0]
+        bill = len(crew) * wage * (2 * hops + CUT_TURNS)
+        bill += sum(_remaining_bill(e, wage) for e in state.expeditions if e.civ == civ)
+        budget = math.floor(_treasury_budget(world, world.civilizations[civ], acc)) * MILLI
+        if budget < bill:
+            reason = "no_coins"
+    if reason is not None:
+        return reason, None
+    hops, rid, slot = forest
+    veterans = []
+    if _lane_active(world, "veteran_reintegration"):
+        from chronicler.veteran_reintegration import open_record_ids
+        vet = open_record_ids(world)
+        veterans = [a for a in crew if a in vet]
+    exp = Expedition(eid=state.next_eid, civ=civ, home=region, forest=rid, slot=slot, hops=hops,
+                     launched_turn=turn, stage="outbound" if hops > 0 else "cutting",
+                     crew=list(crew), launched_crew=list(crew), veterans=veterans,
+                     soldier_veterans=sorted(soldiers), need=gap)
+    state.next_eid += 1
+    _note(exp, turn, "launched")
+    state.expeditions.append(exp)
+    _bump(state, counter)
+    _bump(state, "launched_veterans", len(veterans))
+    _bump(state, "soldier_veterans", len(soldiers))
+    return None, exp
+
+
+def _plan_launches(world, state, snapshot, sim, acc, enlisted, trips):
+    """RS2's need rows first (each region ascending), then, with B3's works on,
+    the works' (``_plan_works``): one planner, one set of forests, crews and
+    coins, so the works are served only after every RS2 need of the turn."""
+    from chronicler import repair_projects as RP
     wants = _wants(world)
+    works = _works_wants(world)
     rows: list[NeedRow] = []
-    if not wants:
+    if not wants and not works:
         return rows, 0
     commitments = RP._commitments(world, sim)
     wage = wage_milli()
@@ -1160,44 +1266,57 @@ def _plan_launches(world, state, snapshot, sim, acc, enlisted, trips):
             row.status = "expedition"
             row.eid = homed[0].eid
         elif gap >= MIN_GAP:
-            forest, reason = _choose_forest(world, state, civ, region)
-            crew, soldiers = [], set()
-            if reason is None:
-                crew, soldiers = _choose_crew(world, state, snapshot, region, enlisted, trips)
-                if not crew:
-                    reason = "no_crew"
-            if reason is None:
-                hops = forest[0]
-                bill = len(crew) * wage * (2 * hops + CUT_TURNS)
-                bill += sum(_remaining_bill(e, wage) for e in state.expeditions if e.civ == civ)
-                budget = math.floor(_treasury_budget(world, world.civilizations[civ], acc)) * MILLI
-                if budget < bill:
-                    reason = "no_coins"
+            reason, exp = _try_launch(world, state, snapshot, civ, region, gap, acc, enlisted, trips, wage, turn)
             if reason is not None:
                 row.status, row.reason = "refused", reason
                 _bump(state, f"refused_{reason}")
             else:
-                hops, rid, slot = forest
-                veterans = []
-                if _lane_active(world, "veteran_reintegration"):
-                    from chronicler.veteran_reintegration import open_record_ids
-                    vet = open_record_ids(world)
-                    veterans = [a for a in crew if a in vet]
-                exp = Expedition(eid=state.next_eid, civ=civ, home=region, forest=rid, slot=slot, hops=hops,
-                                 launched_turn=turn, stage="outbound" if hops > 0 else "cutting",
-                                 crew=list(crew), launched_crew=list(crew), veterans=veterans,
-                                 soldier_veterans=sorted(soldiers), need=gap)
-                state.next_eid += 1
-                _note(exp, turn, "launched")
-                state.expeditions.append(exp)
                 row.status, row.eid = "launched", exp.eid
-                _bump(state, "launched")
-                _bump(state, "launched_veterans", len(veterans))
-                _bump(state, "soldier_veterans", len(soldiers))
         _bump(state, f"need_{row.status}")
         rows.append(row)
+    if works:
+        _plan_works(world, state, snapshot, acc, enlisted, trips, works, wants, commitments, wage, turn)
     dropped = max(0, len(rows) - MAX_NEEDS)
     return rows[:MAX_NEEDS], dropped
+
+
+def _plan_works(world, state, snapshot, acc, enlisted, trips, works, wants, commitments, wage, turn) -> None:
+    """B3's works' timber need (``--infrastructure-condition`` in a work mode),
+    after every RS2 need row of the turn: per region, the works' one-turn want
+    against what the free timber and the cargo on its way leave after RS2's
+    want there (RS2 first, in the region as in the planner). A region with a
+    live expedition gets no second one (whoever launched it); a gap of at least
+    ``MIN_GAP`` launches one under the same checks, crew rule, wages and
+    reservation as RS2's (no other labour authority), or records the refusal.
+    The rows go to B3's record (``TimberNeed``); PL1's need rows and their
+    counters stay RS2's, and the works' launches count in ``launched_works``
+    (``launched`` stays RS2's; the veteran and per-expedition counters count
+    every expedition). The cargo is delivered to the home region's store,
+    which RS2's holds (the works' included) take first."""
+    from chronicler import repair_projects as RP
+    from chronicler.infrastructure_condition import record_timber_needs
+    from chronicler.infrastructure_condition_state import TimberNeed
+    out = []
+    for region, want, wids in works:
+        civ = _controller(world, region)
+        free = RP._free_timber(world, region, commitments, 0.0)
+        homed = [e for e in state.expeditions if e.home == region]
+        transit = math.fsum(e.cargo * transit_keep(e.hops) for e in homed)
+        first = float(wants.get(region, 0.0))
+        gap = max(0.0, want - max(0.0, free + transit - first))
+        row = TimberNeed(region=region, civ=civ, works=list(wids), want=want, rs2_want=first, free=free,
+                         in_transit=transit, gap=gap, status="supplied")
+        if homed:
+            row.status, row.eid = "expedition", homed[0].eid
+        elif gap >= MIN_GAP:
+            reason, exp = _try_launch(world, state, snapshot, civ, region, gap, acc, enlisted, trips, wage, turn,
+                                      counter="launched_works")
+            if reason is not None:
+                row.status, row.reason = "refused", reason
+            else:
+                row.status, row.eid = "launched", exp.eid
+        out.append(row)
+    record_timber_needs(world, out)
 
 
 def phase10(world, acc, economy_result, agent_bridge):

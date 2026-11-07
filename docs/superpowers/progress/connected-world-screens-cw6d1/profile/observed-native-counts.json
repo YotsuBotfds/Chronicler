@@ -1,0 +1,96 @@
+[
+  {
+    "case": "scaled22k",
+    "arm": "off",
+    "checkpoint_turn": 29,
+    "checkpoint_sha256": "45aecc21fa593ef6f614a43abc05b501ffefd4660f08dc372891c81e7160c0a0",
+    "alive_native_at_checkpoint": 24112,
+    "sidecar_sha256": "a785fffe107fbc3cc6af8d488a0f2b70ce503de0fcc05f269b16457d4051c455",
+    "observed_native_counts_by_turn": {
+      "0": 18926,
+      "10": 20725,
+      "20": 22942,
+      "30": 24205
+    }
+  },
+  {
+    "case": "scaled22k",
+    "arm": "on",
+    "checkpoint_turn": 29,
+    "checkpoint_sha256": "ebf93b106c20635bea8cd5cc1150b8997e29049b188fe1de8d570f3194fba81d",
+    "alive_native_at_checkpoint": 24112,
+    "sidecar_sha256": "a785fffe107fbc3cc6af8d488a0f2b70ce503de0fcc05f269b16457d4051c455",
+    "observed_native_counts_by_turn": {
+      "0": 18926,
+      "10": 20725,
+      "20": 22942,
+      "30": 24205
+    }
+  },
+  {
+    "case": "scaled52k",
+    "arm": "off",
+    "checkpoint_turn": 19,
+    "checkpoint_sha256": "7e8d37efa8b2679a85d125ea3a39828734cd77baa1f59116ce8ac5843748a898",
+    "alive_native_at_checkpoint": 44123
+  },
+  {
+    "case": "scaled52k",
+    "arm": "on",
+    "checkpoint_turn": 19,
+    "checkpoint_sha256": "feeba96d83501aef2aaa5bd96a0b3d131876f707beed1180eef39ca13cc9d9ee",
+    "alive_native_at_checkpoint": 44123
+  },
+  {
+    "case": "proc48",
+    "arm": "off",
+    "checkpoint_turn": 149,
+    "checkpoint_sha256": "44d15d3ec59d60b3adc788a608870d27ea83454f4135ca97548cef934114617d",
+    "alive_native_at_checkpoint": 700,
+    "sidecar_sha256": "c841373561426ba654be8beb6fb4ed8431be4e71800d0f4c3f00f7807d6be520",
+    "observed_native_counts_by_turn": {
+      "0": 516,
+      "10": 580,
+      "20": 625,
+      "30": 689,
+      "40": 705,
+      "50": 731,
+      "60": 690,
+      "70": 697,
+      "80": 684,
+      "90": 720,
+      "100": 712,
+      "110": 752,
+      "120": 757,
+      "130": 740,
+      "140": 704,
+      "150": 697
+    }
+  },
+  {
+    "case": "proc48",
+    "arm": "on",
+    "checkpoint_turn": 149,
+    "checkpoint_sha256": "ac0ad5b75f46436a15a2762303ea8908fb7c4ed2b5696404c4266daa50cb78c1",
+    "alive_native_at_checkpoint": 724,
+    "sidecar_sha256": "951aeabdfc83288b6665a0244a21a2a1ff0b32d69e71bf577ec2ff437f8e18d4",
+    "observed_native_counts_by_turn": {
+      "0": 516,
+      "10": 580,
+      "20": 625,
+      "30": 689,
+      "40": 705,
+      "50": 731,
+      "60": 690,
+      "70": 697,
+      "80": 684,
+      "90": 720,
+      "100": 712,
+      "110": 756,
+      "120": 802,
+      "130": 803,
+      "140": 781,
+      "150": 720
+    }
+  }
+]

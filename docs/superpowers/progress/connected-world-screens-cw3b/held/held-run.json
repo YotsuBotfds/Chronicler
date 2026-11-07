@@ -1,0 +1,27 @@
+{
+ "screen": "CW3b",
+ "cohort": "held",
+ "out": "/home/user/evidence/b3/cw3b/held",
+ "identity": "9b5c4f4121c8ac43cff0ad3073d42395b734a31a955ee4060b0fa9195c6b58e9",
+ "preregistration": "45e227567e6632a067f5d21569c796592177c6a8422746187b3f60663f2a5d57 docs/superpowers/progress/connected-world-screens-cw3b.md",
+ "started": "2026-11-07T06:31:30Z",
+ "seeds": {
+  "template": [
+   3501,
+   3502,
+   3503,
+   3504,
+   3505,
+   3506
+  ],
+  "procedural": [
+   3601,
+   3602,
+   3603,
+   3604,
+   3605,
+   3606
+  ]
+ },
+ "reason": null
+}

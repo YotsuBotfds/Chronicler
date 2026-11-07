@@ -1,0 +1,153 @@
+{
+  "generated": "2026-11-07T14:44:43.256Z",
+  "build": "/workspace/evidence/d1/browser/dist",
+  "python": "/workspace/cw-d1-native/bin/python",
+  "journey": "relief",
+  "out": "/workspace/evidence/d1/browser/qa-relief-bounds-unfixed",
+  "bundle": "/workspace/evidence/d1/browser/relief-t42.json",
+  "turns": null,
+  "bundle_sha256": "3ab2164cb56eafca5d2f60c87f9fa788ca895cf5146b1643ce962e88d4bcd4c5",
+  "build_index_sha256": "9e1fb0475de37a6186ae05b80c0646c01986dc4b4e0bfa76c4dc53dfa967e7d5",
+  "evidence": "Natural provided saved bundle; expectations decoded by Python bundle_codec. Browser journeys are bounded UI checks, not qualification.",
+  "viewports": {
+    "desktop": {
+      "checks": [
+        {
+          "label": "desktop snapshot86: panel mounts and has finite text",
+          "ok": true,
+          "detail": "Poor relief services · snapshot 86\n\nSimulation turn 85, mode service. A granted poor relief no longer credits anyone's need; the treasury's relief payment goes into the realm's relief fund (up to four turns of upkeep, the rest sunk), which buys owners' unsold food, paid by stable id, where the realm"
+        },
+        {
+          "label": "desktop snapshot86: actual relief payment region5",
+          "ok": true,
+          "detail": "[\"Amber Valley\",\"Kethani Empire\",\"2.239\",\"0.491\",\"1.12\",\"2.24\",\"1.1\",\"21\"]"
+        },
+        {
+          "label": "desktop snapshot86: relief recipients remain regional",
+          "ok": true,
+          "detail": "rs\nAmber Valley\tKethani Empire\t2.239\t0.491\t1.12\t2.24\t1.1\t21\n\nNo delivery was read this turn: nothing was bought last turn (recorded zero).\n\nBy region: Amber Valley bought 2.24 rations. Recipients are not named: relief food is pooled with the commons."
+        },
+        {
+          "label": "desktop snapshot86: explanatory text stays within section",
+          "ok": true,
+          "detail": "[{\"left\":56,\"right\":1384,\"sectionLeft\":39,\"sectionRight\":1401},{\"left\":56,\"right\":1384,\"sectionLeft\":39,\"sectionRight\":1401},{\"left\":56,\"right\":1384,\"sectionLeft\":39,\"sectionRight\":1401}]"
+        },
+        {
+          "label": "desktop snapshot86: no horizontal document overflow",
+          "ok": true,
+          "detail": "{\"page\":1440,\"viewport\":1440}"
+        },
+        {
+          "label": "desktop snapshot87: panel mounts and has finite text",
+          "ok": true,
+          "detail": "Poor relief services · snapshot 87\n\nSimulation turn 86, mode service. A granted poor relief no longer credits anyone's need; the treasury's relief payment goes into the realm's relief fund (up to four turns of upkeep, the rest sunk), which buys owners' unsold food, paid by stable id, where the realm"
+        },
+        {
+          "label": "desktop snapshot87: actual relief payment region5",
+          "ok": true,
+          "detail": "[\"Amber Valley\",\"Kethani Empire\",\"0.09\",\"0.463\",\"0.045\",\"0.09\",\"0.042\",\"17\"]"
+        },
+        {
+          "label": "desktop snapshot87: actual bounded relief delivery region5",
+          "ok": true,
+          "detail": "[\"Amber Valley\",\"85\",\"2.24\",\"7.538 / 0\",\"2.173 to 2.24\",\"1\"]"
+        },
+        {
+          "label": "desktop snapshot87: relief recipients remain regional",
+          "ok": true,
+          "detail": "nallocated)\tReached people (rations)\tPriced out now\nAmber Valley\t85\t2.24\t7.538 / 0\t2.173 to 2.24\t1\n\nBy region: Amber Valley bought 0.09 rations, delivered at most 2.24, at least 2.173. Recipients are not named: relief food is pooled with the commons."
+        },
+        {
+          "label": "desktop snapshot87: explanatory text stays within section",
+          "ok": true,
+          "detail": "[{\"left\":56,\"right\":1384,\"sectionLeft\":39,\"sectionRight\":1401},{\"left\":56,\"right\":1384,\"sectionLeft\":39,\"sectionRight\":1401}]"
+        },
+        {
+          "label": "desktop snapshot87: no horizontal document overflow",
+          "ok": true,
+          "detail": "{\"page\":1440,\"viewport\":1440}"
+        },
+        {
+          "label": "desktop: no browser console or page errors",
+          "ok": true,
+          "detail": ""
+        }
+      ],
+      "messages": [],
+      "screenshots": [
+        "desktop-snapshot86.png",
+        "desktop-snapshot87.png"
+      ]
+    },
+    "phone": {
+      "checks": [
+        {
+          "label": "phone snapshot86: panel mounts and has finite text",
+          "ok": true,
+          "detail": "Poor relief services · snapshot 86\n\nSimulation turn 85, mode service. A granted poor relief no longer credits anyone's need; the treasury's relief payment goes into the realm's relief fund (up to four turns of upkeep, the rest sunk), which buys owners' unsold food, paid by stable id, where the realm"
+        },
+        {
+          "label": "phone snapshot86: actual relief payment region5",
+          "ok": true,
+          "detail": "[\"Amber Valley\",\"Kethani Empire\",\"2.239\",\"0.491\",\"1.12\",\"2.24\",\"1.1\",\"21\"]"
+        },
+        {
+          "label": "phone snapshot86: relief recipients remain regional",
+          "ok": true,
+          "detail": "rs\nAmber Valley\tKethani Empire\t2.239\t0.491\t1.12\t2.24\t1.1\t21\n\nNo delivery was read this turn: nothing was bought last turn (recorded zero).\n\nBy region: Amber Valley bought 2.24 rations. Recipients are not named: relief food is pooled with the commons."
+        },
+        {
+          "label": "phone snapshot86: explanatory text stays within section",
+          "ok": false,
+          "detail": "[{\"left\":42,\"right\":789.03125,\"sectionLeft\":25,\"sectionRight\":365},{\"left\":42,\"right\":789.03125,\"sectionLeft\":25,\"sectionRight\":365},{\"left\":42,\"right\":789.03125,\"sectionLeft\":25,\"sectionRight\":365}]"
+        },
+        {
+          "label": "phone snapshot86: no horizontal document overflow",
+          "ok": true,
+          "detail": "{\"page\":790,\"viewport\":790}"
+        },
+        {
+          "label": "phone snapshot87: panel mounts and has finite text",
+          "ok": true,
+          "detail": "Poor relief services · snapshot 87\n\nSimulation turn 86, mode service. A granted poor relief no longer credits anyone's need; the treasury's relief payment goes into the realm's relief fund (up to four turns of upkeep, the rest sunk), which buys owners' unsold food, paid by stable id, where the realm"
+        },
+        {
+          "label": "phone snapshot87: actual relief payment region5",
+          "ok": true,
+          "detail": "[\"Amber Valley\",\"Kethani Empire\",\"0.09\",\"0.463\",\"0.045\",\"0.09\",\"0.042\",\"17\"]"
+        },
+        {
+          "label": "phone snapshot87: actual bounded relief delivery region5",
+          "ok": true,
+          "detail": "[\"Amber Valley\",\"85\",\"2.24\",\"7.538 / 0\",\"2.173 to 2.24\",\"1\"]"
+        },
+        {
+          "label": "phone snapshot87: relief recipients remain regional",
+          "ok": true,
+          "detail": "nallocated)\tReached people (rations)\tPriced out now\nAmber Valley\t85\t2.24\t7.538 / 0\t2.173 to 2.24\t1\n\nBy region: Amber Valley bought 0.09 rations, delivered at most 2.24, at least 2.173. Recipients are not named: relief food is pooled with the commons."
+        },
+        {
+          "label": "phone snapshot87: explanatory text stays within section",
+          "ok": false,
+          "detail": "[{\"left\":42,\"right\":800.71875,\"sectionLeft\":25,\"sectionRight\":365},{\"left\":42,\"right\":800.71875,\"sectionLeft\":25,\"sectionRight\":365}]"
+        },
+        {
+          "label": "phone snapshot87: no horizontal document overflow",
+          "ok": true,
+          "detail": "{\"page\":801,\"viewport\":801}"
+        },
+        {
+          "label": "phone: no browser console or page errors",
+          "ok": true,
+          "detail": ""
+        }
+      ],
+      "messages": [],
+      "screenshots": [
+        "phone-snapshot86.png",
+        "phone-snapshot87.png"
+      ]
+    }
+  },
+  "failures": 2
+}

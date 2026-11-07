@@ -78,6 +78,7 @@ pub fn household_death_transfer<L: crate::pool::SlotLookup>(
                 if pool.is_alive(spouse_slot) && pool.ids[spouse_slot] == spouse_id {
                     let before = pool.wealth[spouse_slot];
                     pool.wealth[spouse_slot] = (before + estate).min(crate::agent::MAX_WEALTH);
+                    pool.observe_wealth(pool.regions[spouse_slot], "inheritance_in", pool.wealth[spouse_slot] as f64 - before as f64);
                     let actual = pool.wealth[spouse_slot] - before;
                     let overflow = estate - actual;
                     stats.inheritance_transfers_spouse += 1;
@@ -127,6 +128,7 @@ pub fn household_death_transfer<L: crate::pool::SlotLookup>(
     for &heir_slot in &heirs {
         let before = pool.wealth[heir_slot];
         pool.wealth[heir_slot] = (before + share).min(crate::agent::MAX_WEALTH);
+        pool.observe_wealth(pool.regions[heir_slot], "inheritance_in", pool.wealth[heir_slot] as f64 - before as f64);
         let actual = pool.wealth[heir_slot] - before;
         let overflow = share - actual;
         stats.inheritance_transfers_child += 1;

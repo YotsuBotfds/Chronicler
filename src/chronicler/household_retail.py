@@ -1069,10 +1069,12 @@ def title_inputs(world, snapshot, regions) -> dict[int, list[tuple[int, float, f
     cities = getattr(getattr(world, "cities", None), "cities", None) or []
     rank = {(int(c.region), int(c.settlement_id)): int(c.rank) for c in cities if c.settlement_id > 0}
     losses = _health_losses(world, people)
+    from chronicler.war_requisition import enlisted_ids
+    enlisted = set(enlisted_ids(world))
     out: dict[int, list[tuple[int, float, float]]] = {rid: [] for rid in sorted(wanted)}
     for aid in sorted(people):
         region, occupation, _age, settlement = people[aid]
-        if region not in wanted or occupation != FARMER:
+        if region not in wanted or occupation != FARMER or aid in enlisted:
             continue
         city = rank.get((region, settlement))
         u = float(URBAN_FARM_LABOR[city]) if city is not None else 1.0
@@ -1143,6 +1145,27 @@ def crew_farm_time(world, p2: "_Phase2", economy_result) -> tuple[dict[int, floa
                     removed[m.agent_id] = removed.get(m.agent_id, 0.0) + float(m.farm_time)
                     if rec.kind == "granary":
                         granary[rec.region] = granary.get(rec.region, 0.0) + float(m.farm_time)
+    # Care and guards remove farm time during preparation, even when a
+    # later wage quote fails. Their complete current plans are authoritative;
+    # snapshot samples and payment rows are not a labor roster.
+    from chronicler.epidemic_care import farm_time as care_farm_time
+    from chronicler.public_health import farm_time as guard_farm_time
+    for planned in (care_farm_time(world, turn), guard_farm_time(world, turn)):
+        for aid, amount in planned.items():
+            if aid in u_of:
+                removed[aid] = removed.get(aid, 0.0) + float(amount)
+    # Named infrastructure workers use the shared granary-work column, but
+    # their title belongs to remaining farming only, just like PL3 crews.
+    infra = getattr(lv, "infrastructure_condition", None)
+    it = getattr(infra, "_turn", None) if infra is not None else None
+    if it is not None and it.turn == turn and it.named and it.finished:
+        for receipt in it.receipts:
+            if receipt.region not in p2.work:
+                continue
+            for member in receipt.members:
+                if member.agent_id in u_of and member.worked > 0:
+                    removed[member.agent_id] = removed.get(member.agent_id, 0.0) + float(member.worked)
+                    granary[receipt.region] = granary.get(receipt.region, 0.0) + float(member.worked)
     return removed, granary
 
 
@@ -1305,6 +1328,23 @@ def _split_title(state, t: _Turn, rid: int, titled: list[int], reg: RetailRegion
         else:
             pseudo[REFUSED] += credits[aid]
     return admitted, pseudo
+
+
+def finalize_phase2_input(world, region_input):
+    """Capture the final labor factor after every work consumer prepared it.
+
+    The retail planner precedes late care and guard consumers. Its opening
+    roster is stable, but the factor used to verify food title must be the
+    actual final economy input, never the earlier planner's intermediate one.
+    """
+    if not household_retail_active(world):
+        return
+    state = _state(world)
+    t = state._turn
+    if t is None or t.phase2 is None or t.phase2.turn != world.turn:
+        raise RetailAccountingError("retail final labor input requires this turn's prepared roster")
+    values = region_input.column("farm_labor_factor").to_pylist() if "farm_labor_factor" in region_input.schema.names else None
+    t.phase2.factor = {rid: float(values[rid]) if values is not None else 1.0 for rid in t.phase2.pilots}
 
 
 def finish_phase2(world, economy_result, agent_bridge, acc):
@@ -2251,6 +2291,76 @@ def owned_grain_sold(world) -> dict[int, float]:
     for p in t.procured:
         out[p.region] = out.get(p.region, 0.0) + p.taken
     return out
+
+
+def settled_provisioning(world) -> dict[int, dict] | None:
+    """D1a's reading of this turn's provisioning, before retail's Phase 10 closes
+    the frame: region -> {price_milli, persons, rations, priced_out_persons,
+    offer_short_persons, free_rations, free_given, free_unallocated} for every
+    pilot region whose native frame was settled this turn; None when this turn
+    settled none (not provisioned, or not observed). Copies; reads only."""
+    state = _state(world)
+    t = state._turn if state is not None else None
+    if t is None or t.turn != world.turn:
+        return None
+    keys = ("price_milli", "persons", "rations", "priced_out_persons", "offer_short_persons",
+            "free_rations", "free_given", "free_unallocated")
+    out = {}
+    for rid, book in sorted(t.books.items()):
+        if book.provisioning is None:
+            continue
+        row = {k: float(book.provisioning[k]) for k in keys}
+        # This turn's opening (Phase 2): whether the commons fell short of the
+        # demand (then the economy ate all of it) and whether the opening cut
+        # owned stock above the storage cap (None: not recorded).
+        phase2 = book.phase2 or {}
+        row["commons_sufficiency"] = (float(phase2["commons_sufficiency"])
+                                      if "commons_sufficiency" in phase2 else None)
+        overflow = [phase2.get(f"retail_owned_overflow_{good}") for good in RETAIL_GOODS]
+        row["owned_overflow"] = None if any(v is None for v in overflow) else float(sum(overflow))
+        out[rid] = row
+    return out or None
+
+
+def owned_milli(world, rid: int) -> int:
+    """Owned food held in pilot region ``rid`` now (milli-food; 0 outside the pilot)."""
+    state = _state(world)
+    reg = state.region(rid) if state is not None else None
+    return sum(reg.goods) if reg is not None else 0
+
+
+def relief_shares(world, rid: int, milli: int) -> dict[int, int]:
+    """The owners' shares of a relief purchase of ``milli`` milli-food in ``rid``:
+    pro rata to their claims (largest remainder, ties by ascending id), exactly
+    as :func:`take_relief` will debit them. Reads only."""
+    state = _state(world)
+    reg = state.region(rid) if state is not None else None
+    if reg is None or milli <= 0 or milli > sum(reg.goods):
+        raise RetailAccountingError("a relief purchase exceeds the owned food it is drawn from")
+    return _pro_rata(int(milli), reg.claims)
+
+
+def take_relief(world, rid: int, milli: int) -> tuple[dict[int, int], list[int]]:
+    """D1a: a poor-relief fund has paid the owners of pilot region ``rid`` for
+    ``milli`` milli-food: debit their claims pro rata (the ``relief_bought``
+    flow, drawn from the pooled mix of goods) and move the food into the
+    region's commons, where the next provisioning's free pool draws on it.
+    Called once per region and turn, after the payment, before retail's Phase 10
+    closes this turn's frame (so the frame records the flow). Returns the
+    owners' shares and the per-good amounts (``RETAIL_GOODS`` order). No food
+    is made or lost."""
+    state = _state(world)
+    reg = state.region(rid) if state is not None else None
+    t = state._turn if state is not None else None
+    if reg is None or t is None or t.turn != world.turn:
+        raise RetailAccountingError("a relief purchase names no pilot region of this turn")
+    per_owner = relief_shares(world, rid, milli)
+    per_good = _draw(reg.goods, int(milli))
+    _debit(state, world, reg, "relief_bought", per_owner, per_good)
+    _to_stockpile(state, world, rid, per_good)
+    _bump(state, "relief_bought_milli", int(milli))
+    _check(state, world, {rid})
+    return per_owner, per_good
 
 
 def _credit_procurement(world, state, t: _Turn, agent_bridge) -> dict:
