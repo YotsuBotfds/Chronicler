@@ -840,7 +840,7 @@ def test_new_package_adapter_reads_uncapped_totals_and_closes_treasury_carry(mon
     from chronicler import money
     world = _world()
     total = money.FlowTotal(purpose="care_wage", payer_kind="civ_treasury", payee_kind="agent_wealth",
-                            region=0, payer_civ=0, applied=600, count=2000, treasury_units=1, carry_change=400)
+                            region=0, payer_civ=0, applied=600, count=2000, treasury_units=-1, carry_change=400)
     st = SimpleNamespace(frame_turn=world.turn,
         book=money.MoneyBook(flows_turn=world.turn, flows=[], totals=[total], flows_dropped=2000))
     monkeypatch.setattr(WA, "_active", lambda _world, name: st if name == "epidemic_care" else None)
@@ -850,3 +850,4 @@ def test_new_package_adapter_reads_uncapped_totals_and_closes_treasury_carry(mon
     assert book.rows[0]["in_milli"] == 600
     assert book.treasury["to_households_milli"]["care_wage"] == 600
     assert all(row["closes"] for row in book.closures)
+    assert book.civ[0]["charged"] == 1
