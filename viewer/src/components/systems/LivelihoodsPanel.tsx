@@ -23,6 +23,7 @@ import { Relocation } from "./Relocation";
 import { TimberStock } from "./TimberStock";
 import { TimberSupply } from "./TimberSupply";
 import { WealthAccounting } from "./WealthAccounting";
+import { WorkshopEconomics } from "./WorkshopEconomics";
 import { WorkshopFinance } from "./WorkshopFinance";
 import { Watershed } from "./Watershed";
 import { Workshops } from "./Workshops";
@@ -34,7 +35,8 @@ import { Workshops } from "./Workshops";
 const PACKAGES = ["workshops", "workshop_payroll", "food_allocation", "timber_stock", "grain_convoys",
   "commons_rules", "learning_cohorts", "relocation_costs", "local_budgets", "clearing_protection",
   "remittances", "apprenticeship", "veteran_reintegration", "repair_projects", "operating_wear", "timber_supply",
-  "recovery_crews", "maintenance_obligation", "household_retail", "watershed", "attribution_records", "wealth_accounting"];
+  "recovery_crews", "maintenance_obligation", "household_retail", "watershed", "workshop_economics",
+  "attribution_records", "wealth_accounting"];
 
 export function LivelihoodsPanel(panelProps: SystemPanelProps) {
   const { bundle, snapshot, currentTurn, onSelectRegion } = panelProps;
@@ -62,6 +64,7 @@ export function LivelihoodsPanel(panelProps: SystemPanelProps) {
     {chain ? <RecoveryChain {...panelProps} /> : null}
     {record?.workshops != null ? <Workshops {...props} /> : null}
     {record?.workshop_payroll != null ? <WorkshopFinance {...props} /> : null}
+    {record?.workshop_payroll != null || record?.workshop_economics !== undefined ? <WorkshopEconomics {...props} /> : null}
     {mount("food_allocation") ? <FoodAllocation {...props} /> : null}
     {record?.household_retail != null ? <HouseholdRetail {...props} /> : null}
     {mount("timber_stock") ? <TimberStock {...props} /> : null}

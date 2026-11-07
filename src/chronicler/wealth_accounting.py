@@ -110,6 +110,7 @@ _BASELINES: tuple[tuple[str, str], ...] = (
     ("workshop_payroll", "income_replaced"), ("apprenticeship", "income_forgone"),
     ("repair_projects", "income_replaced"), ("recovery_crews", "income_replaced"),
     ("recovery_crews", "rows_dropped"), ("timber_supply", "income_withheld"),
+    ("workshop_economics", "asset_subsidy_idle_units"),
 )
 
 
@@ -397,6 +398,7 @@ def _payroll(world, book: _Book, turn: int) -> None:
             book.channel("apprentice_stipend", "apprenticeship", CHANNELS[1][2], True)
         return
     fresh = st.frame_turn == turn
+    a3 = _active(world, "workshop_economics") is not None
     wages = stipends = 0
     by_wage, by_stipend = [], []
     lhs = rhs = 0
@@ -408,6 +410,9 @@ def _payroll(world, book: _Book, turn: int) -> None:
         by_wage.append((r.region, w, 0))
         by_stipend.append((r.region, s, 0))
         lhs += int(r.cash_open) + int(r.sales) - w - s - int(r.distributed) - int(r.written_off)
+        # A3 (workshop economics): capital, household sales and inputs (absent: 0).
+        lhs += sum(int(getattr(r, k, None) or 0) for k in ("capital", "household_sales")) \
+            - int(getattr(r, "inputs", None) or 0)
         rhs += int(r.cash_close)
         tr["sales_from_treasury_milli"] += int(r.sales)
         tr["distributions_to_treasury_milli"] += int(r.distributed)
@@ -420,8 +425,87 @@ def _payroll(world, book: _Book, turn: int) -> None:
     if rs1 or stipends:
         book.channel("apprentice_stipend", "apprenticeship", CHANNELS[1][2], fresh, stipends, 0, by_stipend)
     if fresh:
-        book.closure("workshop_wage", "firm cash: open + sales - wages - stipends - distributions - write-offs "
-                     "= close", lhs, rhs)
+        check = ("firm cash: open + capital + academy sales + household sales - inputs - wages - stipends - "
+                 "distributions - write-offs = close" if a3 else
+                 "firm cash: open + sales - wages - stipends - distributions - write-offs = close")
+        book.closure("workshop_wage", check, lhs, rhs)
+
+
+def _workshop_economics(world, book: _Book, t: _Turn, turn: int) -> None:
+    """A3: the payment seam's agent-wealth channels (``MONEY_PURPOSE_CHANNELS``,
+    read generically with signs from the seam's exact per-turn totals, so a turn
+    beyond the flow list's bound is still counted in full) and the treasury
+    side of firm capital, input purchases and the owner's building subsidy,
+    each re-checked against the A3 receipts."""
+    st = _active(world, "workshop_economics")
+    if st is None:
+        return
+    from chronicler.money import totals_for_turn
+    from chronicler.wealth_accounting_state import MONEY_PURPOSE_CHANNELS
+    fresh = st.frame_turn == turn
+    totals = (totals_for_turn(world, turn) or []) if fresh else []
+    channel_of = {name: (i, package) for i, (name, package, _payer) in enumerate(CHANNELS)}
+    moved = {}
+    for purpose, channel in MONEY_PURPOSE_CHANNELS.items():
+        inflow = outflow = 0
+        by_region: dict[int, list[int]] = {}
+        for x in totals:
+            if x.purpose != purpose:
+                continue
+            cell = by_region.setdefault(int(x.region), [0, 0]) if x.region is not None else [0, 0]
+            if x.payee_kind == "agent_wealth":
+                inflow += x.applied
+                cell[0] += x.applied
+            if x.payer_kind == "agent_wealth":
+                outflow += x.applied
+                cell[1] += x.applied
+        idx, package = channel_of[channel]
+        book.channel(channel, package, CHANNELS[idx][2], fresh, inflow, outflow,
+                     [(r, v[0], v[1]) for r, v in sorted(by_region.items())])
+        moved[purpose] = (inflow, outflow)
+    if not fresh:
+        return
+
+    def applied(purpose, payee_kind=None):
+        return sum(x.applied for x in totals if x.purpose == purpose
+                   and (payee_kind is None or x.payee_kind == payee_kind))
+
+    receipts = list(st.frame)
+    got = {"capital": sum(r.capital_in for r in receipts),
+           "household": sum(int((r.households or {}).get("paid_milli", 0)) for r in receipts),
+           "inputs": sum(int((r.inputs or {}).get("charged_milli", 0)) for r in receipts),
+           "subsidy": sum(r.owner_asset_spend for r in receipts)}
+    idle = int(_counter(world, "workshop_economics", "asset_subsidy_idle_units")
+               - t.baselines.get(("workshop_economics", "asset_subsidy_idle_units"), 0))
+    to_treasury = [x for x in totals if x.purpose == "firm_input_purchase" and x.payee_kind == "civ_treasury"]
+    units = sum(x.treasury_units for x in to_treasury)
+    carried = sum(x.carry_change for x in to_treasury)
+    paid = moved.get("wares_purchase", (0, 0))[1]
+    book.treasury["firm_economics"] = {
+        "capital_from_treasury_milli": applied("firm_capital"),
+        "inputs_to_treasury_milli": applied("firm_input_purchase", "civ_treasury"),
+        "input_treasury_units": units, "input_carry_change_milli": carried,
+        "inputs_to_sink_milli": applied("firm_input_purchase", "sink"),
+        "household_sales_milli": paid, "asset_subsidy_firm_units": got["subsidy"], "asset_subsidy_idle_units": idle,
+        "firm_cash_open_milli": sum(r.cash_open for r in receipts),
+        "firm_cash_close_milli": sum(r.cash_close for r in receipts),
+        "flows_dropped": int(st.book.flows_dropped if st.book.flows_turn == turn else 0),
+    }
+    # Per civilization from the exact totals (the flow list may be truncated).
+    for x in totals:
+        if x.purpose == "firm_capital" and x.payer_civ is not None:
+            book.civ_add(x.payer_civ, "firm_capital_milli", x.applied)
+        elif x.purpose == "firm_input_purchase" and x.payee_civ is not None:
+            book.civ_add(x.payee_civ, "firm_inputs_milli", x.applied)
+    for r in receipts:
+        book.civ_add(r.owner, "asset_subsidy_units", r.owner_asset_spend)
+    book.closure("wares_purchase", "households debited = firm cash credited (A3 receipts)", paid, got["household"])
+    book.closure("wares_purchase", "capital flows = capital received (A3 receipts)", applied("firm_capital"),
+                 got["capital"])
+    book.closure("wares_purchase", "input purchase flows = inputs charged (A3 receipts)",
+                 applied("firm_input_purchase"), got["inputs"])
+    book.closure("wares_purchase", "inputs to treasuries = whole units x 1000 + carry change",
+                 applied("firm_input_purchase", "civ_treasury"), units * MILLI + carried)
 
 
 def _repairs(world, book: _Book, turn: int) -> None:
@@ -773,6 +857,7 @@ def _frame(world, t: _Turn, closing, economy_result, acc) -> dict:
 
     book = _Book(n)
     _payroll(world, book, turn)
+    _workshop_economics(world, book, t, turn)
     _repairs(world, book, turn)
     _granary_crews(world, book, turn)
     _woodcut(world, book, turn)
@@ -902,6 +987,11 @@ def _commit(state: WealthAccountingState, frame: dict, turn: int) -> None:
     _total(state, "treasury_to_firm_cash_milli", tr["firm_cash"]["sales_from_treasury_milli"])
     _total(state, "firm_cash_to_treasury_milli", tr["firm_cash"]["distributions_to_treasury_milli"])
     _total(state, "treasury_charged", sum(tr["charged"].values()))
+    firm = tr.get("firm_economics")
+    if firm is not None:
+        _total(state, "treasury_to_firm_capital_milli", firm["capital_from_treasury_milli"])
+        _total(state, "firm_inputs_to_treasury_milli", firm["inputs_to_treasury_milli"])
+        _total(state, "asset_subsidy_units", firm["asset_subsidy_firm_units"] + firm["asset_subsidy_idle_units"])
 
 
 # ---------------------------------------------------------------------------

@@ -45,10 +45,14 @@ The connected-world program appends:
 
 * ``--watershed`` (B1): a conserved water account on the drainage graph of a
   procedural world; mode ``record_only`` changes nothing outside its record.
+* ``--workshop-economics`` (A3): an L6a workshop firm buys its raw inputs from
+  the commons owner, starts with owner capital and sells to households as
+  well as academies; inserted before the ledger and without hooks of its own
+  (the workshop and payroll seams call it).
 * ``--attribution-records`` (D2): observation-only records of actor, victim and
   cause (granary seizures, casualties by cause, restored-civ identity reuse,
-  burdens per actor -> victim pair); inserted before the wealth ledger, so the
-  ledger stays last. It changes nothing it observes and nothing reads it.
+  burdens per actor -> victim pair); inserted after A3 and before the wealth ledger,
+  so the ledger stays last. It changes nothing it observes and nothing reads it.
 * ``--wealth-accounting`` (A1): an observation-only ledger of agent wealth per
   region and turn (opening, typed flows from the packages' receipts, closing,
   the labelled native-model residual); appended last so its Phase 2 and Phase 10
@@ -112,6 +116,7 @@ LIVELIHOODS_CHOICES: dict[str, tuple[str, ...]] = {
     "household_retail_boundary": ("market", "paid_work", "all", "schedule"),
     "household_retail_rules": ("2", "1"),
     "watershed_mode": ("record_only",),
+    "workshop_economics_mode": ("market", "free_inputs", "academy_only"),
 }
 #: All parser destinations owned here (``batch_manifest.SIMULATION_ARG_KEYS``).
 LIVELIHOODS_ARG_KEYS: tuple[str, ...] = (
@@ -136,6 +141,7 @@ LIVELIHOODS_ARG_KEYS: tuple[str, ...] = (
     "household_retail", "household_retail_mode", "household_retail_boundary",
     "household_retail_rules",
     "watershed", "watershed_mode",
+    "workshop_economics", "workshop_economics_mode",
     "attribution_records",
     "wealth_accounting",
 )
@@ -368,14 +374,29 @@ _HELP = {
         "record_only (default, the only mode of this slice): the account runs beside the existing "
         "water index and changes nothing outside its own record"
     ),
+    "workshop_economics": (
+        "Workshop economics (A3): each L6a workshop firm opens once with a capital payment from its "
+        "region's ruler (no second firm at a closed firm's city), pays the ruler who owns the commons "
+        "for the raw timber and ore it converts, before converting them, at the raw price the economy "
+        "computed in an earlier tick, and sells wares to academies and, by stable id, to the region's "
+        "households (adults pay); a site without a firm, or a firm that cannot pay for inputs, "
+        "produces nothing; firms close when insolvent or idle; requires --workshop-payroll (default off)"
+    ),
+    "workshop_economics_mode": (
+        "market (default); free_inputs: the cost control, every rule as market except that the input "
+        "charge is recorded and not taken; academy_only: the demand control with no household customers"
+    ),
     "attribution_records": (
         "Attribution records (D2): observation-only records of who did what to whom, at the event: "
-        "granary seizures with their actor and victim, soldiers' deaths per war and cause (combat, "
-        "attrition and the natural deaths army casualties include), each reuse of a civilization index "
-        "by a restored polity, and the burdens one polity lays on another per turn (dues, levies, sacks, "
-        "plunder, requisitions, seizures, war losses, treaty payments, quarantine closures), each "
-        "labelled by its authority and as a transfer, minted, destroyed or a restriction; nothing reads "
-        "them; requires --agents hybrid (default off)"
+        "granary seizures with their actor and victim; enlisted soldiers' deaths per war and cause - "
+        "combat, attrition, war drain (found dead after the tick in a region where a siege, garrison "
+        "fight, occupation or crushed revolt staged deaths that turn) and natural (the other deaths army "
+        "casualties include: native mortality with its x2 for soldiers at war, plague and other "
+        "non-war catastrophes); each reuse of a civilization index by a restored polity; and the burdens "
+        "one polity lays on another per turn (dues, levies, sacks, plunder, requisitions, seizures, war "
+        "losses, treaty payments, quarantine closures), each labelled by its authority and as a "
+        "transfer, minted, destroyed or a restriction; nothing reads them; requires --agents hybrid "
+        "(default off)"
     ),
     "wealth_accounting": (
         "Wealth accounting (A1): an observation-only ledger of agent wealth; each turn and region it "
@@ -580,6 +601,15 @@ def _check_prerequisites(world: Any, values: dict, agent_mode: str, args: Any = 
             saved = values["timber_supply"] is not True
             raise ValueError("--timber-supply requires --agents hybrid, --repair-projects and --timber-stock"
                              + ("; this world has it on: pass --no-timber-supply to end it" if saved else ""))
+    if _on(world, values, "workshop_economics"):
+        # Also when only saved: a resume that ends payroll (or leaves hybrid)
+        # would otherwise keep A3 firms unseen; --no-workshop-economics ends it.
+        if agent_mode != "hybrid" or not _on(world, values, "workshop_payroll") \
+                or not _workshops_operate(world, values, args):
+            saved = values["workshop_economics"] is not True
+            raise ValueError("--workshop-economics requires --workshop-payroll (--workshops in operate mode, "
+                             "--agents hybrid)"
+                             + ("; this world has it on: pass --no-workshop-economics to end it" if saved else ""))
     if _on(world, values, "attribution_records") and agent_mode != "hybrid":
         # Also when only saved: the records observe hybrid runs (army rosters,
         # the native tick); a resume outside hybrid is refused until ended.
@@ -674,6 +704,7 @@ _CHOICE_FIELDS: dict[str, tuple[str, str]] = {
     "household_retail_boundary": ("household_retail", "boundary"),
     "household_retail_rules": ("household_retail", "rules"),
     "watershed_mode": ("watershed", "mode"),
+    "workshop_economics_mode": ("workshop_economics", "mode"),
 }
 
 

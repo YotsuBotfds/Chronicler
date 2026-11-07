@@ -66,6 +66,14 @@ crew (registry category ``repair``), so the L1 planner never also employs a
 repairer; and :func:`_pending_storage_bills` includes the repair work planned
 but not yet charged (``repair_projects.pending_bills``), so the L1 funding and
 every later planner leave room for it.
+
+A3 seams (``--workshop-economics``; inert unless active):
+:func:`_firm_input_cap` bounds an operate-mode site's ceiling by the raw
+inputs its workshop firm pays for (``workshop_economics.input_capacity``);
+a site whose firm can pay for none, or that has no firm, does not operate
+this turn (no production from unpaid inputs under A3); and
+:func:`_never_readmit` keeps every city whose A3 firm closed out of
+:func:`refresh_sites` for good.
 """
 from __future__ import annotations
 
@@ -165,7 +173,7 @@ def refresh_sites(world, state: WorkshopState) -> dict[int, object]:
         elif city.region != site.region:
             _close(state, site, world.turn, "region_changed")
     taken = {s.region for s in state.sites}
-    closed_ids = {s.settlement_id for s in state.closed}
+    closed_ids = {s.settlement_id for s in state.closed} | _never_readmit(world)
     candidates = sorted((c for c in cities.values()
                          if c.rank >= 1 and c.region not in taken and c.settlement_id not in closed_ids),
                         key=lambda c: (-c.rank, -c.size, c.settlement_id))
@@ -183,6 +191,15 @@ def refresh_sites(world, state: WorkshopState) -> dict[int, object]:
         taken.add(city.region)
         state.counters["selected"] = state.counters.get("selected", 0) + 1
     return {s.site: cities[s.settlement_id] for s in state.sites}
+
+
+def _never_readmit(world) -> set[int]:
+    """A3 seam: settlement ids of cities whose workshop firm closed, kept by
+    workshop economics without L1's eight-entry bound (so none is readmitted
+    with fresh capital); empty while A3 is inactive (the L1 rule, unchanged)."""
+    if not _lane_active(world, "workshop_economics"):
+        return set()
+    return set(world.livelihoods.workshop_economics.closed_settlements)
 
 
 def _crew_terms(world, site: int) -> tuple[int, float]:
@@ -278,6 +295,20 @@ def _crew_maintenance(world, site: WorkshopSite, row: dict) -> float:
     if not (math.isfinite(used) and 0.0 <= used <= row["work_available"]):
         raise ValueError("crew maintenance time must be finite and within the crew's work")
     return used
+
+
+def _firm_input_cap(world, site: WorkshopSite, row: dict, operating: bool, bill: dict, funded: bool):
+    """A3 seam: the raw loads this turn's workshop firm can pay for (the
+    ceiling's bound; 0.0: the site does not operate), or None while workshop
+    economics is inactive (the L1 rule, unchanged)."""
+    if not _lane_active(world, "workshop_economics"):
+        return None
+    from chronicler.workshop_economics import input_capacity
+    cap = float(input_capacity(world, site, row, operating=operating, funded=bool(funded),
+                               building="construction" in bill))
+    if math.isnan(cap) or cap < 0.0:
+        raise ValueError("a workshop firm's input capacity must be a non-negative number")
+    return cap
 
 
 def _operating_wear(world, site: WorkshopSite) -> float:
@@ -405,6 +436,9 @@ def prepare_phase2(world, region_input, agent_bridge, snapshot, acc):
             operating = (funded and not builds and state.mode == "operate"
                          and row["work_available"] > 0.0
                          and (site.condition >= OPERATE_CONDITION or "repair" in bill))
+            limit = _firm_input_cap(world, site, row, operating, bill, funded) if state.mode == "operate" else None
+            if limit is not None and limit <= 0.0:
+                operating = False                     # A3: no affordable input (or no firm)
             ceiling = None
             work = row["work_available"]
             if operating:
@@ -413,6 +447,8 @@ def prepare_phase2(world, region_input, agent_bridge, snapshot, acc):
                     work = work - used
             if state.mode == "operate":
                 ceiling = K_RAW_PER_WORK * work if operating else 0.0
+                if operating and limit is not None:
+                    ceiling = min(ceiling, limit)
             plans.append(_SitePlan(site, payer, controller, bill, funded, operating, ceiling, row, work))
         caps = {p.site.region: p.ceiling for p in plans if p.ceiling is not None}
         if caps:

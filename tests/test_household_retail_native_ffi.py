@@ -94,7 +94,8 @@ def test_the_extension_is_compiled_and_has_the_retail_methods():
         assert callable(getattr(AgentSimulator, name)), name
     purposes = AgentSimulator.wealth_transfer_purposes()
     assert purposes[:5] == ["workshop_wage", "relocation_fare", "apprentice_stipend", "repair_wage", "remittance"]
-    assert purposes[5:] == ["food_purchase", "food_procurement"]
+    assert purposes[5:7] == ["food_purchase", "food_procurement"]
+    assert purposes[7:] == ["wares_purchase"]                  # appended by workshop economics (A3)
 
 
 def test_economy_retail_columns_title_and_close_and_absent_inputs_keep_every_bit():

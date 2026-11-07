@@ -135,6 +135,7 @@
       "tests/test_memory.py",
       "tests/test_migration_driver_labels.py",
       "tests/test_models.py",
+      "tests/test_money.py",
       "tests/test_mutual_aid.py",
       "tests/test_mutual_aid_adversarial.py",
       "tests/test_named_events.py",
@@ -230,6 +231,8 @@
       "tests/test_wealth_accounting.py",
       "tests/test_wealth_accounting_native.py",
       "tests/test_weight_cap.py",
+      "tests/test_workshop_economics.py",
+      "tests/test_workshop_economics_native.py",
       "tests/test_workshop_payroll.py",
       "tests/test_workshops.py"
     ],

@@ -26,10 +26,11 @@ def test_the_extension_is_the_compiled_build_with_the_rs0_methods():
     assert isinstance(AgentSimulator, type)
     for name in ("extend_paid_work", "install_paid_work", "plan_workshop_crews", "reserve_work"):
         assert callable(getattr(AgentSimulator, name)), name
-    # Append-only: household retail (L6b) appended food_purchase and food_procurement.
+    # Append-only: household retail (L6b) appended food_purchase and food_procurement,
+    # workshop economics (A3) wares_purchase.
     assert AgentSimulator.wealth_transfer_purposes() == [
         "workshop_wage", "relocation_fare", "apprentice_stipend", "repair_wage", "remittance",
-        "food_purchase", "food_procurement"]
+        "food_purchase", "food_procurement", "wares_purchase"]
 
 
 @pytest.fixture
@@ -69,11 +70,11 @@ def test_appended_categories_share_the_registry_and_purposes_transfer(live):
     with pytest.raises(ValueError, match="category"):
         sim.reserve_work(t, 4, [(c, 0.1)])
     assert sim.work_reservation_conflicts(t) == []
-    for purpose in (2, 3, 4, 5, 6):                # 5-6 appended by household retail (L6b)
+    for purpose in (2, 3, 4, 5, 6, 7):             # 5-6 appended by household retail (L6b), 7 by A3
         out = sim.transfer_wealth(t, purpose, 0, [(c, 10)])
         assert out[0][2] == 10 and out[0][4] == 0
     with pytest.raises(ValueError, match="purpose"):
-        sim.transfer_wealth(t, 7, 0, [(c, 10)])
+        sim.transfer_wealth(t, 8, 0, [(c, 10)])
 
 
 def test_extend_paid_work_merges_refuses_and_is_consumed_once_by_the_tick(live):

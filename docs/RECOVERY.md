@@ -1,6 +1,6 @@
 # Source, recovery and archive index
 
-Updated 2026-11-06 after PRs #73, #74, #76, #78, #80, #81, #83, #84, #85 and #86. This is the starting map for future agents;
+Updated 2026-11-06 after PRs #73, #74, #76, #78, #80, #81, #83, #84, #85, #86 and #87. This is the starting map for future agents;
 dated reports keep their original source, platform and qualification limits.
 
 ## Current source and evidence
@@ -88,6 +88,14 @@ Use fetched `main` for new work.
   - Its tree, `8a478032`, equals the tree of the reviewed head `6ec7a826`.
   - Premerge Tests run 42309801686 on that head passed all nine jobs.
   - [Main Tests run 42311590554](https://github.com/YotsuBotfds/Chronicler/actions/runs/42311590554)
+    tested the merge SHA on `push`, attempt 1: success.
+
+- [PR #87](https://github.com/YotsuBotfds/Chronicler/pull/87) (connected-world C1b: quarantine closure
+  of migration through a transient native input, and the CW4b screen) merged on 2026-11-07 at
+  `ae94bca677af5b39277eae26fda5a52db3b56f7e`.
+  - Its tree, `fd5d6a41`, equals the tree of the reviewed head `1d5e7d3f`.
+  - Premerge Tests run 42314946436 on that head passed all nine jobs.
+  - [Main Tests run 42316405830](https://github.com/YotsuBotfds/Chronicler/actions/runs/42316405830)
     tested the merge SHA on `push`, attempt 1: success.
 
 Every livelihoods, recovery-skills and productive-recovery switch is off by default. These merges do not complete the 200-seed or

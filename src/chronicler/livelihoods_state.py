@@ -10,10 +10,12 @@ independent switches was enabled: ``workshops`` (L1), ``food_allocation``
 ``clearing_protection`` (RS5), and the productive-recovery phase's
 ``operating_wear`` (PL2), ``timber_supply`` (PL1), ``recovery_crews`` and
 ``maintenance_obligation`` (PL3) and ``household_retail`` (PL4, L6b), and the
-connected-world program's ``watershed`` (B1), ``attribution_records`` (D2,
-observation-only records of actor, victim and cause, inserted before the
-ledger) and ``wealth_accounting`` (A1, an observation-only ledger, kept last
-so its hooks run after every payer). Each
+connected-world program's ``watershed`` (B1), ``workshop_economics`` (A3,
+inserted before the ledger; it has no hooks of its own: the workshop and
+payroll seams call it), ``attribution_records`` (D2, observation-only records
+of actor, victim and cause, after every acting package) and
+``wealth_accounting`` (A1, an observation-only ledger, kept last so its hooks
+run after every payer). Each
 sub-state is owned by its own module
 and is None while that switch has never been enabled.
 Pure data, importable by :mod:`chronicler.models`.
@@ -44,6 +46,7 @@ from chronicler.timber_supply_state import TimberSupplyState
 from chronicler.veteran_reintegration_state import VeteranReintegrationState
 from chronicler.watershed_state import WatershedState
 from chronicler.wealth_accounting_state import WealthAccountingState
+from chronicler.workshop_economics_state import WorkshopEconomicsState
 from chronicler.workshop_payroll_state import WorkshopPayrollState
 from chronicler.workshops_state import WorkshopState
 
@@ -55,8 +58,8 @@ LIVELIHOODS_SWITCHES: tuple[str, ...] = ("workshops", "food_allocation", "timber
                                          "remittances", "clearing_protection",
                                          "operating_wear", "timber_supply",
                                          "recovery_crews", "maintenance_obligation",
-                                         "household_retail", "watershed", "attribution_records",
-                                         "wealth_accounting")
+                                         "household_retail", "watershed", "workshop_economics",
+                                         "attribution_records", "wealth_accounting")
 
 
 def _is_none(value) -> bool:
@@ -85,6 +88,7 @@ class LivelihoodsState(BaseModel):
     maintenance_obligation: MaintenanceObligationState | None = Field(default=None, exclude_if=_is_none)
     household_retail: HouseholdRetailState | None = Field(default=None, exclude_if=_is_none)
     watershed: WatershedState | None = Field(default=None, exclude_if=_is_none)
+    workshop_economics: WorkshopEconomicsState | None = Field(default=None, exclude_if=_is_none)
     attribution_records: AttributionRecordsState | None = Field(default=None, exclude_if=_is_none)
     wealth_accounting: WealthAccountingState | None = Field(default=None, exclude_if=_is_none)
 

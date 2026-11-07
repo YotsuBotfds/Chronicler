@@ -28,16 +28,18 @@ export interface PayrollReceiptRecord {
   hours_next: number | null; crew_cap_next: number | null; event: string | null;
   /** RS1 apprentice stipends paid from cash after the payroll pass; absent unless one was paid. */
   stipends?: number;
+  /** A3 workshop economics (absent otherwise): owner capital received, inputs paid, household sales and wares. */
+  capital?: number; inputs?: number; household_sales?: number; household_sold?: number;
 }
 
 export interface MoneyTransferRecord {
   id: string; turn: number; phase: "phase2" | "phase10";
-  kind: "sale" | "wage" | "distribution" | "write_off" | "stipend";
+  kind: "sale" | "wage" | "distribution" | "write_off" | "stipend" | "capital" | "input_purchase" | "household_sale";
   payer: [string, number]; payee: [string, number]; amount: number; applied: number; residual: number; status: string;
 }
 
 export interface MaterialTransferRecord {
-  id: string; turn: number; phase: "phase2" | "phase10"; kind: "title" | "delivery" | "wear" | "return";
+  id: string; turn: number; phase: "phase2" | "phase10"; kind: "title" | "delivery" | "wear" | "return" | "household_delivery";
   source: [string, number]; dest: [string, number]; good: string; requested: number; delivered: number; status: string;
 }
 
@@ -57,8 +59,9 @@ const finite = (x: unknown): x is number => typeof x === "number" && Number.isFi
 const count = (x: unknown): x is number => finite(x) && Number.isInteger(x) && x >= 0;
 const amount = (x: unknown): x is number => finite(x) && x >= 0;
 const MODES = ["paid", "unpaid_labor", "no_customer"];
-const MONEY = ["sale", "wage", "distribution", "write_off", "stipend"];
-const MATERIAL = ["title", "delivery", "wear", "return"];
+// A3 (workshop economics) appends capital, input purchases, household sales and deliveries.
+const MONEY = ["sale", "wage", "distribution", "write_off", "stipend", "capital", "input_purchase", "household_sale"];
+const MATERIAL = ["title", "delivery", "wear", "return", "household_delivery"];
 const account = (x: unknown) => Array.isArray(x) && x.length === 2 && typeof x[0] === "string" && finite(x[1]);
 
 function total(totals: Record<string, unknown>, key: string): number | null {
@@ -75,11 +78,12 @@ function validFirm(x: unknown, regions: number): boolean {
     || !object(x.totals)) return false;
   const t = (key: string) => total(x.totals as Record<string, unknown>, key);
   const keys = ["sales", "wages", "distributed", "written_off", "titled", "delivered", "worn", "returned",
-    "stipends"];
+    "stipends", "capital", "inputs", "household_sales", "household_delivered"];
   if (keys.some((k) => t(k) === null)) return false;
-  // Exact closure of the firm's accounts (RS1 apprentice stipends: absent is zero).
-  return x.cash === t("sales")! - t("wages")! - t("distributed")! - t("written_off")! - t("stipends")!
-    && x.inventory === t("titled")! - t("delivered")! - t("worn")! - t("returned")!;
+  // Exact closure of the firm's accounts (RS1 stipends and A3's capital, inputs and household sales: absent is zero).
+  return x.cash === t("capital")! + t("sales")! + t("household_sales")! - t("inputs")! - t("wages")!
+      - t("distributed")! - t("written_off")! - t("stipends")!
+    && x.inventory === t("titled")! - t("delivered")! - t("household_delivered")! - t("worn")! - t("returned")!;
 }
 
 function validReceipt(x: unknown, regions: number, source: number): boolean {
@@ -92,11 +96,13 @@ function validReceipt(x: unknown, regions: number, source: number): boolean {
   if (!ints.every((k) => count(x[k]))) return false;
   if (x.income_replaced !== null && !amount(x.income_replaced)) return false;
   if (x.output !== null && !amount(x.output)) return false;
-  if (x.stipends !== undefined && !count(x.stipends)) return false;
-  return x.cash_close === (x.cash_open as number) + (x.sales as number) - (x.wages_paid as number)
-      - (x.distributed as number) - (x.written_off as number) - ((x.stipends as number | undefined) ?? 0)
+  const optional = ["stipends", "capital", "inputs", "household_sales", "household_sold"];
+  if (optional.some((k) => x[k] !== undefined && !count(x[k]))) return false;
+  const o = (k: string) => (x[k] as number | undefined) ?? 0;
+  return x.cash_close === (x.cash_open as number) + o("capital") + (x.sales as number) + o("household_sales")
+      - o("inputs") - (x.wages_paid as number) - (x.distributed as number) - (x.written_off as number) - o("stipends")
     && x.inventory_close === (x.inventory_open as number) + (x.titled as number) - (x.sold as number)
-      - (x.worn as number) - (x.returned as number);
+      - o("household_sold") - (x.worn as number) - (x.returned as number);
 }
 
 function validTransfers(x: unknown, source: number): boolean {
