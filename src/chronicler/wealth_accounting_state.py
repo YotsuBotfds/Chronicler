@@ -280,6 +280,7 @@ class LedgerRecord(BaseModel):
 class WealthAccountingState(BaseModel):
     schema_version: Literal[1] = 1
     enabled: bool = True
+    mode: Literal["observe", "strict"] = "observe"
     #: The last observed closing (None: none yet, or dropped by a pool reset
     #: or a switch-off: the next opening is then unchecked).
     closing: Closing | None = Field(default=None, exclude_if=_is_none)

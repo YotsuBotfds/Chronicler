@@ -139,9 +139,12 @@ def set_wealth_accounting_enabled(world, value: bool, *, args=None, agent_mode=N
     the frame (balances are never carried across a turn the ledger did not
     observe); lifetime totals, counters and the log are kept."""
     turn = int(getattr(world, "turn", 0))
+    mode = getattr(args, "wealth_accounting_mode", None) if args is not None else None
+    if mode is not None and mode not in ("observe", "strict"):
+        raise ValueError("wealth accounting mode must be observe or strict")
     state = _state(world)
     if state is None:
-        world.livelihoods.wealth_accounting = state = WealthAccountingState(enabled=bool(value))
+        world.livelihoods.wealth_accounting = state = WealthAccountingState(enabled=bool(value), mode=mode or "observe")
         if value:
             _bump(state, "switched_on")
             _log(state, turn, "switched_on")
@@ -149,6 +152,8 @@ def set_wealth_accounting_enabled(world, value: bool, *, args=None, agent_mode=N
     t = state._turn
     if t is not None and t.turn == turn:
         raise RuntimeError("cannot change wealth accounting while a turn is pending")
+    if mode is not None:
+        state.mode = mode
     if bool(value) == state.enabled:
         return
     state.enabled = bool(value)
@@ -463,6 +468,38 @@ def _money_channels(book: _Book, totals, package: str, fresh: bool) -> dict[str,
                      [(r, v[0], v[1]) for r, v in sorted(by_region.items())])
         moved[purpose] = (inflow, outflow)
     return moved
+
+
+def _seam_package(world, book: _Book, turn: int, package: str) -> None:
+    """Exact uncapped money totals of newer packages, read through the same
+    registered purpose/channel authority as legacy packages. Empty settled
+    work is a dated zero, never inferred from the capped flow list."""
+    st = _active(world, package)
+    if st is None:
+        return
+    from chronicler.money import check_book, totals_for_turn
+    fresh = any(getattr(st, key, None) == turn for key in ("frame_turn", "supply_turn", "guard_turn"))
+    moved = _money_channels(book, totals_for_turn(world, turn) or [] if fresh else [], package, fresh)
+    if not fresh:
+        return
+    check_book(st.book)
+    from chronicler.wealth_accounting_state import MONEY_PURPOSE_CHANNELS
+    relevant = set(moved)
+    own = [r for r in st.book.totals if r.purpose in relevant] if st.book.flows_turn == turn else []
+    for purpose, (inflow, _outflow) in moved.items():
+        channel = MONEY_PURPOSE_CHANNELS[purpose]
+        treasury_rows = [r for r in own if r.purpose == purpose and r.payer_kind == "civ_treasury"
+                         and r.payee_kind == "agent_wealth"]
+        if treasury_rows:
+            paid = sum(r.applied for r in treasury_rows)
+            book.treasury["to_households_milli"][channel] = paid
+            book.closure(channel, "treasury units x 1000 = credited + change in wage carry",
+                         sum(r.treasury_units * MILLI for r in treasury_rows),
+                         sum(r.applied + r.carry_change for r in treasury_rows))
+            for r in treasury_rows:
+                if r.payer_civ is not None:
+                    book.civ_add(r.payer_civ, "charged", r.treasury_units)
+                    book.civ_add(r.payer_civ, "to_households_milli", r.applied)
 
 
 def _titled_trade(world, book: _Book, turn: int) -> None:
@@ -821,6 +858,20 @@ def _installed(world, turn: int) -> dict[str, set[int]] | None:
         if st.frame_turn == turn and st.frame is not None:
             sets["epidemic_care"] = {int(c.agent_id) for r in st.frame for c in r.carers}
 
+    for name in ("timber_orders", "public_health", "infrastructure_condition"):
+        st = _active(world, name)
+        if st is None:
+            continue
+        seen = True
+        sets.setdefault(name, set())
+        if name == "timber_orders" and st.frame_turn == turn and st.frame is not None:
+            sets[name] = {int(r["holder"]) for r in st.frame.get("withheld", ())}
+        elif name == "public_health" and st.guard_turn == turn:
+            sets[name] = {int(m["agent_id"]) for r in st.guards for m in r["members"]
+                          if m.get("income_withheld") is not None}
+        elif name == "infrastructure_condition" and st.frame_turn == turn:
+            sets[name] = {int(m.agent_id) for r in (st.receipts or []) for m in (getattr(r, "members", None) or [])
+                          if m.income_replaced is not None}
     return sets if seen else None
 
 
@@ -894,9 +945,23 @@ def _withheld(world, t: _Turn, turn: int) -> dict | None:
     care = _active(world, "epidemic_care")
     if care is not None:
         own["epidemic_care"] = delta("epidemic_care", "income_withheld")
+    newer = {name: _active(world, name) for name in ("timber_orders", "public_health", "infrastructure_condition")}
+    st = newer["timber_orders"]
+    if st is not None:
+        own["timber_orders"] = math.fsum(float(r["deducted"]) for r in st.frame.get("withheld", ())) if st.frame_turn == turn and st.frame else 0.0
+    st = newer["public_health"]
+    if st is not None:
+        own["public_health"] = math.fsum(float(m["income_withheld"]) for r in st.guards for m in r["members"]
+                                         if m.get("income_withheld") is not None) if st.guard_turn == turn else 0.0
+    st = newer["infrastructure_condition"]
+    if st is not None:
+        own["infrastructure_condition"] = math.fsum(float(m.income_replaced) for r in (st.receipts or [])
+            for m in (getattr(r, "members", None) or []) if m.income_replaced is not None) if st.frame_turn == turn else 0.0
     pl3 = delta("recovery_crews", "income_replaced")
     packages = []
     for name in WITHHELD_PACKAGES:
+        if name in newer and newer[name] is None:
+            continue
         if name == "epidemic_care" and care is None:
             continue
         if name == "titled_trade" and a4 is None:
@@ -954,6 +1019,8 @@ def _frame(world, t: _Turn, closing, economy_result, acc) -> dict:
     _care(world, book, turn)
     _retail(world, book, turn)
     _titled_trade(world, book, turn)
+    for package in ("war_requisition", "timber_orders", "public_health", "infrastructure_condition"):
+        _seam_package(world, book, turn, package)
     _remittances(world, book, turn)
     _relocation(world, book, t, turn)
     _credit(world, book, t)
@@ -1046,6 +1113,10 @@ def phase10(world, acc, economy_result, agent_bridge):
         _log(state, turn, "unobserved", opening=t is not None and t.opening is not None,
              closing=closing is not None)
     else:
+        native = frame.get("native")
+        if state.mode == "strict" and (native is None or not native["observed_complete"]):
+            error = None if native is None else native["balance_closure"]
+            raise RuntimeError(f"strict wealth accounting failed at turn {turn}: native balance closure {error!r}")
         _commit(state, frame, turn)
     state.frame, state.frame_turn = frame, turn
     if closing is None:
