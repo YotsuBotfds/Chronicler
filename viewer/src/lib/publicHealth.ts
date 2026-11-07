@@ -19,6 +19,12 @@ export interface PublicHealthRecord {
   policy: "evidence" | "shuffled"; report_delay: number; report_turn: number | null;
   decisions: PublicHealthDecision[]; environment_turn: number | null; environment: PublicHealthEnvironment[];
   supply_turn: number | null; supplies: PublicHealthSupply[]; totals: Record<string, number>;
+  guard_turn: number | null; guards: PublicHealthGuard[];
+}
+export interface PublicHealthGuard {
+  turn: number; civ: number; target: number; need: number; work: number; staffed: boolean; payment: string;
+  members: { agent_id: number; region: number; share: number; wage_due_milli: number; wage_paid_milli: number;
+    wage_residual_milli: number; income_withheld: number | null }[];
 }
 const object = (v: unknown): v is Record<string, unknown> => v !== null && typeof v === "object" && !Array.isArray(v);
 const number = (v: unknown): v is number => typeof v === "number" && Number.isFinite(v);
@@ -50,7 +56,16 @@ export function publicHealthAt(snapshot: TurnSnapshot, regions: number, civs: nu
     && typeof e.residence_observed === "boolean" && typeof e.sanitation_observed === "boolean"
     && share(e.displaced_share) && share(e.water_service) && number(e.crowding_factor)
     && e.crowding_factor >= 1 && e.crowding_factor <= 1.25 && share(e.flux_factor))) return null;
-  return r as unknown as PublicHealthRecord;
+  if (r.guard_turn !== undefined && r.guard_turn !== null && r.guard_turn !== r.source_turn) return null;
+  if (r.guards !== undefined && (!Array.isArray(r.guards) || !r.guards.every(g => object(g)
+    && g.turn === r.source_turn && idx(g.civ, civs) && idx(g.target, civs) && g.civ !== g.target
+    && nonnegative(g.need) && nonnegative(g.work) && g.work <= g.need
+    && typeof g.staffed === "boolean" && typeof g.payment === "string" && Array.isArray(g.members)
+    && g.members.every(m => object(m) && integer(m.agent_id) && idx(m.region, regions) && share(m.share)
+      && [m.wage_due_milli, m.wage_paid_milli, m.wage_residual_milli].every(integer)
+      && (g.payment !== "paid" || Number(m.wage_paid_milli) + Number(m.wage_residual_milli) === m.wage_due_milli)
+      && (m.income_withheld === null || nonnegative(m.income_withheld)))))) return null;
+  return { ...r, guard_turn: r.guard_turn ?? null, guards: r.guards ?? [] } as unknown as PublicHealthRecord;
 }
 
 export const readPublicHealth = (bundle: Bundle, snapshot: TurnSnapshot | null, turn?: number): RecordReading<PublicHealthRecord> =>

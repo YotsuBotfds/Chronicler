@@ -596,6 +596,10 @@ def decide(world: Any, state: Any, rules: QuarantineRulesState, reports: dict, a
     closing: list[int] = []
     from chronicler.public_health import report_targets
     advised = report_targets(world, reports)
+    from chronicler.public_health import enforcement_cost, staffed_targets
+    if advised is not None:
+        advised = staffed_targets(world, advised)
+    cost = enforcement_cost(world, ENFORCEMENT_COST)
     if rules.mode in DECIDING_MODES and cl.ledger_enabled(world):
         sick = sorted(reports)
         neighbors = world.contact_ledger.neighbors()
@@ -616,14 +620,15 @@ def decide(world: Any, state: Any, rules: QuarantineRulesState, reports: dict, a
                 targets = advised.get(idx, {})
             if not targets:
                 continue
-            if civ.stability < QUARANTINE_MIN_STABILITY or civ.treasury < ENFORCEMENT_COST:
+            if civ.stability < QUARANTINE_MIN_STABILITY or civ.treasury < cost:
                 continue
             closing.append(idx)
-            receipt.enforcement.append((idx, ENFORCEMENT_COST))
-            if acc is not None:
-                acc.add(idx, civ, "treasury", -ENFORCEMENT_COST, "keep")
-            else:
-                civ.treasury -= ENFORCEMENT_COST
+            receipt.enforcement.append((idx, cost))
+            if cost:
+                if acc is not None:
+                    acc.add(idx, civ, "treasury", -cost, "keep")
+                else:
+                    civ.treasury -= cost
             first = min(targets.values())
             for t_idx, key in targets.items():
                 decided[(idx, t_idx)] = _report_cause(world, reports[key]) or "" if key in reports else ""
@@ -682,6 +687,11 @@ def decide(world: Any, state: Any, rules: QuarantineRulesState, reports: dict, a
 # Snapshot and metrics
 # ---------------------------------------------------------------------------
 
+def _effective_enforcement_cost(world):
+    from chronicler.public_health import enforcement_cost
+    return enforcement_cost(world, ENFORCEMENT_COST)
+
+
 def snapshot_summary(world: Any) -> dict | None:
     """``history[n].epidemics.quarantine_rules`` (None in legacy mode)."""
     rules = rules_of(world)
@@ -702,7 +712,7 @@ def snapshot_summary(world: Any) -> dict | None:
         "channels": channels_of(rules),
         "exempt": sorted(k for k in EXEMPT if not (k == "migrants" and migration_closure_on(world))),
         "import_multiplier": False,
-        "enforcement_cost": ENFORCEMENT_COST if rules.mode in DECIDING_MODES else 0,
+        "enforcement_cost": _effective_enforcement_cost(world) if rules.mode in DECIDING_MODES else 0,
         "closures": [
             {"id": c.id, "civ": name(c.civ), "target": name(c.target), "opened_turn": c.opened_turn,
              "last_renewed_turn": c.last_renewed_turn, "cause": c.cause}

@@ -19,6 +19,9 @@ REPORT_LIFETIME = 5
 MAX_REPORTS = 262144
 LIFE_VALUE = 100.0  # explicit treasury-unit value in the policy's loss function
 SUPPLY_BATCH = 0xC2B000
+GUARD_BATCH = 0xC12000
+GUARDS_PER_PAIR = 1.0
+GUARD_WAGE_MILLI = 500
 
 
 def _state(world):
@@ -112,6 +115,57 @@ def supply_for_work(world, region: int, share: float) -> int:
     return math.ceil(share * PATIENTS_PER_CARER * _ration(world) * state.prices.get(region, 1000))
 
 
+def guard_regions(world, civ):
+    """Own customs regions on a ledger edge to an advised foreign polity."""
+    state = _state(world)
+    if state is None or not state.enabled:
+        return []
+    target_names = {world.civilizations[r["target"]].name for r in state.guard_plan if r["civ"] == civ}
+    neighbors = world.contact_ledger.neighbors()
+    name = world.civilizations[civ].name
+    return [rid for rid, region in enumerate(world.regions) if region.controller == name
+            and any(world.regions[j].controller in target_names for j in neighbors.get(rid, ()))]
+
+
+def guard_reserve(world, civ):
+    state = _state(world)
+    if state is None or not state.enabled:
+        return 0
+    return math.ceil(sum(r["civ"] == civ for r in state.guard_plan) * GUARDS_PER_PAIR * GUARD_WAGE_MILLI)
+
+
+def guard_work(world, civ):
+    state = _state(world)
+    if state is None or not state.enabled or state.guard_turn != world.turn:
+        return 0.0
+    return math.fsum(r["work"] for r in state.guards if r["civ"] == civ and r["staffed"])
+
+
+def guard_expected_deaths(world, civ):
+    state = _state(world)
+    if state is None or not state.enabled:
+        return 0.0
+    return math.fsum(d["expected_loss_units"] / LIFE_VALUE for d in state.decisions
+                     if d["civ"] == civ and d["close"])
+
+
+def staffed_targets(world, targets):
+    """Phase 1 gate: a declaration restricts journeys only with T-1 paid work.
+    Cost-only quarantine names and pays the identical guards but closes none.
+    """
+    state = _state(world)
+    if state is None or not state.enabled:
+        return targets
+    funded = set(state.guard_capacity) if state.guard_capacity_turn == world.turn - 1 else set()
+    return {civ: {target: key for target, key in rows.items() if (civ, target) in funded}
+            for civ, rows in targets.items()}
+
+
+def enforcement_cost(world, default):
+    """Named guard wages replace C1's anonymous flat charge while on."""
+    return 0 if public_health_active(world) else default
+
+
 def _available(world, rid, commitments):
     from chronicler.household_retail import pilot_entry
     region = world.regions[rid]
@@ -156,7 +210,8 @@ def supply_care(world, care_turn, capacity, economy_result, acc):
     wages = {}
     for r in care_turn.receipts:
         wages[r.civ] = wages.get(r.civ, 0) + r.wages_paid_milli
-    budgets = {civ: max(0, coins * 1000 - wages.get(civ, 0)) for civ, coins in care_turn.envelopes.items()}
+    budgets = {civ: max(0, coins * 1000 - wages.get(civ, 0) - guard_reserve(world, civ))
+               for civ, coins in care_turn.envelopes.items()}
     state.supplies = []
     by_region = {r.region: r for r in care_turn.receipts if r.paid}
     result = []
@@ -234,7 +289,8 @@ def supply_spent(world, civ):
     state = _state(world)
     if state is None or not state.enabled or state.supply_turn != world.turn:
         return 0
-    return sum(r.charged_milli for r in state.supplies if r.civ == civ)
+    return (sum(r.charged_milli for r in state.supplies if r.civ == civ)
+            + sum(m["wage_paid_milli"] for r in state.guards if r["civ"] == civ for m in r["members"]))
 
 
 def environment_factors(world):
@@ -274,7 +330,146 @@ def phase10(world, acc, economy_result, agent_bridge):
                     for i in region.infrastructure)
         values.append(service(world, rid, "irrigation") if water else 0.0)
     state.sanitation_turn, state.sanitation = world.turn, values
+    state._guard_tick = None
     return []
+
+
+def prepare_phase2(world, region_input, agent_bridge, snapshot, acc):
+    """Name customs guards after all other work consumers, within C2's L9
+    envelope. Full payment and a whole guard-equivalent are needed per pair.
+    Partial or unpaid work is still a recorded labour cost, never enforcement.
+    """
+    state = _state(world)
+    if state is None or not state.enabled:
+        return region_input
+    from chronicler import labour_reservations
+    from chronicler.epidemic_care import _native, _envelopes, _f32_floor
+    from chronicler.recovery_crews import _cities, _farm_share, _People, remove_farm_time
+    from chronicler.money import _civ_budget
+    sim = _native(agent_bridge)
+    if state._guard_tick is not None:
+        raise RuntimeError("public-health guards already planned")
+    state._guard_tick = (world.turn, sim)
+    state.guard_turn, state.guards = world.turn, []
+    people = _People(world, snapshot if snapshot is not None else sim.get_snapshot())
+    cities = _cities(world)
+    booked = set(labour_reservations.booked(world, sim, world.turn))
+    envelopes = {}
+    for c in _envelopes(world):
+        envelopes[c.civ] = envelopes.get(c.civ, 0) + c.amount * 1000
+    care = getattr(world.livelihoods, "epidemic_care", None)
+    for r in getattr(getattr(care, "_turn", None), "receipts", []):
+        envelopes[r.civ] = max(0, envelopes.get(r.civ, 0) - r.wages_due_milli
+                               - supply_for_work(world, r.region, r.care_time))
+    reserve, removal = [], {}
+    for plan in state.guard_plan:
+        civ, target = plan["civ"], plan["target"]
+        need, members = GUARDS_PER_PAIR, []
+        budget = min(envelopes.get(civ, 0), _civ_budget(world, civ, acc) * 1000)
+        eligible_regions = guard_regions(world, civ)
+        for rid in eligible_regions:
+            for aid, occupation, settlement in people.residents(rid):
+                if occupation != 0 or aid in booked:
+                    continue
+                farm, _diverted, _urban = _farm_share(cities, rid, settlement)
+                share = _f32_floor(min(need, farm, budget / GUARD_WAGE_MILLI))
+                wage = round(share * GUARD_WAGE_MILLI)
+                if share < 1e-3 or wage <= 0:
+                    continue
+                members.append({"agent_id": aid, "region": rid, "share": share,
+                                "wage_due_milli": wage, "wage_paid_milli": 0,
+                                "wage_residual_milli": 0, "income_withheld": None})
+                booked.add(aid)
+                reserve.append((aid, share))
+                removal[rid] = removal.get(rid, 0.0) + share
+                need -= share
+                budget -= wage
+                envelopes[civ] -= wage
+                if need <= 1e-6:
+                    break
+            if need <= 1e-6:
+                break
+        state.guards.append({"turn": world.turn, "civ": civ, "target": target, "members": members,
+                             "need": GUARDS_PER_PAIR, "work": GUARDS_PER_PAIR - need,
+                             "staffed": False, "payment": "pending"})
+    if reserve:
+        sim.reserve_work(world.turn, 3, sorted(reserve))
+        region_input = remove_farm_time(world, region_input, snapshot, removal, sim=sim)
+    return region_input
+
+
+def finish_phase2(world, economy_result, agent_bridge, acc):
+    state = _state(world)
+    if state is None or not state.enabled:
+        return []
+    from chronicler import money
+    turn, sim = state._guard_tick
+    if turn != world.turn:
+        raise RuntimeError("guard plan belongs to another turn")
+    if state.guard_capacity_turn == world.turn:
+        raise RuntimeError("guards already settled")
+    funded = []
+    for civ in sorted({r["civ"] for r in state.guards}):
+        teams = [r for r in state.guards if r["civ"] == civ]
+        members = sorted((m for r in teams for m in r["members"]), key=lambda m: m["agent_id"])
+        if not members:
+            for r in teams:
+                r["payment"] = "no_workers"
+            continue
+        bill = money.Bill(purpose="guard_wage", batch=GUARD_BATCH + civ, phase="phase2",
+                          payer=money.treasury(civ), lines=tuple((money.agent(m["agent_id"]), m["wage_due_milli"])
+                                                               for m in members),
+                          regions=tuple(m["region"] for m in members))
+        quote = money.quote(world, bill, turn=world.turn, book=state.book, acc=acc, sim=sim)
+        if not quote.ok:
+            for r in teams:
+                r["payment"] = "refused:" + str(quote.reason)
+            continue
+        sim.extend_paid_work(world.turn, [(m["agent_id"], m["share"]) for m in members])
+        got = money.pay(world, bill, turn=world.turn, book=state.book, acc=acc, sim=sim)
+        if not got.ok:
+            raise RuntimeError("quoted guard wage bill failed at settlement")
+        flows = {int(f.payee[1]): f for f in got.flows}
+        for m in members:
+            flow = flows[m["agent_id"]]
+            m["wage_paid_milli"], m["wage_residual_milli"] = flow.applied, flow.residual
+        for r in teams:
+            r["payment"] = "paid"
+            r["staffed"] = r["work"] >= GUARDS_PER_PAIR - 1e-6 and all(
+                m["wage_paid_milli"] == m["wage_due_milli"] for m in r["members"])
+            if r["staffed"]:
+                funded.append((civ, r["target"]))
+    state.guard_capacity_turn, state.guard_capacity = world.turn, funded
+    for r in state.guards:
+        _bump(state, "guard_farm_time", r["work"])
+        _bump(state, "guard_wages_milli", sum(m["wage_paid_milli"] for m in r["members"]))
+    return []
+
+
+def after_agent_tick(world, agent_bridge):
+    state = _state(world)
+    if state is None or state.guard_turn != world.turn or not state.guards:
+        return []
+    from chronicler.livelihoods import paid_work_receipt
+    receipt = paid_work_receipt(world, agent_bridge._sim)
+    for r in state.guards:
+        for member in r["members"]:
+            if receipt is not None and member["agent_id"] in receipt:
+                member["income_withheld"] = float(receipt[member["agent_id"]][2])
+                _bump(state, "guard_income_withheld", member["income_withheld"])
+    return []
+
+
+def rollback_phase2(world):
+    state = _state(world)
+    if state is not None:
+        state._guard_tick = None
+
+
+def rollback_agent_tick(world, agent_bridge):
+    state = _state(world)
+    if state is not None and state._guard_tick is not None:
+        agent_bridge._sim.cancel_paid_work()
 
 
 def _learn_fatality(world, state):
@@ -381,9 +576,19 @@ def report_targets(world, reports):
             # Quarantine's cause field remains historical attribution only.
             first = min(inbox, key=lambda r: (r.source, r.pathogen))
             allowed.setdefault(civ, {})[target] = (first.source, first.pathogen)
+    state.guard_plan = [{"civ": civ, "target": target} for civ, targets in sorted(allowed.items())
+                        for target in sorted(targets)]
     # Current own observations become prior experience at the next decision.
     _learn_fatality(world, state)
     return allowed
+
+
+def on_pool_reset(world):
+    state = _state(world)
+    if state is not None:
+        state.guard_turn, state.guards = None, []
+        state.guard_capacity_turn, state.guard_capacity = None, []
+        state._guard_tick = None
 
 
 def snapshot_summary(world):
@@ -401,6 +606,10 @@ def snapshot_summary(world):
             "environment": state.environment if environment_fresh else [],
             "supply_turn": state.supply_turn if supply_fresh else None,
             "supplies": [r.model_dump() for r in state.supplies] if supply_fresh else [],
+            "guard_turn": state.guard_turn if state.guard_turn == source else None,
+            "guards": state.guards if state.guard_turn == source else [],
+            "guard_capacity_turn": state.guard_capacity_turn,
+            "guard_capacity": state.guard_capacity,
             "totals": dict(state.totals), "parameters": {"sanitation_reduction": SANITATION_REDUCTION,
             "displacement_crowding": DISPLACEMENT_CROWDING, "life_value": LIFE_VALUE,
             "report_lifetime": REPORT_LIFETIME}}

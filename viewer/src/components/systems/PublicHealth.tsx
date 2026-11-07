@@ -25,6 +25,8 @@ export function PublicHealth({ bundle, snapshot, currentTurn }: {
       {record.environment_turn === null ? <p>Epidemic environment not observed.</p> : <ul>{record.environment.filter(r => r.displaced_share > 0 || r.water_service > 0).map(r => <li key={r.region}>{names[r.region]}: {r.residence_observed ? `${(100 * r.displaced_share).toFixed(1)}% displaced` : "residence unobserved"}; {r.sanitation_observed ? `water service ${(100 * r.water_service).toFixed(0)}%, flux susceptibility ×${r.flux_factor.toFixed(2)}` : "water service unobserved"} (source turn {r.source_turn}).</li>)}</ul>}
       <h4>Delivered advice</h4>
       {record.report_turn === null ? <p>Reports not observed.</p> : record.decisions.length === 0 ? <p>No delivered foreign outbreak advice.</p> : <ul>{record.decisions.map(r => <li key={`${r.civ}:${r.target}`}>{civs[r.civ]} → {civs[r.target]}: {r.close ? "close" : "remain open"}; expected loss {r.expected_loss_units.toFixed(3)} against cost {r.cost_units.toFixed(3)}; {r.fatality_observed ? "prior own fatality observed" : "own fatality unobserved"}; reports {r.report_ids.join(", ")}.</li>)}</ul>}
+      <h4>Named border guards</h4>
+      {record.guard_turn === null ? <p>Guard staffing not observed.</p> : record.guards.length === 0 ? <p>No border watch proposed.</p> : <ul>{record.guards.map(r => <li key={`${r.civ}:${r.target}`}>{civs[r.civ]} → {civs[r.target]}: {r.members.length} guards, {r.work.toFixed(3)} worker-turns, {r.payment}; {r.staffed ? "staffed for the next turn" : "no closure capacity"}. Stable IDs: {r.members.map(m => m.agent_id).join(", ")}.</li>)}</ul>}
     </>}
   </section>;
 }

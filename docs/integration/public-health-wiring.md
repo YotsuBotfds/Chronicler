@@ -20,8 +20,16 @@ files. Apply these when integrating its commit:
    checkpoint/gate forwarding must carry them. Rebuild the integrated reviewed
    inverse layers last, retaining historical pins.
 5. `money.PYTHON_PURPOSES`: append `care_supply` (no native code, treasury only).
-   No account kind or native purpose is needed. All supply flows live in
+   This lane also appends `guard_wage -> repair_wage` to NATIVE_ALIASES and
+   TREASURY_AGENT_PURPOSES; batch `0xC12000 + civ` is disjoint. No native purpose
+   is needed. Register `guard_wage` in A1's MONEY_PURPOSE_CHANNELS and the allowed
+   `_native_transfer` purposes; add MONEY_BILLS entries for
+   `public_health.supply_care` (`care_supply`) and
+   `public_health.finish_phase2` (`guard_wage`). All supply/guard flows live in
    `world.livelihoods.public_health.book` for A1 observation.
+   A1 must itemize guard members' `income_withheld` as `withheld_guard`; these
+   are additional named guards, not epidemic carers. Care's L9 proposal/settle
+   includes both actual guard wages and supplied care, one funding authority.
 6. Register one reviewed aggregate X1 read:
    `('public_health','environment_factors','read_frame'): (1,'aggregate')`.
    Update the guard's historical assertion that all classes are `wiring` to allow
