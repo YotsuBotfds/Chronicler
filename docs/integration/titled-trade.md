@@ -311,7 +311,7 @@ ends `trade`.
   --grain-storage --workshops --workshop-payroll --workshop-economics` on the
   same two cases: the rules option absent and the explicit
   `--workshop-economics-rules=1` each 205 files, 0 differences.
-- **Rust** (in the one `cargo test --locked` run below): `settle_pairs`
+- **Rust** (in the `cargo test --locked` run below): `settle_pairs`
   (validation before mutation: purpose, payer = payee, repeated pair, an id on
   both sides, range, repeated or older key; the payer limited at its wealth;
   the payee's ceiling refused back to the payer; dead and unknown parties
@@ -350,6 +350,15 @@ ends `trade`.
   passed, 2 skipped, 4 failed on the 5-second test timeout (two `AppShell` and
   two feature-option files); those four files rerun with `--maxWorkers=1`: 44
   passed. Lint clean; `tsc -b` and the production build succeeded.
+- **`cargo test --locked`** (the passing run, `--no-fail-fast`): 762 library tests
+  and all 40 targets passed (1,324 tests). It ran with
+  `CARGO_PROFILE_DEV_DEBUG=0 CARGO_PROFILE_TEST_DEBUG=0` (no debug info; the
+  same code): a first run with debug info filled the disk (the target reached
+  8.2 GB with 8.3 GB free; the linker died with a bus error) and a second
+  found two wrong assertions in the Rust tests (code 9, now `cargo_sale`, used
+  as the unknown purpose; an older `settle_pairs` key of another batch expected
+  refused), both fixed in the test module only (commit `3995c1ee`; the compiled
+  extension is unchanged: no line outside `mod tests` moved).
 - **Bounded offline lane** (110-second limit kept, default output directory,
   commit `f37308a9`): PASS in 326.1 s, 69 chunks, slowest `systems-2` 36.9 s;
   `connected-world-a` 7.2 s (121 tests).

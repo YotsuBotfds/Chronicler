@@ -642,3 +642,42 @@ Per world (`t` template, `p` procedural):
 | p31 | market | 15 | 33 | 5-148 | city_fell 1, idle 11, open@199 3 | 393 | 202.3 | 0.0 | 0.0 | 86.43 | 1.00 |
 | p31 | free_inputs | 8 | 65.5 | 18-177 | idle 4, open@199 4 | 558 | 0.0 | 577.6 | 47.0 | 144.71 | 0.75 |
 | p31 | academy_only | 16 | 14.5 | 8-33 | idle 16 | 159 | 163.7 | 0.0 | 0.0 | 0.00 | - |
+
+### A3-2 against A3-1 (development worlds only; not a screen)
+
+Development-only, 2026-11-07: source `9c6c66ee` (branch
+`claude/cw-a4-titled-trade`), extension `2ba123ab…`; the same 13 worlds, flags
+and 200 turns as the table above in `market` mode, with and without
+`--workshop-economics-rules 2`, `CHRONICLER_CHECK_RESOURCES=1` (no resource
+problem raised). The rules-1 arm on this source reproduces the `market` row
+above exactly (102 firms, 3,663 operating firm-turns, 1,589.41 inputs, 982
+academy, 868.19 household sales, 138.1 loads of free use). Template runs took
+9-10 s, procedural 23-26 s. Wares in loads, money in treasury units.
+
+| Rules | Firms opened | Open at 199 / closed idle / other | Operating firm-turns | Produced | Titled | Free use (upper bound) | Household sales (wares delivered) | Academy sales | Inputs paid | Ledger closures failed |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 1 (A3-1) | 102 | 19 / 70 / 13 | 3,663 | 2,371.07 | 2,232.95 | 138.12 | 868.19 (1,419.23) | 982 | 1,589.41 | 0 |
+| 2 (A3-2) | 103 | 11 / 84 / 8 | 2,604 | 1,755.50 | 1,755.50 | 0.00 | 352.66 (1,272.11) | 1,084 | 1,345.45 | 0 |
+
+Per world (rules 2): t1 3 firms, 49.2 loads owned, household sales 10.54;
+t3 3, 91.8, 27.53; t7 5, 93.1, 24.01; t9 5, 222.2, 15.54 (academy 541);
+t11 5, 177.1, 25.60 (academy 406); t23 3, 112.8, 41.77; t42 4, 30.4, 6.03;
+p7 13, 161.5, 29.57; p11 10, 92.2, 20.65; p13 12, 227.6, 55.04; p17 14, 190.9,
+40.22; p21 10, 127.3, 23.66; p31 16, 179.5, 32.48. No household was priced out
+in either arm.
+
+Reading (development-only):
+
+- **No same-tick free use under rules 2**: every operating firm-turn titled its
+  whole output (1,755.5 loads), and the people used none of it before a sale;
+  under rules 1 the bound was 138.1 loads.
+- **Households bought 10% fewer wares but paid 59% less**: 1,272.1 loads for
+  352.7 units against 1,419.2 for 868.2. Rules 2 counts the firm's own stock in
+  the wares supply that sets the price (as retail counts owned food), so the
+  price households paid per load fell from about 0.61 to 0.28. With less
+  revenue, firms operated 29% fewer turns, more closed idle (84 against 70) and
+  fewer were open at turn 199 (11 against 19). This is reported as found, not
+  tuned: the price rule (whether a firm's stock should depress its own price)
+  is a modelling choice for the lead and owner, alongside the A3 audit's
+  price-margin risk above.
+- Every A1 ledger closure held on every observed turn in both arms.
