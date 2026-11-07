@@ -1,10 +1,19 @@
-# Partial independent CWR1 raw review
+# Independent CWR1 first-world raw review
+
+Both retained first worlds now pass: **24 cases × 120 turns**. The
+[combined review](review-first-worlds-2026-11-07.md) and
+[template receipt](readback-t4101.json) complete this raw sampling gate.
+The full 144-run held arithmetic/effect review remains separate and pending.
+
+The initial procedural checkpoint follows; its resource table is the
+historical budget position before template readback, not the current balance.
 
 **Procedural first-world readback passes: twelve arms × 120 completed turns.**
 This packet covers retained p4201 artifacts only, plus one bounded admission
 and a development-pilot coverage diagnostic. The full 144-run held screen is
 still running. No held causal comparison, whole-cohort completion or
-qualification is claimed. Template t4101 raw readback remains pending.
+qualification is claimed. Template t4101 was pending at this checkpoint;
+the combined review above records its subsequent completion.
 
 Runtime: `b45c1e99572d4d6a60fb01fbd75cb7688aa54e93` at
 `/workspace/cwr-held-runtime`. Closed-row identity:

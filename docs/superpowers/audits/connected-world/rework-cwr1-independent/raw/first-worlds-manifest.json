@@ -1,0 +1,30 @@
+{
+  "status": "RETAINED_FIRST_WORLDS_RAW_PASS",
+  "runtime": "b45c1e99572d4d6a60fb01fbd75cb7688aa54e93",
+  "case_count": 24,
+  "snapshots_checked": 2880,
+  "whole_held_cohort_or_effect_review_complete": false,
+  "checker_unchanged_between_batches": true,
+  "checker_sha256": "ab4a94100f8ff61fbf8181e099b305c6d5f5d25c49847596fa4cb7908bc18129",
+  "complete_component_merge_turns": 2096,
+  "capped_component_merge_turns_unverified": 784,
+  "cpu_seconds": 81.560315,
+  "cpu_budget_seconds": 120,
+  "remaining_cpu_seconds": 38.439685,
+  "simulation_runs": 0,
+  "native_agent_module_imported": false,
+  "prior_checkpoint_manifest_commit": "0c8d24de",
+  "files": {
+    "README.md": "c1dc6fda8dff2c4d5e1a05235017993dd8e917066e209df3d4540351a234da22",
+    "admission-AD-p4201.json": "47b9638366d999867fb0f8e5da3f58146f10eee75a96a046cfa7e90c0cbd57bd",
+    "admission.py": "d7f0e2554465a6cd35dbc0188e1a41b969b771c050a576349f863b326fc49d39",
+    "check.py": "ab4a94100f8ff61fbf8181e099b305c6d5f5d25c49847596fa4cb7908bc18129",
+    "coverage-pilot-AD-p19.json": "afacd5f7897b15fa8aa73366c76d0770ccc2d9d22418434b05b96caa2743e2cb",
+    "coverage_trace.py": "9551f63902f1b49d86ec867c34e4a90718c5d06066b522494199e7483cc23db3",
+    "manifest.json": "328444cb8dfb3816986b90292e47ff5af37d1b04ff98db0b58fd4bf038287f2a",
+    "readback-p4201.json": "8f64d26675faec35dc79468d74a3f05069f540ba8abfe13b88a7290a6f83078d",
+    "readback-t4101.json": "580f5e21f96b8dbabec911de076ea2729d13056d3d6e3d667d3269306b1a8597",
+    "review-first-worlds-2026-11-07.md": "cf3945b50dee999019bb846cd19192d2d0bf7b43d2eeb20b4738192c2cde3b14",
+    "selftest.py": "587440c1c925caa95d132ecaa7999ee62e218d44fcb032fcc630236342d6fa7b"
+  }
+}
