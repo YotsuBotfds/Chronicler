@@ -1,0 +1,36 @@
+"""V6 canonical historical cases with final FULL program flags, evidence only."""
+from pathlib import Path
+import json,hashlib,sys,subprocess,time
+sys.path.insert(0,str(Path.cwd()/'scripts'))
+import cw_integrated_resume as R
+SOURCE='eaa4a5d3e1cb5c958b5e32719601c28986c9f6ac'
+NATIVE='59f536b8f4a6c2bc82c51eeaec55f3aff6b0a1c5c8f1a324049ad15b42c51617'
+out=Path('/workspace/evidence/cw6/resume-canonical-final')
+if out.exists(): raise ValueError('output exists; preserve it')
+if subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip()!=SOURCE or subprocess.check_output(['git','status','--porcelain'],text=True).strip(): raise ValueError('wrong or dirty runtime')
+identity=R.CW.SR.source_identity(R.CW.SCREEN)
+if not any(x.startswith('native ') and x.endswith(NATIVE) for x in identity):raise ValueError('wrong native')
+common=list(R.CW.BASE)
+i=common.index('--turns'); del common[i:i+2]
+common.remove('--simulate-only')
+common+=list(R.CW.ARMS['FULL'][0])
+out.mkdir()
+(out/'source.txt').write_text('\n'.join(identity)+'\n')
+(out/'orchestrator-receipt.json').write_text(json.dumps({'script':str(Path(__file__).resolve()),'sha256':hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),'source':SOURCE,'native':NATIVE,'jobs':1,'FULL_common_flags':common,'case_contract':'Original checkpoint_identity CASES cli/turns/target/ks retained; all opt-in FULL flags appended; procedural watershed mode flow added; no held cohort.'},indent=2)+'\n')
+reports=[]; started=time.monotonic()
+for name in ('hybrid_s42_long','proc32_hybrid_s11'):
+ original=R.CI.CASES[name]
+ cli,turns,target,kind=original
+ cli=[*cli,*common]
+ if name.startswith('proc32_'):cli+=['--watershed','--watershed-mode','flow']
+ R.CI.CASES[name]=(cli,turns,target,kind)
+ selection={'original_case':{'cli':original[0],'turns':turns,'target_agents':target,'kind':kind},'actual_cli':cli,'actual_ks':R.CI._default_ks(turns,kind)}
+ (out/f'selection-{name}.json').write_text(json.dumps(selection,indent=2)+'\n')
+ report=R.CI.run_case(out,name,ks=None,jobs=1,extra=[],keep=False,resume_hash_seed='0')
+ report['selection']=selection
+ if R.CW.SR.source_identity(R.CW.SCREEN)!=identity:raise ValueError('runtime identity changed during V6')
+ (out/f'report-{name}.json').write_text(json.dumps(report,indent=2)+'\n')
+ reports.append(report)
+ if not report.get('pass'):
+  (out/'summary.json').write_text(json.dumps({'pass':False,'seconds':time.monotonic()-started,'reports':reports},indent=2)+'\n');raise SystemExit(1)
+(out/'summary.json').write_text(json.dumps({'pass':all(x['pass'] for x in reports),'seconds':time.monotonic()-started,'reports':reports},indent=2)+'\n')

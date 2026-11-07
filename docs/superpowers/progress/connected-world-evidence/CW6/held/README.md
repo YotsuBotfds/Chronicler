@@ -60,9 +60,9 @@ in all five arms, and mortality-by-famine/war-cause fields remain unrecorded.
 There are material adverse/measurement limits. FULL actual army meals total
 312/684 demanded on templates and 1,498/5,465 procedural; physical food removal,
 kit credit, destruction and once-per-army consumption nevertheless all close.
-FULL created 180 timber orders and delivered 186.668 timber units, with 898.443 measured
-maintenance work across twelve worlds; delivery/dispatch does not establish
-an isolated repair benefit. Recorded D3 evacuations 624/returns270/wounds109
+FULL created 180 timber orders and delivered 186.668 timber units, with
+898.443 measured maintenance work units across twelve worlds; delivery/dispatch does not establish
+an isolated repair benefit. Recorded D3 counts of 624 evacuations, 270 returns and 109 wounds
 are mechanism records, not an attribution of every native move or death.
 Closing recorded unpaid/unrecorded restitution is zero on all FULL worlds;
 that does not invent payment for lapsed dead/missing claimants.

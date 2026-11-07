@@ -28,11 +28,11 @@
     "Both balance primaries are negative; procedural D3 death primary is positive and service primary negative; material food-shortfall and epidemic harms remain.",
     "Unknown migration causes are 85.07% template/98.29% procedural; X1 to C2 exposure feedback forbids interpreting lower classified displacement as a health benefit.",
     "Bounded A6 samples dropped 776/205136 rows and do not substitute for whole-world totals.",
-    "Template786 forest stand is unrecorded without capacity; famine/war-cause mortality remains null.",
+    "Template 786 forest stand is unrecorded without capacity; famine/war-cause mortality remains null.",
     "120-turn, 12-world bounded screen, not full 200-seed/procedural qualification or default promotion."
   ],
   "files": {
-    "README.md": "b560bdce3278e7e7928b4537b0dd8ea989138a2752cbfd3680cb39a6cbd97f6a",
+    "README.md": "42eeb4a729c13c1e8f89eb346e209d0728d39381c7da5a8c14747bc0e3d66d70",
     "check.txt": "87bdcf906bcd38cdb75fbddec8e8488e874b9414ca2a6dd3061a2aaac6629ed7",
     "held-run.json": "24d8b227cc1107cc94e13617187bae16b2d34e9c5883bb8d71b1b803049ae673",
     "manual-summary.json": "c3d7d2dac85526cde3d678d21370c29a01fbf258d19039799cea30a400591bcc",
@@ -42,5 +42,6 @@
     "report.md": "c6be63fb3e73288c48f3a1c7955777996ed4845cc2266781762394c7b91ef50b",
     "retained-bundle-identities.json": "7c912d583eb4293e8b81041067955ef3d2457406b0d8324f53876beb22d0bd70",
     "source.txt": "9fe7afc6ff27fbad5a65e98fcacc4863b1e7850a3f3952daf6045c0960fd821c"
-  }
+  },
+  "durable_independent_review_commit": "f976bbb1939b4b320b04b7f4d5318ca2b46b4fc6"
 }
