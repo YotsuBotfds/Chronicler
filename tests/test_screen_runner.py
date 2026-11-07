@@ -116,7 +116,13 @@ def test_program_reservations(SR, registry, CW, screen):
         assert all(e["held_run"]["complete"] for e in own)
     got = {e["stratum"]: SR.expand(e["seeds"]) for e in own}
     assert got == {"template": set(range(t0, t0 + 6)), "procedural": set(range(p0, p0 + 6))}
-    assert CW.SCREENS[screen].held == {"template": tuple(range(t0, t0 + 6)), "procedural": tuple(range(p0, p0 + 6))}
+    if screen == "CW3":
+        # The watershed refuses template worlds: CW3 uses its procedural cohort only and its
+        # template reservation stays reserved and unused.
+        assert CW.SCREENS[screen].held == {"procedural": tuple(range(p0, p0 + 6))}
+    else:
+        assert CW.SCREENS[screen].held == {"template": tuple(range(t0, t0 + 6)),
+                                           "procedural": tuple(range(p0, p0 + 6))}
     for stratum, seeds in got.items():
         others = set().union(*(SR.expand(e["seeds"]) for e in registry["entries"]
                                if e["stratum"] == stratum and e not in own))
@@ -130,7 +136,9 @@ def test_pilot_and_reserve(SR, registry, CW):
     assert SR.expand(by["cw-reserve-t"]["seeds"]) == set(range(791, 797))
     assert SR.expand(by["cw-reserve-p"]["seeds"]) == set(range(891, 897))
     assert all(by[k]["status"] == "reserved" for k in ("cw-pilot-t", "cw-pilot-p", "cw-reserve-t", "cw-reserve-p"))
-    assert all(s.pilot == {"template": (5,), "procedural": (19,)} for n, s in CW.SCREENS.items() if n != "DEV")
+    assert all(s.pilot == {"template": (5,), "procedural": (19,)} for n, s in CW.SCREENS.items()
+               if n not in ("DEV", "CW3"))
+    assert CW.SCREENS["CW3"].pilot == {"procedural": (19,)}          # procedural stratum only
 
 
 def _mutate(registry, change):
@@ -633,8 +641,10 @@ def test_registry_content_hash_ignores_run_records_only(SR, registry):
 def test_check_command_reports_stubs_not_ready(SR, CW, capsys):
     assert CW.main(["check", "--screen", "all"]) == 2
     text = capsys.readouterr().out
-    for name in ("CW2", "CW3", "CW5", "CW6"):
+    for name in ("CW2", "CW5", "CW6"):
         assert f"{name}: seeds OK" in text and f"{name}: NOT READY" in text
+    # CW3 is declared by slice B2 (tests/test_cw3_screen.py).
+    assert "CW3: seeds OK" in text and "CW3: extractor, packages, 4 arms and 31 outcomes (3 primary): OK" in text
     # CW1 is declared by slice S1 (tests/test_cw1_screen.py).
     assert "CW1: seeds OK" in text and "CW1: extractor, packages, 9 arms and 38 outcomes (3 primary): OK" in text
     # CW4 is declared by slice C1 (tests/test_cw4_screen.py).

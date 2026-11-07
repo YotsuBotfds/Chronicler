@@ -658,21 +658,29 @@ def arm_command(screen: Screen, arm: str, stratum: str, seed: int, turns: int | 
 
 def check_arm_flags(screen: Screen) -> list[str]:
     """Every arm's command line parses with the real parser and the feature catalog
-    accepts the switches it turns on (prerequisites, agent mode, choices)."""
+    accepts the switches it turns on (prerequisites, agent mode, choices), in each
+    stratum the screen's cohorts use (both when it declares none, as DEV). The live
+    surface cannot see the requested world; a command line can, so the
+    ``procedural_world`` setting is the world its flags resolve to."""
     _src()
     from chronicler import feature_catalog as fc
     from chronicler.main import _build_parser
+    from chronicler.world_gen import resolve_worldgen
     parser = _build_parser()
     problems = []
+    strata = [s for s in STRATA if screen.held.get(s) or screen.pilot.get(s)] or list(STRATA)
     for arm in screen.arms:
-        for stratum in STRATA:
+        for stratum in strata:
             argv = arm_command(screen, arm, stratum, 1)
             try:
                 args = parser.parse_args(argv)
             except SystemExit:
                 problems.append(f"arm {arm} ({stratum}): the command line does not parse: {' '.join(argv)}")
                 continue
-            refusal = fc.validate_features({}, fc.live_surface(args))
+            surface = fc.live_surface(args)
+            surface["settings"]["procedural_world"] = resolve_worldgen(
+                getattr(args, "worldgen", None), int(getattr(args, "regions", None) or 8)) == "procedural"
+            refusal = fc.validate_features({}, surface)
             if refusal:
                 problems.append(f"arm {arm} ({stratum}): {refusal}")
     return problems
