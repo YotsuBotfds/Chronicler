@@ -20,6 +20,12 @@ export interface PublicHealthRecord {
   decisions: PublicHealthDecision[]; environment_turn: number | null; environment: PublicHealthEnvironment[];
   supply_turn: number | null; supplies: PublicHealthSupply[]; totals: Record<string, number>;
   guard_turn: number | null; guards: PublicHealthGuard[];
+  funding_turn: number | null; funding: PublicHealthFunding[];
+}
+export interface PublicHealthFunding {
+  turn: number; civ: number; envelope_milli: number; care_paid_milli: number; care_cash_milli: number;
+  care_carry_before: number; care_carry_after: number; supply_cash_milli: number;
+  guard_paid_milli: number; guard_cash_milli: number; guard_carry_before: number; guard_carry_after: number;
 }
 export interface PublicHealthGuard {
   turn: number; civ: number; target: number; need: number; work: number; staffed: boolean; payment: string;
@@ -73,7 +79,18 @@ export function publicHealthAt(snapshot: TurnSnapshot, regions: number, civs: nu
       && [m.wage_due_milli, m.wage_paid_milli, m.wage_residual_milli].every(integer)
       && (g.payment !== "paid" || Number(m.wage_paid_milli) + Number(m.wage_residual_milli) === m.wage_due_milli)
       && (m.income_withheld === null || nonnegative(m.income_withheld)))))) return null;
-  return { ...r, guard_turn: r.guard_turn ?? null, guards: r.guards ?? [] } as unknown as PublicHealthRecord;
+  if (r.funding_turn !== undefined && r.funding_turn !== null && r.funding_turn !== r.source_turn) return null;
+  if (r.funding !== undefined && (!Array.isArray(r.funding) || !r.funding.every(f => object(f)
+    && f.turn === r.source_turn && idx(f.civ, civs)
+    && [f.envelope_milli, f.care_paid_milli, f.care_cash_milli, f.supply_cash_milli, f.guard_paid_milli,
+      f.guard_cash_milli, f.care_carry_before, f.care_carry_after, f.guard_carry_before, f.guard_carry_after].every(integer)
+    && [f.envelope_milli, f.care_cash_milli, f.supply_cash_milli, f.guard_cash_milli].every(v => Number(v) % 1000 === 0)
+    && [f.care_carry_before, f.care_carry_after, f.guard_carry_before, f.guard_carry_after].every(v => Number(v) < 1000)
+    && Number(f.care_cash_milli) + Number(f.supply_cash_milli) + Number(f.guard_cash_milli) <= Number(f.envelope_milli)
+    && Number(f.care_cash_milli) + Number(f.care_carry_before) === Number(f.care_paid_milli) + Number(f.care_carry_after)
+    && Number(f.guard_cash_milli) + Number(f.guard_carry_before) === Number(f.guard_paid_milli) + Number(f.guard_carry_after)))) return null;
+  return { ...r, guard_turn: r.guard_turn ?? null, guards: r.guards ?? [],
+    funding_turn: r.funding_turn ?? null, funding: r.funding ?? [] } as unknown as PublicHealthRecord;
 }
 
 export const readPublicHealth = (bundle: Bundle, snapshot: TurnSnapshot | null, turn?: number): RecordReading<PublicHealthRecord> =>
@@ -82,6 +99,8 @@ export const readPublicHealth = (bundle: Bundle, snapshot: TurnSnapshot | null, 
       const l = (s as unknown as Record<string, unknown>).livelihoods;
       return object(l) && l.public_health !== undefined && l.public_health !== null;
     }, read: publicHealthAt,
-    observed: r => r.environment_turn !== null || r.supply_turn !== null || r.report_turn !== null,
-    empty: r => r.supplies.length === 0 && r.decisions.length === 0 && r.environment.every(e => e.displaced_share === 0 && e.water_service === 0),
+    observed: r => r.environment_turn !== null || r.supply_turn !== null || r.report_turn !== null || r.funding_turn !== null,
+    empty: r => r.supplies.length === 0 && r.decisions.length === 0 && r.guards.length === 0
+      && r.funding.every(f => f.care_paid_milli + f.guard_paid_milli + f.care_cash_milli + f.supply_cash_milli + f.guard_cash_milli === 0)
+      && r.environment.every(e => e.displaced_share === 0 && e.water_service === 0),
     zero: "no patient supplies, delivered foreign reports or water service" }, bundle, snapshot, turn);

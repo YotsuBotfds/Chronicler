@@ -55,4 +55,15 @@ describe("public health strict reading", () => {
     expect(publicHealthAt(snapshot({ ...valid(), guard_turn: 4, guards: [{ ...guard, staffed: false,
       members: [{ ...member, wage_paid_milli: 250, wage_residual_milli: 250 }] }] }), 2, 2)).not.toBeNull();
   });
+  it("requires exact wage carry closure and whole-coin envelope cash funding", () => {
+    const funding = { turn: 4, civ: 0, envelope_milli: 2000, care_paid_milli: 250, care_cash_milli: 1000,
+      care_carry_before: 0, care_carry_after: 750, guard_paid_milli: 500, guard_cash_milli: 1000,
+      guard_carry_before: 0, guard_carry_after: 500, supply_cash_milli: 0 };
+    const s = snapshot({ ...valid(), funding_turn: 4, funding: [funding] });
+    expect(readPublicHealth(bundle([s]), s).state).toBe("recorded");
+    for (const changes of [{ envelope_milli: 1000 }, { care_carry_after: 500 }, { care_cash_milli: 250 },
+      { guard_carry_before: 1000 }, { turn: 3 }]) {
+      expect(publicHealthAt(snapshot({ ...valid(), funding_turn: 4, funding: [{ ...funding, ...changes }] }), 2, 2)).toBeNull();
+    }
+  });
 });
