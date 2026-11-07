@@ -328,9 +328,14 @@ def test_checked_in_partition_preserves_historical_assignment_with_explicit_new_
         'tests/test_guild_leagues_native.py': '0',
         'tests/test_residence_ledger.py': '0',
         'tests/test_residence_ledger_guard.py': '0',
+        'tests/test_war_requisition.py': '0',
+        'tests/test_war_consequences.py': '0',
+        'tests/test_adaptive_livelihoods.py': '0',
+        'tests/test_public_health.py': '0',
+
         'tests/test_residence_ledger_native.py': '0',
     }
-    assert len(owners) == 441
+    assert len(owners) == 444
     assert {name: owners[name] for name in additions} == additions
     old_owners = {name: shard for name, shard in owners.items() if name not in additions}
     assert len(old_owners) == 300

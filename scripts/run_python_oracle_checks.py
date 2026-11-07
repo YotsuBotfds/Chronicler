@@ -485,6 +485,8 @@ CHUNKS = {
         "tests/test_reform_services.py",
         "tests/test_guild_leagues.py",
     ],
+    "connected-world-completion": ['tests/test_war_requisition.py', 'tests/test_war_consequences.py', 'tests/test_adaptive_livelihoods.py', 'tests/test_public_health.py'],
+
 }
 TESTS = [node for nodes in CHUNKS.values() for node in nodes]
 if len(set(TESTS)) != len(TESTS):

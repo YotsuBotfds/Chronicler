@@ -130,6 +130,14 @@ from chronicler.livelihoods_state import LIVELIHOODS_SWITCHES, LivelihoodsState
 
 #: Non-boolean options, with their choices (first: the default when enabled).
 LIVELIHOODS_CHOICES: dict[str, tuple[str, ...]] = {
+    "war_requisition_mode": ('transfer', 'cost_only'),
+    "war_consequences_mode": ('active', 'record_only'),
+    "adaptive_livelihoods_mode": ('adapt', 'record_only', 'shuffled'),
+    "adaptive_livelihoods_rules": ('2', '1'),
+    "public_health_mode": ('active', 'cost_only'),
+    "public_health_policy": ('evidence', 'shuffled'),
+    "public_health_report_delay": ('0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12', '13', '14', '15', '16', '17', '18', '19', '20'),
+
     "workshop_mode": ("operate", "observe", "cost_only"),
     "food_allocation_regime": ("floor_means", "equal", "targeted_relief"),
     "convoy_route_policy": ("adaptive", "cheapest", "safest"),
@@ -190,6 +198,17 @@ LIVELIHOODS_ARG_KEYS: tuple[str, ...] = (
     # its hooks run before household_retail's (LIVELIHOODS_SWITCHES order).
     "reform_services", "reform_services_mode",
     "guild_leagues", "guild_league_mode",
+    "war_requisition",
+    "war_requisition_mode",
+    "war_consequences",
+    "war_consequences_mode",
+    "adaptive_livelihoods",
+    "adaptive_livelihoods_mode",
+    "adaptive_livelihoods_rules",
+    "public_health",
+    "public_health_mode",
+    "public_health_policy",
+    "public_health_report_delay",
     "residence_ledger",
     "attribution_records",
     "wealth_accounting",
@@ -203,6 +222,18 @@ LIVELIHOODS_PATH_KEYS: tuple[str, ...] = ("household_retail_schedule",)
 _AGENT_ECONOMY = ("hybrid", "shadow", "demographics-only")
 
 _HELP = {
+    "war_requisition": 'D4 real army supply, seizure and treasury-funded restitution (default off); requires hybrid, campaigns and retail rules 2.',
+    "war_requisition_mode": "Saved option; choices ('transfer', 'cost_only')",
+    "war_consequences": 'D3 combat wounds and dated family separation (default off); requires real army supply, health care and residence ledger.',
+    "war_consequences_mode": "Saved option; choices ('active', 'record_only')",
+    "adaptive_livelihoods": 'A6 personal dated migration failures and work experience inform native decisions (default off); requires hybrid and residence ledger.',
+    "adaptive_livelihoods_mode": "Saved option; choices ('adapt', 'record_only', 'shuffled')",
+    "adaptive_livelihoods_rules": "Saved option; choices ('2', '1')",
+    "public_health": 'Supplied epidemic care, maintained-water sanitation, displacement crowding and dated public-health advice (default off).',
+    "public_health_mode": "Saved option; choices ('active', 'cost_only')",
+    "public_health_policy": "Saved option; choices ('evidence', 'shuffled')",
+    "public_health_report_delay": "Saved option; choices ('0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12', '13', '14', '15', '16', '17', '18', '19', '20')",
+
     "workshops": (
         "Staffed public workshops: up to four selected cities employ named adult "
         "urban farmers' already-diverted time; with --workshop-mode operate the "
@@ -819,6 +850,24 @@ def _check_prerequisites(world: Any, values: dict, agent_mode: str, args: Any = 
             saved = values["guild_leagues"] is not True
             raise ValueError("--guild-leagues requires --agents hybrid, cities and guilds (both on by default)"
                              + ("; this world has it on: pass --no-guild-leagues to end it" if saved else ""))
+    for name in ("war_requisition", "war_consequences", "adaptive_livelihoods"):
+        if _on(world, values, name) and agent_mode != "hybrid":
+            raise LivelihoodsRefusal(f"--{name.replace('_', '-')} requires --agents hybrid; pass --no-{name.replace('_', '-')} to end it")
+    if _on(world, values, "war_requisition"):
+        retail = getattr(livelihoods_state(world), "household_retail", None)
+        rules = getattr(args, "household_retail_rules", None) or (retail.rules if retail else "2")
+        if not getattr(world, "campaigns_enabled", False) or not _on(world, values, "household_retail") or str(rules) != "2":
+            raise ValueError("--war-requisition requires campaigns and --household-retail rules 2")
+    if _on(world, values, "war_consequences"):
+        if not (_on(world, values, "war_requisition") and _on(world, values, "residence_ledger") and getattr(world, "health_care", None) is not None):
+            raise ValueError("--war-consequences requires --war-requisition, --residence-ledger and --health-care")
+    if _on(world, values, "adaptive_livelihoods"):
+        if not _on(world, values, "residence_ledger"):
+            raise ValueError("--adaptive-livelihoods requires --residence-ledger")
+        if getattr(args, "decision_ablation", None) or getattr(args, "decision_observer", None):
+            raise ValueError("--adaptive-livelihoods refuses decision ablations/observer until separately instrumented")
+    from chronicler.public_health import check_request as check_public_health_request
+    check_public_health_request(world, values, args, agent_mode=agent_mode, on=lambda name: _on(world, values, name))
     if _on(world, values, "residence_ledger") and agent_mode != "hybrid":
         # Also when only saved: the ledger reads the hybrid agent pool, its
         # moves and the rosters; a resume outside hybrid is refused until ended.
@@ -923,6 +972,14 @@ _CHOICE_FIELDS: dict[str, tuple[str, str]] = {
     "workshop_economics_rules": ("workshop_economics", "rules"),
     "infrastructure_condition_mode": ("infrastructure_condition", "mode"),
     "epidemic_care_mode": ("epidemic_care", "mode"),
+    "war_requisition_mode": ("war_requisition", "mode"),
+    "war_consequences_mode": ("war_consequences", "mode"),
+    "adaptive_livelihoods_mode": ("adaptive_livelihoods", "mode"),
+    "adaptive_livelihoods_rules": ("adaptive_livelihoods", "rules"),
+    "public_health_mode": ("public_health", "mode"),
+    "public_health_policy": ("public_health", "policy"),
+    "public_health_report_delay": ("public_health", "report_delay"),
+
     "reform_services_mode": ("reform_services", "mode"),
     "guild_league_mode": ("guild_leagues", "mode"),
 }

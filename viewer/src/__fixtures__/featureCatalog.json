@@ -137,6 +137,26 @@
       "experimental": false
     },
     {
+      "key": "health_care",
+      "flag": "--health-care",
+      "label": "Health care",
+      "help": "Temporary occupational injuries and household care: lost work and care time constrain farming and work income; requires --agents hybrid (default off; saved state dormant in other modes)",
+      "kind": "bool",
+      "choices": null,
+      "default": null,
+      "parent": null,
+      "requires": [
+        {
+          "agents": [
+            "hybrid"
+          ],
+          "reason": "requires --agents hybrid"
+        }
+      ],
+      "group": "Prerequisites",
+      "experimental": false
+    },
+    {
       "key": "workshops",
       "flag": "--workshops",
       "label": "Workshops",
@@ -1012,6 +1032,27 @@
       "experimental": true
     },
     {
+      "key": "household_retail_rules",
+      "flag": "--household-retail-rules",
+      "label": "Household retail rules",
+      "help": "Retail rules version of a new retail state: 2 (default): each conquest, siege turn and occupation start destroys the share of pilot regions' owned food it destroys of their commons, once per event, recorded with its cause, actor and victim; 1: checkpoints 2-3 exactly (the conquest share once per turn, siege and occupation leave owned food alone). A saved state keeps its version; a conflicting value is refused",
+      "kind": "choice",
+      "choices": [
+        "2",
+        "1"
+      ],
+      "default": null,
+      "parent": "household_retail",
+      "requires": [
+        {
+          "feature": "household_retail",
+          "reason": "requires --household-retail"
+        }
+      ],
+      "group": "Livelihoods",
+      "experimental": true
+    },
+    {
       "key": "watershed",
       "flag": "--watershed",
       "label": "Watershed",
@@ -1045,6 +1086,699 @@
         {
           "feature": "watershed",
           "reason": "requires --watershed"
+        }
+      ],
+      "group": "Livelihoods",
+      "experimental": true
+    },
+    {
+      "key": "workshop_economics",
+      "flag": "--workshop-economics",
+      "label": "Workshop economics",
+      "help": "Workshop economics (A3): each L6a workshop firm opens once with a capital payment from its region's ruler (no second firm at a closed firm's city), pays the ruler who owns the commons for the raw timber and ore it converts, before converting them, at the raw price the economy computed in an earlier tick, and sells wares to academies and, by stable id, to the region's households (adults pay); a site without a firm, or a firm that cannot pay for inputs, produces nothing; firms close when insolvent or idle; requires --workshop-payroll (default off)",
+      "kind": "bool",
+      "choices": null,
+      "default": null,
+      "parent": null,
+      "requires": [
+        {
+          "agents": [
+            "hybrid"
+          ],
+          "reason": "requires --agents hybrid"
+        },
+        {
+          "feature": "workshop_payroll",
+          "reason": "requires --workshop-payroll"
+        }
+      ],
+      "group": "Livelihoods",
+      "experimental": true
+    },
+    {
+      "key": "workshop_economics_mode",
+      "flag": "--workshop-economics-mode",
+      "label": "Workshop economics mode",
+      "help": "market (default); free_inputs: a diagnostic cost control only (free inputs are not a supported feature): every rule as market except that the input charge is recorded and not taken; academy_only: the demand control with no household customers",
+      "kind": "choice",
+      "choices": [
+        "market",
+        "free_inputs",
+        "academy_only"
+      ],
+      "default": null,
+      "parent": "workshop_economics",
+      "requires": [
+        {
+          "feature": "workshop_economics",
+          "reason": "requires --workshop-economics"
+        }
+      ],
+      "group": "Livelihoods",
+      "experimental": true
+    },
+    {
+      "key": "workshop_economics_rules",
+      "flag": "--workshop-economics-rules",
+      "label": "Workshop economics rules",
+      "help": "Workshop economics rules version of a new state: 1 (default): A3-1 exactly (the tick's output enters the commons before title, so the people and merchants can use part of it free in the same tick); 2 (A3-2): a native column keeps each firm's output out of the commons, so it reaches anyone only by sale (households, academies) and the firm produces no more than its inventory room. A saved state keeps its version; a conflicting value is refused",
+      "kind": "choice",
+      "choices": [
+        "1",
+        "2"
+      ],
+      "default": null,
+      "parent": "workshop_economics",
+      "requires": [
+        {
+          "feature": "workshop_economics",
+          "reason": "requires --workshop-economics"
+        }
+      ],
+      "group": "Livelihoods",
+      "experimental": true
+    },
+    {
+      "key": "titled_trade",
+      "flag": "--titled-trade",
+      "label": "Titled trade",
+      "help": "Titled trade (A4): in household-retail pilot regions a resident merchant buys owners' food above their fair-share reserve, pro rata, at the local retail price, paying each owner by stable id; it carries the cargo with title and custody (one shipment by id, one edge a turn, its own model income withheld while it travels) to another pilot region within three hops where the price pays for the trip, and the delivered cargo becomes its retail claim sold to households; a conquest of the destination, a quarantine closure of the route or a lost route returns the shipment, the holder's death escheats the cargo to the commons where it stands; requires --agents hybrid and --household-retail in mode retail or no_relief with rules version 2 (default off)",
+      "kind": "bool",
+      "choices": null,
+      "default": null,
+      "parent": null,
+      "requires": [
+        {
+          "agents": [
+            "hybrid"
+          ],
+          "reason": "requires --agents hybrid"
+        },
+        {
+          "feature": "household_retail",
+          "reason": "requires --household-retail"
+        },
+        {
+          "choice": "household_retail_mode",
+          "values": [
+            "retail",
+            "no_relief"
+          ],
+          "reason": "requires --household-retail-mode retail or no_relief"
+        },
+        {
+          "choice": "household_retail_rules",
+          "values": [
+            "2"
+          ],
+          "reason": "requires --household-retail-rules 2"
+        }
+      ],
+      "group": "Livelihoods",
+      "experimental": true
+    },
+    {
+      "key": "infrastructure_condition",
+      "flag": "--infrastructure-condition",
+      "label": "Infrastructure condition",
+      "help": "Infrastructure condition (B3): irrigation works and roads get a stable asset id, condition and service (s = min(1, condition / 0.5)); serving works wear each turn (irrigation 0.01, roads 0.005) and take war damage at conquest and sack; condition 0 fails a work until it is repaired; irrigation's arable-capacity bonus scales with service and its native flag and roads' two-hop trade range need service >= 0.5; works repair them with anonymous farm labour, timber and treasury coins planned after RS2's repairs (under --local-budgets only within their own envelope); requires --agents hybrid (default off)",
+      "kind": "bool",
+      "choices": null,
+      "default": null,
+      "parent": null,
+      "requires": [
+        {
+          "agents": [
+            "hybrid"
+          ],
+          "reason": "requires --agents hybrid"
+        },
+        {
+          "any": [
+            {
+              "choice": "infrastructure_condition_mode",
+              "values": [
+                "record_only",
+                "wear_only"
+              ],
+              "reason": "requires --infrastructure-condition-mode record_only or wear_only"
+            },
+            {
+              "feature": "repair_projects",
+              "reason": "requires --repair-projects"
+            }
+          ],
+          "reason": "requires one of: --infrastructure-condition-mode record_only or wear_only; --repair-projects"
+        }
+      ],
+      "group": "Livelihoods",
+      "experimental": true
+    },
+    {
+      "key": "infrastructure_condition_mode",
+      "flag": "--infrastructure-condition-mode",
+      "label": "Infrastructure condition mode",
+      "help": "repair (default; requires --repair-projects): works repair condition; record_only: condition is recorded and nothing else changes (service stays 1.0, no works); wear_only: wear and service act and nothing repairs (the control); cost_only (requires --repair-projects): works plan and pay identically and credit no condition",
+      "kind": "choice",
+      "choices": [
+        "repair",
+        "record_only",
+        "wear_only",
+        "cost_only"
+      ],
+      "default": null,
+      "parent": "infrastructure_condition",
+      "requires": [
+        {
+          "feature": "infrastructure_condition",
+          "reason": "requires --infrastructure-condition"
+        }
+      ],
+      "group": "Livelihoods",
+      "experimental": true
+    },
+    {
+      "key": "epidemic_care",
+      "flag": "--epidemic-care",
+      "label": "Epidemic care",
+      "help": "Epidemic care (C2): each ruler may fund, from its local budget, carers for a region with a reported outbreak: adult farmers resident there who hold no other work, named by stable id, give their farm time (removed from farming, their ordinary income share withheld) for a wage paid from the treasury; the patients they can serve (5 per worker-turn) multiply case fatality at the next epidemic tick by 1 - 0.3 x coverage (one floor with practised medicine); requires --agents hybrid, --local-budgets and epidemiology with the contact ledger; cannot run with --wealth-accounting (default off)",
+      "kind": "bool",
+      "choices": null,
+      "default": null,
+      "parent": null,
+      "requires": [
+        {
+          "agents": [
+            "hybrid"
+          ],
+          "reason": "requires --agents hybrid"
+        },
+        {
+          "feature": "local_budgets",
+          "reason": "requires --local-budgets"
+        },
+        {
+          "setting": "epidemiology",
+          "reason": "requires epidemiology with the contact ledger (on by default for new worlds; off with --no-epidemiology or --no-contact-ledger)"
+        },
+        {
+          "not": {
+            "feature": "wealth_accounting",
+            "reason": "requires --wealth-accounting"
+          },
+          "reason": "requires --wealth-accounting off"
+        }
+      ],
+      "group": "Livelihoods",
+      "experimental": true
+    },
+    {
+      "key": "epidemic_care_mode",
+      "flag": "--epidemic-care-mode",
+      "label": "Epidemic care mode",
+      "help": "care (default): the carers' capacity lowers the next tick's case fatality; cost_only: the cost control with the same carers, farm time, withheld income and wages and no effect on fatality",
+      "kind": "choice",
+      "choices": [
+        "care",
+        "cost_only"
+      ],
+      "default": null,
+      "parent": "epidemic_care",
+      "requires": [
+        {
+          "feature": "epidemic_care",
+          "reason": "requires --epidemic-care"
+        }
+      ],
+      "group": "Livelihoods",
+      "experimental": true
+    },
+    {
+      "key": "reform_services",
+      "flag": "--reform-services",
+      "label": "Reform services",
+      "help": "Poor relief as a real service (D1a): a granted poor relief no longer credits every agent's material need for grievance (the native reform table omits its rows); the treasury's relief payment (the upkeep, or the Commons Management share of the enforcement payment) goes into a relief fund (at most four turns of upkeep; the rest sunk as before) that buys the owners' unsold food, paid by stable id at the region's ask, where the realm's own pilot markets recorded people below a full ration, into the commons the next free rations draw on; the fund returns to the treasury when the relief ends; requires --agents hybrid, --household-retail (mode retail or no_relief) and agent movements (default off)",
+      "kind": "bool",
+      "choices": null,
+      "default": null,
+      "parent": null,
+      "requires": [
+        {
+          "agents": [
+            "hybrid"
+          ],
+          "reason": "requires --agents hybrid"
+        },
+        {
+          "feature": "household_retail",
+          "reason": "requires --household-retail"
+        },
+        {
+          "choice": "household_retail_mode",
+          "values": [
+            "retail",
+            "no_relief"
+          ],
+          "reason": "requires --household-retail-mode retail or no_relief"
+        },
+        {
+          "setting": "agent_movements",
+          "reason": "requires agent movements (on by default for new worlds; off with --no-agent-movements)"
+        }
+      ],
+      "group": "Livelihoods",
+      "experimental": true
+    },
+    {
+      "key": "reform_services_mode",
+      "flag": "--reform-services-mode",
+      "label": "Reform services mode",
+      "help": "service (default): the fund buys food for the next free pool; cost_only: the control that withholds the label and sinks the payment as without the switch, buying nothing",
+      "kind": "choice",
+      "choices": [
+        "service",
+        "cost_only"
+      ],
+      "default": null,
+      "parent": "reform_services",
+      "requires": [
+        {
+          "feature": "reform_services",
+          "reason": "requires --reform-services"
+        }
+      ],
+      "group": "Livelihoods",
+      "experimental": true
+    },
+    {
+      "key": "guild_leagues",
+      "flag": "--guild-leagues",
+      "label": "Guild leagues",
+      "help": "Cross-border guild leagues (D1b): guilds of cities in different realms whose regions traded on 3 of the last 10 turns (the merchant deliveries the economy recorded) form a league (one member per realm, at most 4, ids never reused); each turn members pay 2 percent of their guild purse (at most 0.25) into the league fund while it holds less than 3 per member, and the fund pays a member city's purse its recorded levy share of the dues or the plunder of a recorded sack (at most 2 a claim); a member leaves when its guild or city ends or its city changes lord, and a league dissolves at war between members' realms, below two realms, or after 20 turns without trade, returning its fund to the members' purses; requires --agents hybrid, cities and guilds (default off)",
+      "kind": "bool",
+      "choices": null,
+      "default": null,
+      "parent": null,
+      "requires": [
+        {
+          "agents": [
+            "hybrid"
+          ],
+          "reason": "requires --agents hybrid"
+        },
+        {
+          "setting": "cities",
+          "reason": "requires cities (on by default for new worlds; off with --no-cities)"
+        },
+        {
+          "setting": "guilds",
+          "reason": "requires guilds (on by default for new worlds; off with --no-guilds)"
+        }
+      ],
+      "group": "Livelihoods",
+      "experimental": true
+    },
+    {
+      "key": "guild_league_mode",
+      "flag": "--guild-league-mode",
+      "label": "Guild league mode",
+      "help": "mutual (default): the fund pays recorded claims; dues_only: the cost control with the same leagues and dues and no claim paid",
+      "kind": "choice",
+      "choices": [
+        "mutual",
+        "dues_only"
+      ],
+      "default": null,
+      "parent": "guild_leagues",
+      "requires": [
+        {
+          "feature": "guild_leagues",
+          "reason": "requires --guild-leagues"
+        }
+      ],
+      "group": "Livelihoods",
+      "experimental": true
+    },
+    {
+      "key": "war_requisition",
+      "flag": "--war-requisition",
+      "label": "War requisition",
+      "help": "D4 real army supply, seizure and treasury-funded restitution (default off); requires hybrid, campaigns and retail rules 2.",
+      "kind": "bool",
+      "choices": null,
+      "default": null,
+      "parent": null,
+      "requires": [
+        {
+          "agents": [
+            "hybrid"
+          ],
+          "reason": "requires --agents hybrid"
+        },
+        {
+          "feature": "household_retail",
+          "reason": "requires --household-retail"
+        },
+        {
+          "choice": "household_retail_rules",
+          "values": [
+            "2"
+          ],
+          "reason": "requires --household-retail-rules 2"
+        },
+        {
+          "setting": "campaigns",
+          "reason": "requires campaign armies (on by default; off with --no-campaigns)"
+        }
+      ],
+      "group": "Livelihoods",
+      "experimental": true
+    },
+    {
+      "key": "war_requisition_mode",
+      "flag": "--war-requisition-mode",
+      "label": "War requisition mode",
+      "help": "Saved option; choices ('transfer', 'cost_only')",
+      "kind": "choice",
+      "choices": [
+        "transfer",
+        "cost_only"
+      ],
+      "default": null,
+      "parent": "war_requisition",
+      "requires": [
+        {
+          "feature": "war_requisition",
+          "reason": "requires --war-requisition"
+        }
+      ],
+      "group": "Livelihoods",
+      "experimental": true
+    },
+    {
+      "key": "war_consequences",
+      "flag": "--war-consequences",
+      "label": "War consequences",
+      "help": "D3 combat wounds and dated family separation (default off); requires real army supply, health care and residence ledger.",
+      "kind": "bool",
+      "choices": null,
+      "default": null,
+      "parent": null,
+      "requires": [
+        {
+          "agents": [
+            "hybrid"
+          ],
+          "reason": "requires --agents hybrid"
+        },
+        {
+          "feature": "war_requisition",
+          "reason": "requires --war-requisition"
+        },
+        {
+          "feature": "health_care",
+          "reason": "requires --health-care"
+        },
+        {
+          "feature": "residence_ledger",
+          "reason": "requires --residence-ledger"
+        }
+      ],
+      "group": "Livelihoods",
+      "experimental": true
+    },
+    {
+      "key": "war_consequences_mode",
+      "flag": "--war-consequences-mode",
+      "label": "War consequences mode",
+      "help": "Saved option; choices ('active', 'record_only')",
+      "kind": "choice",
+      "choices": [
+        "active",
+        "record_only"
+      ],
+      "default": null,
+      "parent": "war_consequences",
+      "requires": [
+        {
+          "feature": "war_consequences",
+          "reason": "requires --war-consequences"
+        }
+      ],
+      "group": "Livelihoods",
+      "experimental": true
+    },
+    {
+      "key": "adaptive_livelihoods",
+      "flag": "--adaptive-livelihoods",
+      "label": "Adaptive livelihoods",
+      "help": "A6 personal dated migration failures and work experience inform native decisions (default off); requires hybrid and residence ledger.",
+      "kind": "bool",
+      "choices": null,
+      "default": null,
+      "parent": null,
+      "requires": [
+        {
+          "agents": [
+            "hybrid"
+          ],
+          "reason": "requires --agents hybrid"
+        },
+        {
+          "feature": "residence_ledger",
+          "reason": "requires --residence-ledger"
+        }
+      ],
+      "group": "Livelihoods",
+      "experimental": true
+    },
+    {
+      "key": "adaptive_livelihoods_mode",
+      "flag": "--adaptive-livelihoods-mode",
+      "label": "Adaptive livelihoods mode",
+      "help": "Saved option; choices ('adapt', 'record_only', 'shuffled')",
+      "kind": "choice",
+      "choices": [
+        "adapt",
+        "record_only",
+        "shuffled"
+      ],
+      "default": null,
+      "parent": "adaptive_livelihoods",
+      "requires": [
+        {
+          "feature": "adaptive_livelihoods",
+          "reason": "requires --adaptive-livelihoods"
+        }
+      ],
+      "group": "Livelihoods",
+      "experimental": true
+    },
+    {
+      "key": "adaptive_livelihoods_rules",
+      "flag": "--adaptive-livelihoods-rules",
+      "label": "Adaptive livelihoods rules",
+      "help": "Saved option; choices ('2', '1')",
+      "kind": "choice",
+      "choices": [
+        "2",
+        "1"
+      ],
+      "default": null,
+      "parent": "adaptive_livelihoods",
+      "requires": [
+        {
+          "feature": "adaptive_livelihoods",
+          "reason": "requires --adaptive-livelihoods"
+        }
+      ],
+      "group": "Livelihoods",
+      "experimental": true
+    },
+    {
+      "key": "public_health",
+      "flag": "--public-health",
+      "label": "Public health",
+      "help": "Supplied epidemic care, maintained-water sanitation, displacement crowding and dated public-health advice (default off).",
+      "kind": "bool",
+      "choices": null,
+      "default": null,
+      "parent": null,
+      "requires": [
+        {
+          "agents": [
+            "hybrid"
+          ],
+          "reason": "requires --agents hybrid"
+        },
+        {
+          "feature": "epidemic_care",
+          "reason": "requires --epidemic-care"
+        },
+        {
+          "feature": "infrastructure_condition",
+          "reason": "requires --infrastructure-condition"
+        },
+        {
+          "feature": "residence_ledger",
+          "reason": "requires --residence-ledger"
+        },
+        {
+          "choice": "quarantine_mode",
+          "values": [
+            "closure",
+            "cost_only"
+          ],
+          "reason": "requires --quarantine-mode closure or cost_only"
+        }
+      ],
+      "group": "Livelihoods",
+      "experimental": true
+    },
+    {
+      "key": "public_health_mode",
+      "flag": "--public-health-mode",
+      "label": "Public health mode",
+      "help": "Saved option; choices ('active', 'cost_only')",
+      "kind": "choice",
+      "choices": [
+        "active",
+        "cost_only"
+      ],
+      "default": null,
+      "parent": "public_health",
+      "requires": [
+        {
+          "feature": "public_health",
+          "reason": "requires --public-health"
+        }
+      ],
+      "group": "Livelihoods",
+      "experimental": true
+    },
+    {
+      "key": "public_health_policy",
+      "flag": "--public-health-policy",
+      "label": "Public health policy",
+      "help": "Saved option; choices ('evidence', 'shuffled')",
+      "kind": "choice",
+      "choices": [
+        "evidence",
+        "shuffled"
+      ],
+      "default": null,
+      "parent": "public_health",
+      "requires": [
+        {
+          "feature": "public_health",
+          "reason": "requires --public-health"
+        }
+      ],
+      "group": "Livelihoods",
+      "experimental": true
+    },
+    {
+      "key": "public_health_report_delay",
+      "flag": "--public-health-report-delay",
+      "label": "Public health report delay",
+      "help": "Saved option; choices ('0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12', '13', '14', '15', '16', '17', '18', '19', '20')",
+      "kind": "choice",
+      "choices": [
+        "0",
+        "1",
+        "2",
+        "3",
+        "4",
+        "5",
+        "6",
+        "7",
+        "8",
+        "9",
+        "10",
+        "11",
+        "12",
+        "13",
+        "14",
+        "15",
+        "16",
+        "17",
+        "18",
+        "19",
+        "20"
+      ],
+      "default": null,
+      "parent": "public_health",
+      "requires": [
+        {
+          "feature": "public_health",
+          "reason": "requires --public-health"
+        }
+      ],
+      "group": "Livelihoods",
+      "experimental": true
+    },
+    {
+      "key": "residence_ledger",
+      "flag": "--residence-ledger",
+      "label": "Residence ledger",
+      "help": "Residence ledger (X1, the displacement contract): a record-only ledger of where each person lives, where they belong and why they left: home (the residence when first observed, changed only by a voluntary or unclassified move of a person who is not displaced, or after 20 turns settled elsewhere; never by enlistment), residence, army attachment and displacement spells opened by a flight- or hunger-driven move from home, with the opening driver and the home-region event (war, famine, persecution) dated in the 5 turns before, kept open by any onward move and closed on return, resettlement, death, a rebuilt pool or an unobserved gap; one frame per turn dated by its source turn, readable by a consumer only the next turn; changes nothing; requires --agents hybrid (default off)",
+      "kind": "bool",
+      "choices": null,
+      "default": null,
+      "parent": null,
+      "requires": [
+        {
+          "agents": [
+            "hybrid"
+          ],
+          "reason": "requires --agents hybrid"
+        }
+      ],
+      "group": "Livelihoods",
+      "experimental": true
+    },
+    {
+      "key": "attribution_records",
+      "flag": "--attribution-records",
+      "label": "Attribution records",
+      "help": "Attribution records (D2): observation-only records of who did what to whom, at the event: granary seizures with their actor and victim; enlisted soldiers' deaths per war and cause - combat, attrition, war drain (found dead after the tick in a region where a siege, garrison fight, occupation, crushed revolt, nomad raid or a roster-less army's losses staged deaths that turn, at most the staged count; possibly_enemy when no single actor is named) and natural (the other deaths army casualties include: native mortality with its x2 for soldiers at war, plague and other non-war catastrophes); each reuse of a civilization index by a restored polity; and the burdens one polity lays on another per turn (dues, levies, sacks, plunder, requisitions, seizures, war losses, treaty payments, quarantine closures), each labelled by its authority and as a transfer, minted, destroyed or a restriction; nothing reads them; requires --agents hybrid (default off)",
+      "kind": "bool",
+      "choices": null,
+      "default": null,
+      "parent": null,
+      "requires": [
+        {
+          "agents": [
+            "hybrid"
+          ],
+          "reason": "requires --agents hybrid"
+        }
+      ],
+      "group": "Livelihoods",
+      "experimental": true
+    },
+    {
+      "key": "wealth_accounting",
+      "flag": "--wealth-accounting",
+      "label": "Wealth accounting",
+      "help": "Wealth accounting (A1): an observation-only ledger of agent wealth; each turn and region it reads the balance at the Phase 2 opening (checked bit for bit against the last closing) and after every payer, records the typed flows from the packages' receipts (wages, stipends, purchases, procurement, remittances, fares, domestic credit), the paid-work income each package withheld and the treasury side, and labels the rest as unitemized native model flows; changes nothing; requires --agents hybrid (default off)",
+      "kind": "bool",
+      "choices": null,
+      "default": null,
+      "parent": null,
+      "requires": [
+        {
+          "agents": [
+            "hybrid"
+          ],
+          "reason": "requires --agents hybrid"
+        },
+        {
+          "not": {
+            "feature": "epidemic_care",
+            "reason": "requires --epidemic-care"
+          },
+          "reason": "requires --epidemic-care off"
         }
       ],
       "group": "Livelihoods",
@@ -1142,6 +1876,7 @@
     }
   ],
   "settings": {
+    "campaigns": "campaign armies (on by default; off with --no-campaigns)",
     "cities": "cities (on by default for new worlds; off with --no-cities)",
     "techniques": "techniques (on by default for new worlds; off with --no-techniques)",
     "no_household_mobility_liquid_requirement": "no household-mobility liquid requirement (--household-mobility-liquid-requirement unset or 0)",
@@ -1158,6 +1893,7 @@
       ],
       "values": {},
       "settings": {
+        "campaigns": true,
         "cities": true,
         "techniques": true,
         "no_household_mobility_liquid_requirement": true,
@@ -1178,6 +1914,7 @@
       ],
       "values": {},
       "settings": {
+        "campaigns": true,
         "cities": true,
         "techniques": true,
         "no_household_mobility_liquid_requirement": true,

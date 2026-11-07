@@ -1,3 +1,4 @@
+import { EntityHistory } from "./EntityHistory";
 import { useMemo } from "react";
 import { hasRecoveryChain, packagesOn } from "../../lib/recoveryChain";
 import { watershedOn } from "../../lib/watershed";
@@ -78,7 +79,8 @@ export function LivelihoodsPanel(panelProps: SystemPanelProps) {
   return <div className="systems-body">
     {raw !== null && !readable ? <p className="systems-note">The livelihoods record at snapshot {at} is unreadable (malformed or of an unknown version); nothing is shown from it.</p> : null}
     {record !== null && !PACKAGES.some((key) => record[key] != null) ? <p className="systems-note">The livelihoods record at snapshot {at} names no package this viewer reads.</p> : null}
-    {chain ? <RecoveryChain {...panelProps} /> : null}
+    {chain ? <EntityHistory {...panelProps} />
+    <RecoveryChain {...panelProps} /> : null}
     {record?.workshops != null ? <Workshops {...props} /> : null}
     {record?.workshop_payroll != null ? <WorkshopFinance {...props} /> : null}
     {record?.workshop_payroll != null || record?.workshop_economics !== undefined ? <WorkshopEconomics {...props} /> : null}

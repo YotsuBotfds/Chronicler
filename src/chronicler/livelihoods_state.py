@@ -35,6 +35,10 @@ from typing import Literal
 
 from pydantic import BaseModel, Field, PrivateAttr
 
+from chronicler.war_requisition_state import WarRequisitionState
+from chronicler.war_consequences_state import WarConsequencesState
+from chronicler.adaptive_livelihoods_state import AdaptiveLivelihoodsState
+from chronicler.public_health_state import PublicHealthState
 from chronicler.apprenticeship_state import ApprenticeshipState
 from chronicler.attribution_records_state import AttributionRecordsState
 from chronicler.clearing_protection_state import ClearingProtectionState
@@ -74,7 +78,7 @@ LIVELIHOODS_SWITCHES: tuple[str, ...] = ("workshops", "food_allocation", "timber
                                          "operating_wear", "timber_supply",
                                          "recovery_crews", "maintenance_obligation", "reform_services",
                                          "household_retail", "watershed", "workshop_economics", "titled_trade",
-                                         "infrastructure_condition", "epidemic_care", "guild_leagues", "residence_ledger", "attribution_records",
+                                         "infrastructure_condition", "epidemic_care", "guild_leagues", "war_requisition", "war_consequences", "adaptive_livelihoods", "public_health", "residence_ledger", "attribution_records",
                                          "wealth_accounting")
 
 
@@ -110,6 +114,10 @@ class LivelihoodsState(BaseModel):
     infrastructure_condition: InfrastructureConditionState | None = Field(default=None, exclude_if=_is_none)
     epidemic_care: EpidemicCareState | None = Field(default=None, exclude_if=_is_none)
     guild_leagues: GuildLeagueState | None = Field(default=None, exclude_if=_is_none)
+    war_requisition: WarRequisitionState | None = Field(default=None, exclude_if=_is_none)
+    war_consequences: WarConsequencesState | None = Field(default=None, exclude_if=_is_none)
+    adaptive_livelihoods: AdaptiveLivelihoodsState | None = Field(default=None, exclude_if=_is_none)
+    public_health: PublicHealthState | None = Field(default=None, exclude_if=_is_none)
     residence_ledger: ResidenceLedgerState | None = Field(default=None, exclude_if=_is_none)
     attribution_records: AttributionRecordsState | None = Field(default=None, exclude_if=_is_none)
     wealth_accounting: WealthAccountingState | None = Field(default=None, exclude_if=_is_none)

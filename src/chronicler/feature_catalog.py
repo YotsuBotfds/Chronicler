@@ -74,6 +74,7 @@ PREREQUISITES: dict[str, tuple[str, ...]] = {
     "grain_storage": ("grain_storage_policy",),
     "scholarship": (),
     "academy_services": (),
+    "health_care": (),
 }
 
 #: Switch groups after the livelihoods group (B, C and D programs), in display
@@ -92,6 +93,7 @@ CLI_ONLY_CHOICES: dict[str, tuple[str, ...]] = {"household_retail_boundary": ("s
 
 #: Server settings a request cannot change: what each means when true.
 SETTINGS: dict[str, str] = {
+    "campaigns": "campaign armies (on by default; off with --no-campaigns)",
     "cities": "cities (on by default for new worlds; off with --no-cities)",
     "techniques": "techniques (on by default for new worlds; off with --no-techniques)",
     "no_household_mobility_liquid_requirement": (
@@ -141,6 +143,7 @@ _ECONOMY = _agents(*_AGENT_ECONOMY)
 
 #: Declared requirements of every boolean feature (a mode requires its switch).
 REQUIREMENTS: dict[str, tuple[dict, ...]] = {
+    "health_care": (_HYBRID,),
     "grain_reserves": (_ECONOMY,),
     "public_grain_shipments": (_feature("grain_reserves"), _ECONOMY),
     "grain_storage": (_HYBRID, _feature("grain_reserves")),
@@ -177,6 +180,10 @@ REQUIREMENTS: dict[str, tuple[dict, ...]] = {
     # C2: L9 funds the carers; the epidemic model and its ledger are the effect's
     # authority; the A1 ledger does not itemize care wages (mutual exclusion).
     "epidemic_care": (_HYBRID, _feature("local_budgets"), _setting("epidemiology"), _excludes("wealth_accounting")),
+    "war_requisition": (_HYBRID, _feature("household_retail"), _choice("household_retail_rules", "2"), _setting("campaigns")),
+    "war_consequences": (_HYBRID, _feature("war_requisition"), _feature("health_care"), _feature("residence_ledger")),
+    "adaptive_livelihoods": (_HYBRID, _feature("residence_ledger")),
+    "public_health": (_HYBRID, _feature("epidemic_care"), _feature("infrastructure_condition"), _feature("residence_ledger"), _choice("quarantine_mode", "closure", "cost_only")),
     "residence_ledger": (_HYBRID,),
     "attribution_records": (_HYBRID,),
     "wealth_accounting": (_HYBRID, _excludes("epidemic_care")),
@@ -362,6 +369,7 @@ def live_surface(args: Any = None) -> dict:
         "agent_modes": [agents],
         "values": values,
         "settings": {
+            "campaigns": getattr(args, "campaigns", None) is not False,
             "cities": _cities_default() if cities is None else bool(cities),
             "techniques": _techniques_default() if techniques is None else bool(techniques),
             "no_household_mobility_liquid_requirement": not mobility > 0,
@@ -411,6 +419,7 @@ def batch_surface(client_defaults: Mapping[str, Any], config: Mapping[str, Any] 
         "agent_modes": list(AGENT_MODES),
         "values": values,
         "settings": {
+            "campaigns": _batch_value("campaigns", client_defaults, config) is not False,
             "cities": _cities_default(),
             "techniques": _techniques_default() if techniques is None else bool(techniques),
             "no_household_mobility_liquid_requirement": True,
