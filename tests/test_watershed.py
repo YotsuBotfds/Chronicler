@@ -864,10 +864,12 @@ def test_flow_switches_the_replaced_native_terms_off_exactly_once(monkeypatch):
     assert sims["off"].climate[0][1] > 0.0
 
 
-def test_flow_is_refused_without_the_native_ecology():
+def test_flow_is_refused_without_the_native_ecology(monkeypatch):
     from chronicler.livelihoods import configure_livelihoods as configure
     world = _procedural(11)
-    assert ws.native_available() is False                             # the offline lane
+    # Both lanes: the offline lane has no extension; the native shards do, so
+    # the absence is simulated there (the refusal path is what is under test).
+    monkeypatch.setattr(ws, "native_available", lambda: False)
     with pytest.raises(ValueError, match="requires the native ecology"):
         configure(world, _build_parser().parse_args(["--watershed", "--watershed-mode", "flow"]), agent_mode="off")
     assert world.livelihoods is None
