@@ -159,7 +159,7 @@ imports the module in every L9 run, where the provider is inactive and proposes 
 | `PATIENTS_PER_CARER` | 5 per worker-turn | Rural health care's full care effect needs 0.2 worker-turn per patient (`HealthCareState.care_fraction`; recovery `1 + min(1, 5 x care)`), so one worker-turn serves 5 (an injury-nursing analogy). The need is sized with the same constant, so it sets care's labour and wage cost, not its effect: coverage is about 1 either way. |
 | `WAGE_MILLI` | 500 per worker-turn | RS2's `WAGE_PER_WORK`, which PL1 woodcutters are paid. |
 | `DEATH_FOOD_EQUIVALENT` | L9 horizon x per-capita food = 5 | The commons' unit is food; a death averted counts as one person's subsistence over the budget horizon. |
-| `MIN_SHARE` | 0.001 | Least care time one person is named for (PL3's value). |
+| `MIN_SHARE` | 0.001 | Least care time one person is named for (PL3's value). It sits on the wage's rounding boundary: a share's wage is `round(share x 500)` milli-units, so the least f32 share at or above 0.001 is paid 1. **Rounding boundary (declared):** a share whose wage would round to zero is not named (planning skips it), because a zero wage would book farm time and withhold income and date no capacity (capacity is dated only for carers of a paid bill). With these constants the guard never fires; it holds if a constant changes. |
 | `CARE_WAGE_BATCH` | `0xC2000` + civ | Keeps the native key log disjoint from other `repair_wage` users. |
 
 ## Records
@@ -170,8 +170,9 @@ imports the module in every L9 run, where the provider is inactive and proposes 
   capacity, `patients`, `infectious`, `coverage`, `care_factor` applied, `would_be`,
   `techniques_factor`, `combined_factor`, `floored`, and after the tick `deaths`, `cases`,
   `infectious_after`), `refused` capacity, and `regions`: every infected region after the tick
-  (`deaths`, `infectious_pt`, the tick's infectious person-turns `burden x n`, `cases`), in
-  every care arm whether covered or not; None when no tick was observed;
+  (`deaths`, `infectious_pt`, the tick's infectious person-turns `burden x n`, `cases`, and
+  `pathogens`: `[pathogen index, deaths, infectious person-turns]` per pathogen, summing to the
+  region), in every care arm whether covered or not; None when no tick was observed;
 - `frame`: the source turn's carers per envelope (`region`, `civ`, `commitment`, `envelope`,
   `infectious`, `need`, `eligible`, `carers` by stable id with `share`, wages due, paid and
   refused, `income_withheld`; `care_time`, `patients`, `farm_time_removed`, `limit`, `paid`,

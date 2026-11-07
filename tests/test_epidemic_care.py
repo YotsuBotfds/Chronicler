@@ -853,6 +853,26 @@ def test_the_tick_record_reads_every_infected_region_after_the_tick(monkeypatch)
     burden = {row.region: row.burden * row.n for row in w.epidemics.rows}
     assert all(regions[j].infectious_pt == pytest.approx(v) for j, v in burden.items())
     assert w.livelihoods.epidemic_care.applied[0].infectious_after == pytest.approx(burden[0])
+    for j, r in regions.items():           # the per-pathogen split sums to the region's totals
+        assert sum(d for _k, d, _i in r.pathogens) == r.deaths
+        assert sum(i for _k, _d, i in r.pathogens) == pytest.approx(r.infectious_pt)
+    assert {k for k, _d, _i in regions[0].pathogens} == {1}
+
+
+def test_a_share_whose_wage_rounds_to_zero_names_nobody(monkeypatch):
+    """The rounding boundary: a share below the wage's resolution books nobody (a
+    zero wage would book farm time and date no capacity)."""
+    assert EC._wage(0.0009999) == 0 and EC._wage(0.002) == 1
+    w = _world()
+    _outbreak(w, 0, burden=0.03)           # 6 infectious: 1.2 worker-turns
+    _envelope(w, 0, 1)
+    real = EC._wage
+    monkeypatch.setattr(EC, "_wage", lambda share: 0 if share < 0.5 else real(share))
+    sim = _Sim(_people())
+    _phase2(w, sim)
+    (r,) = w.livelihoods.epidemic_care.frame
+    assert [x.agent_id for x in r.carers] == [1] and r.limit == "labour"
+    assert [a for a, *_ in sim.work_reservations(5)] == [1] and r.paid
 
 
 def test_a_capacity_row_naming_no_region_and_one_left_unconsumed_are_counted():

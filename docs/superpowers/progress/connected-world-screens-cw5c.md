@@ -1,10 +1,10 @@
 # Connected-world CW5c: preregistered held screen for bounded epidemic care capacity (slice C2)
 
-Status: DRAFT, revision 2, for the lead's review (not frozen; no held run is allowed until the lead marks this page FROZEN after an independent review of the code and this page)
+Status: DRAFT, revision 3, for the lead's freeze (not frozen; no held run is allowed until the lead marks this page FROZEN after an independent review of the code and this page)
 
 Written 2026-11-07 by the C2 lane on branch `claude/cw-c2-care` (from `main` `bac45cb5`, PR #90).
 Revision 1 was reviewed at `3e5ee44d` ("approve with changes"); revision 2 answers that review
-(below). Native extension: the shared build of `main`'s Rust (`~/.venvs/native-a3`), SHA-256
+(below) and was approved at `dbbd64e2` with four pre-freeze changes (revision 3, below). Native extension: the shared build of `main`'s Rust (`~/.venvs/native-a3`), SHA-256
 `20e77f9945efa71d597c142e99069337586cc865ddee7a17c6d20948a2c0c1ca`; this branch changes no Rust.
 No held seed (template 3301-3306, procedural 3401-3406) has been run. Code may change before the
 held run only to fix a defect, recorded as an amendment below with a new pilot; no arm, outcome,
@@ -13,6 +13,35 @@ definition or parameter changes in response to held outcomes.
 Compute ceiling: 0.50 core-hours
 
 Primary outcomes: cw5c_world_death_rate, cw5c_itt_cfr, cw5c_world_dpi
+
+## Pre-freeze revisions (revision 3, before any held run)
+
+The lead's re-check of `dbbd64e2` (2026-11-07):
+
+- **R1. The mechanism check's gap is pathogen mix.** The revision-2 pilot's EF/EC ratio of
+  own-covered fatality (0.59-0.60 against factor 0.70) was put down to the arms' different
+  covered sets; the reviewer found 0.58 / 0.57 on cells both arms covered and about 0.7 within a
+  pathogen: after the arms diverge, EC's covered cells hold plague and pestilence deaths EF's do
+  not. The care tick record now splits each infected region's deaths and infectious
+  person-turns by pathogen (`tick.regions[*].pathogens`, summing to the region, checked); the
+  mechanism check adds, per pathogen, deaths and infectious person-turns on EC's covered cells in
+  both arms (outcomes `cw5c_mech_<pathogen>`, EF - EC, and a report table of the two readings
+  and their ratio). **The ITT primary (primary 2) is a total effect**: it includes the
+  pathogen-mix differences that follow divergence.
+- **R2.** Fatality per infectious person-turn is "less phase-dependent" than deaths per new
+  infection, not phase-free (definitions and the extractor's comment).
+- **R3. Committed metrics are compact.** Full per-cell metrics stay outside the repository under
+  `/home/user/evidence/c2/`, with their SHA-256 recorded on this page; the committed metrics
+  (`cw5c-compact`, `connected_world_screens.cw5c_compact`) drop the per-cell fields and keep, on
+  each world's EF row, the two values of every paired outcome (`m.pairs`: EF and EC at EC's
+  covered cells), so primary 2 and the per-pathogen check are recomputable from the repository.
+  The paired readings use the stored values when a row has no cells; a test checks that every
+  outcome and the report read the same from the compact rows as from the full ones.
+- **R4. Rounding boundary declared:** a share whose wage rounds to zero dates no capacity (it
+  would book farm time without a paid bill), so planning does not name it; with the declared
+  constants (`MIN_SHARE` 0.001, 500 milli-units per worker-turn) every named share is paid at
+  least 1 milli-unit and the guard never fires
+  ([integration page](../../integration/epidemic-care.md), constants).
 
 ## Pre-freeze revisions (revision 2, before any held run)
 
@@ -127,11 +156,15 @@ epidemic tick of w, which applied the capacity of the carers named in Phase 2 of
 - **Infectious person-turns** of a cell: the tick's mean infectious people, the sum over
   pathogens of `burden x n` after the tick (`tick.regions[*].infectious_pt`, recorded for every
   infected region in both care arms, covered or not). **Deaths** of a cell: the region's epidemic
-  deaths in that tick (`tick.regions[*].deaths`; they sum to `epidemics.deaths`, checked).
+  deaths in that tick (`tick.regions[*].deaths`; they sum to `epidemics.deaths`, checked). Both
+  are also split by pathogen (`tick.regions[*].pathogens`, `[pathogen, deaths, infectious
+  person-turns]`, summing to the cell, checked; the metrics' `cells_by_pathogen`).
 - **Fatality per infectious person-turn** over a set of cells: sum of deaths / sum of infectious
   person-turns (a pooled ratio). Its expectation is about `SUBSTEPS x recovery x case
-  fatality`, so, unlike deaths per new infection, it does not move with an outbreak's phase. A
-  cell the arm did not infect counts zero of both.
+  fatality`, so it is less phase-dependent than deaths per new infection (not phase-free: deaths
+  come from each season's starting infectious share, `burden` is the mean after it). Pooled over
+  pathogens it also depends on the pathogen mix. A cell the arm did not infect counts zero of
+  both.
 - **EC's covered cells:** the cells where EC's tick applied capacity with coverage > 0.
 - **Person-turns:** `regional_population.counts` (end of turn), summed over regions and turns.
   **World death rate:** 1,000 x world epidemic deaths (`epidemics.deaths` summed; equal to the last
@@ -156,7 +189,9 @@ epidemic tick of w, which applied the capacity of the carers named in Phase 2 of
    reading EF at those (turn, region) cells compares fatality where care was offered, whether or
    not EF covered exactly the same cells later. Per infectious person-turn rather than per new
    infection, for the phase reason above. It still reads only the covered part of the world (the
-   mechanism's reach is reported separately).
+   mechanism's reach is reported separately). **It is a total effect:** once the arms diverge
+   their pathogen mix at those cells can differ (more or fewer plague and pestilence infections),
+   and that difference is part of the reading; the per-pathogen check below separates it.
 3. `cw5c_world_dpi`: world epidemic deaths per infectious person-turn (all infected cells of the
    run), whole run: unconditioned, and free of the population denominator's own response.
 
@@ -164,9 +199,18 @@ epidemic tick of w, which applied the capacity of the carers named in Phase 2 of
 
 The EF/EC ratio of fatality per infectious person-turn in **each arm's own** covered cells
 (`covered_dpi`), beside EF's mean applied care factor in its covered cells (`combined /
-techniques`, i.e. `1 - 0.3 x coverage` under the one floor) and its floored count. The ratio
-should sit near the factor (integer death draws add noise). Outcomes `cw5c_mech_covered_dpi`
-(EF - EC) and `cw5c_mech_factor` (EF), and the report's ratio table.
+techniques`, i.e. `1 - 0.3 x coverage` under the one floor) and its floored count. Pooled over
+pathogens the ratio also carries the arms' different pathogen mix after divergence, so it can sit
+below the factor. Outcomes `cw5c_mech_covered_dpi` (EF - EC) and `cw5c_mech_factor` (EF), and
+the report's ratio table.
+
+**By pathogen** (R1): for each pathogen, deaths and infectious person-turns of that pathogen on
+**EC's covered cells**, in both arms; outcomes `cw5c_mech_plague`, `cw5c_mech_pox`,
+`cw5c_mech_fever`, `cw5c_mech_flux`, `cw5c_mech_pestilence` (EF - EC of deaths per infectious
+person-turn of that pathogen there; a world where neither arm had that pathogen there has no
+value), and the report's table of EC, EF and EF / EC per world and pathogen. Within a pathogen
+the ratio should sit near the factor (integer death draws add noise; few cells for a rare
+pathogen).
 
 ## Reach and attenuation (reported per world)
 
@@ -188,6 +232,7 @@ should sit near the factor (integer death draws add noise). Outcomes `cw5c_mech_
 | `cw5c_covered_region_turns` | covered region-turns (selection) | EF - EC |
 | `cw5c_mean_coverage` | mean coverage over region-turns with capacity | EF alone |
 | `cw5c_mech_covered_dpi`, `cw5c_mech_factor`, `cw5c_reach` | mechanism check and reach (above) | EF - EC, EF, EC |
+| `cw5c_mech_plague`, `_pox`, `_fever`, `_flux`, `_pestilence` | deaths per infectious person-turn of the pathogen at EC's covered cells (mechanism check by pathogen) | EF - EC |
 
 ## Harm panel
 
@@ -221,7 +266,8 @@ Households priced out are not measured (household retail is off in every arm).
 **Structural zeros versus unknowns.** Care measures are `None` in E0 (not recorded), never zero. A
 missing epidemics, local-budgets, regional-population or care record, a care record of another
 mode, a tick, its regions or a frame that was not observed (null) in a care arm, a covered row
-without deaths or infectious person-turns, tick deaths that differ from `epidemics.deaths`, a frame
+without deaths or infectious person-turns, a region whose pathogen split does not sum to it, tick
+deaths that differ from `epidemics.deaths`, a frame
 sum that disagrees with its lifetime counter, or any capacity refused or left unconsumed (never
 expected in a natural run) is a missing outcome: the run fails (rc 3) and is reported as failed.
 
@@ -260,9 +306,10 @@ direction only when its sign is the same in at least 5 of 6 activated worlds of 
   for the held run).
 - **Activation and the pilot's mechanism and reach tables** (never evidence): EC and EF activated
   on both worlds. Mechanism check: the EF/EC ratio of own-covered fatality per infectious
-  person-turn was 0.59 (t5) and 0.60 (p19) against EF's mean applied factor 0.70: the arms' own
-  covered sets differ (EF covers more region-turns), so the check is approximate. Reach 0.60
-  (t5) and 0.72 (p19).
+  person-turn was 0.59 (t5) and 0.60 (p19) against EF's mean applied factor 0.70. Corrected in
+  revision 3 (R1): the gap is the arms' pathogen mix after divergence, not their different
+  covered sets (the reviewer found 0.58 / 0.57 on cells both arms covered, and about 0.7 within a
+  pathogen). Reach 0.60 (t5) and 0.72 (p19).
 - **Independent checker** (outside the repository,
   `/home/user/evidence/c2/cw5c/validate/validate_cw5c.py`, reading the raw bundles, never
   importing the screen module) on the same pilot with bundles kept and on development worlds

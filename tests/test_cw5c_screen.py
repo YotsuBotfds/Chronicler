@@ -49,10 +49,19 @@ def _receipt(region, carers=1, *, farm=1.0, paid=500, due=500, withheld=0.3, unp
 def _care(turn, mode="care", applied=(), frame=(), ledger=(), counters=None, regions=(), tick=True):
     return {"schema_version": 1, "stage": "C2", "mode": mode, "source_turn": turn - 1,
             "tick": {"turn": turn - 1, "applied": list(applied), "refused": [],
-                     "regions": [{"region": j, "deaths": d, "infectious_pt": i, "cases": 1.0} for j, d, i in regions]}
+                     "regions": [{"region": j, "deaths": d, "infectious_pt": i, "cases": 1.0,
+                                  "pathogens": _split(d, i)} for j, d, i in regions]}
             if tick else None,
             "frame": list(frame), "ledger": list(ledger), "capacity": [], "counters": counters or {},
             "parameters": {}}
+
+
+def _split(d, i):
+    """Pox carries all but one death and a quarter of the infectious person-turns of a cell
+    with two deaths or more; the plague the rest."""
+    if d >= 2:
+        return [[0, 1, i / 4], [1, d - 1, i - i / 4]]
+    return [[1, d, i]]
 
 
 def _snap(turn, *, active=(), deaths=0, total=0, counts=(100, 100, 50), care=None, awards=(), fa=None):
@@ -128,6 +137,7 @@ def test_cells_world_fatality_mechanism_and_reach(CW):
     m, problems = CW.cw5c_extract(_bundle(_two_turns()), ("--epidemic-care",))
     assert problems == []
     assert m["cells"] == [[0, 0, 0, 4.0], [1, 0, 2, 20.0], [1, 2, 1, 10.0]]
+    assert m["cells_by_pathogen"] == [[0, 0, 1, 0, 4.0], [1, 0, 0, 1, 5.0], [1, 0, 1, 1, 15.0], [1, 2, 1, 1, 10.0]]
     assert m["covered_cells"] == [[1, 0]] and m["covered_region_turns"] == 1
     assert m["world_infectious_pt"] == 34.0 and m["world_deaths_per_ipt"] == pytest.approx(3 / 34)
     assert m["covered_dpi"] == pytest.approx(2 / 20) and m["covered_death_share"] == pytest.approx(2 / 3)
@@ -168,7 +178,8 @@ def test_continuing_outbreak_region_turns_are_defined_in_every_arm(CW):
     assert problems == []
     assert m["reported_region_turns"] == 4 and m["continuing_region_turns"] == 2
     assert m["continuing_deaths_per_case"] == pytest.approx((2 + 1) / (8 + 2))
-    assert all(m[k] is None for k in ("world_deaths_per_ipt", "cells", "covered_cells", "carers_named"))
+    assert all(m[k] is None for k in ("world_deaths_per_ipt", "cells", "cells_by_pathogen", "covered_cells",
+                                      "carers_named"))
 
 
 def test_hunger_stability_and_unrest_measures(CW):
@@ -199,6 +210,14 @@ def test_missing_or_inconsistent_records_are_problems_never_zeros(CW):
         _m, problems = CW.cw5c_extract(_bundle(snaps), ("--epidemic-care",))
         assert any(f"care counter {key} is {value}" in p for p in problems), key
     snaps = _two_turns()
+    snaps[-1]["livelihoods"]["epidemic_care"]["tick"]["regions"][0]["pathogens"][0][1] = 5
+    _m, problems = CW.cw5c_extract(_bundle(snaps), ("--epidemic-care",))
+    assert any("pathogen split does not sum" in p for p in problems)
+    snaps = _two_turns()
+    del snaps[-1]["livelihoods"]["epidemic_care"]["tick"]["regions"][1]["pathogens"]
+    _m, problems = CW.cw5c_extract(_bundle(snaps), ("--epidemic-care",))
+    assert any("pathogen split does not sum" in p for p in problems)
+    snaps = _two_turns()
     snaps[-1]["epidemics"]["deaths"] = 9
     _m, problems = CW.cw5c_extract(_bundle(snaps), ("--epidemic-care",))
     assert any("differ from epidemics.deaths" in p for p in problems)
@@ -227,3 +246,54 @@ def test_the_report_shows_the_mechanism_check_and_reach(CW):
     assert "mechanism check" in text and "reach and attenuation" in text
     assert "| t1 | 0.2 | 0.1 | 0.5 | 0.7 | 0 | 0.5 |" in text
     assert "| t1 | 0.8 | 0.7 | -0.240 |" in text
+    assert "mechanism check by pathogen" in text
+    assert "| t1 | plague | 0.2 | 0.2 | 1 |" in text and "| t1 | pox | 0.2 | 0.06667 | 0.3333 |" in text
+    assert "| t1 | fever |" not in text                 # no infection of that pathogen there in either arm
+
+
+def test_the_pathogen_names_follow_the_registry(CW):
+    from chronicler.epidemiology import PATHOGENS
+    assert CW.CW5C_PATHOGENS == tuple(p.name for p in PATHOGENS)
+    assert [o.id for o in CW.SCREENS["CW5c"].outcomes if o.id.startswith("cw5c_mech_") and o.pair is not None] == \
+        [f"cw5c_mech_{name}" for name in CW.CW5C_PATHOGENS]
+
+
+def test_the_mechanism_check_within_pathogen_reads_ecs_covered_cells(CW):
+    ec, _ = CW.cw5c_extract(_bundle(_two_turns("cost_only", d0=4, d1=1)), ("--epidemic-care", "--epidemic-care-mode",
+                                                                          "cost_only"))
+    ef, _ = CW.cw5c_extract(_bundle(_two_turns("care", d0=2, d1=3)), ("--epidemic-care",))
+    ef["covered_cells"] = [[1, 2]]           # EF's own coverage differs: it must not matter
+    pox = CW.CW5C_PATHOGEN_PAIRS["pox"]
+    assert pox({"m": ef}, {"m": ec}) == (pytest.approx(1 / 15), pytest.approx(3 / 15))
+    assert CW.CW5C_PATHOGEN_PAIRS["plague"]({"m": ef}, {"m": ec}) == (pytest.approx(1 / 5), pytest.approx(1 / 5))
+    assert CW.CW5C_PATHOGEN_PAIRS["fever"]({"m": ef}, {"m": ec}) == (None, None)
+
+
+def test_compact_metrics_drop_cells_and_keep_every_paired_value(CW, tmp_path):
+    import hashlib
+    import json
+    ec, _ = CW.cw5c_extract(_bundle(_two_turns("cost_only", d0=4, d1=1)), ("--epidemic-care", "--epidemic-care-mode",
+                                                                          "cost_only"))
+    ef, _ = CW.cw5c_extract(_bundle(_two_turns("care", d0=2, d1=3)), ("--epidemic-care",))
+    e0, _ = CW.cw5c_extract(_bundle([_snap(1)]), ())
+    rows = [{"arm": "E0", "stratum": "t", "seed": 1, "rc": 0, "m": e0},
+            {"arm": "EC", "stratum": "t", "seed": 1, "rc": 0, "m": ec},
+            {"arm": "EF", "stratum": "t", "seed": 1, "rc": 0, "m": ef},
+            {"arm": "EF", "stratum": "t", "seed": 2, "rc": 1, "m": None}]
+    full, compact = tmp_path / "full.jsonl", tmp_path / "compact.jsonl"
+    full.write_text("".join(json.dumps(r) + "\n" for r in rows), encoding="utf-8")
+    got = CW.cw5c_compact(full, compact)
+    assert got == {"rows": 4, "sha256_full": hashlib.sha256(full.read_bytes()).hexdigest()}
+    small = [json.loads(line) for line in compact.read_text(encoding="utf-8").splitlines()]
+    assert len(small) == 4 and all(not set(CW.CW5C_CELL_KEYS) & set(r["m"] or {}) for r in small)
+    assert "pairs" not in small[1]["m"] and small[3]["m"] == {}
+    assert small[2]["m"]["pairs"]["cw5c_itt_cfr"] == [pytest.approx(2 / 20), pytest.approx(4 / 20)]
+    # Every outcome reads the same from the compact rows as from the full ones.
+    for outcome in CW.SCREENS["CW5c"].outcomes:
+        if outcome.pair is not None:
+            assert outcome.pair(small[2], small[1]) == outcome.pair(rows[2], rows[1]), outcome.id
+        else:
+            row = {"EF": 2, "EC": 1, "E0": 0}[outcome.arm]
+            assert outcome.read(small[row]) == outcome.read(rows[row]), outcome.id
+    report_full = CW._cw5c_report(rows, {"t": [1]})
+    assert CW._cw5c_report(small, {"t": [1]}) == report_full

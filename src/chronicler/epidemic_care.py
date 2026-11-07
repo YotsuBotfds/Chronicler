@@ -340,15 +340,20 @@ def _observe_tick(world, state) -> None:
     epi = world.epidemics
     n = len(world.regions)
     deaths: dict[int, int] = {}
-    for j, _k, d in epi.last_deaths:
+    by_pathogen: dict[int, dict[int, list]] = {}
+    for j, k, d in epi.last_deaths:
         deaths[j] = deaths.get(j, 0) + int(d)
+        by_pathogen.setdefault(j, {}).setdefault(int(k), [0, 0.0])[0] += int(d)
     cases: dict[int, float] = {}
     for row in epi.rows:
         cases[row.region] = cases.get(row.region, 0.0) + row.cases
+        by_pathogen.setdefault(row.region, {}).setdefault(int(row.pathogen), [0, 0.0])[1] += row.burden * row.n
     after = _infectious(world, epi.rows)
     present = {row.region for row in epi.rows if 0 <= row.region < n} | {j for j in deaths if 0 <= j < n}
     state.regions = [TickRegion(region=j, deaths=deaths.get(j, 0), infectious_pt=after[j],
-                                cases=round(cases.get(j, 0.0), 6)) for j in sorted(present)]
+                                cases=round(cases.get(j, 0.0), 6),
+                                pathogens=[(k, d, i) for k, (d, i) in sorted(by_pathogen.get(j, {}).items())])
+                     for j in sorted(present)]
     for a in state.applied:
         a.deaths = deaths.get(a.region, 0)
         a.cases = round(cases.get(a.region, 0.0), 6)
@@ -447,7 +452,9 @@ def prepare_phase2(world, region_input, agent_bridge, snapshot, acc):
                     break
                 farm, _diverted, urban = _farm_share(cities, rid, settlement)
                 share = _f32_floor(min(farm, remaining))
-                if share < MIN_SHARE:
+                if share < MIN_SHARE or _wage(share) < 1:
+                    # Below the wage's resolution (a zero wage would book farm time and
+                    # date no capacity): nobody is named for it.
                     continue
                 money_left = min(envelope_left, budgets[c.civ])
                 wage = _wage(share)

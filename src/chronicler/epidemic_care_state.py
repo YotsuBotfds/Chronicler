@@ -88,6 +88,9 @@ class TickRegion(BaseModel):
     deaths: int
     infectious_pt: float
     cases: float
+    #: The same by pathogen index (``epidemiology.PATHOGENS``), every pathogen with a
+    #: row or deaths there: ``(pathogen, deaths, infectious person-turns)``.
+    pathogens: list[tuple[int, int, float]] = Field(default_factory=list)
 
 
 class CareApplied(BaseModel):
