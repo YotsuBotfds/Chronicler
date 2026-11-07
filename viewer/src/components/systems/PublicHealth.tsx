@@ -13,7 +13,7 @@ export function PublicHealth({ bundle, snapshot, currentTurn }: {
     <h3>Connected public health</h3>
     {reading.note && <p role={reading.state === "malformed" ? "alert" : undefined}>{reading.note}</p>}
     {record && <>
-      <p>{record.mode === "active" ? "Care and maintained water service" : "Cost control: supplies and wages, no protective effect"} · {record.policy} reports.</p>
+      <p>{record.mode === "active" ? "Care and maintained water service" : "Care and sanitation benefits disabled; quarantine controls retained"} · {record.policy} reports.</p>
       <p className="systems-note">Observation from simulation turn {record.source_turn}. Additional report delay: {record.report_delay} turns. Advice uses delivered, unexpired reports.</p>
       <p className="systems-note">{record.crowding === "density_only"
         ? "Corrected explicit density_only mode: regional population density remains the physical health authority. Motive-classified ledger spells add no susceptibility multiplier. Recent arrivals are diagnostics, not measured housing pressure."
