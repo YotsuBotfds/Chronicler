@@ -277,6 +277,67 @@ tests pass against the C1-derived source/native inputs. The final all-scale
 candidate still requires its complete matched admission below; first-candidate
 harms/nulls remain in `matrix-c1`.
 
+## Final candidate: complete admission and remaining costs
+
+[Final measurements](matrix-final/summary.json) compare the unchanged corrected
+baseline `09403c15070ddab4977ae8b2e65c336238468447` with
+`1e047e7b6585d2cf13bb990f03f292c1067979c5` (timber candidate, lazy projection
+and exact food floors). The final pin is pushed as `codex/cwr-perf-final`.
+The lead verified that integrated runtime `8792be88` has identical production
+Python, native and script contents; documentation/viewer/tests differ.
+
+All ten final runs pass their source/native, strict FULL CWR and exact
+readback guards. [Full admission](matrix-final/comparison.json) passes ten
+pairs: **760** non-bundle/Arrow output pairs are byte-identical; every complete
+decoded bundle agrees after `generated_at` only; all **36** checkpoint pairs
+agree in native bytes, world/history, every private livelihood component,
+flags and run configuration. Population trajectories agree. There are **72**
+same-source checkpoint readbacks. Complete-child CPU is **471.50 seconds**,
+under the unchanged 1,350-second final-source ceiling; the baseline costs
+523.36 seconds. Complete CSVs, metrics, plans, private-state exports and every
+original file hash are retained; baseline receipts are in `matrix-c1/before`.
+
+| Fixed FULL case | Model CPU before → final, seconds | Observed change | Final FULL/OFF CPU | Run RSS before → final, MiB |
+| --- | ---: | ---: | ---: | ---: |
+| Template5 / 200 | 21.499 → 20.258 | −5.8% | 1.82× | 822.8 → 810.1 |
+| Procedural32 19 / 200 | 79.064 → 66.506 | −15.9% | 2.10× | 1,973.2 → 1,982.5 |
+| 18,801 initial / 30 | 105.444 → 69.552 | −34.0% | 4.31× | 664.9 → 663.5 |
+| 43,700 initial / 20 | 60.837 → 60.115 | −1.2% | 2.53× | 667.1 → 667.4 |
+| Procedural48 42 / 150 | 51.438 → 49.463 | −3.8% | 2.10× | 1,610.1 → 1,608.7 |
+
+The fixed five FULL jobs sum **318.28 → 265.89 CPU seconds** (−16.5%). These
+are single serial observations, not population-level uncertainty estimates or
+universal speed guarantees. OFF controls range from −4.1% to +2.9%; small
+per-world changes remain inconclusive. The substantial procedural32 and
+18,801-agent reductions align with independently measured needless scans and
+Fraction work, and all complete outputs agree. First-candidate nulls/harms are
+preserved above. All declared operational CPU and 2.5-GiB run-RSS targets pass;
+those targets are batch envelopes, not scientific qualification.
+
+| FULL case | Final timber CPU | Assembly | Write including encoding | Encoding (nested) | Other run CPU |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Template5 | 0.279 | 1.556 | 3.927 | 3.472 | 14.497 |
+| Procedural32 | 2.147 | 4.139 | 12.089 | 10.561 | 48.131 |
+| 18,801 initial | 3.847 | 0.540 | 1.521 | 1.228 | 63.645 |
+| 43,700 initial | 3.328 | 0.360 | 0.853 | 0.556 | 55.575 |
+| Procedural48 | 0.844 | 2.252 | 9.121 | 7.799 | 37.246 |
+
+Encoding remains nested in write; Other subtracts only the disjoint outer
+timber/assembly/write stages. Titled-food dispatch was not separately timed
+after the exact-floor substitution; its remaining cost is included in Other.
+Substantial simulation and serialization work remains. The largest final
+relative CPU cost is still **4.31× OFF**, and every FULL world exceeds the
+playbook's 25% review threshold. These costs are reported rather than waived.
+
+Raw bundle sizes are **unchanged in every pair**, with FULL/OFF ratios still
+**2.37–4.12×**; this lane does not claim a storage reduction or remove events,
+history, nulls or identities. Peak RSS changes are small and mixed, with the
+largest run near 1.94 GiB; no general memory gain is claimed. Lossless archive
+storage and browser loading have separate lead-owned evidence. Run/readback
+RSS scopes remain as defined above; final extractor-only peak was not sampled
+in this matrix. The full 200-seed and procedural qualification gates, default
+promotion and policy efficacy remain unrun/unclaimed.
+
 ```sh
 TOOL=docs/superpowers/progress/connected-world-rework/performance/profile-rework.py
 PYTHONPATH=FROZEN/src NATIVE/bin/python "$TOOL" run PILOT \
