@@ -45,7 +45,10 @@ plain versus checkpoint-writing runs, and resumes each selected checkpoint.
 The adapter never unpickles an old-source checkpoint. Before and after every
 subprocess it rechecks exact source/native/interpreter, tracked input hashes
 and pilot input bytes. A finite positive fixed elapsed budget bounds subsequent subprocess
-starts and times out an overrun; it does not alter the offline chunk limit.
+starts and times out an overrun; final pass also requires the complete execution
+(including inventories/comparisons/final guards) to fit. Its clock starts after
+strict plan revalidation, excluding import/planning. It does not alter the offline
+chunk limit.
 New output paths and at least 3 GiB available disk are required.
 
 The existing comparator decodes the bundle and removes only

@@ -317,9 +317,13 @@ def run_plan(args):
         report.update(selection=plan["selection"], pilot_trajectory_reproduced=same_pilot,
                       raw_arrow_sha256_matches_pilot=raw_arrow_equal, invocations=len(invocations),
                       max_wall_seconds=args.max_wall_seconds, wall_seconds=time.monotonic() - started,
+                      budget_scope="execution after strict plan revalidation, including subprocesses/output inventories/comparisons",
                       source_freeze=expected, driver_sha256=sha(__file__), semantics=plan["semantics"])
-        report["pass"] = bool(report.get("pass") and same_pilot and raw_arrow_equal and len(report.get("results", {})) == len(plan["selection"]["ks"]))
         guard()
+        report["wall_seconds"] = time.monotonic() - started
+        report["budget_pass"] = report["wall_seconds"] <= args.max_wall_seconds
+        report["pass"] = bool(report.get("pass") and same_pilot and raw_arrow_equal and report["budget_pass"]
+                              and len(report.get("results", {})) == len(plan["selection"]["ks"]))
         save_new(output / "report.json", report)
         return report
     except BaseException as error:
