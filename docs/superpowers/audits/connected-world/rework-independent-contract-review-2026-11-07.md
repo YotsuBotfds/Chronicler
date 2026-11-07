@@ -142,3 +142,43 @@ parameters to make the twelve historical worlds favorable. Fresh bounded,
 preregistered matched comparisons, profiling, exact-head CI and verified main
 remain separate execution and merge gates. This document contains no approval
 of an as-yet-unseen implementation diff.
+
+## Subsequent independent review and focused regressions
+
+Viewer optimization `cf0925d93fe1dff4687326e2d583d3d727d6c0a4` is approved
+from the actual two-file diff. It replaces repeated numeric `toLocaleString`
+construction with one `Intl.NumberFormat` using the same default locale and
+maximum-three-decimal precision. The indexing traversal, values, source dates,
+rows, bounds and reading states do not change. The app has no runtime locale
+selector; the browser document's default locale is stable for its lifetime.
+
+The reviewer used a separate detached worktree at that exact commit and ran
+the actual public-index tests: **10 passed** (including the new signed-zero,
+unknown and nonfinite-value regression). An independent Node check compared
+156 old/new formatted strings across six locales, including tiny/large,
+negative, zero and rounding-boundary values: **zero mismatches**. Complete
+saved-index digest equality, repeated browser timings and paired locales remain
+the performance owner's distinct evidence; these checks do not establish a
+hardware-independent speed guarantee.
+
+The reviewer authored `tests/test_adaptive_controls.py` against the integration
+owner's corrected rules-3 implementation. These tests use the real dated D3
+return/evacuation builder and a recording native seam. They verify unchanged
+D3 inputs across personal modes/channels, personal-only shuffle before the
+combined cap, work/trade isolation, legacy rules-2 historical control behavior,
+T−1 refusal, pickle/rollback, old JSON/pickle defaults, new-enable rules 3 and
+orphan/saved-option refusal before mutation. Full native movement/lifecycle
+execution remains a separate integration gate; a recording seam proves input
+composition, not actual migration outcomes.
+
+Focused selection: **28 passed** against `/workspace/Chronicler/src`. The
+same selection passed the unchanged official offline guard in a sanitized,
+one-thread environment: 28 passed, no skips/failures, no loaded/blocked native
+imports or I/O attempts, guard PASS; 1.194 seconds including process startup
+under the existing 110-second limit. Source hashes were stable during the run.
+Compact command/source/guard receipt remains outside the checkout at
+`/workspace/evidence/rework-review/adaptive-controls/receipt.json`.
+
+This is approval of the pure viewer diff and focused control regressions, not
+an assertion that the complete in-progress rework has passed final source,
+compatibility, resume, fresh-screen, profile or exact-head/main CI gates.
