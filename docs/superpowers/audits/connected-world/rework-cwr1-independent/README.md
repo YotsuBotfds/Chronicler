@@ -94,8 +94,8 @@ Constructed tests (no native imports, simulations or fresh cohort data):
 python docs/superpowers/audits/connected-world/rework-cwr1-independent/selftest.py
 ```
 
-Eight test methods pass, including 19 malformed/missing/control mutations,
-source/protocol/registry mutations, rendered-primary arithmetic, exact 64-way
+Nine test methods pass, including 25 malformed/missing/control mutations,
+source/protocol/registry mutations, whole-count cardinality guards, rendered-primary arithmetic, exact 64-way
 sign flips, zero-denominator nulls and legitimate unknown access. These are
 constructed interface fixtures, not independently simulated worlds. Actual
 pilot/held audit receipts must be added only after their data are available.

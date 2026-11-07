@@ -121,6 +121,19 @@ class CheckerTests(unittest.TestCase):
                 self.assertTrue(result["errors"])
                 self.assertIsNone(result["primaries"]["cwr_food:t"]["summary"])
 
+    def test_cardinalities_cannot_be_fractional_but_food_and_infectious_time_can(self):
+        for metric in ("person_turns", "unknown_migration_drivers", "retail_access_unknown_region_turns",
+                       "a6_personal_rows", "retail_priority_household_turns", "arrival_complete_region_turns"):
+            with self.subTest(metric=metric):
+                rows = fixture()
+                rows[0]["m"][metric] = .5
+                self.assertEqual(run(rows)["status"], "FAIL")
+        rows = fixture()
+        row = rows[0]
+        row["m"].update(world_infectious_pt=100.5, world_deaths_per_ipt=row["m"]["epidemic_deaths"] / 100.5,
+                        retail_free_pool_observed=3.25, retail_free_rations_observed=2.75)
+        self.assertEqual(run(rows)["status"], "PASS")
+
     def test_source_identity_failure_precedes_effect_summary(self):
         result = C.audit(fixture(), TEXT, "pilot", "b" * 40, C.NATIVE, draws=16)
         self.assertEqual(result["status"], "FAIL")
