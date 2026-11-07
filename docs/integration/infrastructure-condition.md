@@ -448,32 +448,41 @@ once anything differs, so a single world's difference mixes the link with trajec
 
 Section 9.
 
-## 9. Verification record (2026-11-07; branch `claude/cw-b3-infrastructure` at `e2b62e6c`)
+## 9. Verification record (2026-11-07; branch `claude/cw-b3-infrastructure`, `src` at `9daaec56`)
 
 Source: the branch head (main 66e1ec40 merged at `33fc1685`, main bac45cb5, PR #90, at `8da9ead4`;
-the reviewer approved `10d73230`; the flow x condition integration at `c5593e81`; the reviewer's
-minor and nits and the CW3b screen at `80966420`/`dda1be4b`; layer `cwb3` last, after `cwd2` and
-`cwb2`, unchanged since `8da9ead4`). Every native step used `PYTHONPATH=<worktree>/src` and the
-extension at `~/.venvs/native-a3`, SHA-256
+the reviewer approved `10d73230`; the flow x condition integration at `c5593e81`, approved at
+`453d307c`; the skipped-damage counter and the CW3b revisions at `7364c643`/`518407eb`; the works'
+timber need in PL1 at `733e5e08`/`9daaec56`; `src` unchanged since `9daaec56`, later commits are
+viewer, screen, tests and documents; layer `cwb3` last, after `cwd2` and `cwb2`, unchanged since
+`8da9ead4`: the timber link touches no pinned file). Every native step used
+`PYTHONPATH=<worktree>/src` and the extension at `~/.venvs/native-a3`, SHA-256
 `20e77f9945efa71d597c142e99069337586cc865ddee7a17c6d20948a2c0c1ca`, built from Rust identical to main
 (no Rust change in this lane, so `cargo test` was not rerun). Compact evidence under
 `/home/user/evidence/b3/` (outside the repository).
 
 | Check | Result |
 | --- | --- |
-| Focused offline tests | `tests/test_infrastructure_condition.py` 59 passed; with the screen runner, CW1/CW3/CW4 screens, catalog, matrix, manifest, money, ledger, D2, RS2, PL3, PL1, watershed, wiring, ecology and shard tests: all pass |
-| Witness chain with layer `cwb3` (last, after `cwd2` and `cwb2`; 7 hunks over `economy.py`, `agent_bridge.py`, `ecology.py`, `batch_manifest.py`, `tests/test_batch_manifest.py`, parent main bac45cb5) | the playbook's witness and pin modules: 509 passed, 61 subtests passed |
-| Bounded offline lane (`scripts/run_python_oracle_checks.py`, default output dir) | PASS in 332.4 s: 70 chunks, 7,409 passed, 69 skipped, 0 failed; `connected-world-b` 125 passed in 4.1 s of 110 s |
-| Native pytest (real extension) | 43 passed in 183.4 s: `test_infrastructure_condition_native.py` (4, including the exact resume inside an open flood with damaged works) with the RS2, PL3, closure, PL1, A1, A3, D2 and watershed native modules |
-| Feature-off identity against `8abc1acb` (`turn_speed_identity.py`, the 9 standard cases, each side its own tree and extension) | 9 cases, 399 files compared, 0 differences |
+| Focused offline tests | `tests/test_infrastructure_condition.py` 68 passed; with PL1, RS2, the screen runner and the CW3 screens: 277 passed |
+| Bounded offline lane (`scripts/run_python_oracle_checks.py`, at `47f7dfe3`) | PASS in 297.3 s: 70 chunks, 7,418 passed, 69 skipped, 0 failed; `connected-world-b` 134 passed in 4.6 s of 110 s (the lane includes the witness and pin modules) |
+| Native pytest (real extension, at `47f7dfe3`) | 66 passed in 177.0 s: `test_infrastructure_condition_native.py` (5, including the exact resume with an outstanding timber order) with the RS2, PL3, closure, PL1, L3, A1, A3, D2 and watershed native modules |
+| Feature-off identity against `8abc1acb` (`turn_speed_identity.py`, the 9 standard cases; head `daf13c24`) | 9 cases, 399 files compared, 0 differences |
 | Feature-off identity against the preceding main `bac45cb5` | 9 cases, 399 files compared, 0 differences |
-| `--watershed-mode flow` alone against main bac45cb5 (proc48_hybrid_s42) | 92 files compared, 0 differences |
-| `--infrastructure-condition` alone (repair, with `--grain-reserves --grain-storage --repair-projects`, **without** L9) against the approved `10d73230` (hybrid_s42, proc48_hybrid_s42) | 205 files compared, 0 differences. **With** `--local-budgets` the output differs from `10d73230` by intent: the award fix (an envelope funds only the works in its recipient regions) changes the works' envelopes and so the trajectory (the reviewer saw receipts' `envelope` go to 0 for works outside the award's regions from snapshot 53 on procedural 13). That is the one intended change of the condition switch alone since `10d73230`; a skipped damage adds its record (`skipped_damages`, present only once a skip happened) and counters, no state change; these runs were compared at `e2b62e6c`, before that record existed. |
-| `record_only` against the switch omitted, and explicit `--no-infrastructure-condition` (hybrid_s42 and proc48_hybrid_s42 with L9 and the maintenance obligation; at `8da9ead4`, unchanged code paths since) | equal except the record and its two manifest keys (every other file byte-identical); explicit off 205 files, 0 differences |
-| Exact resume, every livelihoods switch with retail everywhere, A3, D2, A1 and B3 (`hybrid_s42_long`, 19 resume points; at `8da9ead4`) | PASS; resumes at turns 89 and 110 inside works that delivered work that turn |
-| Exact resume, watershed `flow` x condition with RS2, L9 and the maintenance obligation (`checkpoint_identity.py`, `proc32_hybrid_s11`, 40 turns, 39 resume points) | PASS: checkpointing changes nothing; every resume byte-identical (no flood in this case's 40 turns; the native test covers the open flood: procedural 13, checkpoint 33) |
-| Viewer | full suite 1,620 passed and 2 skipped; one unrelated test (`AppShell.navigation`) timed out at 5 s under a load average near 8 and passed alone (11 of 11); `npm run lint` clean; `npm run build` passes |
-| CW3b screen | `check --screen all` passes; timing pilot (template 5, procedural 19) 12 runs, 0 failed, every arm activated |
+| Each switch alone against `518407eb` (the head before the timber link; hybrid_s42 and proc48_hybrid_s42 with grain storage, RS2, the L3 stock, PL1, L9 and the maintenance obligation): B3 off, `record_only`, `wear_only` | each 2 cases, 205 files compared, 0 differences |
+| B3 `repair` **without** PL1 against `518407eb` (the same cases, RS2 and L9) | 2 cases, 205 files compared, 0 differences: the link acts only through PL1 |
+| Positive control: B3 `repair` **with** PL1 against `518407eb` (treasury) | differs by intent (hybrid_s42 3 files, proc48_hybrid_s42 69 files): the comparisons above are not vacuous |
+| Exact resume, every livelihoods switch with retail everywhere, A3, D2, A1, PL1 and B3 (`hybrid_s42_long`, 19 resume points) | PASS: checkpointing changes nothing, every resume byte-identical |
+| Exact resume, watershed `flow` x condition with RS2, L9 and the maintenance obligation (`proc32_hybrid_s11`, 39 resume points) | PASS |
+| Exact resume, B3 `repair` with PL1 and the L3 stock (treasury; `proc32_hybrid_s11`, 39 resume points) | PASS |
+| Viewer (at `47f7dfe3`) | full suite 1,625 passed and 2 skipped (163 files, `--maxWorkers=2`); `npm run lint` clean; `npm run build` passes |
+| CW3b screen | `check --screen all` passes (42 outcomes, 3 primary); timing pilot at `d5834d07` (template 5, procedural 19) 12 runs, 0 failed, every arm activated |
+
+Earlier identities still standing: `--watershed-mode flow` alone against main bac45cb5 (92 files, 0
+differences, at `e2b62e6c`) and `--infrastructure-condition` alone without L9 against the approved
+`10d73230` (205 files, 0 differences, at `e2b62e6c`); with `--local-budgets` the condition switch
+alone differs from `10d73230` by the award fix (an envelope funds only the works in its recipient
+regions), the one intended change since `10d73230` apart from the timber link (which acts only with
+PL1) and the skipped-damage record (present only once a damage was skipped).
 
 **Not run:** a desktop and phone browser journey (V8), profiling at a declared scale (V11), the
 narration audit (no narration change), any held screen (CW3b is preregistered, DRAFT), the 200-seed
