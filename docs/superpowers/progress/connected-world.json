@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "board_version": 19,
+  "board_version": 20,
   "title": "Connected-world program (A livelihoods and trade, B watersheds and infrastructure, C public health, D institutions and war, E stories and evidence) operational board",
   "plan": "docs/superpowers/roadmaps/connected-world-program.md",
   "owner_instruction": "2026-11-06 (after #82): own the A-E program end to end with parallel workers, integrating and evaluating each slice and continuing across slice boundaries; merges of this program authorized after independent review, green premerge Tests on the reviewed head and verified main CI; new systems opt-in and off by default; no default promotion; full 200-seed and procedural qualification gates restricted; bounded held screens (procedural included) authorized; no purchases, paid credits, paid narration APIs, deployments, credential or sharing changes. Amendment (same day): tiers sequence work and are not stopping points; failures block the affected merge, not the program; pin 8abc1acb as the original reference; default-path changes behind a switch or rules version.",
@@ -165,9 +165,12 @@
       "id": "B3",
       "branch": "claude/cw-b3-infrastructure",
       "scope": "--infrastructure-condition: irrigation then roads; sibling record infrastructure_works; money.py; one L9 envelope",
-      "status": "recovered; integrating X1; fresh verification pending",
-      "head": "83abd666",
-      "integration_branch": "codex/cw-b3"
+      "status": "merged (#94); main CI pending",
+      "head": "be524a60a3a94a64c9572f1befd3769583773c62",
+      "integration_branch": "codex/cw-b3",
+      "merge_commit": "4cabac21f41ba6683f4fd7106bd5c11292c4978b",
+      "premerge_run": 42381096201,
+      "main_run": 42382492574
     },
     {
       "id": "C2",
@@ -187,7 +190,7 @@
       "id": "D1",
       "branch": "claude/cw-d1-institutions",
       "scope": "--reform-services (poor relief buys real food) and --guild-leagues (cross-border guild leagues, real purse transfers)",
-      "status": "recovered; review/evidence in progress",
+      "status": "PR #95 draft; fresh held running frozen 808726b8; must integrate #94 before final review/CI",
       "integration_branch": "codex/cw-d1",
       "fresh_cohort": {
         "template": [
@@ -198,14 +201,15 @@
           3801,
           3806
         ]
-      }
+      },
+      "head": "808726b8c886306229d3e08d76fdee9e6f580dde"
     },
     {
       "id": "D4",
       "branch": "claude/cw-d4-requisition",
       "scope": "--war-requisition transfer|cost_only (requisitioned food to army rations, minted refill reduced), restitution (native purpose 10), A4-2 cargo in war; settles the soldier-movement discrepancy",
-      "status": "reconstructing from durable audits; remote branch absent and no accessible original worktree found",
-      "integration_branch": "codex/cw-d4"
+      "status": "reconstructed, implemented and independently reviewed; integration/native lifecycle tests pending",
+      "integration_branch": "codex/cw-lead"
     }
   ],
   "recorded_limits": [
@@ -581,9 +585,20 @@
       "main_run": 42354356085,
       "date": "2026-11-07",
       "verification": "main exact-head Tests success, nine jobs"
+    },
+    {
+      "pr": 94,
+      "slice": "B3 infrastructure condition and public works",
+      "merge_commit": "4cabac21f41ba6683f4fd7106bd5c11292c4978b",
+      "reviewed_head": "be524a60a3a94a64c9572f1befd3769583773c62",
+      "premerge_run": 42381096201,
+      "main_run": 42382492574,
+      "main_status": "pending",
+      "date": "2026-11-07",
+      "verification": "independent exact-head approval; all nine premerge jobs green; feature-off identity both refs9/399/0; offline72chunks7618pass69skip;5native;desktop+phone;14declared-scale runs. See B3 integration verification doc."
     }
   ],
-  "next": "Integrate and independently review B3 against X1, fresh gates and PR; D1 review/fresh CW-D1 screen in parallel; reconstruct D4; complete coverage matrix and implement remaining A1-2/A4-3/B4-B5/C2 follow-ons/C4/D1c/D3/A6/E. Checkpoints are not completion.",
+  "next": "Verify #94 main Tests 42382492574 before further feature merges. D1 frozen held screen continues; integrate #94/rebuild D1 inverse and review exact head. Lead combines A1-2,D4,A4-3,B4/B5/named crews,C2 followons/C4/guards,D1c,D3/A6,E. Native review found A6 attribution and A1 treasury-sign blockers: fixes + independent recheck required before affected PR. Continue full program, no default promotion or restricted gates.",
   "baseline": {
     "oracle_lane": "PASS, 63 chunks, 295.5 s, slowest 32.4 s of 110 s",
     "native_check": "check_python_env --expect native PASS (101a4cd5)",
@@ -679,7 +694,8 @@
     "2026-11-07 ~00:10Z: container restart stopped lanes A3, B2, D2 mid-task; all resumed from saved transcripts with no work lost; shared native venv rebuilt from main ae94bca6 (e724072d).",
     "2026-11-07 ~04:40Z: second container restart stopped lanes X1, B3 and the C2/A4 reviews; all resumed from saved transcripts, no work lost; native venvs intact.",
     "2026-11-07: held runs serialized with a shared lock (the runner charges elapsed seconds against each ceiling).",
-    "2026-11-07 Codex recovery: clean sole checkout e3bce686; fetched all remote branches, B3 83abd666 and D1 e12ba7ec recovered into isolated worktrees; D4 remote absent, no original worktree accessible. Main Tests 42354356085 green. Reconciled all remote CW seed registries: appended CW3b, preserved CW3 disk failure; CW5c 3301/3401 used, D1 reserved 3701/3801."
+    "2026-11-07 Codex recovery: clean sole checkout e3bce686; fetched all remote branches, B3 83abd666 and D1 e12ba7ec recovered into isolated worktrees; D4 remote absent, no original worktree accessible. Main Tests 42354356085 green. Reconciled all remote CW seed registries: appended CW3b, preserved CW3 disk failure; CW5c 3301/3401 used, D1 reserved 3701/3801.",
+    "2026-11-07T14:37Z #94 merged through PR after independent be524a60 review and Tests42381096201 all9green; tree equality verified. main4cabac21 CI42382492574 pending. Actual D4 Phase2 census fixes recruit double meal; native review blocks later integration on A6 attribution/A1 treasury-sign findings."
   ],
   "defects_for_owner": [
     "seven decision sites read causal provenance (4 default-path: cities, diplomacy, epidemiology, nomads; 3 behind --scholarship); recorded by D2, not changed",

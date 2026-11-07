@@ -43,9 +43,9 @@ def set_timber_orders_enabled(world, value, *, args=None, agent_mode=None):
     if value:
         if agent_mode != "hybrid":
             raise ValueError("--timber-orders requires --agents hybrid")
-        from chronicler.timber_supply import timber_supply_active
-        from chronicler.local_budgets import local_budgets_active
-        if not timber_supply_active(world) or not local_budgets_active(world):
+        container = getattr(world, "livelihoods", None)
+        if not all(getattr(getattr(container, name, None), "enabled", False)
+                   for name in ("timber_supply", "local_budgets")):
             raise ValueError("--timber-orders requires --timber-supply and --local-budgets")
         if _state(world) is None:
             world.livelihoods.timber_orders = TimberOrdersState()

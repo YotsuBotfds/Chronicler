@@ -188,3 +188,11 @@ def test_war_seizes_timber_as_timber_and_records_value_liability(lane, monkeypat
     assert world.regions[0].stockpile.goods["timber"] == 10 and not store
     assert noted == [dict(owner=17,region=0,actor="C1",value_milli=2000,shipment=0,goods="timber",quantity_milli=2000)]
     assert world.civilizations[1].treasury == 50
+
+
+def test_configuration_uses_supplied_mode_before_world_runtime_is_synchronized():
+    from types import SimpleNamespace as NS
+    world = NS(agent_mode="off", livelihoods=NS(timber_orders=None,
+        timber_supply=NS(enabled=True), local_budgets=NS(enabled=True)))
+    T.set_timber_orders_enabled(world, True, agent_mode="hybrid")
+    assert world.livelihoods.timber_orders.enabled
