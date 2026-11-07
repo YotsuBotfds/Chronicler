@@ -741,10 +741,12 @@ def test_all_enabled_selection_with_closure_is_valid_in_the_catalog():
     selection["quarantine_mode"] = "closure"
     # A live surface (--live): the world-dependent --watershed is offered there too.
     surface = fc.live_surface(_build_parser().parse_args(["--agents", "hybrid", "--live"]))
-    # C2's epidemic care and the A1 ledger exclude each other: every switch but one of them.
-    assert "requires --wealth-accounting off" in fc.validate_features(selection, surface)
-    for dropped in ("epidemic_care", "wealth_accounting"):
-        assert fc.validate_features({k: v for k, v in selection.items() if k != dropped}, surface) is None
+    # A1-2 now itemizes care wages/withheld income, so all switches coexist.
+    # Public health still requires the actual care authority, independently
+    # of whether its accounting observer is enabled.
+    assert fc.validate_features(selection, surface) is None
+    assert "requires --epidemic-care" in fc.validate_features({k: v for k, v in selection.items() if k != "epidemic_care"}, surface)
+    assert fc.validate_features({k: v for k, v in selection.items() if k != "wealth_accounting"}, surface) is None
     off = fc.live_surface(_build_parser().parse_args(["--agents", "hybrid", "--no-epidemiology"]))
     assert "epidemiology with the contact ledger" in fc.validate_features({"quarantine_mode": "closure"}, off)
     # An explicit legacy is the option omitted: valid without epidemiology (m4).

@@ -90,7 +90,7 @@ Terms (owner instruction and amendment):
     checkpoints only (not in the bundle or state file), omitted while off; an exact resume restores it; a rebuilt pool (legacy resume) rebuilds
     nothing (`pool_reset`, `observed_from`). Late army dissolutions are seen at T+1.
   - *Readers* get T's frame at T+1 only (`read_frame` aggregates for C2 and rulers, split by
-    cause and anchor; an `OwnRow` accessor bound to one person for A6; `separation` for D3; a
+    cause and anchor; an `OwnRow` accessor bound to one person for A6 and D3's released-person home; `separation` for D3; a
     same-turn or future read is refused; a Phase 10 consumer sits before the writer in the switch
     order). The guard
     `tests/test_residence_ledger_guard.py` refuses any other read of the ledger by a decision
