@@ -233,6 +233,50 @@ whole-output admission. A separate bounded same-scale diagnostic investigates
 the much larger residual. Neither change tunes physical parameters or removes
 observations.
 
+## Measured residual and exact arithmetic follow-up
+
+[Residual evidence](residual-dispatch/receipt.json) retains both outcomes of the
+bounded investigation. The first launcher could not find `/usr/bin/time`
+(exit 127 before simulation). The recursive profile was then gracefully
+interrupted after **20/30** turns at 318.68 total process CPU seconds, below
+the unchanged 450-second ceiling. It is **incomplete**, supplies no full-run
+admission and cannot be a performance baseline. It retains 584,442,033 calls:
+`titled_trade._dispatch` consumes 269.41 cumulative profiled CPU seconds;
+18.38 million Fraction forward calls and 18.27 million reverse calls dominate
+its nested arithmetic. Cumulative timings overlap and include profiler overhead.
+
+A separate approved outer timer then completes the **entire original 30-turn
+world**: 30 dispatch calls consume **63.334 of 106.409 model CPU seconds**,
+59.5%. Only one CPU/wall pair per dispatch call is added; inner arithmetic is
+uninstrumented. [Transparency](residual-dispatch/scoped-transparency.json)
+passes all 32 non-bundle outputs/Arrow files, the complete decoded bundle after
+timestamp only, and three exact native/private/world/history checkpoint pairs
+against the unwrapped case. Whole-child CPU is 111.64 seconds; post-validation
+peak RSS 695,004 KiB. This corroborates the hotspot at the complete declared
+scale without treating the partial profile as a completed run.
+
+The candidate replaces only two floor expressions. For the existing exact
+`Fraction(_ration(world)) * MILLI = N/D` and integer price `P`,
+`floor(room * (N/D) / P) == (room * N) // (D * P)`; the same identity applies
+to the integer cash limit. Numerator/denominator are obtained once and `D*P`
+once per origin. Every room, owner claim and wallet is still read in its
+original loop; `_buy` and its exact Fraction settlement remain unchanged.
+The float-to-room and float-to-cash rounding is unchanged. No mutable offer is
+cached, and no floating-point arithmetic is reassociated.
+
+Tests exercise 600 real-dispatch combinations using the old exact Fraction
+oracle: `.35`, `.6`, one third and adjacent floats; float32 ceiling/cash
+boundaries; intermediate integers above 2^64; and changed wallet/claim values
+after a buy. A 40-carrier refused-market regression fails on the old source
+after all physical assertions pass: it creates 120 avoidable intermediate
+Fractions. The new path creates none. The no-dispatch projection regression
+also fails on the old candidate. These are computational regressions; the old
+economic calculations were correct. Seventy offline titled/timber tests pass,
+independent review repeats all seventy, and nine compiled-native lifecycle
+tests pass against the C1-derived source/native inputs. The final all-scale
+candidate still requires its complete matched admission below; first-candidate
+harms/nulls remain in `matrix-c1`.
+
 ```sh
 TOOL=docs/superpowers/progress/connected-world-rework/performance/profile-rework.py
 PYTHONPATH=FROZEN/src NATIVE/bin/python "$TOOL" run PILOT \

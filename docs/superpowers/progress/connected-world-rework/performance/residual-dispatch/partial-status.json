@@ -1,0 +1,11 @@
+{
+  "status": "INCOMPLETE",
+  "intended_turns": 30,
+  "actual_completed_turns": 20,
+  "exit_code": 130,
+  "stop": "Lead-approved gracefulSIGINT at300CPU; currentturn finished, partial checkpoint/state and pstats retained.450CPU ceiling unchanged.",
+  "qualification": false,
+  "full_output_admission": false,
+  "resource_scope_correction": "Original generic resource-scope string lists later stages not reached. Actual captured resource usage covers startup, interrupted20-turn model execution/cleanup and diagnostic stats; no complete30T exact readback or CWR extraction occurred.",
+  "first_launcher_failure": "/usr/bin/time absent,127 before any simulation; prior directory preserved."
+}

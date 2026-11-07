@@ -1,0 +1,222 @@
+{
+  "kind": "same-scale residual diagnosis and exact-arithmetic optimization controls",
+  "source_before": "a1fcb482f4d971e1c20e99075f2e256f9838a359",
+  "native_sha256": "b1d3ea5ac858681960b2cb880c534164905501f6ab4f6f3c94f7c9b5f66196cd",
+  "recursive_profile_status": {
+    "status": "INCOMPLETE",
+    "intended_turns": 30,
+    "actual_completed_turns": 20,
+    "exit_code": 130,
+    "stop": "Lead-approved gracefulSIGINT at300CPU; currentturn finished, partial checkpoint/state and pstats retained.450CPU ceiling unchanged.",
+    "qualification": false,
+    "full_output_admission": false,
+    "resource_scope_correction": "Original generic resource-scope string lists later stages not reached. Actual captured resource usage covers startup, interrupted20-turn model execution/cleanup and diagnostic stats; no complete30T exact readback or CWR extraction occurred.",
+    "first_launcher_failure": "/usr/bin/time absent,127 before any simulation; prior directory preserved."
+  },
+  "scoped_full30T_complete": true,
+  "scoped_all32_nonbundle_pairs_byte_equal": true,
+  "scoped_complete_decoded_bundle_timestamp_only_equal": true,
+  "scoped_three_exact_native_private_checkpoints_equal": true,
+  "recursive_profile_role": "Ranking of first20physicalturns only; no full30T admission, timingbaseline or qualification. Generic raw resource scope is corrected by partial-status.json.",
+  "scope": "Actual original18,801initial/24,575peak30Tworld retained; no horizon/world reduction used to improve results. Recursive profile stoppedgracefully after20T under450CPU ceiling; complete outer timer then ranall30T/outputs atsameflags.",
+  "scoped_case_file_hashes": {
+    "plan.json": {
+      "bytes": 3638,
+      "sha256": "c3f53a77ba8e3226e1a6cb313579ee49d403fc42a96551ded0844d1b3eae0d60"
+    },
+    "validation_summary.json": {
+      "bytes": 7977,
+      "sha256": "0c46b8fe5b9d27ec9308459ab02b59f190478bc2ab949c6bf0a9c885d010e6e3"
+    },
+    "validation_relationships.arrow": {
+      "bytes": 2111106,
+      "sha256": "1c309cf29dc44b0f23ba5e29d014fa1d31da12d8cb7b5d191a51f8f7c1873604"
+    },
+    "validation_reserve_ledger.arrow": {
+      "bytes": 4674,
+      "sha256": "596d5fd706e0e73e04047b73ff764bde916e05278a5297453984ded1e58f0d5d"
+    },
+    "validation_memory_signatures.arrow": {
+      "bytes": 2660162,
+      "sha256": "e53473ecf332e915a32196acaf8aa6dce1517a9f0966a04507f6883bef1ae87f"
+    },
+    "stage-timings.json": {
+      "bytes": 19549,
+      "sha256": "1e57ed102a4bb66be5f861b9a65b8217eb0199ef4430c590b8eccd2fd5c06859"
+    },
+    "memories_selurian_republic.json": {
+      "bytes": 35688,
+      "sha256": "3a8dd494daf603a77157bc98cb5df0c6ce4d9ef0812bf41d16869f607e72e02f"
+    },
+    "run.log": {
+      "bytes": 660,
+      "sha256": "31aec0961b4a9e3e7c55177768329db6c1bd0711969b13956fcdbbb6ca6ac3c0"
+    },
+    "chronicle.md": {
+      "bytes": 348,
+      "sha256": "af556cee58649be0184005de6214e230a93e5de3936ccceffa0ba0dcf5b6131a"
+    },
+    "state.languages.json": {
+      "bytes": 79043,
+      "sha256": "73b2a740c513ba098ee8bca1b848359347aae8cae50fa0792e35ad4f7b4a32b2"
+    },
+    "checkpoint_turn_20.ckpt": {
+      "bytes": 5445324,
+      "sha256": "7e403ddd0dedb2e77a3bc37b8dc7e02ccb714bcc95f9df8be1b754d7cd3bdb5e"
+    },
+    "checkpoint_turn_10.ckpt": {
+      "bytes": 2791217,
+      "sha256": "ac54300a818e2b2f682a55d19c35d25791d6f7fc1216aba80d20dfcc1e6ab945"
+    },
+    "memories_thornwall_confederacy.json": {
+      "bytes": 41333,
+      "sha256": "68b0f304d78deb9f5ddead8f808935b44c71d162630b1715db5f65abd4a40e4f"
+    },
+    "state.json": {
+      "bytes": 8663461,
+      "sha256": "4f40155225903928390bfd8daf837616f388f0f9e4a8f6110687a5dbfdb34979"
+    },
+    "validation_resource_ledger.arrow": {
+      "bytes": 16834,
+      "sha256": "9e3f9dfe158920961c7c3c03e24466430fa357ccdff9c4d82f0721d33b02a804"
+    },
+    "turns.csv": {
+      "bytes": 1395,
+      "sha256": "e6ccc90cee5a6b1e067069a425f5fa61aa5f10a659990e9ecfaf044a7b29b385"
+    },
+    "memories_kethani_empire.json": {
+      "bytes": 25892,
+      "sha256": "babcc131fa85ca4ed12d231eebd72d2efe081c6f9c9691e00e5e649505b075a7"
+    },
+    "validation_community_summary.json": {
+      "bytes": 6521,
+      "sha256": "bb61cdbf47bc41c20d3e5e8c74d18bcd42c44f6a8fb74cbbe9fd7ce0849e2eb9"
+    },
+    "validation_needs.arrow": {
+      "bytes": 10768314,
+      "sha256": "a9bbcd3a1649337388f08cfab03b4387ebeb6cf10c3d04332772e5092c69281d"
+    },
+    "agent_events.arrow": {
+      "bytes": 3610602,
+      "sha256": "1b7377085b5252328263c5c2fdf40922b1049e90d375a1ba7f7b8238b2f5aee7"
+    },
+    "checkpoint-semantics.json": {
+      "bytes": 33412,
+      "sha256": "475cf9dd08174c3fcdc066f1eaecdc1faec748b3da848a814f6c89d55535c137"
+    },
+    "memories_ashkari_nomads.json": {
+      "bytes": 29669,
+      "sha256": "593be46be10c846da4e1f3416119a8c7f976d60a764822fd9352b0bad01d80b6"
+    },
+    "state.historiography.json": {
+      "bytes": 45644,
+      "sha256": "c8535221845cc296746717bcdae5d96fd0e716948508845a4ef7691a97b3f845"
+    },
+    "stages.csv": {
+      "bytes": 4762,
+      "sha256": "8f0e2cdb245655b53748244acd51fec06ef4992265a5d0ed136e44f2824a94db"
+    },
+    "checkpoint_turn_29.ckpt": {
+      "bytes": 8124769,
+      "sha256": "edd46e9f613bed619bac16711cdba2429087287a931e567cafba446dd1a808e8"
+    },
+    "profile.json": {
+      "bytes": 24476,
+      "sha256": "4c837500bbb848f83dd3c78bcb8f5f9e4eae1371e81c9580a6800ac55be45377"
+    },
+    "chronicle_bundle.json": {
+      "bytes": 12967115,
+      "sha256": "3f5eecbac0ba88f5691ced4567720aea40bd96169d2e15b68aaaf78b1f82f86a"
+    },
+    "validation_summary/graph_turn_000.json": {
+      "bytes": 290253,
+      "sha256": "4824fc5c028f731b98fec0fd601d9feb66e34957830a1aaf3a7794590120e314"
+    },
+    "validation_summary/needs_turn_000.json": {
+      "bytes": 3910524,
+      "sha256": "586802a2c08773478489639030d27545eb8cf6c238a820c349c58b02cea8a3c0"
+    },
+    "validation_summary/graph_turn_010.json": {
+      "bytes": 1114031,
+      "sha256": "8cf01c3cd7d4fa89245efefe68acfdd0d735b5cc1035144603fbaa9e932593cf"
+    },
+    "validation_summary/aggregate_turn_020.json": {
+      "bytes": 2003,
+      "sha256": "e9e0f9281e8bd1ea1d8522aeda381fd0666bfba0249c6f9d2bf53e3f3130f551"
+    },
+    "validation_summary/needs_turn_020.json": {
+      "bytes": 4935602,
+      "sha256": "17d1d8f2077e118b08f79d770cb204570b88d061b2b4733107b63c3a6be91af2"
+    },
+    "validation_summary/community_turn_010.json": {
+      "bytes": 1270,
+      "sha256": "1e0082e3778772768d4a741f44354230438f9e61191a8886681f29b375c0ece1"
+    },
+    "validation_summary/aggregate_turn_030.json": {
+      "bytes": 2012,
+      "sha256": "74485cdba99b1a4721bd1e7214c725876bb791018a07bf3dabf37b8be538c0bb"
+    },
+    "validation_summary/aggregate_turn_010.json": {
+      "bytes": 2000,
+      "sha256": "9b71ad3b93ed3a0311b31a751b33e6601b9f61d16c59a988994a7172776d2939"
+    },
+    "validation_summary/graph_turn_030.json": {
+      "bytes": 2110723,
+      "sha256": "09388e806259019d4ab46b1337d290b2ae77e7ba151d32132144e8f3ed8afbb8"
+    },
+    "validation_summary/community_turn_000.json": {
+      "bytes": 147,
+      "sha256": "c736a7ee5f2ebd341e8c083147724b41c6648c6ef3efbe574b6bb417f91131f4"
+    },
+    "validation_summary/needs_turn_030.json": {
+      "bytes": 5020395,
+      "sha256": "458e485efcf2f6126cf6c0261f461a3dcbd88ea82bcf93ade026e61da94cb605"
+    },
+    "validation_summary/community_turn_030.json": {
+      "bytes": 3124,
+      "sha256": "9306a2a54ee2c9ecc5e000eacd4065a7497b389d1d857e98815f25cab7cbcda8"
+    },
+    "validation_summary/needs_turn_010.json": {
+      "bytes": 4512438,
+      "sha256": "1e520b482519a9d79ed22b28bb3a9287e134f410ff905ccaad10c2cf410e0d29"
+    },
+    "validation_summary/aggregate_turn_000.json": {
+      "bytes": 1987,
+      "sha256": "6c50dd37960bd4bcd40a9d5e400937e0e549f2c6623be19c56eb12ad6d3b2f0e"
+    },
+    "validation_summary/graph_turn_020.json": {
+      "bytes": 1744553,
+      "sha256": "0d5e06952a53346e52725c0c165edffea44613575500080004d49d3ac33e7547"
+    },
+    "validation_summary/community_turn_020.json": {
+      "bytes": 1992,
+      "sha256": "0bf92eb085fa59186204ba89f63fd4d5b69747f35ce6a1515000969e12f8375d"
+    }
+  },
+  "failed_first_launcher": {
+    "exit_code": 127,
+    "simulation_started": false,
+    "reason": "/usr/bin/time absent",
+    "retained_raw_log_sha256": "3e737f6a9117cec194b02103b357f8668fae9adb86a8a8cd0bf25efab8948548"
+  },
+  "focused_checks": {
+    "titled_and_timber_offline": {
+      "passed": 70,
+      "seconds": 0.74
+    },
+    "independent_titled_and_timber_offline": {
+      "passed": 70,
+      "seconds": 0.68
+    },
+    "compiled_native_titled_and_timber": {
+      "passed": 9,
+      "seconds": 30.96,
+      "source": "1e047e7b6585d2cf13bb990f03f292c1067979c5"
+    }
+  },
+  "cost_regressions": {
+    "fraction_old_failure": "120 intermediate Fraction multiplications after every unchanged-state assertion passed",
+    "lazy_old_failure": "100-entry physical map traversed despite no dispatch demand/envelope, after unchanged-state assertions passed",
+    "meaning": "Computational regressions only; original economic arithmetic/outcomes were correct."
+  }
+}

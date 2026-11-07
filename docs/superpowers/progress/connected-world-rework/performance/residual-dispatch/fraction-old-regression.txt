@@ -1,0 +1,35 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+__ test_dispatch_no_margin_candidates_avoid_fraction_multiplication_per_owner __
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f8cdc3b1480>
+
+    def test_dispatch_no_margin_candidates_avoid_fraction_multiplication_per_owner(monkeypatch):
+        h, _values, edges = _dispatch_floor_case(monkeypatch, carriers=range(90, 130))
+        monkeypatch.setattr(TT, "_plan_quantity", lambda *_: 0)
+        calls = []
+        original = Fraction.__rmul__
+
+        def multiply(self, other):
+            calls.append(1)
+            return original(self, other)
+
+        monkeypatch.setattr(Fraction, "__rmul__", multiply)
+        before = copy.deepcopy(h.sim.people)
+        TT._dispatch(h.world, h.tt, TT._Turn(h.world.turn), h.sim, edges, NS(), None)
+        assert not h.tt.shipments and not h.sim.pair_calls
+        assert h.sim.people == before
+        assert h.state.region(VERDANT).claims == {1: 101_000, 2: 101_000}
+        assert h.tt.counters["plans_no_margin"] == 40
+        # The old correct arithmetic allocated 120 intermediate Fractions for this
+        # unchanged refused market; the measured stress case made millions.
+>       assert calls == []
+E       assert [1, 1, 1, 1, 1, 1, ...] == []
+E
+E         Left contains 120 more items, first extra item: 1
+E         Use -v to get more diff
+
+tests/test_titled_trade.py:863: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_titled_trade.py::test_dispatch_no_margin_candidates_avoid_fraction_multiplication_per_owner
+1 failed in 0.19s

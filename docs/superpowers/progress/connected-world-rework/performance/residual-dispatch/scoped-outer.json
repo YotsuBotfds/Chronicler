@@ -1,0 +1,286 @@
+{
+  "kind": "complete-world outer-stage diagnostic; no recursive profiler",
+  "status": "complete",
+  "case": {
+    "name": "scaled22k_s42-full",
+    "world": "scaled22k_s42",
+    "arm": "full",
+    "seed": 42,
+    "turns": 30,
+    "regions": 12,
+    "civs": 4,
+    "target": 18800,
+    "checkpoints": [
+      10,
+      20,
+      29
+    ],
+    "cli": [
+      "--turns",
+      "120",
+      "--agents",
+      "hybrid",
+      "--simulate-only",
+      "--campaigns",
+      "--health-care",
+      "--grain-reserves",
+      "--grain-storage",
+      "--public-grain-shipments",
+      "--grain-convoys",
+      "--scholarship",
+      "--academy-services",
+      "--learning-cohorts",
+      "--workshops",
+      "--workshop-payroll",
+      "--workshop-economics",
+      "--workshop-economics-rules",
+      "2",
+      "--apprenticeship",
+      "--operating-wear",
+      "--veteran-reintegration",
+      "--timber-stock",
+      "--commons-rules",
+      "--clearing-protection",
+      "--timber-supply",
+      "--repair-projects",
+      "--recovery-crews",
+      "--local-budgets",
+      "--maintenance-obligation",
+      "--remittances",
+      "--relocation-costs",
+      "--food-allocation",
+      "--household-retail",
+      "--household-retail-rules",
+      "2",
+      "--household-retail-boundary",
+      "all",
+      "--titled-trade",
+      "--infrastructure-condition",
+      "--infrastructure-condition-mode",
+      "repair",
+      "--reform-services",
+      "--guild-leagues",
+      "--movement-branches",
+      "--movement-branches-mode",
+      "funded",
+      "--epidemic-care",
+      "--public-health",
+      "--quarantine-mode",
+      "closure",
+      "--quarantine-channels",
+      "trade,migration",
+      "--residence-ledger",
+      "--war-requisition",
+      "--war-consequences",
+      "--adaptive-livelihoods",
+      "--adaptive-livelihoods-rules",
+      "3",
+      "--attribution-records",
+      "--wealth-accounting",
+      "--wealth-accounting-mode",
+      "strict",
+      "--adaptive-livelihoods-mode",
+      "adapt",
+      "--war-consequences-mode",
+      "active",
+      "--war-requisition-mode",
+      "transfer",
+      "--harvest-cover",
+      "--harvest-cover-mode",
+      "loss",
+      "--timber-orders",
+      "--adaptive-livelihoods-decision-channels",
+      "all",
+      "--public-health-crowding",
+      "density_only",
+      "--public-health-mode",
+      "active",
+      "--household-retail-mode",
+      "retail",
+      "--seed",
+      "42",
+      "--regions",
+      "12",
+      "--civs",
+      "4",
+      "--turns",
+      "30",
+      "--validation-sidecar",
+      "--checkpoint-turns",
+      "10,20,29"
+    ]
+  },
+  "source": {
+    "commit": "a1fcb482f4d971e1c20e99075f2e256f9838a359",
+    "files": 348,
+    "sha256": "37590d816871f6b563d3e5833830f56a37418d5b63a2810a4fdf1cbf6f91b423",
+    "base_sha256": "baf6513cdb3ceaffd7b50980951b81e4f5e8916f757dd3979579c4548548b004",
+    "validation_sha256": {
+      "scripts/cw_rework_screen.py": "f8409b1b76be49dbff968323f9eee2f65229e5c1280e0c349fe2e2a3927e4fef",
+      "scripts/cw_health_screen.py": "cfa5d1116ee49716017bf5119c8e26dc704ea6d98f645c48da875b2e537a7e32",
+      "scripts/screen_runner.py": "5ded5f3548bb6403b1df25e9d31e5c5ce638631aa5fd1b4fabdcfb8510b5cadb"
+    }
+  },
+  "native_sha256": "b1d3ea5ac858681960b2cb880c534164905501f6ab4f6f3c94f7c9b5f66196cd",
+  "measurement_wrapper_sha256": "6aa2a4471193cb911e31a5b38d5e8e7965eec38182abf7a8e9e487878c829fca",
+  "diagnostic_wrapper_sha256": "acd0d65f3cc1832518579fc4c9348c264afaa0705c3e968dd803127d4b0a94d2",
+  "kernel_cpu_limit_seconds": 450,
+  "scope": "One CPU/wall pair around titled_trade._dispatch per call, every physical turn preserved; nested Fraction functions are not instrumented.",
+  "rows": [
+    {
+      "source_turn": 0,
+      "cpu_seconds": 0.035990772000000115,
+      "wall_seconds": 0.036127157996816095
+    },
+    {
+      "source_turn": 1,
+      "cpu_seconds": 0.6233840549999998,
+      "wall_seconds": 0.6239345040012267
+    },
+    {
+      "source_turn": 2,
+      "cpu_seconds": 0.6958321280000002,
+      "wall_seconds": 0.6977192260019365
+    },
+    {
+      "source_turn": 3,
+      "cpu_seconds": 0.7711686670000004,
+      "wall_seconds": 0.77220158399723
+    },
+    {
+      "source_turn": 4,
+      "cpu_seconds": 0.5397067269999996,
+      "wall_seconds": 0.5401399949987535
+    },
+    {
+      "source_turn": 5,
+      "cpu_seconds": 0.07999751999999916,
+      "wall_seconds": 0.08005286300249281
+    },
+    {
+      "source_turn": 6,
+      "cpu_seconds": 0.795916707,
+      "wall_seconds": 0.7976596099979361
+    },
+    {
+      "source_turn": 7,
+      "cpu_seconds": 1.0038885430000004,
+      "wall_seconds": 1.0044968299989705
+    },
+    {
+      "source_turn": 8,
+      "cpu_seconds": 0.17994553700000004,
+      "wall_seconds": 0.1774346370002604
+    },
+    {
+      "source_turn": 9,
+      "cpu_seconds": 0.683915451999999,
+      "wall_seconds": 0.6853065249997599
+    },
+    {
+      "source_turn": 10,
+      "cpu_seconds": 3.5472628979999996,
+      "wall_seconds": 3.547719658999995
+    },
+    {
+      "source_turn": 11,
+      "cpu_seconds": 3.262476848000002,
+      "wall_seconds": 3.262977659000171
+    },
+    {
+      "source_turn": 12,
+      "cpu_seconds": 1.555926202000002,
+      "wall_seconds": 1.5543660069997713
+    },
+    {
+      "source_turn": 13,
+      "cpu_seconds": 3.522151861000001,
+      "wall_seconds": 3.52188584599935
+    },
+    {
+      "source_turn": 14,
+      "cpu_seconds": 4.0758150099999995,
+      "wall_seconds": 4.075307392999093
+    },
+    {
+      "source_turn": 15,
+      "cpu_seconds": 3.715719495000002,
+      "wall_seconds": 3.714548932002799
+    },
+    {
+      "source_turn": 16,
+      "cpu_seconds": 4.375813403999999,
+      "wall_seconds": 4.3761339179982315
+    },
+    {
+      "source_turn": 17,
+      "cpu_seconds": 4.539809224999999,
+      "wall_seconds": 4.538585490001424
+    },
+    {
+      "source_turn": 18,
+      "cpu_seconds": 2.6318508499999993,
+      "wall_seconds": 2.634447917000216
+    },
+    {
+      "source_turn": 19,
+      "cpu_seconds": 3.119893527000002,
+      "wall_seconds": 3.1223166630006745
+    },
+    {
+      "source_turn": 20,
+      "cpu_seconds": 3.683893468000001,
+      "wall_seconds": 3.6820271850010613
+    },
+    {
+      "source_turn": 21,
+      "cpu_seconds": 3.0598641320000013,
+      "wall_seconds": 3.0592891890009923
+    },
+    {
+      "source_turn": 22,
+      "cpu_seconds": 3.1998938450000054,
+      "wall_seconds": 3.2033870019986352
+    },
+    {
+      "source_turn": 23,
+      "cpu_seconds": 3.567858469000001,
+      "wall_seconds": 3.565600803001871
+    },
+    {
+      "source_turn": 24,
+      "cpu_seconds": 1.2191171120000064,
+      "wall_seconds": 1.2203200139992987
+    },
+    {
+      "source_turn": 25,
+      "cpu_seconds": 0.5594663899999972,
+      "wall_seconds": 0.5591331139985414
+    },
+    {
+      "source_turn": 26,
+      "cpu_seconds": 2.0679338429999916,
+      "wall_seconds": 2.0658571499989193
+    },
+    {
+      "source_turn": 27,
+      "cpu_seconds": 1.9759147190000022,
+      "wall_seconds": 1.9773401220008964
+    },
+    {
+      "source_turn": 28,
+      "cpu_seconds": 2.143906143999999,
+      "wall_seconds": 2.145761773997947
+    },
+    {
+      "source_turn": 29,
+      "cpu_seconds": 2.0998866119999917,
+      "wall_seconds": 2.1003597359995183
+    }
+  ],
+  "calls": 30,
+  "total_cpu_seconds": 63.334200162,
+  "total_wall_seconds": 63.34243850499479,
+  "post_validation_process_cpu_seconds": 111.64429799999999,
+  "post_validation_peak_rss_kib": 695004
+}

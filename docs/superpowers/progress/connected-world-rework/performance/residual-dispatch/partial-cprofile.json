@@ -1,0 +1,1222 @@
+{
+  "kind": "same-scale corrected-source cProfile diagnostic, not an unwrapped timing comparison",
+  "timer": "time.process_time",
+  "kernel_cpu_limit_seconds": 450,
+  "source": {
+    "commit": "a1fcb482f4d971e1c20e99075f2e256f9838a359",
+    "files": 348,
+    "sha256": "37590d816871f6b563d3e5833830f56a37418d5b63a2810a4fdf1cbf6f91b423",
+    "base_sha256": "baf6513cdb3ceaffd7b50980951b81e4f5e8916f757dd3979579c4548548b004",
+    "validation_sha256": {
+      "scripts/cw_rework_screen.py": "f8409b1b76be49dbff968323f9eee2f65229e5c1280e0c349fe2e2a3927e4fef",
+      "scripts/cw_health_screen.py": "cfa5d1116ee49716017bf5119c8e26dc704ea6d98f645c48da875b2e537a7e32",
+      "scripts/screen_runner.py": "5ded5f3548bb6403b1df25e9d31e5c5ce638631aa5fd1b4fabdcfb8510b5cadb"
+    }
+  },
+  "case": {
+    "name": "scaled22k_s42-full",
+    "world": "scaled22k_s42",
+    "arm": "full",
+    "seed": 42,
+    "turns": 30,
+    "regions": 12,
+    "civs": 4,
+    "target": 18800,
+    "checkpoints": [
+      10,
+      20,
+      29
+    ],
+    "cli": [
+      "--turns",
+      "120",
+      "--agents",
+      "hybrid",
+      "--simulate-only",
+      "--campaigns",
+      "--health-care",
+      "--grain-reserves",
+      "--grain-storage",
+      "--public-grain-shipments",
+      "--grain-convoys",
+      "--scholarship",
+      "--academy-services",
+      "--learning-cohorts",
+      "--workshops",
+      "--workshop-payroll",
+      "--workshop-economics",
+      "--workshop-economics-rules",
+      "2",
+      "--apprenticeship",
+      "--operating-wear",
+      "--veteran-reintegration",
+      "--timber-stock",
+      "--commons-rules",
+      "--clearing-protection",
+      "--timber-supply",
+      "--repair-projects",
+      "--recovery-crews",
+      "--local-budgets",
+      "--maintenance-obligation",
+      "--remittances",
+      "--relocation-costs",
+      "--food-allocation",
+      "--household-retail",
+      "--household-retail-rules",
+      "2",
+      "--household-retail-boundary",
+      "all",
+      "--titled-trade",
+      "--infrastructure-condition",
+      "--infrastructure-condition-mode",
+      "repair",
+      "--reform-services",
+      "--guild-leagues",
+      "--movement-branches",
+      "--movement-branches-mode",
+      "funded",
+      "--epidemic-care",
+      "--public-health",
+      "--quarantine-mode",
+      "closure",
+      "--quarantine-channels",
+      "trade,migration",
+      "--residence-ledger",
+      "--war-requisition",
+      "--war-consequences",
+      "--adaptive-livelihoods",
+      "--adaptive-livelihoods-rules",
+      "3",
+      "--attribution-records",
+      "--wealth-accounting",
+      "--wealth-accounting-mode",
+      "strict",
+      "--adaptive-livelihoods-mode",
+      "adapt",
+      "--war-consequences-mode",
+      "active",
+      "--war-requisition-mode",
+      "transfer",
+      "--harvest-cover",
+      "--harvest-cover-mode",
+      "loss",
+      "--timber-orders",
+      "--adaptive-livelihoods-decision-channels",
+      "all",
+      "--public-health-crowding",
+      "density_only",
+      "--public-health-mode",
+      "active",
+      "--household-retail-mode",
+      "retail",
+      "--seed",
+      "42",
+      "--regions",
+      "12",
+      "--civs",
+      "4",
+      "--turns",
+      "30",
+      "--validation-sidecar",
+      "--checkpoint-turns",
+      "10,20,29"
+    ]
+  },
+  "native_sha256": "b1d3ea5ac858681960b2cb880c534164905501f6ab4f6f3c94f7c9b5f66196cd",
+  "measurement_wrapper_sha256": "6aa2a4471193cb911e31a5b38d5e8e7965eec38182abf7a8e9e487878c829fca",
+  "diagnostic_wrapper_sha256": "e7b7ff682e600ae917879154a8d462b67ff84630a9755282bd748f159cc135a3",
+  "total_calls": 584442033,
+  "primitive_calls": 583881747,
+  "profiled_functions": 5549,
+  "total_profile_cpu": 317.5680020640004,
+  "pstats_sha256": "d88adc0727b6dcad37e9bea1072ce40db6715cbcf79a58fabdb4ebb5df2e8b65",
+  "top_cumulative": [
+    {
+      "file": "/workspace/cwr-perf-after-v2/src/chronicler/main.py",
+      "line": 549,
+      "name": "execute_run",
+      "primitive_calls": 1,
+      "calls": 1,
+      "self_cpu_seconds": 0.020499559,
+      "cumulative_cpu_seconds": 317.628488415
+    },
+    {
+      "file": "/workspace/cwr-perf-after-v2/scripts/cw_program_profile.py",
+      "line": 170,
+      "name": "turn",
+      "primitive_calls": 20,
+      "calls": 20,
+      "self_cpu_seconds": 0.0,
+      "cumulative_cpu_seconds": 314.945056774
+    },
+    {
+      "file": "/workspace/cwr-perf-after-v2/src/chronicler/main.py",
+      "line": 277,
+      "name": "_run_turn_deferring_sigint",
+      "primitive_calls": 20,
+      "calls": 20,
+      "self_cpu_seconds": 0.0,
+      "cumulative_cpu_seconds": 314.945056774
+    },
+    {
+      "file": "/workspace/cwr-profile/docs/superpowers/progress/connected-world-rework/performance/profile-rework.py",
+      "line": 200,
+      "name": "turn",
+      "primitive_calls": 20,
+      "calls": 20,
+      "self_cpu_seconds": 0.008000393,
+      "cumulative_cpu_seconds": 314.90154812400004
+    },
+    {
+      "file": "/workspace/cwr-perf-after-v2/src/chronicler/simulation.py",
+      "line": 1891,
+      "name": "run_turn_result",
+      "primitive_calls": 20,
+      "calls": 20,
+      "self_cpu_seconds": 0.020891660000000003,
+      "cumulative_cpu_seconds": 314.893547731
+    },
+    {
+      "file": "/workspace/cwr-perf-after-v2/src/chronicler/livelihoods.py",
+      "line": 1251,
+      "name": "phase10",
+      "primitive_calls": 20,
+      "calls": 20,
+      "self_cpu_seconds": 0.148147417,
+      "cumulative_cpu_seconds": 274.407547156
+    },
+    {
+      "file": "/workspace/cwr-perf-after-v2/src/chronicler/household_retail.py",
+      "line": 2432,
+      "name": "phase10",
+      "primitive_calls": 20,
+      "calls": 20,
+      "self_cpu_seconds": 0.036011001,
+      "cumulative_cpu_seconds": 271.083930004
+    },
+    {
+      "file": "/workspace/cwr-perf-after-v2/src/chronicler/titled_trade.py",
+      "line": 840,
+      "name": "retail_phase10",
+      "primitive_calls": 20,
+      "calls": 20,
+      "self_cpu_seconds": 0.072131928,
+      "cumulative_cpu_seconds": 269.89205986300004
+    },
+    {
+      "file": "/workspace/cwr-perf-after-v2/src/chronicler/titled_trade.py",
+      "line": 703,
+      "name": "_dispatch",
+      "primitive_calls": 20,
+      "calls": 20,
+      "self_cpu_seconds": 39.419500477,
+      "cumulative_cpu_seconds": 269.411931165
+    },
+    {
+      "file": "/usr/lib/python3.13/fractions.py",
+      "line": 663,
+      "name": "forward",
+      "primitive_calls": 18375000,
+      "calls": 18375000,
+      "self_cpu_seconds": 24.512062577000002,
+      "cumulative_cpu_seconds": 97.03953285300001
+    },
+    {
+      "file": "/usr/lib/python3.13/fractions.py",
+      "line": 677,
+      "name": "reverse",
+      "primitive_calls": 18268163,
+      "calls": 18268163,
+      "self_cpu_seconds": 20.421863685,
+      "cumulative_cpu_seconds": 96.78566327600001
+    },
+    {
+      "file": "~",
+      "line": 0,
+      "name": "<built-in method builtins.isinstance>",
+      "primitive_calls": 58181284,
+      "calls": 58181284,
+      "self_cpu_seconds": 21.994096551000002,
+      "cumulative_cpu_seconds": 46.712184141
+    },
+    {
+      "file": "/usr/lib/python3.13/fractions.py",
+      "line": 792,
+      "name": "_mul",
+      "primitive_calls": 18268388,
+      "calls": 18268388,
+      "self_cpu_seconds": 19.200277556,
+      "cumulative_cpu_seconds": 39.665109872
+    },
+    {
+      "file": "/usr/lib/python3.13/fractions.py",
+      "line": 830,
+      "name": "_floordiv",
+      "primitive_calls": 18267922,
+      "calls": 18267922,
+      "self_cpu_seconds": 20.349835602000002,
+      "cumulative_cpu_seconds": 33.193617891
+    },
+    {
+      "file": "/usr/lib/python3.13/fractions.py",
+      "line": 203,
+      "name": "__new__",
+      "primitive_calls": 36643802,
+      "calls": 36643802,
+      "self_cpu_seconds": 23.410961214,
+      "cumulative_cpu_seconds": 30.673085702
+    },
+    {
+      "file": "/workspace/cwr-perf-after-v2/src/chronicler/livelihoods.py",
+      "line": 1200,
+      "name": "_tick",
+      "primitive_calls": 20,
+      "calls": 20,
+      "self_cpu_seconds": 0.152026504,
+      "cumulative_cpu_seconds": 25.456953757
+    },
+    {
+      "file": "<frozen abc>",
+      "line": 117,
+      "name": "__instancecheck__",
+      "primitive_calls": 36966514,
+      "calls": 36966514,
+      "self_cpu_seconds": 14.363097584,
+      "cumulative_cpu_seconds": 24.718087590000003
+    },
+    {
+      "file": "/workspace/cwr-perf-after-v2/src/chronicler/titled_trade.py",
+      "line": 791,
+      "name": "_buy",
+      "primitive_calls": 162,
+      "calls": 162,
+      "self_cpu_seconds": 0.35998683800000003,
+      "cumulative_cpu_seconds": 22.501406340000003
+    },
+    {
+      "file": "/usr/lib/python3.13/fractions.py",
+      "line": 334,
+      "name": "_from_coprime_ints",
+      "primitive_calls": 18375242,
+      "calls": 18375242,
+      "self_cpu_seconds": 9.770352733000001,
+      "cumulative_cpu_seconds": 13.388726190000002
+    },
+    {
+      "file": "~",
+      "line": 0,
+      "name": "<built-in method __new__ of type object at 0xa06020>",
+      "primitive_calls": 55022086,
+      "calls": 55022155,
+      "self_cpu_seconds": 10.876499561000001,
+      "cumulative_cpu_seconds": 10.880298739
+    },
+    {
+      "file": "/workspace/cwr-perf-after-v2/src/chronicler/adaptive_livelihoods.py",
+      "line": 281,
+      "name": "before_agent_tick",
+      "primitive_calls": 20,
+      "calls": 20,
+      "self_cpu_seconds": 0.124026592,
+      "cumulative_cpu_seconds": 10.599042947000001
+    },
+    {
+      "file": "/workspace/cwr-perf-after-v2/src/chronicler/adaptive_livelihoods.py",
+      "line": 342,
+      "name": "_before_agent_tick_v3",
+      "primitive_calls": 20,
+      "calls": 20,
+      "self_cpu_seconds": 0.585337626,
+      "cumulative_cpu_seconds": 10.475016355000001
+    },
+    {
+      "file": "~",
+      "line": 0,
+      "name": "<built-in method _abc._abc_instancecheck>",
+      "primitive_calls": 36966514,
+      "calls": 36966514,
+      "self_cpu_seconds": 10.113222427,
+      "cumulative_cpu_seconds": 10.354990006000001
+    },
+    {
+      "file": "/workspace/cwr-perf-after-v2/src/chronicler/money.py",
+      "line": 408,
+      "name": "quote",
+      "primitive_calls": 349,
+      "calls": 349,
+      "self_cpu_seconds": 0.18495613300000002,
+      "cumulative_cpu_seconds": 8.429809379
+    },
+    {
+      "file": "/workspace/cwr-perf-after-v2/src/chronicler/money.py",
+      "line": 397,
+      "name": "_wealth",
+      "primitive_calls": 333,
+      "calls": 333,
+      "self_cpu_seconds": 2.7881953690000003,
+      "cumulative_cpu_seconds": 7.253845912
+    },
+    {
+      "file": "~",
+      "line": 0,
+      "name": "<built-in method math.gcd>",
+      "primitive_calls": 36750499,
+      "calls": 36750499,
+      "self_cpu_seconds": 7.1867954140000005,
+      "cumulative_cpu_seconds": 7.1867954140000005
+    },
+    {
+      "file": "/workspace/cwr-perf-after-v2/src/chronicler/titled_trade.py",
+      "line": 222,
+      "name": "_balances",
+      "primitive_calls": 324,
+      "calls": 324,
+      "self_cpu_seconds": 2.952744349,
+      "cumulative_cpu_seconds": 7.090076945000001
+    },
+    {
+      "file": "/usr/lib/python3.13/fractions.py",
+      "line": 414,
+      "name": "numerator",
+      "primitive_calls": 36537651,
+      "calls": 36537651,
+      "self_cpu_seconds": 6.651090392,
+      "cumulative_cpu_seconds": 6.651090392
+    },
+    {
+      "file": "/workspace/cwr-perf-after-v2/src/chronicler/money.py",
+      "line": 572,
+      "name": "pay",
+      "primitive_calls": 182,
+      "calls": 182,
+      "self_cpu_seconds": 0.32398219500000003,
+      "cumulative_cpu_seconds": 6.306281530000001
+    },
+    {
+      "file": "/usr/lib/python3.13/fractions.py",
+      "line": 418,
+      "name": "denominator",
+      "primitive_calls": 36537651,
+      "calls": 36537651,
+      "self_cpu_seconds": 6.1926918970000004,
+      "cumulative_cpu_seconds": 6.1926918970000004
+    },
+    {
+      "file": "/workspace/cwr-perf-after-v2/src/chronicler/adaptive_livelihoods.py",
+      "line": 219,
+      "name": "_known_residences",
+      "primitive_calls": 20,
+      "calls": 20,
+      "self_cpu_seconds": 0.7781647490000001,
+      "cumulative_cpu_seconds": 6.187502338000001
+    },
+    {
+      "file": "/workspace/cwr-perf-after-v2/src/chronicler/household_retail.py",
+      "line": 704,
+      "name": "_check",
+      "primitive_calls": 400,
+      "calls": 400,
+      "self_cpu_seconds": 0.007989597000000001,
+      "cumulative_cpu_seconds": 6.170716430000001
+    },
+    {
+      "file": "/workspace/cwr-perf-after-v2/src/chronicler/household_retail.py",
+      "line": 688,
+      "name": "check_owner",
+      "primitive_calls": 1156,
+      "calls": 1156,
+      "self_cpu_seconds": 1.2079494430000002,
+      "cumulative_cpu_seconds": 5.911762005
+    },
+    {
+      "file": "~",
+      "line": 0,
+      "name": "<built-in method builtins.sum>",
+      "primitive_calls": 983811,
+      "calls": 983811,
+      "self_cpu_seconds": 1.778803998,
+      "cumulative_cpu_seconds": 5.410730645
+    },
+    {
+      "file": "/workspace/cwr-perf-after-v2/src/chronicler/livelihoods.py",
+      "line": 1160,
+      "name": "prepare_phase2",
+      "primitive_calls": 20,
+      "calls": 20,
+      "self_cpu_seconds": 0.040150035,
+      "cumulative_cpu_seconds": 5.2012749430000005
+    },
+    {
+      "file": "~",
+      "line": 0,
+      "name": "<built-in method builtins.min>",
+      "primitive_calls": 19904143,
+      "calls": 19904143,
+      "self_cpu_seconds": 4.798512598,
+      "cumulative_cpu_seconds": 4.826518972000001
+    },
+    {
+      "file": "/workspace/cwr-perf-after-v2/src/chronicler/simulation.py",
+      "line": 2310,
+      "name": "tick_agents",
+      "primitive_calls": 20,
+      "calls": 20,
+      "self_cpu_seconds": 0.0,
+      "cumulative_cpu_seconds": 4.591796992
+    },
+    {
+      "file": "/workspace/cwr-perf-after-v2/src/chronicler/agent_bridge.py",
+      "line": 1510,
+      "name": "tick_agents",
+      "primitive_calls": 20,
+      "calls": 20,
+      "self_cpu_seconds": 0.0,
+      "cumulative_cpu_seconds": 4.591796992
+    },
+    {
+      "file": "~",
+      "line": 0,
+      "name": "<built-in method builtins.max>",
+      "primitive_calls": 20056396,
+      "calls": 20056476,
+      "self_cpu_seconds": 4.391772629,
+      "cumulative_cpu_seconds": 4.407772293
+    },
+    {
+      "file": "~",
+      "line": 0,
+      "name": "<built-in method math.floor>",
+      "primitive_calls": 18916722,
+      "calls": 18916722,
+      "self_cpu_seconds": 4.228298345000001,
+      "cumulative_cpu_seconds": 4.228298345000001
+    },
+    {
+      "file": "/workspace/cwr-perf-after-v2/src/chronicler/household_retail.py",
+      "line": 2111,
+      "name": "after_agent_tick",
+      "primitive_calls": 20,
+      "calls": 20,
+      "self_cpu_seconds": 0.16802466300000002,
+      "cumulative_cpu_seconds": 4.027428885
+    },
+    {
+      "file": "~",
+      "line": 0,
+      "name": "<method 'get' of 'dict' objects>",
+      "primitive_calls": 16202799,
+      "calls": 16202799,
+      "self_cpu_seconds": 3.7843729600000002,
+      "cumulative_cpu_seconds": 3.7843729600000002
+    },
+    {
+      "file": "/workspace/cwr-perf-after-v2/src/chronicler/residence_ledger.py",
+      "line": 717,
+      "name": "_dated",
+      "primitive_calls": 885720,
+      "calls": 885720,
+      "self_cpu_seconds": 0.931529385,
+      "cumulative_cpu_seconds": 3.5909934540000004
+    },
+    {
+      "file": "/workspace/cwr-profile/docs/superpowers/progress/connected-world-rework/performance/profile-rework.py",
+      "line": 171,
+      "name": "measured",
+      "primitive_calls": 112,
+      "calls": 132,
+      "self_cpu_seconds": 0.066704015,
+      "cumulative_cpu_seconds": 3.1535176430000003
+    },
+    {
+      "file": "~",
+      "line": 0,
+      "name": "<method 'to_pylist' of 'arro3.core._core.Array' objects>",
+      "primitive_calls": 3042,
+      "calls": 3042,
+      "self_cpu_seconds": 3.1202691070000004,
+      "cumulative_cpu_seconds": 3.1202691070000004
+    },
+    {
+      "file": "/workspace/cwr-perf-after-v2/src/chronicler/household_retail.py",
+      "line": 2487,
+      "name": "sell_to_merchant",
+      "primitive_calls": 162,
+      "calls": 162,
+      "self_cpu_seconds": 0.0,
+      "cumulative_cpu_seconds": 3.117835421
+    },
+    {
+      "file": "/workspace/cwr-perf-after-v2/src/chronicler/war_consequences.py",
+      "line": 150,
+      "name": "movement_rows",
+      "primitive_calls": 426601,
+      "calls": 426601,
+      "self_cpu_seconds": 1.156869677,
+      "cumulative_cpu_seconds": 3.114754445
+    },
+    {
+      "file": "/workspace/cwr-perf-after-v2/src/chronicler/household_retail.py",
+      "line": 693,
+      "name": "<genexpr>",
+      "primitive_calls": 5337995,
+      "calls": 5337995,
+      "self_cpu_seconds": 2.042740257,
+      "cumulative_cpu_seconds": 3.1064456180000004
+    },
+    {
+      "file": "/workspace/cwr-perf-after-v2/src/chronicler/livelihoods.py",
+      "line": 1176,
+      "name": "finish_phase2",
+      "primitive_calls": 20,
+      "calls": 20,
+      "self_cpu_seconds": 0.003998113,
+      "cumulative_cpu_seconds": 3.0709852050000004
+    },
+    {
+      "file": "/workspace/cwr-perf-after-v2/src/chronicler/household_retail.py",
+      "line": 1350,
+      "name": "finish_phase2",
+      "primitive_calls": 20,
+      "calls": 20,
+      "self_cpu_seconds": 0.053527085,
+      "cumulative_cpu_seconds": 2.95915307
+    },
+    {
+      "file": "/workspace/cwr-perf-after-v2/src/chronicler/livelihoods.py",
+      "line": 1243,
+      "name": "phase10_before_reserves",
+      "primitive_calls": 20,
+      "calls": 20,
+      "self_cpu_seconds": 0.0,
+      "cumulative_cpu_seconds": 2.888194791
+    },
+    {
+      "file": "/workspace/cwr-perf-after-v2/src/chronicler/household_retail.py",
+      "line": 1615,
+      "name": "_settle_frame",
+      "primitive_calls": 20,
+      "calls": 20,
+      "self_cpu_seconds": 0.6820765900000001,
+      "cumulative_cpu_seconds": 2.7338137930000004
+    },
+    {
+      "file": "/workspace/cwr-perf-after-v2/src/chronicler/residence_ledger.py",
+      "line": 760,
+      "name": "read",
+      "primitive_calls": 442840,
+      "calls": 442840,
+      "self_cpu_seconds": 0.6100919380000001,
+      "cumulative_cpu_seconds": 2.634348971
+    },
+    {
+      "file": "/workspace/cwr-perf-after-v2/src/chronicler/agent_bridge.py",
+      "line": 421,
+      "name": "_quarantine_migration_tick",
+      "primitive_calls": 20,
+      "calls": 20,
+      "self_cpu_seconds": 0.0,
+      "cumulative_cpu_seconds": 2.516192625
+    },
+    {
+      "file": "/workspace/cwr-perf-after-v2/src/chronicler/quarantine_rules.py",
+      "line": 523,
+      "name": "migration_closure_tick",
+      "primitive_calls": 20,
+      "calls": 20,
+      "self_cpu_seconds": 0.00238995,
+      "cumulative_cpu_seconds": 2.516192625
+    },
+    {
+      "file": "~",
+      "line": 0,
+      "name": "<method 'tick' of 'builtins.AgentSimulator' objects>",
+      "primitive_calls": 20,
+      "calls": 20,
+      "self_cpu_seconds": 2.513802675,
+      "cumulative_cpu_seconds": 2.513802675
+    },
+    {
+      "file": "/workspace/cwr-perf-after-v2/src/chronicler/agent_bridge.py",
+      "line": 1540,
+      "name": "<lambda>",
+      "primitive_calls": 20,
+      "calls": 20,
+      "self_cpu_seconds": 0.0,
+      "cumulative_cpu_seconds": 2.513802675
+    },
+    {
+      "file": "/workspace/cwr-perf-after-v2/src/chronicler/agent_bridge.py",
+      "line": 1596,
+      "name": "_tick_with_household_mobility",
+      "primitive_calls": 20,
+      "calls": 20,
+      "self_cpu_seconds": 0.0,
+      "cumulative_cpu_seconds": 2.513802675
+    },
+    {
+      "file": "/workspace/cwr-perf-after-v2/src/chronicler/residence_ledger.py",
+      "line": 779,
+      "name": "own_row_accessor",
+      "primitive_calls": 442840,
+      "calls": 442840,
+      "self_cpu_seconds": 0.372004647,
+      "cumulative_cpu_seconds": 2.279331741
+    },
+    {
+      "file": "/workspace/cwr-perf-after-v2/src/chronicler/household_retail.py",
+      "line": 1058,
+      "name": "title_inputs",
+      "primitive_calls": 40,
+      "calls": 40,
+      "self_cpu_seconds": 1.6151166160000001,
+      "cumulative_cpu_seconds": 2.1934492100000003
+    },
+    {
+      "file": "/workspace/cwr-perf-after-v2/src/chronicler/adaptive_livelihoods.py",
+      "line": 256,
+      "name": "trade_destinations",
+      "primitive_calls": 40,
+      "calls": 40,
+      "self_cpu_seconds": 2.023864461,
+      "cumulative_cpu_seconds": 2.187867036
+    },
+    {
+      "file": "/workspace/cwr-perf-after-v2/src/chronicler/timber_orders.py",
+      "line": 364,
+      "name": "phase10_before_reserves",
+      "primitive_calls": 20,
+      "calls": 20,
+      "self_cpu_seconds": 0.209208693,
+      "cumulative_cpu_seconds": 2.1650659070000002
+    },
+    {
+      "file": "/workspace/cwr-perf-after-v2/src/chronicler/agent_bridge.py",
+      "line": 1641,
+      "name": "_process_tick_results",
+      "primitive_calls": 20,
+      "calls": 20,
+      "self_cpu_seconds": 0.01619289,
+      "cumulative_cpu_seconds": 2.051575779
+    },
+    {
+      "file": "~",
+      "line": 0,
+      "name": "<built-in method builtins.any>",
+      "primitive_calls": 175579,
+      "calls": 175579,
+      "self_cpu_seconds": 0.439302644,
+      "cumulative_cpu_seconds": 2.017020069
+    },
+    {
+      "file": "/workspace/cwr-perf-after-v2/src/chronicler/war_consequences.py",
+      "line": 201,
+      "name": "before_agent_tick",
+      "primitive_calls": 20,
+      "calls": 20,
+      "self_cpu_seconds": 0.080029126,
+      "cumulative_cpu_seconds": 1.9989133170000002
+    },
+    {
+      "file": "/workspace/cwr-perf-after-v2/src/chronicler/household_retail.py",
+      "line": 458,
+      "name": "largest_remainder",
+      "primitive_calls": 1623,
+      "calls": 1623,
+      "self_cpu_seconds": 1.051161739,
+      "cumulative_cpu_seconds": 1.9879525880000002
+    },
+    {
+      "file": "~",
+      "line": 0,
+      "name": "<built-in method builtins.sorted>",
+      "primitive_calls": 440777,
+      "calls": 441005,
+      "self_cpu_seconds": 1.031650044,
+      "cumulative_cpu_seconds": 1.96655342
+    },
+    {
+      "file": "/workspace/cwr-perf-after-v2/src/chronicler/residence_ledger.py",
+      "line": 786,
+      "name": "separation",
+      "primitive_calls": 20,
+      "calls": 20,
+      "self_cpu_seconds": 1.238114444,
+      "cumulative_cpu_seconds": 1.8627740910000001
+    },
+    {
+      "file": "/workspace/cwr-perf-after-v2/src/chronicler/money.py",
+      "line": 403,
+      "name": "<genexpr>",
+      "primitive_calls": 7840586,
+      "calls": 7840586,
+      "self_cpu_seconds": 1.859371209,
+      "cumulative_cpu_seconds": 1.859371209
+    },
+    {
+      "file": "/workspace/cwr-perf-after-v2/src/chronicler/household_retail.py",
+      "line": 1245,
+      "name": "prepare_phase2",
+      "primitive_calls": 20,
+      "calls": 20,
+      "self_cpu_seconds": 0.032014621,
+      "cumulative_cpu_seconds": 1.8557224700000001
+    }
+  ],
+  "top_self": [
+    {
+      "file": "/workspace/cwr-perf-after-v2/src/chronicler/titled_trade.py",
+      "line": 703,
+      "name": "_dispatch",
+      "primitive_calls": 20,
+      "calls": 20,
+      "self_cpu_seconds": 39.419500477,
+      "cumulative_cpu_seconds": 269.411931165
+    },
+    {
+      "file": "/usr/lib/python3.13/fractions.py",
+      "line": 663,
+      "name": "forward",
+      "primitive_calls": 18375000,
+      "calls": 18375000,
+      "self_cpu_seconds": 24.512062577000002,
+      "cumulative_cpu_seconds": 97.03953285300001
+    },
+    {
+      "file": "/usr/lib/python3.13/fractions.py",
+      "line": 203,
+      "name": "__new__",
+      "primitive_calls": 36643802,
+      "calls": 36643802,
+      "self_cpu_seconds": 23.410961214,
+      "cumulative_cpu_seconds": 30.673085702
+    },
+    {
+      "file": "~",
+      "line": 0,
+      "name": "<built-in method builtins.isinstance>",
+      "primitive_calls": 58181284,
+      "calls": 58181284,
+      "self_cpu_seconds": 21.994096551000002,
+      "cumulative_cpu_seconds": 46.712184141
+    },
+    {
+      "file": "/usr/lib/python3.13/fractions.py",
+      "line": 677,
+      "name": "reverse",
+      "primitive_calls": 18268163,
+      "calls": 18268163,
+      "self_cpu_seconds": 20.421863685,
+      "cumulative_cpu_seconds": 96.78566327600001
+    },
+    {
+      "file": "/usr/lib/python3.13/fractions.py",
+      "line": 830,
+      "name": "_floordiv",
+      "primitive_calls": 18267922,
+      "calls": 18267922,
+      "self_cpu_seconds": 20.349835602000002,
+      "cumulative_cpu_seconds": 33.193617891
+    },
+    {
+      "file": "/usr/lib/python3.13/fractions.py",
+      "line": 792,
+      "name": "_mul",
+      "primitive_calls": 18268388,
+      "calls": 18268388,
+      "self_cpu_seconds": 19.200277556,
+      "cumulative_cpu_seconds": 39.665109872
+    },
+    {
+      "file": "<frozen abc>",
+      "line": 117,
+      "name": "__instancecheck__",
+      "primitive_calls": 36966514,
+      "calls": 36966514,
+      "self_cpu_seconds": 14.363097584,
+      "cumulative_cpu_seconds": 24.718087590000003
+    },
+    {
+      "file": "~",
+      "line": 0,
+      "name": "<built-in method __new__ of type object at 0xa06020>",
+      "primitive_calls": 55022086,
+      "calls": 55022155,
+      "self_cpu_seconds": 10.876499561000001,
+      "cumulative_cpu_seconds": 10.880298739
+    },
+    {
+      "file": "~",
+      "line": 0,
+      "name": "<built-in method _abc._abc_instancecheck>",
+      "primitive_calls": 36966514,
+      "calls": 36966514,
+      "self_cpu_seconds": 10.113222427,
+      "cumulative_cpu_seconds": 10.354990006000001
+    },
+    {
+      "file": "/usr/lib/python3.13/fractions.py",
+      "line": 334,
+      "name": "_from_coprime_ints",
+      "primitive_calls": 18375242,
+      "calls": 18375242,
+      "self_cpu_seconds": 9.770352733000001,
+      "cumulative_cpu_seconds": 13.388726190000002
+    },
+    {
+      "file": "~",
+      "line": 0,
+      "name": "<built-in method math.gcd>",
+      "primitive_calls": 36750499,
+      "calls": 36750499,
+      "self_cpu_seconds": 7.1867954140000005,
+      "cumulative_cpu_seconds": 7.1867954140000005
+    },
+    {
+      "file": "/usr/lib/python3.13/fractions.py",
+      "line": 414,
+      "name": "numerator",
+      "primitive_calls": 36537651,
+      "calls": 36537651,
+      "self_cpu_seconds": 6.651090392,
+      "cumulative_cpu_seconds": 6.651090392
+    },
+    {
+      "file": "/usr/lib/python3.13/fractions.py",
+      "line": 418,
+      "name": "denominator",
+      "primitive_calls": 36537651,
+      "calls": 36537651,
+      "self_cpu_seconds": 6.1926918970000004,
+      "cumulative_cpu_seconds": 6.1926918970000004
+    },
+    {
+      "file": "~",
+      "line": 0,
+      "name": "<built-in method builtins.min>",
+      "primitive_calls": 19904143,
+      "calls": 19904143,
+      "self_cpu_seconds": 4.798512598,
+      "cumulative_cpu_seconds": 4.826518972000001
+    },
+    {
+      "file": "~",
+      "line": 0,
+      "name": "<built-in method builtins.max>",
+      "primitive_calls": 20056396,
+      "calls": 20056476,
+      "self_cpu_seconds": 4.391772629,
+      "cumulative_cpu_seconds": 4.407772293
+    },
+    {
+      "file": "~",
+      "line": 0,
+      "name": "<built-in method math.floor>",
+      "primitive_calls": 18916722,
+      "calls": 18916722,
+      "self_cpu_seconds": 4.228298345000001,
+      "cumulative_cpu_seconds": 4.228298345000001
+    },
+    {
+      "file": "~",
+      "line": 0,
+      "name": "<method 'get' of 'dict' objects>",
+      "primitive_calls": 16202799,
+      "calls": 16202799,
+      "self_cpu_seconds": 3.7843729600000002,
+      "cumulative_cpu_seconds": 3.7843729600000002
+    },
+    {
+      "file": "~",
+      "line": 0,
+      "name": "<method 'to_pylist' of 'arro3.core._core.Array' objects>",
+      "primitive_calls": 3042,
+      "calls": 3042,
+      "self_cpu_seconds": 3.1202691070000004,
+      "cumulative_cpu_seconds": 3.1202691070000004
+    },
+    {
+      "file": "/workspace/cwr-perf-after-v2/src/chronicler/titled_trade.py",
+      "line": 222,
+      "name": "_balances",
+      "primitive_calls": 324,
+      "calls": 324,
+      "self_cpu_seconds": 2.952744349,
+      "cumulative_cpu_seconds": 7.090076945000001
+    },
+    {
+      "file": "/workspace/cwr-perf-after-v2/src/chronicler/money.py",
+      "line": 397,
+      "name": "_wealth",
+      "primitive_calls": 333,
+      "calls": 333,
+      "self_cpu_seconds": 2.7881953690000003,
+      "cumulative_cpu_seconds": 7.253845912
+    },
+    {
+      "file": "~",
+      "line": 0,
+      "name": "<method 'tick' of 'builtins.AgentSimulator' objects>",
+      "primitive_calls": 20,
+      "calls": 20,
+      "self_cpu_seconds": 2.513802675,
+      "cumulative_cpu_seconds": 2.513802675
+    },
+    {
+      "file": "/workspace/cwr-perf-after-v2/src/chronicler/household_retail.py",
+      "line": 693,
+      "name": "<genexpr>",
+      "primitive_calls": 5337995,
+      "calls": 5337995,
+      "self_cpu_seconds": 2.042740257,
+      "cumulative_cpu_seconds": 3.1064456180000004
+    },
+    {
+      "file": "/workspace/cwr-perf-after-v2/src/chronicler/adaptive_livelihoods.py",
+      "line": 256,
+      "name": "trade_destinations",
+      "primitive_calls": 40,
+      "calls": 40,
+      "self_cpu_seconds": 2.023864461,
+      "cumulative_cpu_seconds": 2.187867036
+    },
+    {
+      "file": "/workspace/cwr-perf-after-v2/src/chronicler/money.py",
+      "line": 403,
+      "name": "<genexpr>",
+      "primitive_calls": 7840586,
+      "calls": 7840586,
+      "self_cpu_seconds": 1.859371209,
+      "cumulative_cpu_seconds": 1.859371209
+    },
+    {
+      "file": "~",
+      "line": 0,
+      "name": "<built-in method builtins.sum>",
+      "primitive_calls": 983811,
+      "calls": 983811,
+      "self_cpu_seconds": 1.778803998,
+      "cumulative_cpu_seconds": 5.410730645
+    },
+    {
+      "file": "/workspace/cwr-perf-after-v2/src/chronicler/household_retail.py",
+      "line": 1058,
+      "name": "title_inputs",
+      "primitive_calls": 40,
+      "calls": 40,
+      "self_cpu_seconds": 1.6151166160000001,
+      "cumulative_cpu_seconds": 2.1934492100000003
+    },
+    {
+      "file": "/workspace/cwr-perf-after-v2/src/chronicler/money.py",
+      "line": 402,
+      "name": "<genexpr>",
+      "primitive_calls": 7840586,
+      "calls": 7840586,
+      "self_cpu_seconds": 1.593939438,
+      "cumulative_cpu_seconds": 1.593939438
+    },
+    {
+      "file": "/workspace/cwr-perf-after-v2/src/chronicler/titled_trade.py",
+      "line": 225,
+      "name": "<genexpr>",
+      "primitive_calls": 7627422,
+      "calls": 7627422,
+      "self_cpu_seconds": 1.5364226820000002,
+      "cumulative_cpu_seconds": 1.5364226820000002
+    },
+    {
+      "file": "/workspace/cwr-perf-after-v2/src/chronicler/titled_trade.py",
+      "line": 226,
+      "name": "<genexpr>",
+      "primitive_calls": 7627422,
+      "calls": 7627422,
+      "self_cpu_seconds": 1.3824285390000002,
+      "cumulative_cpu_seconds": 1.3824285390000002
+    },
+    {
+      "file": "~",
+      "line": 0,
+      "name": "<built-in method builtins.getattr>",
+      "primitive_calls": 6554989,
+      "calls": 6554990,
+      "self_cpu_seconds": 1.2802339770000002,
+      "cumulative_cpu_seconds": 1.304006988
+    },
+    {
+      "file": "/workspace/cwr-perf-after-v2/src/chronicler/residence_ledger.py",
+      "line": 786,
+      "name": "separation",
+      "primitive_calls": 20,
+      "calls": 20,
+      "self_cpu_seconds": 1.238114444,
+      "cumulative_cpu_seconds": 1.8627740910000001
+    },
+    {
+      "file": "/workspace/cwr-perf-after-v2/src/chronicler/household_retail.py",
+      "line": 688,
+      "name": "check_owner",
+      "primitive_calls": 1156,
+      "calls": 1156,
+      "self_cpu_seconds": 1.2079494430000002,
+      "cumulative_cpu_seconds": 5.911762005
+    },
+    {
+      "file": "/workspace/cwr-perf-after-v2/src/chronicler/war_consequences.py",
+      "line": 150,
+      "name": "movement_rows",
+      "primitive_calls": 426601,
+      "calls": 426601,
+      "self_cpu_seconds": 1.156869677,
+      "cumulative_cpu_seconds": 3.114754445
+    },
+    {
+      "file": "/workspace/cwr-perf-after-v2/src/chronicler/household_retail.py",
+      "line": 458,
+      "name": "largest_remainder",
+      "primitive_calls": 1623,
+      "calls": 1623,
+      "self_cpu_seconds": 1.051161739,
+      "cumulative_cpu_seconds": 1.9879525880000002
+    },
+    {
+      "file": "~",
+      "line": 0,
+      "name": "<built-in method builtins.sorted>",
+      "primitive_calls": 440777,
+      "calls": 441005,
+      "self_cpu_seconds": 1.031650044,
+      "cumulative_cpu_seconds": 1.96655342
+    },
+    {
+      "file": "/workspace/cwr-perf-after-v2/src/chronicler/residence_ledger.py",
+      "line": 172,
+      "name": "_state",
+      "primitive_calls": 1771524,
+      "calls": 1771524,
+      "self_cpu_seconds": 0.9431682530000001,
+      "cumulative_cpu_seconds": 1.565911102
+    },
+    {
+      "file": "/workspace/cwr-perf-after-v2/src/chronicler/residence_ledger.py",
+      "line": 717,
+      "name": "_dated",
+      "primitive_calls": 885720,
+      "calls": 885720,
+      "self_cpu_seconds": 0.931529385,
+      "cumulative_cpu_seconds": 3.5909934540000004
+    },
+    {
+      "file": "~",
+      "line": 0,
+      "name": "<method 'append' of 'list' objects>",
+      "primitive_calls": 4280183,
+      "calls": 4280183,
+      "self_cpu_seconds": 0.8622521230000001,
+      "cumulative_cpu_seconds": 0.8622521230000001
+    },
+    {
+      "file": "/workspace/cwr-perf-after-v2/src/chronicler/adaptive_livelihoods.py",
+      "line": 219,
+      "name": "_known_residences",
+      "primitive_calls": 20,
+      "calls": 20,
+      "self_cpu_seconds": 0.7781647490000001,
+      "cumulative_cpu_seconds": 6.187502338000001
+    },
+    {
+      "file": "/workspace/cwr-perf-after-v2/src/chronicler/titled_trade.py",
+      "line": 216,
+      "name": "_people",
+      "primitive_calls": 84,
+      "calls": 84,
+      "self_cpu_seconds": 0.705560748,
+      "cumulative_cpu_seconds": 1.1896602550000002
+    },
+    {
+      "file": "/workspace/cwr-perf-after-v2/src/chronicler/household_retail.py",
+      "line": 1615,
+      "name": "_settle_frame",
+      "primitive_calls": 20,
+      "calls": 20,
+      "self_cpu_seconds": 0.6820765900000001,
+      "cumulative_cpu_seconds": 2.7338137930000004
+    },
+    {
+      "file": "/workspace/cwr-perf-after-v2/src/chronicler/household_retail.py",
+      "line": 1866,
+      "name": "cohorts",
+      "primitive_calls": 20,
+      "calls": 20,
+      "self_cpu_seconds": 0.675858916,
+      "cumulative_cpu_seconds": 1.555830808
+    },
+    {
+      "file": "/workspace/cwr-perf-after-v2/src/chronicler/residence_ledger.py",
+      "line": 760,
+      "name": "read",
+      "primitive_calls": 442840,
+      "calls": 442840,
+      "self_cpu_seconds": 0.6100919380000001,
+      "cumulative_cpu_seconds": 2.634348971
+    },
+    {
+      "file": "/workspace/cwr-perf-after-v2/src/chronicler/adaptive_livelihoods.py",
+      "line": 342,
+      "name": "_before_agent_tick_v3",
+      "primitive_calls": 20,
+      "calls": 20,
+      "self_cpu_seconds": 0.585337626,
+      "cumulative_cpu_seconds": 10.475016355000001
+    },
+    {
+      "file": "/workspace/cwr-perf-after-v2/src/chronicler/household_retail.py",
+      "line": 1235,
+      "name": "_roster",
+      "primitive_calls": 20,
+      "calls": 20,
+      "self_cpu_seconds": 0.575921361,
+      "cumulative_cpu_seconds": 0.619973356
+    },
+    {
+      "file": "/workspace/cwr-native/lib/python3.13/site-packages/pydantic/main.py",
+      "line": 1028,
+      "name": "__setattr__",
+      "primitive_calls": 816101,
+      "calls": 816101,
+      "self_cpu_seconds": 0.5697573340000001,
+      "cumulative_cpu_seconds": 1.3405695720000002
+    },
+    {
+      "file": "~",
+      "line": 0,
+      "name": "<method 'get_snapshot' of 'builtins.AgentSimulator' objects>",
+      "primitive_calls": 1107,
+      "calls": 1107,
+      "self_cpu_seconds": 0.5434866770000001,
+      "cumulative_cpu_seconds": 0.5434866770000001
+    },
+    {
+      "file": "/workspace/cwr-perf-after-v2/src/chronicler/residence_ledger.py",
+      "line": 240,
+      "name": "residence_ledger_active",
+      "primitive_calls": 885762,
+      "calls": 885762,
+      "self_cpu_seconds": 0.5316276360000001,
+      "cumulative_cpu_seconds": 1.4739018220000002
+    },
+    {
+      "file": "/workspace/cwr-perf-after-v2/src/chronicler/validation_io.py",
+      "line": 1149,
+      "name": "detect_communities",
+      "primitive_calls": 2,
+      "calls": 2,
+      "self_cpu_seconds": 0.48078537400000004,
+      "cumulative_cpu_seconds": 0.7839508030000001
+    }
+  ],
+  "post_validation_and_stats_resource_usage": {
+    "process_cpu_seconds": 318.680164,
+    "peak_rss_kib": 407340,
+    "scope": "process startup through model, exact readbacks, full bundle load, strict CWR extraction and diagnostic stats construction"
+  }
+}
