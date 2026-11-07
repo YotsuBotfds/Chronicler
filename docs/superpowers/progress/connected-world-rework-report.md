@@ -162,7 +162,7 @@ default identity test. CPU is measured separately from shared-host wall time.
 | Procedural 48, seed 42, 150 turns | 51.438 s | 49.463 s |
 
 The fixed FULL workload totals 318.28→265.89 CPU seconds, an observed 16.46%
-reduction; the largest case improves 34.04%. Small changes remain inconclusive
+reduction; the most expensive baseline case improves 34.04%. Small changes remain inconclusive
 single observations, with OFF variability and the first candidate's adverse/null
 results retained. Actual initial/peak populations remain declared and matched;
 the historical `scaled52k` case initializes 43,700 and reaches 53,138.
