@@ -1,6 +1,6 @@
 # CWR1 correctness and causal mechanism screen
 
-Status: DRAFT — no CWR1 held execution is authorized by this draft.
+Status: FROZEN — reviewed CWR1 source, complete timing pilot and budget receipt below.
 
 Compute ceiling: 2.0 core-hours
 
@@ -258,4 +258,68 @@ PYTHONPATH=src python scripts/cw_rework_screen.py check --screen CWR1 \
   --cohort held --metrics OUT/held/metrics.jsonl
 ```
 
-Freeze receipt: **not yet available; no CWR1 held seed has been spent.**
+## Frozen source and complete-pilot receipt (2026-11-07)
+
+The final simulation/runtime source is
+`8792be88dd36ba4d7c22e480de6a19dd64ea1300`, a clean immutable checkout at
+`/workspace/cwr-final-runtime`. Later docs-only freeze/integration commits
+are distinct from this runtime reference. Maintained feature defaults remain
+A6 rules 2 and PH `legacy_displacement`; all experimental arms retain their
+explicit flags above. No control, outcome, horizon, cohort or simulation
+parameter changed in response to pilot outcomes.
+
+The independent core/source review, the native/bridge and adversarial
+regressions, and the ten-case exact-output optimization admission approved
+this runtime. The imported interpreter is `/workspace/cwr-native/bin/python`
+(CPython 3.13.5). The compiled native SHA256 is
+`b1d3ea5ac858681960b2cb880c534164905501f6ab4f6f3c94f7c9b5f66196cd`;
+all 57 unique Rust/Cargo/build inputs and the native crate pyproject matched
+the fresh-build receipt (input digest
+`f55df55d453ac37694410246c4a9728c56f3f6148f679fde8efc21ffd8775acf`).
+The imported source/extension paths and hashes were verified before and
+after the complete pilot.
+
+Frozen evidence identities:
+
+- Generic runner SHA256:
+  `5ded5f3548bb6403b1df25e9d31e5c5ce638631aa5fd1b4fabdcfb8510b5cadb`.
+- Screen/extractor SHA256:
+  `f8409b1b76be49dbff968323f9eee2f65229e5c1280e0c349fe2e2a3927e4fef`.
+- Registry cohort-content SHA256:
+  `62ce5aa81170da9efa52c56340ef8719f78eae9dfe612459f798195efb3cc446`;
+  append-only collision-free reservation commit `8de171fd`.
+- Pilot source identity:
+  `96f1efadb8e2a73158c0ba1a952b623f8235dd84d07f492c55503543cb9edea3`.
+- Complete pilot metrics SHA256:
+  `05e9e8d8fe3796604329a9d24eb8b94223f2391f462658d0f5d82cd7ba2e8d1e`.
+- Published report SHA256:
+  `a43804e38697f493c87ad56b3bd594d594c9e9119e42397a0a96de2a1b48d08d`.
+
+The official pilot at
+`/workspace/evidence/cwr-evaluation/pilot-8792be88-v1/` completed
+**24/24 successful, strictly validated 120-turn cases**, all twelve arms on
+shared timing worlds t5/p19. It ran one sequential simulation job with
+Rayon, OpenBLAS, OMP and MKL thread counts all set to one. The exact launch,
+check/report commands, retained nulls/harms, source and all raw bundles and
+Arrow sidecars are preserved in the
+[pilot evidence](../audits/connected-world/rework-cwr1-pilot/README.md).
+The [independent stdlib audit](../audits/connected-world/rework-cwr1-independent/pilot-review-2026-11-07.md)
+passed the exact matrix, identities, control implications, rates/nulls, planned
+core/component/health/food contrast arithmetic and six rendered primary rows. The report's stdout was published byte-for-byte as
+`report.md`; the original launcher receipt and its null report-hash field
+remain unchanged, with a separate publication/hash receipt.
+
+Measured simulation **484.7 s** plus extraction **68.5 s** totals
+**553.2 s**. Six held worlds per stratum therefore project to
+**0.922 core-hours**; the preregistered fixed **1.5** margin gives
+**1.383 core-hours**, below the unchanged **2.0 core-hour** ceiling.
+The actual fresh runner subprocess measured 553.267015 s of descendant CPU
+and 556.096743 s wall. Peak 1,145,972 KiB is explicitly the maximum of a
+single waited-for child/descendant, not simultaneous process-tree RSS.
+No budget or timing amendment was needed.
+
+The generic held runner must still verify this exact protocol hash, native,
+source/module identities, registry-content hash, complete matching pilot and
+live budget at execution. No held seed was spent by the pilot or this freeze.
+The 120-turn, 12-world bounded held screen remains distinct from both
+restricted qualification gates and from default promotion.

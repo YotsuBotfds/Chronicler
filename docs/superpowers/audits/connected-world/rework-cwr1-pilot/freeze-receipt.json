@@ -1,0 +1,26 @@
+{
+  "status": "FROZEN_FOR_REVIEW",
+  "runtime_source": "8792be88dd36ba4d7c22e480de6a19dd64ea1300",
+  "protocol_sha256": "51b8a336969f48b4beb6f5b3e543062eda71822b98513b337ceb2d010e6efe7a",
+  "pilot_identity": "96f1efadb8e2a73158c0ba1a952b623f8235dd84d07f492c55503543cb9edea3",
+  "pilot_metrics_sha256": "05e9e8d8fe3796604329a9d24eb8b94223f2391f462658d0f5d82cd7ba2e8d1e",
+  "pilot_report_sha256": "a43804e38697f493c87ad56b3bd594d594c9e9119e42397a0a96de2a1b48d08d",
+  "pilot_original_launcher_receipt_sha256": "7f5fe6f3369fa1d5dcfb0e550e7c6dca5b390e7732318c4c03a61d6d6e962e50",
+  "pilot_publication_receipt_sha256": "98820bdb5a0750ba2597f315fb11494dd0ed88d162956fd86c2a7faf37805856",
+  "independent_arithmetic_receipt_sha256": "c91093fc1f4f4f8ac1f9ae9aa28ff986a6a8e586b7178c9fbca263beabb04ae2",
+  "independent_checker_commits": [
+    "0ef845ad",
+    "b90ecadd",
+    "fe51c334"
+  ],
+  "sim_plus_extract_seconds": 553.2,
+  "held_projection_core_hours": 0.922,
+  "fixed_margin": 1.5,
+  "projected_with_margin_core_hours": 1.383,
+  "declared_cap_core_hours": 2,
+  "native_sha256": "b1d3ea5ac858681960b2cb880c534164905501f6ab4f6f3c94f7c9b5f66196cd",
+  "native_input_sha256": "f55df55d453ac37694410246c4a9728c56f3f6148f679fde8efc21ffd8775acf",
+  "registry_content_sha256": "62ce5aa81170da9efa52c56340ef8719f78eae9dfe612459f798195efb3cc446",
+  "held_seeds_spent": 0,
+  "scope": "Concrete docs-only freeze proposal; no simulation or registry mutation. Integration owner reviews/commits the frozen protocol before any separate held start."
+}

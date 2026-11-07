@@ -1,0 +1,13 @@
+source 8792be88dd36ba4d7c22e480de6a19dd64ea1300
+dirty 0 tracked files
+dirty-code 0 tracked code files
+chronicler /workspace/cwr-final-runtime/src/chronicler/__init__.py
+native /workspace/cwr-native/lib/python3.13/site-packages/chronicler_agents/chronicler_agents.cpython-313-x86_64-linux-gnu.so b1d3ea5ac858681960b2cb880c534164905501f6ab4f6f3c94f7c9b5f66196cd
+interpreter /workspace/cwr-native/bin/python
+runner 5ded5f3548bb6403b1df25e9d31e5c5ce638631aa5fd1b4fabdcfb8510b5cadb scripts/screen_runner.py
+screens f8409b1b76be49dbff968323f9eee2f65229e5c1280e0c349fe2e2a3927e4fef scripts/cw_rework_screen.py
+registry e23ecc83fcf94770749b28672d1caca59f3070e4add0dc36f4a07fd1dbf5394c scripts/seed_registry.json
+registry-content 62ce5aa81170da9efa52c56340ef8719f78eae9dfe612459f798195efb3cc446 (cohorts and seeds)
+run: screen CWR1; cohort pilot; seeds all; arms RD,AD,RL,AL,MX,IX,WX,TX,RPC,APC,RNR,ANR; jobs 1; worlds -; turns -; rows already written 0
+started 2026-11-07T22:21:06Z
+finished 2026-11-07T22:30:21Z: 24 runs, 0 failed, 553 s of simulation and extraction (0.154 core-hours in all), 555.3 s wall

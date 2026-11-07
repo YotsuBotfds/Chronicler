@@ -1,0 +1,28 @@
+{
+  "status": "PASS",
+  "runtime_source": "8792be88dd36ba4d7c22e480de6a19dd64ea1300",
+  "identity": "96f1efadb8e2a73158c0ba1a952b623f8235dd84d07f492c55503543cb9edea3",
+  "launcher_receipt_sha256": "7f5fe6f3369fa1d5dcfb0e550e7c6dca5b390e7732318c4c03a61d6d6e962e50",
+  "report_publication_sha256": "98820bdb5a0750ba2597f315fb11494dd0ed88d162956fd86c2a7faf37805856",
+  "metrics_sha256": "05e9e8d8fe3796604329a9d24eb8b94223f2391f462658d0f5d82cd7ba2e8d1e",
+  "report_sha256": "a43804e38697f493c87ad56b3bd594d594c9e9119e42397a0a96de2a1b48d08d",
+  "rows": 24,
+  "failures": [],
+  "simulation_seconds": 484.7,
+  "extraction_seconds": 68.5,
+  "projection_core_hours": 0.9220000000000002,
+  "projection_with_margin_core_hours": 1.3830000000000002,
+  "declared_cap_core_hours": 2.0,
+  "budget_pass": true,
+  "resource_measurement": {
+    "runner_wall_seconds": 556.0967426489988,
+    "descendant_user_cpu_seconds": 537.7821389999999,
+    "descendant_system_cpu_seconds": 15.484876,
+    "child_max_single_process_rss_kib_before": 108764,
+    "child_max_single_process_rss_kib_after": 1145972,
+    "rss_scope": "Linux RUSAGE_CHILDREN lifetime maximum of a single waited-for child/descendant, including prior identity probe; not simultaneous process-tree memory and not a subtractable maximum",
+    "cpu_scope": "RUSAGE_CHILDREN deltas immediately around the fresh generic screen-runner subprocess; includes its waited-for simulation descendants and extraction, excludes later check/report"
+  },
+  "held_seeds_spent": 0,
+  "independent_arithmetic": "pending"
+}
