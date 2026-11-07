@@ -154,6 +154,11 @@ def test_pilot_and_reserve(SR, registry, CW):
 def _mutate(registry, change):
     reg = copy.deepcopy(registry)
     by = {e["id"]: e for e in reg["entries"]}
+    if change in ("reservation overlaps", "reservation in the gate", "held reservation without screen"):
+        # These cases exercise a NEW reservation on a scratch copy. The
+        # live CW6 cohort is consumed and must never become available again.
+        by["cw6-held-t"]["status"] = "reserved"
+        by["cw6-held-t"].pop("held_run", None)
     if change == "duplicate id":
         reg["entries"].append(dict(by["ls1-held-t"]))
     elif change == "bad stratum":
