@@ -12,6 +12,9 @@ export const INFRA_TERMINAL = ["inactive", "destroyed"] as const;
 export const INFRA_END_CAUSES = ["scorch", "earthquake", "depopulation", "unknown", "record_removed"] as const;
 export const INFRA_REASONS = ["no_timber", "no_coins", "no_labor", "no_envelope", "granary_first"] as const;
 export const INFRA_DAMAGE_EVENTS = ["conquest", "sack", "flood"] as const;
+/** What PL1 (`--timber-supply`) did about a region's works' timber need, and why it launched nothing. */
+export const INFRA_TIMBER_STATUSES = ["supplied", "expedition", "launched", "refused"] as const;
+export const INFRA_TIMBER_REFUSALS = ["no_forest", "too_far", "forest_depleted", "forest_busy", "no_crew", "no_coins"] as const;
 
 export type InfraMode = typeof INFRA_MODES[number];
 export type InfraKind = typeof INFRA_KINDS[number];
@@ -99,6 +102,24 @@ export interface InfraSkippedDamage {
   kept: number;
 }
 
+/**
+ * A region whose open works asked PL1 for timber at that turn's Phase 10,
+ * after RS2's need rows: `gap = max(0, want - max(0, free + in_transit - rs2_want))`.
+ */
+export interface InfraTimberNeed {
+  region: number;
+  civ: number;
+  works: number[];
+  want: number;
+  rs2_want: number;
+  free: number;
+  in_transit: number;
+  gap: number;
+  status: typeof INFRA_TIMBER_STATUSES[number];
+  reason: typeof INFRA_TIMBER_REFUSALS[number] | null;
+  eid: number | null;
+}
+
 export interface InfraReceipt {
   turn: number;
   wid: number;
@@ -164,6 +185,9 @@ export interface InfraRecord {
   receipts: InfraReceipt[] | null;
   ledger: InfraLedger[] | null;
   unmet: InfraUnmet[] | null;
+  /** Present only for a turn PL1 planned the works' timber need. */
+  timber_needs?: InfraTimberNeed[];
+  timber_needs_dropped?: number;
   shared: number[] | null;
   prepaid: Record<string, number>;
   sink_milli: number;

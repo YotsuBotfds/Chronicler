@@ -1558,6 +1558,7 @@ def cw3b_extract(bundle: dict, flags) -> tuple[dict, list[str]]:
     rc = rs2[-1][1].get("counters") or {} if rs2 else {}
     m["rs2_work_delivered"] = rc.get("work_delivered") if rs2 else None
     m["rs2_charged"] = rc.get("charged") if rs2 else None
+    m["rs2_stalled_no_timber"] = rc.get("stalled_no_timber", 0) if rs2 else None
     awards = {"repairs": 0, "infrastructure_works": 0}
     awarded_coins = {"repairs": 0, "infrastructure_works": 0}
     for _s, r in _cw3_records(bundle, CW3B_LB):
@@ -1576,6 +1577,20 @@ def cw3b_extract(bundle: dict, flags) -> tuple[dict, list[str]]:
     tc = ts[-1][1].get("counters") or {} if ts else {}
     m["pl1_launched"] = tc.get("launched", 0) if ts else None
     m["pl1_delivered"] = tc.get("delivered", 0) if ts else None
+    m["pl1_person_turns"] = tc.get("person_turns", 0) if ts else None
+    # The works' timber need, served after RS2's (B3's rows): expeditions launched for the works
+    # and their woodcutter person-turns (each expedition's largest count seen in any record).
+    works_mode = mode in ("repair", "cost_only") and bool(ts)
+    eids = {row.get("eid") for _s, r in records for row in r.get("timber_needs") or []
+            if row.get("status") == "launched"}
+    person: dict = {}
+    for _s, r in ts:
+        for e in (r.get("expeditions") or []) + (r.get("closed") or []):
+            person[e.get("eid")] = max(person.get(e.get("eid"), 0), e.get("person_turns") or 0)
+    m["pl1_works_launched"] = len(eids) if works_mode else None
+    m["pl1_works_person_turns"] = sum(person.get(e, 0) for e in eids) if works_mode else None
+    m["ic_timber_refused"] = (sum(v for k, v in c.items() if k.startswith("timber_refused_"))
+                              if works_mode else None)
     # Stability (mean over living civs at the end), beside the harm panel's treasury.
     stats = (history[-1].get("civ_stats") if history else None) or {}
     vals = [v.get("stability") for v in (stats.values() if isinstance(stats, dict) else stats)
@@ -1675,12 +1690,28 @@ def _cw3b_outcomes() -> tuple[SR.Outcome, ...]:
         SR.Outcome("cw3b_story", "Works stalled 20+ turns on an asset that failed (C alone: the underfunded public "
                    "works story)", "C", None, _m("story_works")),
         SR.Outcome("cw3b_pl1_delivered", "Timber the woodcutters delivered to the store (C alone; PL1 serves RS2's "
-                   "needs, the works use what is left)", "C", None, _m("pl1_delivered")),
+                   "needs first, then the works')", "C", None, _m("pl1_delivered")),
+        SR.Outcome("cw3b_pl1_works_launched", "Expeditions PL1 launched for the works' timber need (C alone)", "C",
+                   None, _m("pl1_works_launched")),
+        SR.Outcome("cw3b_pl1_works_launched_t", "Expeditions PL1 launched for the works' timber need (C_T alone)",
+                   "C_T", None, _m("pl1_works_launched")),
+        SR.Outcome("cw3b_pl1_works_person_turns", "Woodcutter person-turns of the works' expeditions (C alone)", "C",
+                   None, _m("pl1_works_person_turns")),
+        SR.Outcome("cw3b_timber_refused", "The works' timber need rows PL1 refused, every reason (C alone)", "C",
+                   None, _m("ic_timber_refused")),
         # Fixed harm panel (the runner's panel shows each arm against its control beside these).
         SR.Outcome("cw3b_h_rs2_displaced", "RS2 repair work delivered (C - W: the L9 envelope displacement)", "C",
                    "W", _m("rs2_work_delivered")),
         SR.Outcome("cw3b_h_rs2_displaced_t", "RS2 repair work delivered (C_T - W_T)", "C_T", "W_T",
                    _m("rs2_work_delivered")),
+        SR.Outcome("cw3b_h_rs2_timber", "RS2 work-turns stalled without timber (C - W: woodcutters and forests "
+                   "the works' expeditions took from RS2's later needs)", "C", "W", _m("rs2_stalled_no_timber")),
+        SR.Outcome("cw3b_h_rs2_timber_t", "RS2 work-turns stalled without timber (C_T - W_T)", "C_T", "W_T",
+                   _m("rs2_stalled_no_timber")),
+        SR.Outcome("cw3b_h_woodcutter_turns", "Woodcutter person-turns away from home, every expedition (C - W)", "C",
+                   "W", _m("pl1_person_turns")),
+        SR.Outcome("cw3b_h_woodcutter_turns_t", "Woodcutter person-turns away from home (C_T - W_T)", "C_T", "W_T",
+                   _m("pl1_person_turns")),
         SR.Outcome("cw3b_h_farm_time", "Farm time removed by the works, work units (C alone)", "C", None,
                    _m("ic_work_delivered")),
         SR.Outcome("cw3b_h_coins_destroyed", "Coins destroyed by the public-works sink (C alone)", "C", None,

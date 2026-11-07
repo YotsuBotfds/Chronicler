@@ -176,6 +176,31 @@ by region and `aid`.
   merchant commitments, plus the PL1 store), added to RS2's per-region holds (so the store is taken
   first and a failed tick returns everything with RS2's holds); the unused part is returned after
   the tick (store part through PL1's `return_store`).
+- **Timber supply (PL1, `--timber-supply`):** the works' outstanding timber need enters PL1's
+  planner, the existing authority, **after every RS2 need row of the turn** (lead decision,
+  2026-11-07; `timber_wants` here, `timber_supply._plan_works` there). Per region, ascending: the
+  timber the open works could use in one turn at their per-turn cap,
+  `min(WORK_PER_TURN, remaining) x TIMBER_PER_WORK` (PL1's horizon for RS2's projects), set against
+  what the free timber and the cargo on the way leave after RS2's want in the region:
+  `gap = max(0, want - max(0, free + in_transit - rs2_want))`. A region with a live expedition
+  gets no second one; a gap of at least PL1's `MIN_GAP` launches one under PL1's checks (forest
+  within `MAX_HOPS`, the `GUARD_SHARE` ecological guard, one expedition per forest, at most
+  `CREW_CAP` eligible residents, the whole expedition's wages affordable), PL1's crew rule, its
+  wages from the controller's treasury and the one work reservation: no other labour authority, no
+  free timber. The cargo is cut through the forest's L3 account and delivered to the home region's
+  store, which RS2's holds (the works' included) take first, exactly once; PL1 keeps the store
+  where a work is open instead of releasing it, and releases it once none is. **Boundary:** only
+  works already opened by the lifecycle ask, never an asset that has not opened one; a work asks
+  nothing when its record is not in service, its region has no controller or had no farmer after
+  the turn's agent tick (RS2's observed count, as PL1 skips RS2 granaries without farm labour);
+  under L9 a work is funded only through the works' own proposal, so only irrigation works that
+  proposal could name ask (roads never get an envelope; a region whose storage is set to ask for
+  work is screened `granary_first` by the same prediction; the proposal's `no_timber` screen is
+  what the supply relieves). Without L9 storage's actual request decides `granary_first` at Phase
+  2 (it depends on storage's own inputs, so no prediction screens the need); a work stalled there
+  keeps its delivered timber in the store. Works opened in this Phase 10 ask from the next (B3's
+  Phase 10 hook runs after PL1's). The rows are recorded here (`timber_needs`); PL1's own need rows
+  and their counters stay RS2's. Off, and in `record_only`/`wear_only`, nothing changes.
 - **Coins:** `COIN_MILLI_PER_WORK` per delivered unit, rounded up to the milli-unit; one whole-unit
   charge per civ and turn, the sub-unit remainder prepaid toward the civ's next works (RS2's rule).
   The works plan **after** every Phase 2 bill RS2 plans around and after RS2's own planned charge,
@@ -256,7 +281,10 @@ Completed-turn observations dated by `source_turn`: `assets` (serving and failed
 responsible civ, lifetime wear, damage and credit, `failed_turn`, `food_at_risk` and a bounded
 dated history), `terminal` (the last 32 ended assets), `works` (open), `closed` (last 16),
 `damages` (last 32, a declared bound: drops are counted in `damages_dropped` and, for a record no
-work had taken, `damages_dropped_unattached`), `receipts`/`ledger`/`unmet`/`shared` (all null when the turn had no settled
+work had taken, `damages_dropped_unattached`), `skipped_damages` (only once a damage was skipped),
+`timber_needs` and `timber_needs_dropped` (only for a turn PL1 planned the works' timber need: per
+region the works, want, RS2's want, free timber, cargo on the way, gap, and what PL1 did: `supplied`,
+`expedition`, `launched` or `refused` with PL1's reason and the expedition id), `receipts`/`ledger`/`unmet`/`shared` (all null when the turn had no settled
 Phase 2 in a work mode: unknown, not zero; receipts and ledger are always null in
 `record_only`/`wear_only`, which have no works), `prepaid`, `sink_milli`, `counters` (declared set)
 and `parameters`. The strict viewer reader keeps disabled, absent, malformed, unsettled, no-works and
@@ -368,6 +396,41 @@ less in all under L9 than before (template 10.1 against 53.0 work units, procedu
 - **Timing.** About 7-9 s per template world and 17-23 s per procedural world over 200 turns (no
   separate profiling at a declared scale).
 
+### Timber link re-measure (development worlds only; no held seed; no tuning)
+
+The works' timber need entering PL1 after RS2's (section 5), measured before (`518407eb`) and after
+(`9daaec56`, the link; `src` unchanged since) on template seeds 7 and 11 and procedural seed 13
+(32 regions, 10 civs), CW3b's work arms at 200 turns: `C` (L9 and the maintenance obligation) and
+`C_T` (treasury), both with RS2, grain storage, the L3 stock and PL1. Extension
+`20e77f99...c0c1ca`; script and compact output `/home/user/evidence/b3/timber_remeasure.py` and
+`timber-remeasure.json` (outside the repository). The two sides follow different trajectories
+once anything differs, so a single world's difference mixes the link with trajectory divergence.
+
+| World, arm | Expeditions for the works (woodcutter person-turns) | Works' timber-stall work-turns before / after | Works' work delivered before / after (completed) | RS2 work delivered before / after | RS2 timber-stall work-turns before / after | All woodcutter person-turns before / after |
+| --- | --- | --- | --- | --- | --- | --- |
+| template 7, C | 0 | 1,250 / 1,250 | 0 / 0 | 22.7 / 22.7 | 936 / 936 | 64 / 64 |
+| template 7, C_T | 1 (18) | 1,317 / 1,294 | 17.9 (3) / 15.7 (3) | 66.8 / 72.7 | 791 / 905 | 34 / 57 |
+| template 11, C | 0 | 1,203 / 1,203 | 0.29 / 0.29 | 41.7 / 41.7 | 617 / 617 | 5 / 5 |
+| template 11, C_T | 4 (37) | 930 / 955 | 11.0 (1) / 38.2 (5) | 65.1 / 86.1 | 506 / 468 | 111 / 104 |
+| procedural 13, C | 12 (144) | 4,147 / 4,348 | 77.4 (8) / 117.3 (12) | 296.3 / 368.9 | 1,782 / 1,860 | 696 / 785 |
+| procedural 13, C_T | 3 (35) | 3,774 / 3,764 | 282.1 (50) / 266.7 (49) | 490.4 / 466.4 | 1,721 / 1,906 | 764 / 765 |
+
+- **PL1's own rules bind the works' need.** Of the works' need rows, PL1 refused most:
+  `no_forest` (template 7: 482 C, 557 C_T rows; procedural 13: 662 / 523) and `forest_depleted`
+  (template 11 C_T 497; procedural 13 702 / 1,451), then `forest_busy` and `too_far`; it launched
+  1-12 expeditions per world and arm. Under L9 on the template worlds it launched none (every row
+  refused or covered), and the run's counters are unchanged (the record gains its rows).
+- **Timber stalls barely move** (-1.7% to +4.8% of work-turns): the works still lack timber
+  wherever PL1 can reach no healthy free forest.
+- **Works delivered:** up in template 11 C_T (x3.5, completions 1 -> 5) and procedural 13 C (+51%,
+  8 -> 12 completions); down in template 7 C_T (-12%) and procedural 13 C_T (-5.5%).
+- **RS2 displacement (harm):** RS2's delivery rose in three activated arms (+9%, +32%, +25%; the
+  works' deliveries to a shared store and trajectory changes) and fell in procedural 13 C_T (-4.9%),
+  where RS2's timber-stall work-turns rose 10.7% (1,721 -> 1,906); in template 7 C_T they rose 14%
+  while RS2's delivery rose. RS2 is served first within each turn; displacement acts across turns,
+  through forests and crews a works' expedition still holds when RS2 next needs them.
+- Woodcutter time follows the launches (up to +89 person-turns, procedural 13 C).
+
 ### Verification
 
 Section 9.
@@ -411,8 +474,11 @@ gate and the procedural qualification gate.
   Recorded as a missing capability.
 - **Coins are destroyed.** The `public_works` sink pays no one (section 5): a declared
   deflationary leak, like the undeclared granary coins of storage and RS2.
-- **PL1 demand.** The woodcutters' need (`timber_supply`) is computed from RS2's projects; the works
-  use whatever the store holds after RS2's holds, so PL1 does not yet send expeditions for them.
+- **PL1 supply is bounded by PL1's own rules.** The works now ask PL1 for timber after RS2
+  (section 5), but PL1 sends a crew only to a healthy forest within two hops that no other crew is
+  cutting, so many works' needs are refused `no_forest`, `too_far`, `forest_busy` or
+  `forest_depleted` (section 8, timber link re-measure); a crew's harvest follows the forest
+  slot's labour curve and can be small. None of PL1's constants was changed for B3.
 - **Roads have no relief measure** under L9 (trade range lost is not valued): they are not proposed,
   so under L9 they get no envelope and stall `no_envelope`; they are repaired without L9.
 - **granary_first is decided by storage's actual request** in Phase 2, but the L9 proposal's screen

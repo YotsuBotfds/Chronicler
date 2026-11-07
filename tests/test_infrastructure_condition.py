@@ -980,6 +980,26 @@ def test_the_cw3b_screen_is_declared_with_its_cohort_and_reads_the_record():
     assert m["irrigated_regions"] == 2 and 0 < m["irrigation_serving_share"] < 1
     assert m["irrigation_serving_share_after"] is not None and m["irrigation_asset_turns_after"] < m["irrigation_asset_turns"]
     assert m["rs2_work_delivered"] is None and m["l9_awards_infrastructure_works"] is None   # not recorded, not zero
+    assert m["rs2_stalled_no_timber"] is None and m["pl1_works_launched"] is None
+    ids = {o.id for o in screen.outcomes}
+    # The timber stall turns stay secondaries; RS2's displacement (delivery, timber stalls) and the
+    # woodcutters' time are in the harm panel.
+    assert {"cw3b_stalled_timber", "cw3b_stalled_timber_t", "cw3b_pl1_works_launched", "cw3b_pl1_works_person_turns",
+            "cw3b_h_rs2_displaced", "cw3b_h_rs2_displaced_t", "cw3b_h_rs2_timber", "cw3b_h_rs2_timber_t",
+            "cw3b_h_woodcutter_turns", "cw3b_h_woodcutter_turns_t"} <= ids
+    # The works' expeditions are read from B3's launched rows and PL1's expedition records.
+    timber_bundle = copy.deepcopy(bundle)
+    for i, snap in enumerate(timber_bundle["history"]):
+        snap["livelihoods"]["infrastructure_condition"]["mode"] = "repair"
+        snap["livelihoods"]["infrastructure_condition"]["counters"]["timber_refused_no_forest"] = 2
+        snap["livelihoods"]["timber_supply"] = {"counters": {"launched": 2, "person_turns": 20},
+                                                "expeditions": [{"eid": 3, "person_turns": min(i, 8)}],
+                                                "closed": [{"eid": 1, "person_turns": 12}]}
+    timber_bundle["history"][5]["livelihoods"]["infrastructure_condition"]["timber_needs"] = [
+        {"region": 0, "status": "launched", "eid": 3}, {"region": 1, "status": "refused", "eid": None}]
+    mt = cws.cw3b_extract(timber_bundle, list(screen.base) + list(screen.arms["C_T"][0]))[0]
+    assert (mt["pl1_works_launched"], mt["pl1_works_person_turns"], mt["pl1_person_turns"]) == (1, 8, 20)
+    assert mt["ic_timber_refused"] == 2
     assert cws.cw3b_extract(bundle, list(screen.base) + list(screen.arms["B"][0]))[0]["irrigated_regions"] is None
     assert problems == ["food in the irrigated regions could not be measured"]                # no food accounts here
     # The pre-treatment check failed here (condition was lowered before snapshot 28): the gated

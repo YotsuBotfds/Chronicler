@@ -133,6 +133,24 @@ healthy forest is taken, and it keeps two crews off one stand.
 The forest chosen is the in-range healthy free one with the fewest hops, then
 the larger standing stock, then the lower region index.
 
+### B3's works, after RS2 (`--infrastructure-condition` in `repair` or `cost_only`)
+
+With B3's works on, the same planner serves their timber need **after every
+RS2 need row of the turn** (`_plan_works`; B3's integration page, section 5):
+per region with open works that can use timber next Phase 2
+(`infrastructure_condition.timber_wants`: only works already opened, one turn
+at their per-turn cap, none in a region without a farmer and, under L9, only
+irrigation works the works' own proposal could name), the works' want is set
+against what the free timber and the cargo on the way leave after RS2's want
+there: `gap = max(0, want - max(0, free + in_transit - rs2_want))`. A region
+with a live expedition gets no second one, whoever launched it; a gap of at
+least `MIN_GAP` launches one under the same checks, crew rule, wages and work
+reservation (no other labour authority, no other payer), or records the
+refusal. The rows are B3's (`livelihoods.infrastructure_condition.timber_needs`);
+this package's need rows and their counters stay RS2's (the expedition counters
+count every expedition). Off, and in B3's `record_only`/`wear_only`, nothing
+here changes.
+
 ### Who goes
 
 At most `CREW_CAP` living adults (age at least 20) resident in the home region,
@@ -174,8 +192,10 @@ home; the paid share withholds their ordinary income. Veterans on a crew (by ope
 - The store is not in the native stockpile, so merchants, crafts, the stock cap
   and conquest never see it: nothing else can take it. It does not decay (a
   declared simplification; it is short-lived).
-- Timber left in a region without an open RS2 project at Phase 10 is released
-  to the region's stockpile, recorded (`released`, store row).
+- Timber left in a region without an open RS2 project (or, with B3's works on,
+  an open work) at Phase 10 is released to the region's stockpile, recorded
+  (`released`, store row). B3's works hold through RS2's holds, so the store
+  reaches them by the same path (store first, exactly once).
 
 ### A turn the civ cannot pay: recall
 

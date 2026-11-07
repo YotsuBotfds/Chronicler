@@ -1,7 +1,7 @@
 import type { TurnSnapshot } from "../types";
 import {
   INFRA_DAMAGE_EVENTS, INFRA_END_CAUSES, INFRA_KINDS, INFRA_LIVE, INFRA_MODES, INFRA_REASONS, INFRA_TERMINAL,
-  INFRA_WORK_MODES, type InfraAsset, type InfraConditionPoint, type InfraReading, type InfraReason, type InfraReceipt,
+  INFRA_TIMBER_REFUSALS, INFRA_TIMBER_STATUSES, INFRA_WORK_MODES, type InfraAsset, type InfraConditionPoint, type InfraReading, type InfraReason, type InfraReceipt,
   type InfraRecord, type InfraWork, type InfraWorksStory,
 } from "../infrastructureConditionTypes";
 
@@ -154,6 +154,19 @@ export function readInfrastructure(snapshot: TurnSnapshot | null | undefined, re
   if (x.skipped_damages !== undefined && (!Array.isArray(x.skipped_damages) || !x.skipped_damages.every((d) => object(d)
     && count(d.turn) && count(d.aid) && count(d.region) && one(INFRA_DAMAGE_EVENTS, d.event) && amount(d.amount)
     && count(d.kept)))) return bad("malformed skipped damage");
+  if (x.timber_needs !== undefined) {
+    if (!Array.isArray(x.timber_needs) || !count(x.timber_needs_dropped)) return bad("malformed timber need");
+    for (const r of x.timber_needs as unknown[]) {
+      if (!object(r) || !count(r.region) || (r.region as number) >= regionCount || !civ(r.civ) || !Array.isArray(r.works)
+        || !r.works.every(count) || !amount(r.want) || !amount(r.rs2_want) || !amount(r.free) || !amount(r.in_transit)
+        || !amount(r.gap) || !one(INFRA_TIMBER_STATUSES, r.status)
+        || (r.status === "refused") !== one(INFRA_TIMBER_REFUSALS, r.reason)
+        || (r.status !== "refused" && r.reason !== null)
+        || ((r.status === "launched" || r.status === "expedition") !== count(r.eid))
+        || Math.abs((r.gap as number) - Math.max(0, (r.want as number) - Math.max(0, (r.free as number)
+          + (r.in_transit as number) - (r.rs2_want as number)))) > 1e-6) return bad("malformed timber need");
+    }
+  }
   const frame = [x.receipts, x.ledger, x.unmet, x.shared];
   if (frame.every((v) => v === null)) {
     return { status: "ok", frame: works ? "unsettled" : "no_works", record: x as unknown as InfraRecord };

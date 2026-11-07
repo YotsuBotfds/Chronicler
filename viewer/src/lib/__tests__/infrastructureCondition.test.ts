@@ -45,6 +45,19 @@ describe("readInfrastructure", () => {
     expect(w.status === "ok" && w.frame).toBe("no_works");
   });
 
+  it("reads the works' timber need rows when PL1 planned them, and records without them as before", () => {
+    const s = copy(settledIndex);
+    Object.assign(rec(s), { timber_needs: [
+      { region: 0, civ: 0, works: [1], want: 1, rs2_want: 4, free: 3, in_transit: 0, gap: 1, status: "refused",
+        reason: "forest_busy", eid: null },
+      { region: 1, civ: 0, works: [2, 3], want: 1.5, rs2_want: 0, free: 0.25, in_transit: 0, gap: 1.25,
+        status: "launched", reason: null, eid: 7 }], timber_needs_dropped: 0 });
+    const reading = readInfrastructure(s, regions, true);
+    expect(reading.status === "ok" && reading.record.timber_needs?.map((r) => r.status)).toEqual(["refused", "launched"]);
+    const plain = readInfrastructure(copy(settledIndex), regions, true);
+    expect(plain.status === "ok" && plain.record.timber_needs).toBeUndefined();
+  });
+
   it.each([
     ["misdated", (r: Record<string, unknown>) => { r.source_turn = (r.source_turn as number) + 1; }, "misdated observation"],
     ["an unknown stage", (r: Record<string, unknown>) => { r.stage = "B9"; }, "unknown infrastructure schema"],
@@ -68,6 +81,16 @@ describe("readInfrastructure", () => {
       for (const a of r.assets as Array<Record<string, unknown>>) a.service = 1;
     }, "works in a mode without works"],
     ["a partial frame", (r: Record<string, unknown>) => { r.ledger = null; }, "a partial frame"],
+    ["a timber need whose gap does not follow its inputs", (r: Record<string, unknown>) => {
+      r.timber_needs = [{ region: 0, civ: 0, works: [1], want: 1, rs2_want: 4, free: 3, in_transit: 0, gap: 0.5,
+        status: "refused", reason: "forest_busy", eid: null }];
+      r.timber_needs_dropped = 0;
+    }, "malformed timber need"],
+    ["a refused timber need without its reason", (r: Record<string, unknown>) => {
+      r.timber_needs = [{ region: 0, civ: 0, works: [1], want: 1, rs2_want: 0, free: 0, in_transit: 0, gap: 1,
+        status: "refused", reason: null, eid: null }];
+      r.timber_needs_dropped = 0;
+    }, "malformed timber need"],
     ["a repeated asset id", (r: Record<string, unknown>) => {
       const assets = r.assets as unknown[];
       assets.push(structuredClone(assets[0]));

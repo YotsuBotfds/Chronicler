@@ -57,6 +57,19 @@ it("lists damage with its cause, a flood with its event", () => {
   expect(screen.getByRole("row", { name: /Damage events: conquest \/ sack \/ flood/ })).toBeInTheDocument();
 });
 
+it("shows the timber the works asked of the woodcutters after RS2, only when PL1 planned it", () => {
+  const s = structuredClone(last) as unknown as TurnSnapshot;
+  Object.assign(rec(s), { timber_needs: [{ region: 0, civ: 0, works: [4], want: 1, rs2_want: 4, free: 3, in_transit: 0,
+    gap: 1, status: "refused", reason: "forest_busy", eid: null }], timber_needs_dropped: 0 });
+  render(<InfrastructureCondition {...props(s)} />);
+  const table = within(screen.getByRole("table", { name: `Works timber need at snapshot ${last.turn}` }));
+  expect(table.getByText("No woodcutters: forest busy")).toBeInTheDocument();
+  expect(screen.getByText(/only after every RS2 need of the turn/)).toBeInTheDocument();
+  cleanup();
+  render(<InfrastructureCondition {...props(last)} />);
+  expect(screen.queryByRole("table", { name: `Works timber need at snapshot ${last.turn}` })).toBeNull();
+});
+
 it("keeps disabled, absent, unsettled and malformed records distinct", () => {
   const bare = { turn: 4 } as unknown as TurnSnapshot;
   const off = { ...bundle, history: [bare] } as unknown as Bundle;

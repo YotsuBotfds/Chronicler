@@ -21,6 +21,10 @@ const MODE_NOTE: Record<string, string> = {
 const CAUSE: Record<string, string> = {
   conquest: "Conquest", sack: "Sack", flood: "Flood (watershed flow, at its onset)",
 };
+const TIMBER: Record<string, string> = {
+  supplied: "Covered by free timber and cargo on the way", expedition: "Waits for the region's live woodcutters",
+  launched: "Woodcutters sent", refused: "No woodcutters",
+};
 const STATUS: Record<string, string> = {
   serving: "Serving", failed: "Failed (repair only)", inactive: "Inactive", destroyed: "Destroyed",
 };
@@ -112,6 +116,19 @@ export function InfrastructureCondition({ bundle, snapshot, currentTurn, onSelec
         </tr>)}</tbody>
       </table></div> : null}
     </>}
+    {record.timber_needs !== undefined ? <>
+      <h4>Timber asked of the woodcutters</h4>
+      <p className="systems-note">Recorded at this snapshot's Phase 10: the open works' timber for one turn, asked of PL1's woodcutting expeditions only after every RS2 need of the turn (RS2's want in the same region counts first), with the same forests, crews, wages and work reservation.{(record.timber_needs_dropped ?? 0) > 0 ? ` ${record.timber_needs_dropped} more rows were not kept.` : ""}</p>
+      {record.timber_needs.length === 0 ? <p className="systems-note">No work asked for timber at this snapshot (recorded: none).</p>
+        : <div className="systems-table-wrap"><table className="systems-table" aria-label={`Works timber need at snapshot ${at}`}>
+          <thead><tr><th>Region</th><th>Works</th><th>Want</th><th>RS2 want first</th><th>Free + on the way</th><th>Gap</th><th>Woodcutters</th></tr></thead>
+          <tbody>{record.timber_needs.map((r) => <tr key={r.region}>
+            <td>{region(r.region)}</td><td>{r.works.join(", ")}</td><td>{show(r.want)}</td><td>{show(r.rs2_want)}</td>
+            <td>{show(r.free)} + {show(r.in_transit)}</td><td>{show(r.gap)}</td>
+            <td>{TIMBER[r.status]}{r.eid !== null ? ` (expedition ${r.eid})` : ""}{r.reason ? `: ${words(r.reason)}` : ""}</td>
+          </tr>)}</tbody>
+        </table></div>}
+    </> : null}
     <h4>Damage</h4>
     {record.damages.length === 0 && (record.skipped_damages ?? []).length === 0 ? <p className="systems-note">No war or flood damage is recorded (recorded: none).</p>
       : <div className="systems-table-wrap"><table className="systems-table" aria-label={`Infrastructure damage to snapshot ${at}`}>
