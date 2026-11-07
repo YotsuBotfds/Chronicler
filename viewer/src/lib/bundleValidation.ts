@@ -1,3 +1,4 @@
+import { isConstructedExample } from "./constructedExample";
 import type { RegionalPopulationSnapshot } from "../types";
 
 /** Validate the required viewer containers before they reach React. Optional
@@ -111,6 +112,7 @@ export function validateBundleStructure(bundle: Record<string, unknown>): string
   let invalid = fields(bundle.metadata, { seed: number, total_turns: turn }, "metadata");
   if (invalid) return invalid;
   const metadata = bundle.metadata as Record<string, unknown>;
+  if ("constructed" in metadata && !isConstructedExample(metadata.constructed)) return "metadata.constructed must hold a source bundle SHA-256 and a nonempty list of deliberate edits";
   for (const [key, check] of Object.entries({ generated_at: string, sim_model: string, narrative_model: string,
     scenario_name: nullableString, interestingness_score: (value: unknown) => value === null || number(value) })) {
     if (key in metadata && !check(metadata[key])) return `metadata.${key} has an invalid value`;
