@@ -108,6 +108,22 @@ def test_no_children_trips_or_same_polity_and_no_anonymous_member_fill(world):
     assert {a for *_, rows in sim.transfers for a, _ in rows} == {2, 3, 4}
 
 
+def test_deployed_resident_cannot_fund_a_local_meeting_but_home_attachment_can(world):
+    sim = _sim()
+    world.war_state = NS(armies=[NS(region="Home field", roster=[(1, 1)]),
+                               NS(region="Host field", roster=[(2, 1)])])
+    (row,) = _tick(world, sim)
+    assert row.members == 3 and row.payers == [2, 3, 4]
+    assert sim.people[1][3] == 1.0
+    assert {aid for *_, rows in sim.transfers for aid, _ in rows} == {2, 3, 4}
+    # Deployment never changes native residence or movement membership.
+    assert sim.people[1][:3] == (1, 30, 1)
+    world.turn += 1
+    world.war_state.armies[0].region = "Host field"
+    (row,) = _tick(world, sim)
+    assert row.branch == 1 and row.members == 4 and row.payers == [1, 2, 3, 4]
+
+
 @pytest.mark.parametrize("mode", ["record_only", "cost_only"])
 def test_controls_separate_observation_and_real_cost_from_native_permission(world, mode):
     world.livelihoods.movement_branches.mode = mode
