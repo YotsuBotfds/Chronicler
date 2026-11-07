@@ -661,7 +661,7 @@ def test_check_command_reports_stubs_not_ready(SR, CW, capsys):
     assert "CW6: seeds OK" in text and "CW6: NOT READY" in text
     # CW2 is declared by slices A3-1/A3-2 and CW5 by slice A4-1 (tests/test_cw2_screen.py, test_cw5_screen.py).
     assert "CW2: seeds OK" in text and "CW2: extractor, packages, 5 arms and 47 outcomes (3 primary): OK" in text
-    assert "CW5: seeds OK" in text and "CW5: extractor, packages, 2 arms and 40 outcomes (2 primary): OK" in text
+    assert "CW5: seeds OK" in text and "CW5: extractor, packages, 2 arms and 39 outcomes (2 primary): OK" in text
     # CW3 is declared by slice B2 (tests/test_cw3_screen.py).
     assert "CW3: seeds OK" in text and "CW3: extractor, packages, 5 arms and 42 outcomes (3 primary): OK" in text
     # CW1 is declared by slice S1 (tests/test_cw1_screen.py).

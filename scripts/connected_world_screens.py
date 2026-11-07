@@ -1957,30 +1957,11 @@ def _cw5_held_value(tt: list[tuple[dict, dict]], counters: dict) -> tuple[float,
     return returned, aboard, unsold
 
 
-def _cw5_cohort_end(bundle: dict, group: str, problems: list[str]) -> float | None:
-    """Persons of a retail cohort group (``nonfarm_adults``: adults off the crews who are not
-    farmers) summed over the last observed retail frames."""
-    for s, rec in reversed(_cw3_records(bundle, CW5_RETAIL)):
-        frames = rec.get("regions")
-        if frames is None:
-            continue
-        total = 0.0
-        for f in frames:
-            persons = ((((f or {}).get("cohorts") or {}).get("groups") or {}).get(group) or {}).get("persons")
-            if not SR._num(persons):
-                problems.append(f"retail frames of snapshot {s.get('turn')} lack cohort {group}")
-                return None
-            total += persons
-        return total
-    problems.append("no observed retail frames")
-    return None
-
-
 def cw5_extract(bundle: dict, flags) -> tuple[dict, list[str]]:
     """Food into the deficit regions by trade (titled net plus native commons trade), the
     sets' food shortfall, prices and priced-out persons (pre-treatment window sets; the
     turn-0 sets as a sensitivity line); titled trade's funnel; the merchants' accounting
-    balance; the commons and non-farmer adults at the end; and the validity checks (the
+    balance; the commons at the end; and the validity checks (the
     window, every shipment's cargo closes, one receipt row per carrier-turn, every ledger
     closure true, a complete food account every snapshot, no titled record without the
     switch)."""
@@ -2015,7 +1996,6 @@ def cw5_extract(bundle: dict, flags) -> tuple[dict, list[str]]:
     else:
         rc = retail[-1][1].get("counters") or {}
         m["food_purchases_credited"] = _cw_units(rc.get("credited_milli", 0))
-    m["nonfarm_adults_end"] = _cw5_cohort_end(bundle, "nonfarm_adults", problems)
     commons = 0.0
     for r in (bundle.get("world_state") or {}).get("regions") or []:
         goods = ((r or {}).get("stockpile") or {}).get("goods") or {}
@@ -2214,14 +2194,13 @@ def _cw5_outcomes() -> tuple[SR.Outcome, ...]:
                    _m("tt_transit_decay")),
         SR.Outcome("cw5_region_turns", "Region-turns with a titled shipment (T; activation)", "T", None,
                    _m("titled_region_turns")),
-        # The CW5 harm panel beside the primaries (T - R).
+        # The CW5 harm panel beside the primaries (T - R). Merchant and farmer counts at the end
+        # are not recorded in any bundle field (the retail cohorts' non-farmer adults are unknown
+        # whenever a person dies between the Phase 2 roster and provisioning): declared, not read.
         SR.Outcome("cw5_h_commons", "Commons food at the end, world (T - R)", "T", "R", _m("commons_end")),
         SR.Outcome("cw5_h_food_shortfall", "Food shortfall after relief over the run, world (T - R)", "T", "R",
                    harm("food_shortfall")),
         SR.Outcome("cw5_h_priced_out", "Priced-out person-turns, world (T - R)", "T", "R", harm("priced_out_persons")),
-        SR.Outcome("cw5_h_nonfarm_adults", "Non-farmer adults at the end (retail cohorts: merchants, soldiers, "
-                   "scholars and priests; exact merchant and farmer counts are not recorded) (T - R)", "T", "R",
-                   _m("nonfarm_adults_end")),
         SR.Outcome("cw5_h_treasury", "Treasury at the end (T - R)", "T", "R", harm("treasury")),
         SR.Outcome("cw5_h_stability", "Mean stability of living civilizations at the end (T - R)", "T", "R",
                    _m("stability_end")),

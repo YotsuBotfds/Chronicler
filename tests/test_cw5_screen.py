@@ -107,8 +107,7 @@ def test_the_screen_declares_two_arms_two_primaries_and_both_cohorts(CW):
     assert s.held == {"template": tuple(range(771, 777)), "procedural": tuple(range(871, 877))}
     assert [(o.id, o.arm, o.control) for o in s.primaries()] == [
         ("cw5_food_in_deficit", "T", "R"), ("cw5_shortfall_deficit", "T", "R")]
-    assert {o.id for o in s.outcomes} >= {"cw5_holder_balance", "cw5_margin_vs_withheld", "cw5_t0_food_in_deficit",
-                                          "cw5_h_nonfarm_adults"}
+    assert {o.id for o in s.outcomes} >= {"cw5_holder_balance", "cw5_margin_vs_withheld", "cw5_t0_food_in_deficit"}
     assert s.report is not None and {"--household-retail-boundary", "all", "--wealth-accounting"} <= set(s.base)
 
 
@@ -135,7 +134,7 @@ def test_titled_food_into_the_deficit_regions_and_the_merchants_balance(CW):
     assert m["held_unsold_value"] == pytest.approx(0.4 * 0.6)                # 400 milli at 900 / 1500 per milli
     assert m["holder_balance"] == pytest.approx(0.2 + 0.3 + 0.24)
     assert m["shortfall_deficit"] == pytest.approx(0.5) and m["shortfall_surplus"] == pytest.approx(0.05)
-    assert m["price_deficit"] == 300 and m["priced_out_deficit"] == 48 and m["nonfarm_adults_end"] == 12
+    assert m["price_deficit"] == 300 and m["priced_out_deficit"] == 48
     assert m["commons_end"] == pytest.approx(4.0) and m["dest_regions"] == 1 and m["origin_regions"] == 1
 
 
