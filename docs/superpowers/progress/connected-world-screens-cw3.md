@@ -1,6 +1,6 @@
 # Connected-world CW3: preregistered held screen for the watershed in flow mode under upstream forest protection (slice B2)
 
-Status: FROZEN at `d02e341637462a7e42a67aac476f10fd3da58fd9` (the screen module, extractor, runner, seed registry and simulation source; the timing pilot below ran on it, clean tree), pending the lead's review. No held run before the lead's go-ahead.
+Status: FROZEN at `a83af3f3ef89e63c365a1953f701353c656535c4` (the screen module, extractor, runner, seed registry and simulation source as amended by Amendment 1; the timing pilot below ran on it, clean tree), with this page frozen as amended by Amendment 1 (2026-11-07, before any held run); the lead reviewed the screen (first frozen at `d02e3416`), accepted the runner change and gave the go-ahead for the held run after Amendment 1.
 
 Written 2026-11-07 by the B2 lane on branch `claude/cw-b2-flow` (from `main` `ae94bca6` merged;
 the watershed `flow` mode as approved at the re-check, with its two minors fixed at `538ad09e`).
@@ -10,7 +10,7 @@ SHA-256 `e724072d7888888ede86acccb8db745c219c445fd47644ec9abe8ed5493e865b`. No h
 recorded as an amendment below with a new pilot; no arm, outcome, window or parameter changes in
 response to held outcomes.
 
-Compute ceiling: 0.32 core-hours
+Compute ceiling: 0.40 core-hours
 
 Primary outcomes: cw3_ds_water_flow, cw3_ds_food_flow, cw3_ds_water_interaction
 
@@ -58,14 +58,20 @@ where it keeps cover above the cascade's 0.2.
 - Turns: 200; snapshot s records world turn s - 1 (`source_turn = s - 1` in every package record).
 - Base (every arm): `--turns 200 --agents hybrid --simulate-only`, with the runner's
   `--worldgen procedural --regions 32 --civs 10`.
-- Arms (root R; controls form the chain F_CP -> F -> R and R_CP -> R):
+- Arms (root R; controls form the chains F_CP -> F_CPc -> F -> R and R_CP -> R; F_CPc added by
+  Amendment 1):
 
 | Arm | Flags | Control |
 | --- | --- | --- |
 | R | `--watershed --watershed-mode record_only` (the old index; the account records only) | (root) |
 | F | `--watershed --watershed-mode flow` (the account owns the index) | R |
 | R_CP | R + `--clearing-protection` (mode `enforced`) | R |
-| F_CP | F + `--clearing-protection` | F |
+| F_CPc | F + `--clearing-protection --clearing-protection-mode cost_only` (the same adoption, planning and warden charges as F_CP; protection sends nothing, so no cover is kept) | F |
+| F_CP | F + `--clearing-protection` | F_CPc |
+
+  The primaries compare F_CP with F (an ancestor on its control chain); the runner's harm panel
+  shows each arm against its declared control (F_CP - F_CPc, F_CPc - F, F - R, R_CP - R), and the
+  screen declares F_CP - F harm rows beside them.
 
 - Source: the runner `scripts/screen_runner.py`, the screen module
   `scripts/connected_world_screens.py` (CW3's arms, activation, extractor and outcomes), the seed
@@ -80,14 +86,18 @@ where it keeps cover above the cascade's 0.2.
   5.2e-5 (the native write-back's 4-decimal rounding plus the record's).
 - **R_CP**: clearing protection kept cover: `cover_not_cleared > 0` in its last record's counters.
 - **F_CP**: both.
+- **F_CPc** (Amendment 1): flow as for F, and protections were paid for clearing they would have
+  stopped (`cover_would_keep > 0`) while keeping none (`cover_not_cleared = 0`).
 
 A world where an arm did not act is reported as `not activated` and left out of that arm's
 comparisons, never read as zero.
 
 ## Definitions
 
-Region sets, fixed by the drainage graph (`watershed.graph.down`, identical in every arm of a
-world because it is built from the world's saved procedural geography):
+Region sets of the primaries: **fixed before treatment and identical in every arm of a world**
+(confirmed by Amendment 1). They come from the static drainage graph alone
+(`watershed.graph.down`, built at enable from the world's saved procedural geography and never
+changed), not from regions any arm protected or from anything that diverged later:
 
 - **Downstream regions**: every region that receives inflow from at least one region.
 - **Upstream regions**: every region that drains into a region (not to the sea, a sink or a lake).
@@ -112,7 +122,15 @@ A region can be both. Measures (`cw3_extract`):
 - **Protection** (CP arms): adoptions, protected region-turns, cover kept, warden pay charged,
   the regions protected, those with a downstream region and the regions below them.
 - **Selection** (F_CP alone): food shortfall share and water index of the regions below F_CP's own
-  protected regions; there is no counterpart in an arm without protection.
+  protected regions (post-treatment and arm-dependent; secondary only); there is no counterpart in
+  an arm without protection.
+- **Candidate set at enable time** (protection arms; Amendment 1): clearing protection's first
+  planning (turn 0): the regions it adopted then, and those eligible then but over the
+  civilization's limit or unaffordable. The state before that planning is the same in every arm,
+  so the set is pre-treatment and the same in R_CP, F_CPc and F_CP (checked on all eight
+  development worlds); arms without protection carry no clearing-protection record, so it cannot
+  define the primaries' F_CP - F sets. It defines the F_CP - F_CPc secondaries below it:
+  `cand_water_below`, `cand_food_shortfall_below` (the regions downstream of a candidate).
 
 **Validity checks (no resources created; a breach is a problem that fails the run, rc 3, never a
 value):** in every snapshot of every arm the water account's cumulative closure residual is at
@@ -159,10 +177,15 @@ not by each arm's own protections: a set taken from F_CP's protections has no co
   below protected regions (F_CP alone).
 - Selection (F_CP alone): food shortfall share and water index below F_CP's own protected regions.
 - Validity residuals (F_CP alone).
+- Amendment 1, protection apart from its cost: F_CP - F_CPc on downstream water and food (the
+  graph's sets), water and food below the turn-0 candidate set, upstream water, upstream cover and
+  droughts; the cost alone, F_CPc - F, on downstream food and water and the treasury; the cover
+  F_CPc would have kept (F_CPc alone). Secondaries, never primaries.
 
 ## Harm panel
 
-The runner's fixed panel beside every arm against its control (F - R, R_CP - R, F_CP - F):
+The runner's fixed panel beside every arm against its control (F - R, R_CP - R, F_CPc - F,
+F_CP - F_CPc):
 population and treasury at the end, food shortfall after relief over the run, epidemic deaths,
 agents migrating between regions, the wealth Gini at the end; priced-out persons and children,
 and the timber stand, read `not recorded` (household retail and the timber stock are off); deaths
@@ -176,6 +199,13 @@ Development runs of all four arms on the procedural development worlds 7, 11, 13
 commit; the extractor is the committed one): 32 runs, 0 failed, every outcome extracted, `check
 --metrics ... --cohort dev` passes. F, R_CP and F_CP activated on all 8 worlds. Validity: the worst
 closure residual was 2.5e-15 relative; the worst index gap 5.0e-5 (the native rounding).
+
+Amendment 1 re-validation (source `a83af3f3`'s screen module on the worktree, the same eight
+worlds, five arms): 40 runs, 0 failed, every outcome extracted, `check --metrics ... --cohort dev`
+passes; F_CPc activated on all 8 worlds (paid protections would have kept 3.3-7.0 cover, kept
+none); the 32 rows of R, F, R_CP and F_CP equal the first validation's in every measure (0
+differences); the turn-0 candidate set is identical in R_CP, F_CPc and F_CP on every world (6-10
+regions; 1-5 regions below them).
 
 An independent recomputation from a re-run bundle (procedural 11, F_CP, the runner's command and
 environment, not importing the screen module) matched the extractor: downstream water from the
@@ -206,19 +236,22 @@ Development outcomes (8 worlds, never evidence; mean [min, max], sign counts, si
 
 ## Timing pilot (the shared pilot, on the frozen source)
 
-`run PILOT --screen CW3 --cohort pilot --jobs 2` on `d02e3416` (clean tree; `source.txt`: dirty
-0, dirty-code 0): 4 runs, 0 failed, every outcome extracted (`check --metrics ... --cohort pilot`
-passes); 95 s of simulation and extraction. Mean seconds per run: R 21.5, F 23.0, R_CP 25.3,
-F_CP 25.0. F, R_CP and F_CP activated. **Projected held run: 0.158 core-hours for 24 runs**
-(x1.5 = 0.237). The pilot's `metrics.jsonl`, `source.txt` and `report.md` are retained in
-`connected-world-screens-cw3/pilot/` (the held run's `--pilot`). The report prints the pilot's
-outcomes; they were not read for any decision.
+`run PILOT --screen CW3 --cohort pilot --jobs 2` on `a83af3f3` (Amendment 1; clean tree;
+`source.txt`: dirty 0, dirty-code 0): 5 runs, 0 failed, every outcome extracted (`check --metrics
+... --cohort pilot` passes); 119 s of simulation and extraction. Mean seconds per run: R 25.2,
+F 28.5, R_CP 22.0, F_CPc 22.5, F_CP 20.8. F, R_CP, F_CPc and F_CP activated. **Projected held run:
+0.198 core-hours for 30 runs** (x1.5 = 0.297). The pilot's `metrics.jsonl`, `source.txt` and
+`report.md` are retained in `connected-world-screens-cw3/pilot/` (the held run's `--pilot`;
+they replace the first pilot on `d02e3416`, 4 arms, 0.158 core-hours for 24 runs, which the
+fifth arm made stale). The report prints the pilot's outcomes; they were not read for any
+decision.
 
 ## Budget and stopping rules
 
-- **Compute ceiling 0.32 core-hours** (the line above, read by the runner: the pilot projection
-  x 2, under the 2.0 cap); run with `--jobs 2` because other lanes share the 4 cores. The runner
-  refuses a held run whose pilot projection x 1.5 (0.237) exceeds the ceiling and starts no run
+- **Compute ceiling 0.40 core-hours** (the line above, read by the runner: the amended pilot's
+  projection 0.198 x 2, under the 2.0 cap; was 0.32 before Amendment 1); run with `--jobs 2`
+  because other lanes share the 4 cores. The runner refuses a held run whose pilot projection
+  x 1.5 (0.297) exceeds the ceiling and starts no run
   that would pass it; runs not started are reported as `not run` (exit code 4), never as zeros.
   Raising the ceiling needs the lead's amendment before any held outcome is read.
 - At most 2 GiB of transient disk; raw run outputs are deleted after extraction.
@@ -231,7 +264,30 @@ outcomes; they were not read for any decision.
 
 ## Amendments
 
-None.
+**Amendment 1 (2026-11-07, before any held run; the lead's review).**
+
+1. *The primaries' downstream set is fixed before treatment and identical in every arm.* It was
+   already: the extractor takes downstream (and upstream) regions from the static drainage graph
+   only, never from an arm's protections or from anything that diverged. The page now says so.
+   Clearing protection's candidate set at enable time (turn 0) is pre-treatment too and the same
+   in every protection arm (verified on the eight development worlds: R_CP, F_CPc and F_CP give the
+   identical set on each), but arms without protection carry no clearing-protection record, so it
+   cannot define the F_CP - F primaries; it defines the new F_CP - F_CPc secondaries. The selection
+   outcomes below each arm's own protected regions stay F_CP-alone secondaries.
+2. *A cost-only arm separates protection's effect on forest and water from its treasury cost.* Arm
+   F_CPc (flow, clearing protection in its `cost_only` mode: the same adoption, planning and
+   charges, nothing protected) with the chain F_CP -> F_CPc -> F -> R; F_CP - F_CPc and F_CPc - F are
+   secondaries (listed above); the three primaries, their arms and controls are unchanged.
+   Activation and the validity check for F_CPc are added (it must keep no cover).
+3. Re-validated on the development worlds (40 runs, 0 failed, every outcome extracted, F_CPc
+   activated on 8 of 8; the R, F, R_CP and F_CP runs reproduce the first validation exactly), and
+   the timing pilot re-run on the amended source (the fifth arm raised the projection from 0.158
+   to 0.198 core-hours); the ceiling follows (0.40 core-hours).
+
+Development reading (never evidence; it changes nothing preregistered): the cost alone moved the
+downstream water index about as much as protection did (F_CPc - F −0.0014, 7 of 8 negative;
+F_CP - F_CPc −0.0008, 4 of 8), so the primary F_CP - F mixes protection with the trajectory its
+warden charges set off; the F_CP - F_CPc secondaries separate them.
 
 ## Results
 

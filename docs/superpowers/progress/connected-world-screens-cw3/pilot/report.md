@@ -1,9 +1,9 @@
 # CW3: S3 watershed flow and upstream forest protection (B2)
 
-Cohort pilot. Runs: 4; failed: 0 (missing outcomes: 0); simulation and extraction seconds 95 (0.026 core-hours)
-Projected held run time from this pilot: 0.158 core-hours (x1.5 = 0.237) for 24 runs
+Cohort pilot. Runs: 5; failed: 0 (missing outcomes: 0); simulation and extraction seconds 119 (0.033 core-hours)
+Projected held run time from this pilot: 0.198 core-hours (x1.5 = 0.297) for 30 runs
 
-Identity digests: d6d8d97454a94410dbaf4535bebec52e39613016cb2ca808dcd02c261af817c8 (source.txt holds the lines)
+Identity digests: 2331fb2fe1d97c780b91fe762f96760f6f65ae6894db2b626ab1d37613ed74a1 (source.txt holds the lines)
 Schema versions read: {"bundle": 6, "livelihoods": [1], "packages": {"clearing_protection": [1], "watershed": [1]}, "records": {"food_accounting": [1], "regional_population": [1]}}; {"bundle": 6, "livelihoods": [1], "packages": {"watershed": [1]}, "records": {"food_accounting": [1], "regional_population": [1]}}
 
 ## Activation per world (before any effect)
@@ -12,6 +12,7 @@ Schema versions read: {"bundle": 6, "livelihoods": [1], "packages": {"clearing_p
 | --- | --- | --- | --- |
 | F | p | 19: activated | 1 of 1 |
 | R_CP | p | 19: activated | 1 of 1 |
+| F_CPc | p | 19: activated | 1 of 1 |
 | F_CP | p | 19: activated | 1 of 1 |
 
 ## Primary outcomes (arm minus control on each world; non-activated worlds excluded)
@@ -50,6 +51,17 @@ Schema versions read: {"bundle": 6, "livelihoods": [1], "packages": {"clearing_p
 | cw3_sel_water_below: Water index below F_CP's own protected regions (F_CP alone; selection) | p | 19: +0.6514 | +0.6514 [+0.6514, +0.6514] | 1 / 0 / 0 | n/a (no control) |
 | cw3_closure: Water account worst relative closure residual (F_CP alone; validity) | p | 19: +8.822e-16 | +8.822e-16 [+8.822e-16, +8.822e-16] | 1 / 0 / 0 | n/a (no control) |
 | cw3_index_gap: Worst |index used - derived (capped)| (F_CP alone; validity) | p | 19: +5e-05 | +5e-05 [+5e-05, +5e-05] | 1 / 0 / 0 | n/a (no control) |
+| cw3_cpc_ds_water: Downstream water index used (F_CP - F_CPc: the cover kept, cost held equal) | p | 19: -0.002279 | -0.002279 [-0.002279, -0.002279] | 0 / 1 / 0 | 2/2 as extreme; means [-0.002279, +0.002279] |
+| cw3_cpc_ds_food: Downstream food shortfall share (F_CP - F_CPc) | p | 19: +0.0116 | +0.0116 [+0.0116, +0.0116] | 1 / 0 / 0 | 2/2 as extreme; means [-0.0116, +0.0116] |
+| cw3_cpc_cand_water: Water index below the turn-0 candidate set (F_CP - F_CPc) | p | 19: +0.003646 | +0.003646 [+0.003646, +0.003646] | 1 / 0 / 0 | 2/2 as extreme; means [-0.003646, +0.003646] |
+| cw3_cpc_cand_food: Food shortfall share below the turn-0 candidate set (F_CP - F_CPc) | p | 19: +0.001886 | +0.001886 [+0.001886, +0.001886] | 1 / 0 / 0 | 2/2 as extreme; means [-0.001886, +0.001886] |
+| cw3_cpc_up_water: Upstream water index used (F_CP - F_CPc) | p | 19: -0.001558 | -0.001558 [-0.001558, -0.001558] | 0 / 1 / 0 | 2/2 as extreme; means [-0.001558, +0.001558] |
+| cw3_cpc_cover: Upstream mean forest cover at the end (F_CP - F_CPc) | p | 19: +0.07052 | +0.07052 [+0.07052, +0.07052] | 1 / 0 / 0 | 2/2 as extreme; means [-0.07052, +0.07052] |
+| cw3_cpc_droughts: Droughts declared (F_CP - F_CPc) | p | 19: +2 | +2 [+2, +2] | 1 / 0 / 0 | 2/2 as extreme; means [-2, +2] |
+| cw3_cost_ds_food: Downstream food shortfall share (F_CPc - F: protection's cost alone) | p | 19: +0.006655 | +0.006655 [+0.006655, +0.006655] | 1 / 0 / 0 | 2/2 as extreme; means [-0.006655, +0.006655] |
+| cw3_cost_ds_water: Downstream water index used (F_CPc - F: the cost alone) | p | 19: -0.006634 | -0.006634 [-0.006634, -0.006634] | 0 / 1 / 0 | 2/2 as extreme; means [-0.006634, +0.006634] |
+| cw3_cost_treasury: Treasury at the end (F_CPc - F: the cost alone) | p | 19: +1734 | +1734 [+1734, +1734] | 1 / 0 / 0 | 2/2 as extreme; means [-1734, +1734] |
+| cw3_cpc_would_keep: Cover protection would have kept (F_CPc alone; it keeps none) | p | 19: +5.29 | +5.29 [+5.29, +5.29] | 1 / 0 / 0 | n/a (no control) |
 | cw3_h_food_shortfall: Food shortfall after relief over the run, world (F_CP - F) | p | 19: +477.6 | +477.6 [+477.6, +477.6] | 1 / 0 / 0 | 2/2 as extreme; means [-477.6, +477.6] |
 | cw3_h_population: Population at the end (F_CP - F) | p | 19: -22 | -22 [-22, -22] | 0 / 1 / 0 | 2/2 as extreme; means [-22, +22] |
 | cw3_h_treasury: Treasury at the end (F_CP - F) | p | 19: +3586 | +3586 [+3586, +3586] | 1 / 0 / 0 | 2/2 as extreme; means [-3586, +3586] |
@@ -81,6 +93,28 @@ Schema versions read: {"bundle": 6, "livelihoods": [1], "packages": {"clearing_p
 | R_CP - R | Agents migrating between regions over the run | p | 19: +1449 | +1449 [+1449, +1449] | 1 / 0 / 0 | 2/2 as extreme; means [-1449, +1449] | recorded |
 | R_CP - R | Mean wealth Gini of living civilizations at the end | p | 19: +0.01496 | +0.01496 [+0.01496, +0.01496] | 1 / 0 / 0 | 2/2 as extreme; means [-0.01496, +0.01496] | recorded |
 | R_CP - R | Timber stand share of capacity at the end | p | 19: not recorded | n/a | 0 / 0 / 0 | n/a | not_recorded (the timber stock is off in this run (no stand record)) |
+| F_CPc - F | Population at the end (sum over civilizations) | p | 19: +4 | +4 [+4, +4] | 1 / 0 / 0 | 2/2 as extreme; means [-4, +4] | recorded |
+| F_CPc - F | Treasury at the end (sum over civilizations) | p | 19: +1734 | +1734 [+1734, +1734] | 1 / 0 / 0 | 2/2 as extreme; means [-1734, +1734] | recorded |
+| F_CPc - F | Food shortfall after relief over the run (food) | p | 19: -96.52 | -96.52 [-96.52, -96.52] | 0 / 1 / 0 | 2/2 as extreme; means [-96.52, +96.52] | recorded |
+| F_CPc - F | Priced-out person-turns | p | 19: not recorded | n/a | 0 / 0 / 0 | n/a | not_recorded (household retail is off in this run (no priced-out frames)) |
+| F_CPc - F | Priced-out child-turns | p | 19: not recorded | n/a | 0 / 0 / 0 | n/a | not_recorded (household retail is off in this run (no priced-out frames)) |
+| F_CPc - F | Deaths by famine (the famine authority) | p | requires slice extractor | n/a | n/a | n/a | the slice that records deaths by authority (A1-A2 accounting or E) |
+| F_CPc - F | Deaths by epidemic (the epidemic authority) | p | 19: -28 | -28 [-28, -28] | 0 / 1 / 0 | 2/2 as extreme; means [-28, +28] | recorded |
+| F_CPc - F | Deaths by war (the casualty authority) | p | requires slice extractor | n/a | n/a | n/a | slice D3 (war's human consequences) |
+| F_CPc - F | Agents migrating between regions over the run | p | 19: -792 | -792 [-792, -792] | 0 / 1 / 0 | 2/2 as extreme; means [-792, +792] | recorded |
+| F_CPc - F | Mean wealth Gini of living civilizations at the end | p | 19: +0.002961 | +0.002961 [+0.002961, +0.002961] | 1 / 0 / 0 | 2/2 as extreme; means [-0.002961, +0.002961] | recorded |
+| F_CPc - F | Timber stand share of capacity at the end | p | 19: not recorded | n/a | 0 / 0 / 0 | n/a | not_recorded (the timber stock is off in this run (no stand record)) |
+| F_CP - F_CPc | Population at the end (sum over civilizations) | p | 19: -26 | -26 [-26, -26] | 0 / 1 / 0 | 2/2 as extreme; means [-26, +26] | recorded |
+| F_CP - F_CPc | Treasury at the end (sum over civilizations) | p | 19: +1852 | +1852 [+1852, +1852] | 1 / 0 / 0 | 2/2 as extreme; means [-1852, +1852] | recorded |
+| F_CP - F_CPc | Food shortfall after relief over the run (food) | p | 19: +574.1 | +574.1 [+574.1, +574.1] | 1 / 0 / 0 | 2/2 as extreme; means [-574.1, +574.1] | recorded |
+| F_CP - F_CPc | Priced-out person-turns | p | 19: not recorded | n/a | 0 / 0 / 0 | n/a | not_recorded (household retail is off in this run (no priced-out frames)) |
+| F_CP - F_CPc | Priced-out child-turns | p | 19: not recorded | n/a | 0 / 0 / 0 | n/a | not_recorded (household retail is off in this run (no priced-out frames)) |
+| F_CP - F_CPc | Deaths by famine (the famine authority) | p | requires slice extractor | n/a | n/a | n/a | the slice that records deaths by authority (A1-A2 accounting or E) |
+| F_CP - F_CPc | Deaths by epidemic (the epidemic authority) | p | 19: +43 | +43 [+43, +43] | 1 / 0 / 0 | 2/2 as extreme; means [-43, +43] | recorded |
+| F_CP - F_CPc | Deaths by war (the casualty authority) | p | requires slice extractor | n/a | n/a | n/a | slice D3 (war's human consequences) |
+| F_CP - F_CPc | Agents migrating between regions over the run | p | 19: -39 | -39 [-39, -39] | 0 / 1 / 0 | 2/2 as extreme; means [-39, +39] | recorded |
+| F_CP - F_CPc | Mean wealth Gini of living civilizations at the end | p | 19: -0.05524 | -0.05524 [-0.05524, -0.05524] | 0 / 1 / 0 | 2/2 as extreme; means [-0.05524, +0.05524] | recorded |
+| F_CP - F_CPc | Timber stand share of capacity at the end | p | 19: not recorded | n/a | 0 / 0 / 0 | n/a | not_recorded (the timber stock is off in this run (no stand record)) |
 | F_CP - F | Population at the end (sum over civilizations) | p | 19: -22 | -22 [-22, -22] | 0 / 1 / 0 | 2/2 as extreme; means [-22, +22] | recorded |
 | F_CP - F | Treasury at the end (sum over civilizations) | p | 19: +3586 | +3586 [+3586, +3586] | 1 / 0 / 0 | 2/2 as extreme; means [-3586, +3586] | recorded |
 | F_CP - F | Food shortfall after relief over the run (food) | p | 19: +477.6 | +477.6 [+477.6, +477.6] | 1 / 0 / 0 | 2/2 as extreme; means [-477.6, +477.6] | recorded |
@@ -97,9 +131,10 @@ Schema versions read: {"bundle": 6, "livelihoods": [1], "packages": {"clearing_p
 
 | Arm | p |
 | --- | --- |
-| R | 21.5 [21.5, 21.5] |
-| F | 23.0 [23.0, 23.0] |
-| R_CP | 25.3 [25.3, 25.3] |
-| F_CP | 25.0 [25.0, 25.0] |
+| R | 25.2 [25.2, 25.2] |
+| F | 28.5 [28.5, 28.5] |
+| R_CP | 22.0 [22.0, 22.0] |
+| F_CPc | 22.5 [22.5, 22.5] |
+| F_CP | 20.8 [20.8, 20.8] |
 
 Descriptive only: the sign-flip column counts the 2^n sign assignments whose mean is at least as far from zero as the observed mean, with the range of those means; it is not a significance test.

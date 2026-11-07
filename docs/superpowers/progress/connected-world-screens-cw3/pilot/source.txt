@@ -1,13 +1,13 @@
-source d02e341637462a7e42a67aac476f10fd3da58fd9
+source a83af3f3ef89e63c365a1953f701353c656535c4
 dirty 0 tracked files
 dirty-code 0 tracked code files
 chronicler /home/user/wt/b2-flow/src/chronicler/__init__.py
 native /root/.venvs/chronicler-native/lib/python3.13/site-packages/chronicler_agents/chronicler_agents.cpython-313-x86_64-linux-gnu.so e724072d7888888ede86acccb8db745c219c445fd47644ec9abe8ed5493e865b
 interpreter /root/.venvs/chronicler-native/bin/python
-runner d6d703173f1d4f0d5cb49ff0326116ee4bd34bae22b8b20328d80367f01aa201 scripts/screen_runner.py
-screens 612ae7b2526fee8be47fcf967187febbb12384c5d1b7138aac0a4fc27d0d0de3 scripts/connected_world_screens.py
+runner bd443414f9156e644a43bf67369dad142b6350f4032fbeb92c6ac48662796026 scripts/screen_runner.py
+screens ca65e38d24ec337aef6d13c7d31fb73e035bc2891bf8500e1cc7a4b25f3a85b7 scripts/connected_world_screens.py
 registry a18c129dc91193960272645b8d2ff12c4444301049b4789c20e59b077aad057a scripts/seed_registry.json
 registry-content a703a8502cb688181662d323ff482822a3fec6df292d23ebccc42f05751b2cfe (cohorts and seeds)
-run: screen CW3; cohort pilot; seeds all; arms R,F,R_CP,F_CP; jobs 2; worlds -; turns -; rows already written 0
-started 2026-11-07T01:35:10Z
-finished 2026-11-07T01:35:58Z: 4 runs, 0 failed, 95 s of simulation and extraction (0.026 core-hours in all), 48.1 s wall
+run: screen CW3; cohort pilot; seeds all; arms R,F,R_CP,F_CPc,F_CP; jobs 2; worlds -; turns -; rows already written 0
+started 2026-11-07T01:58:31Z
+finished 2026-11-07T01:59:39Z: 5 runs, 0 failed, 119 s of simulation and extraction (0.033 core-hours in all), 68.1 s wall
