@@ -1581,7 +1581,9 @@
     200
    ],
    "status": "reserved",
-   "cohort": "held"
+   "cohort": "held",
+   "program": "connected-world",
+   "screen": "CW6D1"
   },
   {
    "id": "cwd1-held-p",
@@ -1599,7 +1601,9 @@
     200
    ],
    "status": "reserved",
-   "cohort": "held"
+   "cohort": "held",
+   "program": "connected-world",
+   "screen": "CW6D1"
   }
  ]
 }

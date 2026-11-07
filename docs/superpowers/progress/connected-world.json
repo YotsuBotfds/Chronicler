@@ -25,9 +25,12 @@
     "deferred"
   ],
   "machine": {
-    "cores": 5,
-    "memory_gb": 17,
-    "writable_disk_gb": 30
+    "cores": 4,
+    "memory_gb": 16,
+    "writable_disk_gb": 30,
+    "logical_cpus_observed": 5,
+    "cgroup_cpu_max": "400000 100000",
+    "cgroup_memory_max": 17179869184
   },
   "slices": [
     {
