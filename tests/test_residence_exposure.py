@@ -197,7 +197,7 @@ def test_row_cap_and_deferred_residences_make_population_share_unknown(monkeypat
     world, sim = _start(people=2)
     while world.turn <= 20:
         frame = step(world, sim)
-    assert frame["arrival_diagnostics"]["window_complete"] is True
+    assert frame["arrival_diagnostics"]["window_complete"] is False
     assert frame["arrival_diagnostics"]["coverage_complete"] is False
     assert frame["arrival_diagnostics"]["complete"] is False
     assert all(r["recent_arrival_share"] is None for r in _environment(world))
