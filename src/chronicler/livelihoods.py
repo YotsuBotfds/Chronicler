@@ -45,6 +45,10 @@ The connected-world program appends:
 
 * ``--watershed`` (B1): a conserved water account on the drainage graph of a
   procedural world; mode ``record_only`` changes nothing outside its record.
+* ``--attribution-records`` (D2): observation-only records of actor, victim and
+  cause (granary seizures, casualties by cause, restored-civ identity reuse,
+  burdens per actor -> victim pair); inserted before the wealth ledger, so the
+  ledger stays last. It changes nothing it observes and nothing reads it.
 * ``--wealth-accounting`` (A1): an observation-only ledger of agent wealth per
   region and turn (opening, typed flows from the packages' receipts, closing,
   the labelled native-model residual); appended last so its Phase 2 and Phase 10
@@ -132,6 +136,7 @@ LIVELIHOODS_ARG_KEYS: tuple[str, ...] = (
     "household_retail", "household_retail_mode", "household_retail_boundary",
     "household_retail_rules",
     "watershed", "watershed_mode",
+    "attribution_records",
     "wealth_accounting",
 )
 #: Options that take a file path (A2R), parser destinations owned here too
@@ -363,6 +368,15 @@ _HELP = {
         "record_only (default, the only mode of this slice): the account runs beside the existing "
         "water index and changes nothing outside its own record"
     ),
+    "attribution_records": (
+        "Attribution records (D2): observation-only records of who did what to whom, at the event: "
+        "granary seizures with their actor and victim, soldiers' deaths per war and cause (combat, "
+        "attrition and the natural deaths army casualties include), each reuse of a civilization index "
+        "by a restored polity, and the burdens one polity lays on another per turn (dues, levies, sacks, "
+        "plunder, requisitions, seizures, war losses, treaty payments, quarantine closures), each "
+        "labelled by its authority and as a transfer, minted, destroyed or a restriction; nothing reads "
+        "them; requires --agents hybrid (default off)"
+    ),
     "wealth_accounting": (
         "Wealth accounting (A1): an observation-only ledger of agent wealth; each turn and region it "
         "reads the balance at the Phase 2 opening (checked bit for bit against the last closing) and "
@@ -566,6 +580,12 @@ def _check_prerequisites(world: Any, values: dict, agent_mode: str, args: Any = 
             saved = values["timber_supply"] is not True
             raise ValueError("--timber-supply requires --agents hybrid, --repair-projects and --timber-stock"
                              + ("; this world has it on: pass --no-timber-supply to end it" if saved else ""))
+    if _on(world, values, "attribution_records") and agent_mode != "hybrid":
+        # Also when only saved: the records observe hybrid runs (army rosters,
+        # the native tick); a resume outside hybrid is refused until ended.
+        saved = values["attribution_records"] is not True
+        raise ValueError("--attribution-records requires --agents hybrid"
+                         + ("; this world has it on: pass --no-attribution-records to end it" if saved else ""))
     if _on(world, values, "wealth_accounting") and agent_mode != "hybrid":
         # Also when only saved: the ledger reads the hybrid agent pool; a resume
         # outside hybrid is refused until the switch is ended (dated).

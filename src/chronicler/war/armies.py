@@ -335,6 +335,11 @@ def apply_casualties(ctx: WarContext, army: "Army", count: int, *, cause: str) -
     army.casualties += count
     if cause == "attrition":
         army.attrition += count
+    if getattr(ctx.world, "livelihoods", None) is not None:
+        # --attribution-records (D2): the deaths and their cause, observed
+        # (a no-op unless active; it never changes the army or draws RNG).
+        from chronicler.attribution_records import note_casualties
+        note_casualties(ctx.world, army, count, cause)
     # Kits of the fallen exceed what survivors can carry (M60a kit limit).
     army.rations = min(army.rations, army.soldiers * P.POLICY.carried_limit)
     return count
@@ -419,6 +424,11 @@ def reconcile_rosters(world, snapshot) -> int:
         if lost:
             army.casualties += lost
             removed += lost
+            if getattr(world, "livelihoods", None) is not None:
+                # --attribution-records (D2): natural deaths booked as
+                # casualties, observed as such (a no-op unless active).
+                from chronicler.attribution_records import note_natural_deaths
+                note_natural_deaths(world, army, lost)
         army.roster = kept
         army.soldiers = len(kept)
         army.rations = min(army.rations, army.soldiers * P.POLICY.carried_limit)

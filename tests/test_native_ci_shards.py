@@ -303,8 +303,11 @@ def test_checked_in_partition_preserves_historical_assignment_with_explicit_new_
         'tests/test_household_retail_evidence_native.py': '0',
         'tests/test_wealth_accounting.py': '0',
         'tests/test_wealth_accounting_native.py': '0',
+        'tests/test_attribution_records.py': '0',
+        'tests/test_attribution_records_native.py': '0',
+        'tests/test_provenance_decision_guard.py': '0',
     }
-    assert len(owners) == 414
+    assert len(owners) == 417
     assert {name: owners[name] for name in additions} == additions
     old_owners = {name: shard for name, shard in owners.items() if name not in additions}
     assert len(old_owners) == 300
