@@ -218,7 +218,109 @@ burden pairs with nature and unit; identity events). Types are in the new
 
 ## Verification
 
-EVIDENCE
+Linux container, Python 3.13.18. Source: `main` `ae94bca6` (PR #87) merged into the branch; the
+Python tree under test is the merge `ef021e7f` (the later commits change only the viewer and
+docs). Native extension SHA-256 `e724072d7888888ede86acccb8db745c219c445fd47644ec9abe8ed5493e865b`:
+`main`'s current Rust (the shared `~/.venvs/chronicler-native`, rebuilt by the lead from
+`ae94bca6`; the same bytes as lane C1b's build from `51cd3167`, whose Rust equals the head's). No
+Rust changed in this slice; nothing was built here.
+
+- **Focused (offline):** `tests/test_attribution_records.py` 38 passed (constructed war
+  scenarios: field battle, trapped, revolt, attrition, natural deaths on one army, two battles of
+  one civilization in one turn, siege/occupation/conquest seizures, two conquests in one turn,
+  an unattributed seizure, restoration through `politics.check_restoration`, a new index with an
+  old name, occupation plunder and turns, treaty payment, quarantine closure, city dues and sack,
+  guild levy split, retail war losses twice in one turn, the entry cap, the note sites, observer
+  identity, the reader states); `tests/test_provenance_decision_guard.py` 5 passed; with the
+  registry, retail, quarantine, catalog, manifest and every witness module: 853 passed.
+- **Bounded offline lane** (`scripts/run_python_oracle_checks.py`, default output directory):
+  PASS, 70 chunks, 14,435 tests, 347.0 s; slowest chunk `systems-2` 39.2 s of 110 s (shared
+  4-core machine); the new chunk `connected-world-d` 9.4 s (43 tests).
+- **Native:** `tests/test_attribution_records_native.py` (observer identity on procedural 32x10
+  seed 13, 60 turns, and on template seed 42 with every livelihoods payer, 40 turns; a natural war
+  run attributed and closing; retail war losses all attributed) with the offline modules,
+  `test_wealth_accounting_native.py`, `test_household_retail_war_native.py` and
+  `test_quarantine_migration_native.py`: 67 passed in 74.6 s.
+- **Feature-off identity** (`scripts/turn_speed_identity.py`, 9 cases, each side its own source
+  tree and extension): head against the `8abc1acb` reference outputs (extension `101a4cd5...`):
+  9 cases, 399 files compared, 0 differences.
+- **Observer identity** (hybrid, every switch): `hybrid_s42`, `hybrid_s7` and
+  `proc48_hybrid_s42` with the catalog's all-on livelihoods set (retail in every region),
+  `--wealth-accounting`, `--finance --domestic-credit`, `--quarantine-mode closure
+  --quarantine-channels trade,migration`, with and without `--attribution-records`: 3 cases, 317
+  files compared, 0 differences after removing only the record (every `attribution_records` key
+  and a container that held nothing else; bundles decoded without `generated_at`); 550 snapshots
+  carry the record.
+- **Exact resume** (`scripts/checkpoint_identity.py`, `hybrid_s42_long`, 200 turns, the same
+  all-switch set plus `--attribution-records`): writing checkpoints changes nothing (112 files, 0
+  differences) and every one of the 19 resume points equals the straight run (0 differences; the
+  points at turns 1, 2, 3, 5, 8 and 13 fall inside live armies or occupations, so the army
+  baselines and the civilization table cross the checkpoint); largest checkpoint 4.92 MB.
+- **Viewer:** `npm test -- --maxWorkers=2` 159 files, 1,586 passed, 2 skipped (a first run under a
+  load average of 9 timed out two unrelated panel tests at 5 s; both pass alone and in the rerun);
+  `npm run lint` clean; `npm run build` passes (the existing large-chunk warning). A type-only fix
+  of the reading's union followed; the four affected test files (54 tests), lint and build reran.
+- **Preflight** (`refactor_preflight.py --git-diff origin/main`): the only content-pinned files
+  are `batch_manifest.py` and `tests/test_batch_manifest.py`, carried by the provisional layer
+  `cwd2` (two hunks and one, read: the new key in `SIMULATION_ARG_KEYS` and in the omit-when-unset
+  lists), built against `main` `ae94bca6` as the last layer (`LAYERS = (..., "cws1", "cwc1b",
+  "cwd2")`); the witness modules pass. The lead regenerates one integrated layer per slice.
+
+### Development worlds (development only; not a held screen)
+
+Template 1, 3, 7, 9, 11, 23, 42 and procedural 32x10 seeds 7, 11, 13, 17, 21, 31, 200 turns each,
+`--agents hybrid --grain-reserves --attribution-records`, default campaigns, `PYTHONHASHSEED=0`.
+No combat death went unresolved, no army closure failed (978 checked, 110 unchecked: armies new
+to the records or gone), no seizure went unattributed and no restoration happened in these runs.
+
+| World | Observed turns | Soldiers' deaths combat / attrition / natural | Army closures held / failed / unchecked | Granary seizures (grain; stale books owner; unattributed) | Identity events |
+| --- | --- | --- | --- | --- | --- |
+| t1 | 200 (5 zero) | 14 / 2 / 2 | 48 / 0 / 8 | 0 (0.0; 0; 0) | 0 |
+| t3 | 200 (6 zero) | 4 / 0 / 1 | 11 / 0 / 2 | 0 (0.0; 0; 0) | 0 |
+| t7 | 200 (15 zero) | 8 / 0 / 5 | 13 / 0 / 2 | 10 (6.0; 0; 0) | 0 |
+| t9 | 200 (9 zero) | 5 / 0 / 0 | 20 / 0 / 2 | 0 (0.0; 0; 0) | 0 |
+| t11 | 200 (6 zero) | 21 / 1 / 4 | 20 / 0 / 3 | 0 (0.0; 0; 0) | 0 |
+| t23 | 200 (8 zero) | 12 / 0 / 4 | 21 / 0 / 4 | 0 (0.0; 0; 0) | 0 |
+| t42 | 200 (3 zero) | 15 / 7 / 0 | 37 / 0 / 6 | 0 (0.0; 0; 0) | 0 |
+| p7 | 200 (10 zero) | 70 / 11 / 24 | 134 / 0 / 12 | 13 (21.6; 0; 0) | 0 |
+| p11 | 200 (6 zero) | 10 / 1 / 1 | 40 / 0 / 6 | 5 (0.7; 0; 0) | 0 |
+| p13 | 200 (1 zero) | 67 / 11 / 17 | 212 / 0 / 18 | 24 (34.4; 0; 0) | 0 |
+| p17 | 200 (4 zero) | 49 / 7 / 12 | 135 / 0 / 13 | 0 (0.0; 0; 0) | 0 |
+| p21 | 200 (5 zero) | 86 / 12 / 13 | 208 / 0 / 25 | 8 (9.1; 0; 0) | 0 |
+| p31 | 200 (0 zero) | 39 / 3 / 7 | 79 / 0 / 9 | 9 (8.3; 0; 0) | 0 |
+
+Burdens summed over the 13 worlds (2,600 observed turns; cross-polity: actor and victim differ):
+
+| Burden kind | Nature | Unit | Total amount | Events | Cross-polity events |
+| --- | --- | --- | --- | --- | --- |
+| city_dues | transfer | treasury | 3296.3 | 14988 | 0 |
+| city_sack | transfer | treasury | 28.0 | 5 | 5 |
+| city_sack_loss | destroyed | treasury | 0.7 | 5 | 5 |
+| conquest_stock_loss | destroyed | goods | 307.1 | 25 | 25 |
+| food_requisition | destroyed | food | 815.4 | 270 | 270 |
+| granary_seizure | destroyed | grain | 80.1 | 69 | 69 |
+| guild_levy | transfer | treasury | 111.9 | 1139 | 0 |
+| occupation_plunder | minted | treasury | 71.0 | 50 | 50 |
+| occupation_requisition | minted | treasury | 158.0 | 158 | 158 |
+| occupation_tax_loss | destroyed | treasury | 280.0 | 158 | 158 |
+| treaty_payment | transfer | treasury | 394.0 | 22 | 22 |
+
+What the records show on these worlds:
+
+- Natural deaths are 90 of the 545 soldiers' deaths (17%; 24 of 105 on procedural 7) that army
+  casualty counters book together with 400 combat and 55 attrition deaths.
+- Every recorded cross-polity treasury burden of war but treaties and sacks is minted or
+  destroyed: occupation plunder (71) and requisitions (158) are credited to occupiers and taken
+  from no one, while owners lose 280 to occupation, spent into nothing. The real cross-polity
+  transfers are treaty payments (394) and sack plunder (28). Food requisitions destroy 815 food
+  units and granary seizures 80 grain that no army receives.
+- City dues (3,296) and guild levies (112) are all internal: a city's lord is its region's
+  controller, so they ground no foreign grievance.
+- Granary books stayed current (no stale owner) in these campaign runs: a stale books owner needs
+  two conquests of one region in one turn (`--no-campaigns`; tested offline).
+
+Evidence (outside the repository): `/home/user/evidence/d2/` (identity, preflight, oracle log,
+native, feature-off, observer, resume and development outputs).
 
 ## Not done in this slice
 
