@@ -116,3 +116,19 @@ def test_legacy_attribution_observer_refuses_active_adaptive_inputs_in_both_orde
     sim.set_adaptive_migration(1, [])
     sim.configure_decision_delivery(True)
     assert isinstance(sim.get_migration_driver_stats(), dict)
+
+
+def test_native_wealth_observer_exact_resume_at_active_lifecycle_turns(tmp_path):
+    from chronicler.main import execute_run
+    from chronicler.run_checkpoint import read_checkpoint
+    from test_run_checkpoint_native import _args, _outputs
+    straight = tmp_path / "straight"
+    execute_run(_args(straight, 35, "hybrid", seed=7, wealth_accounting=True,
+        wealth_accounting_mode="strict", checkpoint_every=7, checkpoint=str(straight / "c{turn}.ckpt")))
+    for turn in (14, 28):
+        saved = read_checkpoint(straight / f"c{turn}.ckpt")
+        assert saved.state.world.livelihoods.wealth_accounting._turn is None
+        assert saved.state.agent_bridge._sim.take_wealth_observation() is None
+        resumed = tmp_path / f"resume_{turn}"
+        execute_run(_args(resumed, 35, "off"), checkpoint_resume=saved)
+        assert _outputs(resumed) == _outputs(straight)
