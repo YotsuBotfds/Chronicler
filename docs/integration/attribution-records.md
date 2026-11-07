@@ -72,6 +72,7 @@ A saved world outside hybrid is refused until the switch is ended.
 | `action_engine.apply_region_conquest` | `note_conquest` | goods destroyed, the granary SEIZED flow, the retail war loss, per call |
 | `cities._commerce` | `note_city_dues` | dues assessed for the lord, split from a guild levy's part |
 | `cities._sack` | `note_city_sack` | plunder paid to the sacker and the loot no one receives |
+| `infrastructure_condition.war_damage` | `note_infrastructure_damage` | actual accepted irrigation/road condition loss, event-time actor/victim, asset/damage/war identities |
 
   Changes to decision code besides the guarded note calls: `tax_lost = spend(...)` in
   `tick_occupations` names the amount `spend` already returned; `drain_population` takes an
@@ -396,3 +397,19 @@ oracle lane and development outputs).
   count is labelled).
 - The seven pre-existing decision reads of provenance are recorded, not changed.
 - Diplomacy tribute installments and vassal tribute are not itemized.
+
+### B3 integration: condition burdens
+
+With both observers enabled, accepted B3 conquest/sack damage appends an
+`infrastructure_war_damage` burden. Its unit is `condition`: summed condition
+points lost across assets, not a food loss, coin cost, or monetized welfare
+estimate. Actor and victim come from the actual event arguments, including
+when conquest has already changed region control. Each note carries the B3
+asset id, damage id, war key/start, event, and before/after condition.
+
+Only a newly accepted damage receipt produces a note. The one-damage-per-asset
+rule therefore also prevents double attribution for a same-turn conquest and
+sack. Floods, wear, skipped damage and repair payments do not create this
+foreign burden. D2 remains record only and adds no grievance. Historical kind
+and lifetime declaration order is preserved; the new condition unit and
+lifetime totals are appended.

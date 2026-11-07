@@ -559,8 +559,9 @@ gate and the procedural qualification gate.
 - **`cost_only` is RS2's convention**: a work whose scope was delivered without credit closes and
   reopens larger while the asset stays worn, so it is not a same-spend control after the first
   completion.
-- **D2 attribution** does not yet record B3 war damage as a burden (the actor and the war are on
-  each `InfraDamage`); left for the integration of the two.
+- **D2 attribution** records accepted conquest/sack damage in its own asset-condition unit when
+  `--attribution-records` is active. Skipped duplicate damage and floods create no foreign burden.
+  This observation creates no grievance or estimated food/money harm.
 - Ports are deferred (no consumer reads the type). Flood damage per unit of excess is declared and
   uncalibrated (floods are rare and small under `flow`). Constants are declared and uncalibrated;
   nothing was tuned on held seeds, and the 200-seed gate is unrun.

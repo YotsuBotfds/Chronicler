@@ -1,6 +1,6 @@
 import { expect, it } from "vitest";
 import type { TurnSnapshot } from "../../types";
-import { attributionOn, readAttribution } from "../attributionRecords";
+import { attributionOn, BURDEN_LABEL, readAttribution, UNIT_LABEL } from "../attributionRecords";
 import { empty, frame, p7Turn46, record } from "./attributionRecordsFixture";
 
 const at = (livelihoods: unknown, turn = 10) => ({ turn, livelihoods }) as unknown as TurnSnapshot;
@@ -74,4 +74,16 @@ it("reads a real war-drain turn: the drain's actor is accepted, the rest stay na
   expect(reading.frame.casualties.war_drains?.[0]).toEqual({ region: 7, staged: 1, actors: ["Yatain Tribes"],
     unnamed: 0, labelled: 1, beyond_staged: 2 });
   expect(reading.frame.casualties.by_class).toEqual({ combat: 6, attrition: 1, natural: 2, war_drain: 2 });
+});
+
+
+it("keeps actual infrastructure condition burdens in their own unit", () => {
+  const pair = { ...frame.burdens.pairs[0], kind: "infrastructure_war_damage", nature: "destroyed",
+    unit: "condition", amount: 0.25, events: 1 };
+  const reading = read(withFrame({ burdens: { ...frame.burdens, pairs: [pair] } }));
+  expect(reading.state).toBe("recorded");
+  if (reading.state !== "recorded") return;
+  expect(reading.frame.burdens.pairs[0].amount).toBe(0.25);
+  expect(UNIT_LABEL.condition).toBe("asset condition");
+  expect(BURDEN_LABEL.infrastructure_war_damage).toBe("Infrastructure condition lost to war");
 });

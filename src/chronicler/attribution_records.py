@@ -447,6 +447,27 @@ def note_conquest(world, region, attacker, defender, *, via: str = "war") -> Non
     _retail(world, t, rid, "conquest")
 
 
+def note_infrastructure_damage(world, damage, actor, victim) -> None:
+    """Record accepted B3 war damage once, directly from its actual receipt.
+
+    Condition points across assets have their own unit. A same-turn skipped
+    sack/conquest, flood, wear, and repair bill are not foreign burdens here.
+    Actor/victim are the event's parties, never the region's final controller.
+    """
+    if damage.event not in ("conquest", "sack") or damage.amount <= 0:
+        return
+    found = _active_turn(world, "infrastructure_damage")
+    if found is None:
+        return
+    _s, t = found
+    t.entries.append(_entry(world, "infrastructure_war_damage", actor, victim, float(damage.amount),
+                            region=damage.region, cause=damage.event,
+                            receipt={"damage": damage.did, "asset": damage.aid, "war": damage.war_key,
+                                     "war_start_turn": damage.war_start_turn},
+                            detail={"kind": damage.kind, "condition_before": damage.condition_before,
+                                    "condition_after": damage.condition_after}))
+
+
 def note_plunder(world, region, occupier, owner, plunder: int) -> None:
     """``war.occupation.start_occupation``: the occupier's plunder, credited to
     its treasury and taken from nobody (minted)."""

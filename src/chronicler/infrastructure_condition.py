@@ -457,7 +457,7 @@ def _open_work(state, aid: int) -> InfraWork | None:
 # Damage (RS2's war hooks; the watershed flood seam)
 # ---------------------------------------------------------------------------
 
-def _damage(world, state, asset: InfraAsset, event: str, amount: float, key, start, ref=None) -> None:
+def _damage(world, state, asset: InfraAsset, event: str, amount: float, key, start, ref=None) -> InfraDamage | None:
     turn = world.turn
     if amount <= 0 or asset.status != "serving":
         return
@@ -503,6 +503,7 @@ def _damage(world, state, asset: InfraAsset, event: str, amount: float, key, sta
     _bump(state, f"damages_{event}")
     _bump(state, "damage", round(before - after, 9))
     _bump(state, f"damage_{asset.kind}", round(before - after, 9))
+    return record
 
 
 def war_damage(world, region, event: str, a: str | None, b: str | None) -> None:
@@ -520,7 +521,10 @@ def war_damage(world, region, event: str, a: str | None, b: str | None) -> None:
     amount = WAR_DAMAGE * _damage_scale(world)
     key, start = _war_identity(world, a, b)
     for asset in [x for x in state.assets if x.region == rid and _in_service(world, x)]:
-        _damage(world, state, asset, event, amount, key, start)
+        record = _damage(world, state, asset, event, amount, key, start)
+        if record is not None and getattr(world, "livelihoods", None) is not None:
+            from chronicler.attribution_records import note_infrastructure_damage
+            note_infrastructure_damage(world, record, a, b)
 
 
 def flood_damage(world, region: int, excess: float, *, ref: str | None = None) -> None:

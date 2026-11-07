@@ -18,7 +18,7 @@ export const CASUALTY_CAUSES = ["battle", "trapped", "revolt", "attrition", "nat
   "possibly_enemy"] as const;
 export const CASUALTY_CLASSES = ["combat", "attrition", "natural", "war_drain"] as const;
 export const NATURES = ["transfer", "minted", "destroyed", "restriction"] as const;
-export const UNITS = ["treasury", "food", "goods", "grain", "milli_food", "routes"] as const;
+export const UNITS = ["treasury", "food", "goods", "grain", "milli_food", "routes", "condition"] as const;
 export const IDENTITY_KINDS = ["restored", "revived", "name_reused", "renamed"] as const;
 
 export type CasualtyCause = (typeof CASUALTY_CAUSES)[number];
@@ -233,11 +233,12 @@ export const BURDEN_LABEL: Record<string, string> = {
   food_requisition: "Food requisitioned (commons)", conquest_stock_loss: "Stock destroyed in conquest",
   granary_seizure: "Granary grain seized", retail_war_loss: "Owned food lost to war",
   treaty_payment: "Treaty payment (reparations or tribute)", quarantine_closure: "Quarantine closure",
+  infrastructure_war_damage: "Infrastructure condition lost to war",
 };
 export const NATURE_LABEL: Record<BurdenNature, string> = {
   transfer: "transfer (paid by the victim to the actor)", minted: "minted (credited, taken from no one)",
   destroyed: "destroyed (received by no one)", restriction: "restriction (no amount moves)",
 };
 export const UNIT_LABEL: Record<BurdenUnit, string> = {
-  treasury: "treasury", food: "food", goods: "goods", grain: "grain", milli_food: "milli-food", routes: "routes",
+  treasury: "treasury", food: "food", goods: "goods", grain: "grain", milli_food: "milli-food", routes: "routes", condition: "asset condition",
 };
