@@ -821,8 +821,10 @@ def snapshot_summary(world) -> dict:
         tick = {"turn": state.tick_turn, "applied": [a.model_dump() for a in state.applied],
                 "refused": [r.model_dump() for r in state.refused],
                 "regions": [r.model_dump() for r in state.regions]}
+    from chronicler.public_health import care_allowed
+    effective_mode = state.mode if care_allowed(world) else "cost_only"
     return {
-        "schema_version": 1, "stage": "C2", "mode": state.mode, "source_turn": source,
+        "schema_version": 1, "stage": "C2", "mode": effective_mode, "source_turn": source,
         "units": {"money": "milli_treasury_units", "care": "worker_turns", "patients": "people", "milli": MILLI},
         "tick": tick,
         "frame": [r.model_dump() for r in state.frame] if fresh and state.frame is not None else None,

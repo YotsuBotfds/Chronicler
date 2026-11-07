@@ -389,11 +389,17 @@ def snapshot_summary(world):
     state = _state(world)
     if state is None:
         return None
-    return {"schema_version": 1, "source_turn": world.turn, "enabled": state.enabled, "mode": state.mode, "policy": state.policy,
-            "report_delay": state.report_delay, "report_turn": state.report_turn,
-            "reports": [r.model_dump() for r in state.reports], "decisions": state.decisions,
-            "environment_turn": state.environment_turn, "environment": state.environment,
-            "supply_turn": state.supply_turn, "supplies": [r.model_dump() for r in state.supplies],
+    source = world.turn - 1
+    reports_fresh = state.report_turn == source
+    environment_fresh = state.environment_turn == source
+    supply_fresh = state.supply_turn == source
+    return {"schema_version": 1, "source_turn": source, "enabled": state.enabled, "mode": state.mode, "policy": state.policy,
+            "report_delay": state.report_delay, "report_turn": state.report_turn if reports_fresh else None,
+            "reports": [r.model_dump() for r in state.reports], "decisions": state.decisions if reports_fresh else [],
+            "environment_turn": state.environment_turn if environment_fresh else None,
+            "environment": state.environment if environment_fresh else [],
+            "supply_turn": state.supply_turn if supply_fresh else None,
+            "supplies": [r.model_dump() for r in state.supplies] if supply_fresh else [],
             "totals": dict(state.totals), "parameters": {"sanitation_reduction": SANITATION_REDUCTION,
             "displacement_crowding": DISPLACEMENT_CROWDING, "life_value": LIFE_VALUE,
             "report_lifetime": REPORT_LIFETIME}}
