@@ -1,0 +1,32 @@
+{
+  "before_commit": "2726bf449d0e4d581a72034000ee0861a58ee439",
+  "after_commit": "cf0925d93fe1dff4687326e2d583d3d727d6c0a4",
+  "before_entity_history_sha256": "7a47a9903b20d2605668b71f65cfc84256488738b94124d158c185980071f23a",
+  "after_entity_history_sha256": "cbd66d40b59372fa652adacfd15e77d75fb8d23c727c982d757c9e69263b670d",
+  "production_source_diff": [
+    "viewer/src/lib/entityHistory.ts"
+  ],
+  "test_diff": [
+    "viewer/src/lib/__tests__/entityHistory.test.ts"
+  ],
+  "after_build_source_note": "Built with only the two subsequently committed cf0925 source/test changes; immutable copied assets match actual after-browser receipt. Later correctness UI changes are excluded from these measured builds.",
+  "input_bundle_sha256": "f6cb5562a4aaec888b6f2a03b4c4b01bd1e8d49737aec22673034eba30ce0ee2",
+  "simulation_or_native_changes": false,
+  "measurements": 48,
+  "all_paired_input_and_display_counts_equal": true,
+  "complete_index_observations": 190555,
+  "index_sha256": "ff4554e9f262cc6804e1c8a04c478ede21c3bb5aa19fb95b120d363e83b21e0d",
+  "queries_sha256": "5ff2f7d87680485c92943995777884d1aee494fc28673cc6c1d00b4f71c7e3b7",
+  "browser_functional_checks": {
+    "before": 30,
+    "after": 30
+  },
+  "focused_tests": {
+    "command": "npm --prefix viewer test -- src/lib/__tests__/entityHistory.test.ts src/lib/__tests__/personalExperience.test.ts src/lib/__tests__/entityHouseholdFirm.test.ts src/lib/__tests__/entityInfrastructure.test.ts src/lib/__tests__/entityHistoryInstitutions.test.ts src/components/systems/__tests__/EntityHistory.test.tsx --maxWorkers=1",
+    "passed": 34,
+    "files": 6
+  },
+  "production_build": "PASS (existing large-chunk warning)",
+  "node_rss_not_a_browser_rss_claim": true,
+  "broader_viewer_and_exact_head_ci": "Integration owner gate; not claimed by this packet."
+}
