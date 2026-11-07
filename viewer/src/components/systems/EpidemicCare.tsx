@@ -20,14 +20,15 @@ export function EpidemicCare({ bundle, snapshot, currentTurn }: {
   const reading = readEpidemicCare(bundle, snapshot, currentTurn);
   const at = snapshot?.turn ?? currentTurn;
   const title = `Epidemic care at turn ${at}`;
-  if (reading.state === "disabled") return null;
-  if (reading.state === "absent" || reading.state === "malformed") {
+  const record = reading.record;
+  if (record === null) {
+    // Off in the run (nothing shown), absent or malformed (named, never 0).
+    if (reading.state === "disabled") return null;
     return <section className="systems-section" aria-label={title}>
       <h3>{title}</h3>
       <p className="systems-note" role={reading.state === "malformed" ? "alert" : undefined}>{reading.note}</p>
     </section>;
   }
-  const { record } = reading;
   const names = bundle.world_state.regions.map((region) => region.name);
   const civs = bundle.world_state.civilizations.map((civ) => civ.name);
   const rows = careRegionRows(record);
