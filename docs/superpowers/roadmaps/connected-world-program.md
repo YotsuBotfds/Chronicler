@@ -294,6 +294,19 @@ open questions follow each summary.
   12 worlds; merchant unwinds rose in every world; refused migrants were mostly fleeing war, famine or
   persecution.
 
+### 5.9 Defects recorded for the owner (default-path; not changed by this program)
+
+- **Decisions that read causal provenance.** `docs/integration/causal-provenance.md` says provenance
+  is never read by simulation decisions; lane D2's guard test found seven decision sites that do.
+  Four are on the default path — `cities._lord_change`, `diplomacy._aid_convoys`,
+  `epidemiology._reports` (epidemics on by default), `nomads._herds` (nomads on by default) — and
+  three sit behind opt-in `--scholarship` (`scholarship._in_famine`, `_newly_occupied`,
+  `_sack_cause`). Fixing them changes default output, so they are recorded (the guard registers
+  them explicitly) for the owner's decision, not changed.
+- **Merchant income** is computed by a merchant's origin but paid by its current region (A4 audit).
+- **Natural deaths booked as army casualties** (`reconcile_rosters`): 17% of soldier deaths on
+  development worlds; recorded separately by D2's observer, unchanged on the default path.
+
 ## 6. Turn-order table
 
 Maintained as slices land.

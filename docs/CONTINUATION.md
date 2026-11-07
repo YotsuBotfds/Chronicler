@@ -56,7 +56,8 @@
   failed): against cost-only the primaries lean lower but are not consistent; as a secondary, adding
   the migration channel to a trade closure lowered arrivals and deaths in all 6 template worlds;
   food shortfall after relief rose in 10 of 12 worlds.
-- **A3 PR** (`claude/cw-a3-workshop-economics`): `--workshop-economics` (requires workshop payroll;
+- **PR #88 merged** at `8401aa74` (tree `a7af0ffe` = reviewed head `23eed03c`; premerge Tests
+  42319124283 and main Tests 42320659289 green), A3-1: `--workshop-economics` (requires workshop payroll;
   modes market, free_inputs, academy_only) with the shared `money.py` seam — whole-bill validation,
   exactly-once settlement, refused credits returned to the payer — inputs bought at the plan price
   (the region's last positive raw price, else the ruler's realm), production only from paid inputs,
@@ -64,6 +65,13 @@
   never readmitted; one appended native purpose (`wares_purchase`). Development activation: under
   market most firms close idle (70 of 102); nothing converted unpaid. CW2 (held) waits for A3-2's
   firm-output column.
+- **D2 PR** (`claude/cw-d2-attribution`): `--attribution-records`, an observation-only package —
+  granary seizures with actor and victim, soldier deaths split into combat, attrition, war drain,
+  possibly-enemy and natural (17% of soldier deaths on development worlds are natural deaths the army
+  counters book as casualties), restored-civ index reuse, and per actor→victim burdens labelled as
+  transfer, minted, destroyed or restriction (occupation plunder and requisitions are minted; city
+  dues and guild levies are internal). Its guard test found seven decision sites that read causal
+  provenance against the documented contract (four default-path), recorded for the owner.
 - **Lanes in flight** (each on its own branch, provisional witness layers regenerated at
   integration): A5 retail rules v2, war reaches owned stock once per event (RL1–RL3; review
   merge-ready); A1 `--wealth-accounting` observation ledger (RL7; review fixes); B1 `--watershed
