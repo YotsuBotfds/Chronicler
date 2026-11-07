@@ -14,6 +14,7 @@ import { readInfrastructure } from "./infrastructureCondition";
 import { reliefRecordAt } from "./reformServices";
 import { leagueRecordAt } from "./guildLeagues";
 import { movementBranchesAt } from "./movementBranches";
+import { epidemicCareAt } from "./epidemicCare";
 import { readWatershed, watershedOutflow } from "./watershed";
 import { workshopEconomicsAt } from "./workshopEconomics";
 import { workshopFinanceAt } from "./workshopFinance";
@@ -26,7 +27,7 @@ export interface EntityHistoryRow {
   join: "id" | "region" | "inferred"; state: HistoryState; text: string;
   source: string | null; region: number | null; related: EntityRef[];
 }
-export const HISTORY_PACKAGES = ["recovery_crews", "repair_projects", "timber_supply", "household_retail", "titled_trade", "residence_ledger", "timber_orders", "war_requisition", "adaptive_livelihoods", "war_consequences", "public_health", "infrastructure_condition", "watershed", "workshop_economics", "workshop_payroll", "reform_services", "guild_leagues", "movement_branches"] as const;
+export const HISTORY_PACKAGES = ["recovery_crews", "repair_projects", "timber_supply", "household_retail", "titled_trade", "residence_ledger", "timber_orders", "war_requisition", "adaptive_livelihoods", "war_consequences", "public_health", "infrastructure_condition", "watershed", "workshop_economics", "workshop_payroll", "reform_services", "guild_leagues", "movement_branches", "epidemic_care"] as const;
 type Package = typeof HISTORY_PACKAGES[number];
 interface Observation extends EntityHistoryRow { package: Package }
 interface PackageFrame { state: HistoryState; reason: string; rows: Observation[]; source: string | null; sourceTurn: number | null }
@@ -199,6 +200,12 @@ export function indexEntityHistory(bundle: Bundle): EntityHistoryIndex {
         f.separation?.separated.forEach((p,j)=>{
           for(const [id,other] of [[p.a,p.b],[p.b,p.a]]) add(ref("person",id),`/frame/separation/separated/${j}`,`Separated ${p.relation} pair with person #${other}: ${p.cause}; prior source turn ${f.separation!.source_turn}. Army attachment is not residence`,null,[ref("person",other)],"recorded","id",f.separation!.source_turn);
         });
+      } else if (key === "epidemic_care") {
+        const r=epidemicCareAt(snapshot,regions,civs);
+        if(!r){bad();continue;}
+        if(!r.frame)Object.assign(frame,{state:"unknown",reason:"Named epidemic care work was unobserved, not zero; any regional tick is separate context"});
+        r.frame?.forEach((receipt,j)=>receipt.carers.forEach((c,k)=>add(ref("person",c.agent_id),`/frame/${j}/carers/${k}`,`Epidemic care work ${num(c.share)} share; wage actually paid ${coins(c.wage_paid_milli)}, refused ${coins(c.wage_residual_milli)} coins; ordinary income withheld ${c.income_withheld===null?"unknown":num(c.income_withheld)}. A named carer is not an identified patient or a cause of an individual's survival`,receipt.region)));
+        r.tick?.applied.forEach((a,j)=>add(ref("region",a.region),`/tick/applied/${j}`,`Regional epidemic tick: prior care capacity source turn ${a.source_turn}; coverage ${num(a.coverage)}, case-fatality factor ${num(a.care_factor)}, regional deaths ${a.deaths===null?"unobserved":a.deaths}. These are epidemic fractions and regional counts; no individual infection, treatment or death is inferred`,a.region,[],"recorded","region",a.source_turn));
       } else if (key === "public_health") {
         const r=publicHealthAt(snapshot,regions,civs);
         if (!r) { bad(); continue; }
@@ -321,7 +328,7 @@ export function entityHistory(index: EntityHistoryIndex, entity: EntityRef, thro
     result.push(...direct);
     if (entity.kind !== "region") {
       const regions = new Set(direct.flatMap((r) => r.region === null ? [] : [r.region]));
-      for (const region of regions) for (const row of [...frames.household_retail.rows,...frames.public_health.rows,...frames.watershed.rows,...frames.reform_services.rows]) if (row.entity.kind === "region" && row.entity.id === region) {
+      for (const region of regions) for (const row of [...frames.household_retail.rows,...frames.public_health.rows,...frames.watershed.rows,...frames.reform_services.rows,...frames.epidemic_care.rows]) if (row.entity.kind === "region" && row.entity.id === region) {
         result.push({ ...row, entity, join: "region", text: `Regional context, not this ${entity.kind}'s record: ${row.text}`, related: [ref("region", region)] });
       }
     }
