@@ -1,0 +1,139 @@
+{
+  "status": "PASS",
+  "tool_sha256": "f8409b1b76be49dbff968323f9eee2f65229e5c1280e0c349fe2e2a3927e4fef",
+  "source_note": "corrected tool re-read, not a simulation rerun; original failing rows preserved",
+  "rows": [
+    {
+      "run": "AD-t5",
+      "problems": [],
+      "bundle_sha256": "53e4c24d3231ee0ec04e425caf7144515c972ce6a29992dfda74b1d1d3ab78fa",
+      "metrics": {
+        "retail_free_rations_observed": 313.61127700000014,
+        "retail_free_pool_observed": 523.902033,
+        "retail_priority_household_turns": 93.0,
+        "retail_free_to_priority_observed": 51.07021199999999,
+        "retail_access_unknown_region_turns": 0
+      }
+    },
+    {
+      "run": "AL-t5",
+      "problems": [],
+      "bundle_sha256": "29ff518586b0454812c55ec856a1cd9c16540a7225491b30a0b8e60b9d728b02",
+      "metrics": {
+        "retail_free_rations_observed": 313.61127700000014,
+        "retail_free_pool_observed": 523.902033,
+        "retail_priority_household_turns": 93.0,
+        "retail_free_to_priority_observed": 51.07021199999999,
+        "retail_access_unknown_region_turns": 0
+      }
+    },
+    {
+      "run": "APC-t5",
+      "problems": [],
+      "bundle_sha256": "eb523bb874967493ebd421c6a18662780d88a986aacb771bb1d7100f96407417",
+      "metrics": {
+        "retail_free_rations_observed": 313.61127700000014,
+        "retail_free_pool_observed": 523.902033,
+        "retail_priority_household_turns": 93.0,
+        "retail_free_to_priority_observed": 51.07021199999999,
+        "retail_access_unknown_region_turns": 0
+      }
+    },
+    {
+      "run": "IX-t5",
+      "problems": [],
+      "bundle_sha256": "dfd3764967d5099ce18e1158787399ab2f7ee901d5ad99fd758397567b945ca3",
+      "metrics": {
+        "retail_free_rations_observed": 312.5835950000001,
+        "retail_free_pool_observed": 524.9791230000001,
+        "retail_priority_household_turns": 86.0,
+        "retail_free_to_priority_observed": 50.897341999999995,
+        "retail_access_unknown_region_turns": 0
+      }
+    },
+    {
+      "run": "MX-t5",
+      "problems": [],
+      "bundle_sha256": "b2653d0e1367288b2a3d8fba6fa0c846fe47f741f266f28dc895268d64342fae",
+      "metrics": {
+        "retail_free_rations_observed": 313.61127700000014,
+        "retail_free_pool_observed": 523.902033,
+        "retail_priority_household_turns": 93.0,
+        "retail_free_to_priority_observed": 51.07021199999999,
+        "retail_access_unknown_region_turns": 0
+      }
+    },
+    {
+      "run": "RD-t5",
+      "problems": [],
+      "bundle_sha256": "bbce593805e0d684a9925adc300a6a98f391473900bbeaf26e9b30f9a7945d6f",
+      "metrics": {
+        "retail_free_rations_observed": 318.6507690000001,
+        "retail_free_pool_observed": 533.3354930000002,
+        "retail_priority_household_turns": 88.0,
+        "retail_free_to_priority_observed": 52.333696,
+        "retail_access_unknown_region_turns": 0
+      }
+    },
+    {
+      "run": "RL-t5",
+      "problems": [],
+      "bundle_sha256": "64e01c2cbf7e81f789a69258daa23ed48ad618c189cf22e03304057c6b8f4fda",
+      "metrics": {
+        "retail_free_rations_observed": 318.6507690000001,
+        "retail_free_pool_observed": 533.3354930000002,
+        "retail_priority_household_turns": 88.0,
+        "retail_free_to_priority_observed": 52.333696,
+        "retail_access_unknown_region_turns": 0
+      }
+    },
+    {
+      "run": "RNR-t5",
+      "problems": [],
+      "bundle_sha256": "1745ef476c145a3bf193e9b78e343e0152f49ee18add2871face5e1a2bde395a",
+      "metrics": {
+        "retail_free_rations_observed": 368.853005,
+        "retail_free_pool_observed": 368.853005,
+        "retail_priority_household_turns": 0.0,
+        "retail_free_to_priority_observed": 0.0,
+        "retail_access_unknown_region_turns": 0
+      }
+    },
+    {
+      "run": "RPC-t5",
+      "problems": [],
+      "bundle_sha256": "d09227f84459e9c0e976b23d4f9120561f12adf75da890b8fc8c3dae399d5aa3",
+      "metrics": {
+        "retail_free_rations_observed": 318.6507690000001,
+        "retail_free_pool_observed": 533.3354930000002,
+        "retail_priority_household_turns": 88.0,
+        "retail_free_to_priority_observed": 52.333696,
+        "retail_access_unknown_region_turns": 0
+      }
+    },
+    {
+      "run": "TX-t5",
+      "problems": [],
+      "bundle_sha256": "809e25be92eca05d49a3f989dfb95b09a49efe8f1ce21b2a575042d2725bb1b8",
+      "metrics": {
+        "retail_free_rations_observed": 313.61127700000014,
+        "retail_free_pool_observed": 523.902033,
+        "retail_priority_household_turns": 93.0,
+        "retail_free_to_priority_observed": 51.07021199999999,
+        "retail_access_unknown_region_turns": 0
+      }
+    },
+    {
+      "run": "WX-t5",
+      "problems": [],
+      "bundle_sha256": "21e1f696de66d9f468bb76742ce8f204f7cb0073dd8ce13f6de99878280dc2c4",
+      "metrics": {
+        "retail_free_rations_observed": 313.61127700000014,
+        "retail_free_pool_observed": 523.902033,
+        "retail_priority_household_turns": 93.0,
+        "retail_free_to_priority_observed": 51.07021199999999,
+        "retail_access_unknown_region_turns": 0
+      }
+    }
+  ]
+}
