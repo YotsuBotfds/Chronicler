@@ -189,6 +189,7 @@ try {
             await chain.getByText("Linked histories of identities recorded in this chain",{exact:true}).click();
             await chain.getByRole("button",{name:`History: Person #${projectWitness.member.agent_id}`,exact:true}).click();
             check(result,`${name}: chain opens the actual named worker's stable history at the same snapshot`,await selector.inputValue()===person&&await page.getByRole("slider",{name:"Historical turn"}).getAttribute("aria-valuenow")===String(snapshot.turn));
+            for(let earlier=0;!(await project.count())&&earlier<4;earlier++){const expand=section.getByRole("button",{name:/^Show earlier observations/});if(!await expand.count())break;await expand.click();}
           }
           if (await project.count()) {
             await project.click();
