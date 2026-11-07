@@ -245,6 +245,14 @@ def test_real_titled_dispatch_waits_for_carriers_own_trade_packet():
     object.__setattr__(h.world.livelihoods, "adaptive_livelihoods", state)
     known = []
     h.sim.usable_trade_destinations = lambda ids, turn: [(aid, known) for aid in ids]
+    # This test exercises real titled-trade planner hooks. Keep the unrelated
+    # native migration contract explicit when the integrated switch router
+    # also wraps this stand-in's tick.
+    h.sim.set_adaptive_information = lambda turn, rows: [(aid, region, 1) for aid, region in rows]
+    h.sim.cancel_adaptive_information = lambda: None
+    h.sim.set_adaptive_migration = lambda turn, rows: None
+    h.sim.cancel_adaptive_migration = lambda: None
+    h.sim.take_adaptive_migration_receipt = lambda: (h.world.turn, [], 0, 0)
     for _ in range(3):
         h.turn({VERDANT: {"grain": 30.0}})
     assert not h.tt.shipments and state.counters["trade_unknown_destination"] > 0
