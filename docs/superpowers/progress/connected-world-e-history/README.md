@@ -102,3 +102,7 @@ NODE_PATH=BROWSER_NODE_MODULES CHROMIUM_EXECUTABLE=/usr/bin/chromium PYTHONPATH=
 ```
 
 The raw pilot remains in the execution evidence workspace; the repository retains these compact receipts, hashes and commands. Re-running the registered development pilot reproduces the raw observation source; no fresh held seed or paid narration call is needed.
+
+## Explicitly constructed browser demonstration
+
+The separate [constructed visibility packet](constructed/README.md) derives a labelled copy of the accepted bundle while preserving the natural artifact unchanged. It redacts one person's income-cost observations consistently across PL3 and A6, preserves observed pay and all physical/cash accounts, and verifies the positive constructed-banner path on desktop and phone. Its exact patch, reproducible artifact hashes, 1,200-reader receipt, mechanical provenance and 34 browser checks remain separate from the natural evaluation above. No simulation or paid narration ran.

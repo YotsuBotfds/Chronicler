@@ -1,0 +1,6 @@
+{
+  "source": "/workspace/cw-viewer-compat/viewer/scripts/qa-connected-world.mjs",
+  "source_sha256": "ec8a9c665fb2ad6698c6355388b67988793e4d48f16f0baba164ca655ea5c496",
+  "instrumented_sha256": "2a82d313d37d43e9182f4af2783e76649c5a9cd77a726d0eb690f68a93ccee9d",
+  "modification": "Evidence-only extra notice expansion, source/edit assertions and notice screenshots; original production journey otherwise unchanged."
+}

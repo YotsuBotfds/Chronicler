@@ -1,0 +1,862 @@
+{
+  "bundle": "/workspace/evidence/history/constructed-demo/chronicle_bundle.json",
+  "bundle_sha256": "019f4b17c49f4e5960e5130b747e3790680312483e95d23eed50b33b29066d89",
+  "constructed": {
+    "edits": [
+      "Constructed visibility demonstration: at snapshot 27, person 13's PL3 income_replaced observation is redacted from 0.09490852802991867 to null. The saved 2.000-coin wage remains observed.",
+      "The matching A6 work receipt's withheld_milli is redacted from 95 to null and source explicitly labels this edit. Its dependent net_milli remains null, never an invented zero or profit.",
+      "No simulation was rerun. Cash, cargo, work, aggregate accounting and every other saved observation are unchanged. This copy demonstrates unknown personal cost, not natural activation or a policy effect."
+    ],
+    "from": "f6cb5562a4aaec888b6f2a03b4c4b01bd1e8d49737aec22673034eba30ce0ee2"
+  },
+  "examples": {
+    "adaptive_livelihoods:adaptation": {
+      "fact_id": "s100.lh.adaptive_livelihoods.frame.offers.75",
+      "found": true,
+      "join": "id",
+      "pointer": "/history/99/livelihoods/adaptive_livelihoods/frame/offers/75",
+      "selection_rule": "a new offer is declined after personal experience",
+      "snapshot": 100,
+      "source_turn": 99,
+      "story_entry": {
+        "narrative": "At snapshot 100, adaptive livelihoods recorded {\"accepted\":false,\"id\":1108,\"kind\":\"academy_training\",\"would_decline\":true}.",
+        "provenance": {
+          "as_of": 99,
+          "facts": [
+            "s100.lh.adaptive_livelihoods.frame.offers.75"
+          ],
+          "names": [],
+          "narrator": "mechanical",
+          "spans": [
+            [
+              0,
+              123,
+              [
+                "s100.lh.adaptive_livelihoods.frame.offers.75"
+              ]
+            ]
+          ],
+          "v": 1
+        }
+      },
+      "values": {
+        "accepted": false,
+        "id": 1108,
+        "kind": "academy_training",
+        "would_decline": true
+      }
+    },
+    "adaptive_livelihoods:failure": {
+      "fact_id": "s1.lh.adaptive_livelihoods.frame.refusals.0",
+      "found": true,
+      "join": "id",
+      "pointer": "/history/0/livelihoods/adaptive_livelihoods/frame/refusals/0",
+      "selection_rule": "native migration was refused by its recorded gate",
+      "snapshot": 1,
+      "source_turn": 0,
+      "story_entry": {
+        "narrative": "At snapshot 1, adaptive livelihoods recorded {\"gate\":1,\"id\":9,\"origin\":1,\"region\":0}.",
+        "provenance": {
+          "as_of": 0,
+          "facts": [
+            "s1.lh.adaptive_livelihoods.frame.refusals.0"
+          ],
+          "names": [],
+          "narrator": "mechanical",
+          "spans": [
+            [
+              0,
+              85,
+              [
+                "s1.lh.adaptive_livelihoods.frame.refusals.0"
+              ]
+            ]
+          ],
+          "v": 1
+        }
+      },
+      "values": {
+        "gate": 1,
+        "id": 9,
+        "origin": 1,
+        "region": 0
+      }
+    },
+    "adaptive_livelihoods:mixed": {
+      "fact_id": "s7.lh.adaptive_livelihoods.frame.work.0",
+      "found": true,
+      "join": "id",
+      "pointer": "/history/6/livelihoods/adaptive_livelihoods/frame/work/0",
+      "selection_rule": "positive actual payment with unknown net utility or withheld income",
+      "snapshot": 7,
+      "source_turn": 6,
+      "story_entry": {
+        "narrative": "At snapshot 7, adaptive livelihoods recorded {\"id\":194,\"kind\":\"epidemic_care\",\"net_milli\":null,\"paid_milli\":97,\"progress\":null,\"source\":\"epidemic_care:untruncated keyed wage and attributable paid-work receipt\",\"title_forgone_milli\":null,\"withheld_milli\":8}.",
+        "provenance": {
+          "as_of": 6,
+          "facts": [
+            "s7.lh.adaptive_livelihoods.frame.work.0"
+          ],
+          "names": [],
+          "narrator": "mechanical",
+          "spans": [
+            [
+              0,
+              257,
+              [
+                "s7.lh.adaptive_livelihoods.frame.work.0"
+              ]
+            ]
+          ],
+          "v": 1
+        }
+      },
+      "values": {
+        "id": 194,
+        "kind": "epidemic_care",
+        "net_milli": null,
+        "paid_milli": 97,
+        "progress": null,
+        "source": "epidemic_care:untruncated keyed wage and attributable paid-work receipt",
+        "title_forgone_milli": null,
+        "withheld_milli": 8
+      }
+    },
+    "guild_leagues:adaptation": {
+      "fact_id": "s97.lh.guild_leagues.frame.payouts.0",
+      "found": true,
+      "join": "region_or_institution_context",
+      "pointer": "/history/96/livelihoods/guild_leagues/frame/payouts/0",
+      "selection_rule": "a city's purse receives a positive recorded claim payment",
+      "snapshot": 97,
+      "source_turn": 96,
+      "story_entry": {
+        "narrative": "At snapshot 97, guild leagues recorded {\"city\":2,\"event_id\":\"95:guild_levy:0\",\"kind\":\"levy\",\"league\":1,\"loss_milli\":132,\"paid_milli\":132}.",
+        "provenance": {
+          "as_of": 96,
+          "facts": [
+            "s97.lh.guild_leagues.frame.payouts.0"
+          ],
+          "names": [],
+          "narrator": "mechanical",
+          "spans": [
+            [
+              0,
+              138,
+              [
+                "s97.lh.guild_leagues.frame.payouts.0"
+              ]
+            ]
+          ],
+          "v": 1
+        }
+      },
+      "values": {
+        "city": 2,
+        "event_id": "95:guild_levy:0",
+        "kind": "levy",
+        "league": 1,
+        "loss_milli": 132,
+        "paid_milli": 132
+      }
+    },
+    "guild_leagues:failure": {
+      "found": false,
+      "selection_rule": "a positive recorded claim receives no payment"
+    },
+    "guild_leagues:mixed": {
+      "found": false,
+      "selection_rule": "claim paid only in part"
+    },
+    "infrastructure_condition:adaptation": {
+      "fact_id": "s60.lh.infrastructure_condition.receipts.2",
+      "found": true,
+      "join": "id",
+      "pointer": "/history/59/livelihoods/infrastructure_condition/receipts/2",
+      "selection_rule": "repair credits positive condition work",
+      "snapshot": 60,
+      "source_turn": 59,
+      "story_entry": {
+        "narrative": "At snapshot 60, infrastructure condition recorded {\"aid\":20,\"condition_after\":0.7933333313465116,\"condition_before\":0.7099999999999997,\"credited\":1.6666666269302368,\"delivered\":1.6666666269302368,\"kind\":\"irrigation\",\"region\":17,\"wid\":7}.",
+        "provenance": {
+          "as_of": 59,
+          "facts": [
+            "s60.lh.infrastructure_condition.receipts.2"
+          ],
+          "names": [],
+          "narrator": "mechanical",
+          "spans": [
+            [
+              0,
+              237,
+              [
+                "s60.lh.infrastructure_condition.receipts.2"
+              ]
+            ]
+          ],
+          "v": 1
+        }
+      },
+      "values": {
+        "aid": 20,
+        "condition_after": 0.7933333313465116,
+        "condition_before": 0.7099999999999997,
+        "credited": 1.6666666269302368,
+        "delivered": 1.6666666269302368,
+        "kind": "irrigation",
+        "region": 17,
+        "wid": 7
+      }
+    },
+    "infrastructure_condition:failure": {
+      "fact_id": "s35.lh.infrastructure_condition.receipts.0",
+      "found": true,
+      "join": "id",
+      "pointer": "/history/34/livelihoods/infrastructure_condition/receipts/0",
+      "selection_rule": "repair stalls",
+      "snapshot": 35,
+      "source_turn": 34,
+      "story_entry": {
+        "narrative": "At snapshot 35, infrastructure condition recorded {\"aid\":6,\"delivered\":0.0,\"kind\":\"irrigation\",\"reasons\":[\"no_coins\",\"no_envelope\"],\"region\":26,\"requested\":0.0,\"wid\":0}.",
+        "provenance": {
+          "as_of": 34,
+          "facts": [
+            "s35.lh.infrastructure_condition.receipts.0"
+          ],
+          "names": [],
+          "narrator": "mechanical",
+          "spans": [
+            [
+              0,
+              169,
+              [
+                "s35.lh.infrastructure_condition.receipts.0"
+              ]
+            ]
+          ],
+          "v": 1
+        }
+      },
+      "values": {
+        "aid": 6,
+        "delivered": 0.0,
+        "kind": "irrigation",
+        "reasons": [
+          "no_coins",
+          "no_envelope"
+        ],
+        "region": 26,
+        "requested": 0.0,
+        "wid": 0
+      }
+    },
+    "infrastructure_condition:mixed": {
+      "fact_id": "s60.lh.infrastructure_condition.receipts.2",
+      "found": true,
+      "join": "id",
+      "pointer": "/history/59/livelihoods/infrastructure_condition/receipts/2",
+      "selection_rule": "positive work remains limited by recorded reasons",
+      "snapshot": 60,
+      "source_turn": 59,
+      "story_entry": {
+        "narrative": "At snapshot 60, infrastructure condition recorded {\"aid\":20,\"credited\":1.6666666269302368,\"delivered\":1.6666666269302368,\"kind\":\"irrigation\",\"reasons\":[\"no_envelope\"],\"region\":17,\"requested\":1.6666666269302368,\"wid\":7}.",
+        "provenance": {
+          "as_of": 59,
+          "facts": [
+            "s60.lh.infrastructure_condition.receipts.2"
+          ],
+          "names": [],
+          "narrator": "mechanical",
+          "spans": [
+            [
+              0,
+              219,
+              [
+                "s60.lh.infrastructure_condition.receipts.2"
+              ]
+            ]
+          ],
+          "v": 1
+        }
+      },
+      "values": {
+        "aid": 20,
+        "credited": 1.6666666269302368,
+        "delivered": 1.6666666269302368,
+        "kind": "irrigation",
+        "reasons": [
+          "no_envelope"
+        ],
+        "region": 17,
+        "requested": 1.6666666269302368,
+        "wid": 7
+      }
+    },
+    "public_health:adaptation": {
+      "fact_id": "s26.lh.public_health.decisions.15",
+      "found": true,
+      "join": "region_or_institution_context",
+      "pointer": "/history/25/livelihoods/public_health/decisions/15",
+      "selection_rule": "delivered evidence selects a closure (effectiveness not established)",
+      "snapshot": 26,
+      "source_turn": 25,
+      "story_entry": {
+        "narrative": "At snapshot 26, public health recorded {\"civ\":8,\"close\":true,\"cost_units\":4.0,\"expected_loss_units\":7.179652095998056,\"report_ids\":[96],\"target\":2}.",
+        "provenance": {
+          "as_of": 25,
+          "facts": [
+            "s26.lh.public_health.decisions.15"
+          ],
+          "names": [],
+          "narrator": "mechanical",
+          "spans": [
+            [
+              0,
+              148,
+              [
+                "s26.lh.public_health.decisions.15"
+              ]
+            ]
+          ],
+          "v": 1
+        }
+      },
+      "values": {
+        "civ": 8,
+        "close": true,
+        "cost_units": 4.0,
+        "expected_loss_units": 7.179652095998056,
+        "report_ids": [
+          96
+        ],
+        "target": 2
+      }
+    },
+    "public_health:failure": {
+      "fact_id": "s7.lh.public_health.supplies.0",
+      "found": true,
+      "join": "region_or_institution_context",
+      "pointer": "/history/6/livelihoods/public_health/supplies/0",
+      "selection_rule": "patient supply falls short of physical need",
+      "snapshot": 7,
+      "source_turn": 6,
+      "story_entry": {
+        "narrative": "At snapshot 7, public health recorded {\"food_milli\":0,\"need_milli\":486,\"reason\":\"stock\",\"region\":16}.",
+        "provenance": {
+          "as_of": 6,
+          "facts": [
+            "s7.lh.public_health.supplies.0"
+          ],
+          "names": [],
+          "narrator": "mechanical",
+          "spans": [
+            [
+              0,
+              101,
+              [
+                "s7.lh.public_health.supplies.0"
+              ]
+            ]
+          ],
+          "v": 1
+        }
+      },
+      "values": {
+        "food_milli": 0,
+        "need_milli": 486,
+        "reason": "stock",
+        "region": 16
+      }
+    },
+    "public_health:mixed": {
+      "fact_id": "s18.lh.public_health.supplies.1",
+      "found": true,
+      "join": "region_or_institution_context",
+      "pointer": "/history/17/livelihoods/public_health/supplies/1",
+      "selection_rule": "positive patient supplies leave unmet physical need",
+      "snapshot": 18,
+      "source_turn": 17,
+      "story_entry": {
+        "narrative": "At snapshot 18, public health recorded {\"charged_milli\":1000,\"food_milli\":455,\"internal_milli\":0,\"need_milli\":705,\"reason\":\"supplied\",\"region\":3}.",
+        "provenance": {
+          "as_of": 17,
+          "facts": [
+            "s18.lh.public_health.supplies.1"
+          ],
+          "names": [],
+          "narrator": "mechanical",
+          "spans": [
+            [
+              0,
+              146,
+              [
+                "s18.lh.public_health.supplies.1"
+              ]
+            ]
+          ],
+          "v": 1
+        }
+      },
+      "values": {
+        "charged_milli": 1000,
+        "food_milli": 455,
+        "internal_milli": 0,
+        "need_milli": 705,
+        "reason": "supplied",
+        "region": 3
+      }
+    },
+    "reform_services:adaptation": {
+      "fact_id": "s76.lh.reform_services.frame.purchases.0",
+      "found": true,
+      "join": "region_or_institution_context",
+      "pointer": "/history/75/livelihoods/reform_services/frame/purchases/0",
+      "selection_rule": "relief purchases physical food from owners",
+      "snapshot": 76,
+      "source_turn": 75,
+      "story_entry": {
+        "narrative": "At snapshot 76, reform services recorded {\"civ\":2,\"credited_milli\":1080,\"food_milli\":1082,\"rations\":2.164,\"region\":17,\"sellers\":11}.",
+        "provenance": {
+          "as_of": 75,
+          "facts": [
+            "s76.lh.reform_services.frame.purchases.0"
+          ],
+          "names": [],
+          "narrator": "mechanical",
+          "spans": [
+            [
+              0,
+              132,
+              [
+                "s76.lh.reform_services.frame.purchases.0"
+              ]
+            ]
+          ],
+          "v": 1
+        }
+      },
+      "values": {
+        "civ": 2,
+        "credited_milli": 1080,
+        "food_milli": 1082,
+        "rations": 2.164,
+        "region": 17,
+        "sellers": 11
+      }
+    },
+    "reform_services:failure": {
+      "found": false,
+      "selection_rule": "relief delivery is unobserved or upper bound is zero"
+    },
+    "reform_services:mixed": {
+      "fact_id": "s77.lh.reform_services.frame.deliveries.0",
+      "found": true,
+      "join": "region_or_institution_context",
+      "pointer": "/history/76/livelihoods/reform_services/frame/deliveries/0",
+      "selection_rule": "regional delivery has a positive upper bound and no lower bound",
+      "snapshot": 77,
+      "source_turn": 76,
+      "story_entry": {
+        "narrative": "At snapshot 77, reform services recorded {\"bought_turn\":75,\"delivered_at_least\":null,\"delivered_at_most\":2.164,\"priced_out_persons\":2,\"region\":17}.",
+        "provenance": {
+          "as_of": 76,
+          "facts": [
+            "s77.lh.reform_services.frame.deliveries.0"
+          ],
+          "names": [],
+          "narrator": "mechanical",
+          "spans": [
+            [
+              0,
+              147,
+              [
+                "s77.lh.reform_services.frame.deliveries.0"
+              ]
+            ]
+          ],
+          "v": 1
+        }
+      },
+      "values": {
+        "bought_turn": 75,
+        "delivered_at_least": null,
+        "delivered_at_most": 2.164,
+        "priced_out_persons": 2,
+        "region": 17
+      }
+    },
+    "timber_orders:adaptation": {
+      "fact_id": "s66.lh.timber_orders.closed.0",
+      "found": true,
+      "join": "id",
+      "pointer": "/history/65/livelihoods/timber_orders/closed/0",
+      "selection_rule": "delivered timber is positive",
+      "snapshot": 66,
+      "source_turn": 65,
+      "story_entry": {
+        "narrative": "At snapshot 66, timber orders recorded {\"credited_milli\":113,\"delivered_milli\":482,\"holder\":1083,\"id\":0,\"outcome\":\"delivered\"}.",
+        "provenance": {
+          "as_of": 65,
+          "facts": [
+            "s66.lh.timber_orders.closed.0"
+          ],
+          "names": [],
+          "narrator": "mechanical",
+          "spans": [
+            [
+              0,
+              127,
+              [
+                "s66.lh.timber_orders.closed.0"
+              ]
+            ]
+          ],
+          "v": 1
+        }
+      },
+      "values": {
+        "credited_milli": 113,
+        "delivered_milli": 482,
+        "holder": 1083,
+        "id": 0,
+        "outcome": "delivered"
+      }
+    },
+    "timber_orders:failure": {
+      "fact_id": "s70.lh.timber_orders.closed.1",
+      "found": true,
+      "join": "id",
+      "pointer": "/history/69/livelihoods/timber_orders/closed/1",
+      "selection_rule": "terminal order did not deliver",
+      "snapshot": 70,
+      "source_turn": 69,
+      "story_entry": {
+        "narrative": "At snapshot 70, timber orders recorded {\"deposited_milli\":2000,\"holder\":4,\"id\":1,\"lost_milli\":0,\"outcome\":\"holder_died\",\"purchase_milli\":26,\"refunded_milli\":1000}.",
+        "provenance": {
+          "as_of": 69,
+          "facts": [
+            "s70.lh.timber_orders.closed.1"
+          ],
+          "names": [],
+          "narrator": "mechanical",
+          "spans": [
+            [
+              0,
+              163,
+              [
+                "s70.lh.timber_orders.closed.1"
+              ]
+            ]
+          ],
+          "v": 1
+        }
+      },
+      "values": {
+        "deposited_milli": 2000,
+        "holder": 4,
+        "id": 1,
+        "lost_milli": 0,
+        "outcome": "holder_died",
+        "purchase_milli": 26,
+        "refunded_milli": 1000
+      }
+    },
+    "timber_orders:mixed": {
+      "fact_id": "s66.lh.timber_orders.closed.0",
+      "found": true,
+      "join": "id",
+      "pointer": "/history/65/livelihoods/timber_orders/closed/0",
+      "selection_rule": "positive delivery with physical loss or unused escrow",
+      "snapshot": 66,
+      "source_turn": 65,
+      "story_entry": {
+        "narrative": "At snapshot 66, timber orders recorded {\"credited_milli\":113,\"delivered_milli\":482,\"holder\":1083,\"id\":0,\"lost_milli\":15,\"refunded_milli\":887}.",
+        "provenance": {
+          "as_of": 65,
+          "facts": [
+            "s66.lh.timber_orders.closed.0"
+          ],
+          "names": [],
+          "narrator": "mechanical",
+          "spans": [
+            [
+              0,
+              142,
+              [
+                "s66.lh.timber_orders.closed.0"
+              ]
+            ]
+          ],
+          "v": 1
+        }
+      },
+      "values": {
+        "credited_milli": 113,
+        "delivered_milli": 482,
+        "holder": 1083,
+        "id": 0,
+        "lost_milli": 15,
+        "refunded_milli": 887
+      }
+    },
+    "war_consequences:adaptation": {
+      "fact_id": "s3.lh.war_consequences.frame.events.0",
+      "found": true,
+      "join": "id",
+      "pointer": "/history/2/livelihoods/war_consequences/frame/events/0",
+      "selection_rule": "an evacuation or return is recorded (safety not established)",
+      "snapshot": 3,
+      "source_turn": 2,
+      "story_entry": {
+        "narrative": "At snapshot 3, war consequences recorded {\"cause\":\"personally_witnessed_field_army\",\"destination\":11,\"home\":18,\"id\":331,\"kind\":\"evacuated\",\"region\":18}.",
+        "provenance": {
+          "as_of": 2,
+          "facts": [
+            "s3.lh.war_consequences.frame.events.0"
+          ],
+          "names": [],
+          "narrator": "mechanical",
+          "spans": [
+            [
+              0,
+              152,
+              [
+                "s3.lh.war_consequences.frame.events.0"
+              ]
+            ]
+          ],
+          "v": 1
+        }
+      },
+      "values": {
+        "cause": "personally_witnessed_field_army",
+        "destination": 11,
+        "home": 18,
+        "id": 331,
+        "kind": "evacuated",
+        "region": 18
+      }
+    },
+    "war_consequences:failure": {
+      "fact_id": "s1.lh.war_consequences.frame.events.0",
+      "found": true,
+      "join": "id",
+      "pointer": "/history/0/livelihoods/war_consequences/frame/events/0",
+      "selection_rule": "a selected combat victim receives a wound record",
+      "snapshot": 1,
+      "source_turn": 0,
+      "story_entry": {
+        "narrative": "At snapshot 1, war consequences recorded {\"army\":\"army-3\",\"cause\":\"battle\",\"id\":344,\"kind\":\"wounded\",\"region\":18}.",
+        "provenance": {
+          "as_of": 0,
+          "facts": [
+            "s1.lh.war_consequences.frame.events.0"
+          ],
+          "names": [],
+          "narrator": "mechanical",
+          "spans": [
+            [
+              0,
+              114,
+              [
+                "s1.lh.war_consequences.frame.events.0"
+              ]
+            ]
+          ],
+          "v": 1
+        }
+      },
+      "values": {
+        "army": "army-3",
+        "cause": "battle",
+        "id": 344,
+        "kind": "wounded",
+        "region": 18
+      }
+    },
+    "war_consequences:mixed": {
+      "fact_id": "s2.lh.war_consequences.frame.separation.separated.0",
+      "found": true,
+      "join": "id",
+      "pointer": "/history/1/livelihoods/war_consequences/frame/separation/separated/0",
+      "selection_rule": "a family relation persists while its members are separated",
+      "snapshot": 2,
+      "source_turn": 0,
+      "story_entry": {
+        "narrative": "At snapshot 2, war consequences recorded {\"a\":226,\"b\":237,\"cause\":\"attached\",\"relation\":\"spouse\"}.",
+        "provenance": {
+          "as_of": 1,
+          "facts": [
+            [
+              "s2.lh.war_consequences.frame.separation.separated.0",
+              0
+            ]
+          ],
+          "names": [],
+          "narrator": "mechanical",
+          "spans": [
+            [
+              0,
+              98,
+              [
+                "s2.lh.war_consequences.frame.separation.separated.0"
+              ]
+            ]
+          ],
+          "v": 1
+        }
+      },
+      "values": {
+        "a": 226,
+        "b": 237,
+        "cause": "attached",
+        "relation": "spouse"
+      }
+    },
+    "war_requisition:adaptation": {
+      "fact_id": "s2.lh.war_requisition.frame.events.5",
+      "found": true,
+      "join": "id",
+      "pointer": "/history/1/livelihoods/war_requisition/frame/events/5",
+      "selection_rule": "food reaches named carried ration allocations",
+      "snapshot": 2,
+      "source_turn": 1,
+      "story_entry": {
+        "narrative": "At snapshot 2, war requisition recorded {\"allocations\":[{\"army\":\"army-1\",\"rations\":4}],\"destroyed_milli\":1027,\"kind\":\"requisition\",\"owner\":null,\"region\":11,\"removed_milli\":3027,\"shipment\":null}.",
+        "provenance": {
+          "as_of": 1,
+          "facts": [
+            "s2.lh.war_requisition.frame.events.5"
+          ],
+          "names": [],
+          "narrator": "mechanical",
+          "spans": [
+            [
+              0,
+              194,
+              [
+                "s2.lh.war_requisition.frame.events.5"
+              ]
+            ]
+          ],
+          "v": 1
+        }
+      },
+      "values": {
+        "allocations": [
+          {
+            "army": "army-1",
+            "rations": 4
+          }
+        ],
+        "destroyed_milli": 1027,
+        "kind": "requisition",
+        "owner": null,
+        "region": 11,
+        "removed_milli": 3027,
+        "shipment": null
+      }
+    },
+    "war_requisition:failure": {
+      "fact_id": "s10.lh.war_requisition.frame.events.7",
+      "found": true,
+      "join": "id",
+      "pointer": "/history/9/livelihoods/war_requisition/frame/events/7",
+      "selection_rule": "positive army ration demand is not fully met",
+      "snapshot": 10,
+      "source_turn": 9,
+      "story_entry": {
+        "narrative": "At snapshot 10, war requisition recorded {\"adequacy\":0.0,\"army\":\"army-2\",\"consumed_rations\":0,\"demanded_rations\":3,\"kind\":\"consumption\"}.",
+        "provenance": {
+          "as_of": 9,
+          "facts": [
+            "s10.lh.war_requisition.frame.events.7"
+          ],
+          "names": [],
+          "narrator": "mechanical",
+          "spans": [
+            [
+              0,
+              137,
+              [
+                "s10.lh.war_requisition.frame.events.7"
+              ]
+            ]
+          ],
+          "v": 1
+        }
+      },
+      "values": {
+        "adequacy": 0.0,
+        "army": "army-2",
+        "consumed_rations": 0,
+        "demanded_rations": 3,
+        "kind": "consumption"
+      }
+    },
+    "war_requisition:mixed": {
+      "fact_id": "s2.lh.war_requisition.frame.events.5",
+      "found": true,
+      "join": "region_or_institution_context",
+      "pointer": "/history/1/livelihoods/war_requisition/frame/events/5",
+      "selection_rule": "some removed food is carried and some destroyed",
+      "snapshot": 2,
+      "source_turn": 1,
+      "story_entry": {
+        "narrative": "At snapshot 2, war requisition recorded {\"allocations\":[{\"army\":\"army-1\",\"rations\":4}],\"destroyed_milli\":1027,\"kind\":\"requisition\",\"region\":11,\"removed_milli\":3027}.",
+        "provenance": {
+          "as_of": 1,
+          "facts": [
+            "s2.lh.war_requisition.frame.events.5"
+          ],
+          "names": [],
+          "narrator": "mechanical",
+          "spans": [
+            [
+              0,
+              165,
+              [
+                "s2.lh.war_requisition.frame.events.5"
+              ]
+            ]
+          ],
+          "v": 1
+        }
+      },
+      "values": {
+        "allocations": [
+          {
+            "army": "army-1",
+            "rations": 4
+          }
+        ],
+        "destroyed_milli": 1027,
+        "kind": "requisition",
+        "region": 11,
+        "removed_milli": 3027
+      }
+    }
+  },
+  "schema_errors": [],
+  "selection": "first matching saved row per declared rule; labels are observations, not efficacy or qualification",
+  "skipped_validation": [],
+  "story_audit": {
+    "flags": [],
+    "totals": {
+      "by_narrator": {
+        "mechanical": 21
+      },
+      "cited": 21,
+      "cited_retrospective": 0,
+      "entries": 21,
+      "facts": 21,
+      "flags": {},
+      "retrospective_facts": 0,
+      "sentences": 35,
+      "spans": 21,
+      "uncited_sentences": 0,
+      "with_provenance": 21
+    }
+  },
+  "validation_reader_sha256": "76d48a81712a40f22b9d4029e94f93a5d538f7d60551d2a0a161cae97f4052a8"
+}

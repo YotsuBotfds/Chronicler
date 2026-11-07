@@ -1,0 +1,41 @@
+{
+  "kind": "constructed_visibility_demonstration",
+  "source": "/workspace/evidence/cw6/pilot-final/runs/FULL-p19/chronicle_bundle.json",
+  "source_sha256": "f6cb5562a4aaec888b6f2a03b4c4b01bd1e8d49737aec22673034eba30ce0ee2",
+  "source_unchanged": true,
+  "derived": "/workspace/evidence/history/constructed-demo/chronicle_bundle.json",
+  "derived_sha256": "019f4b17c49f4e5960e5130b747e3790680312483e95d23eed50b33b29066d89",
+  "derived_bytes": 37963691,
+  "edits": [
+    {
+      "op": "replace",
+      "path": "/history/26/livelihoods/recovery_crews/receipts/0/members/0/income_replaced",
+      "before": 0.09490852802991867,
+      "after": null
+    },
+    {
+      "op": "replace",
+      "path": "/history/26/livelihoods/adaptive_livelihoods/frame/work/0/withheld_milli",
+      "before": 95,
+      "after": null
+    },
+    {
+      "op": "replace",
+      "path": "/history/26/livelihoods/adaptive_livelihoods/frame/work/0/source",
+      "before": "recovery_crews:individual wage + keyed paid-work receipt",
+      "after": "constructed demonstration: actual saved wage retained; personal income-cost observation deliberately redacted"
+    }
+  ],
+  "metadata_constructed": {
+    "from": "f6cb5562a4aaec888b6f2a03b4c4b01bd1e8d49737aec22673034eba30ce0ee2",
+    "edits": [
+      "Constructed visibility demonstration: at snapshot 27, person 13's PL3 income_replaced observation is redacted from 0.09490852802991867 to null. The saved 2.000-coin wage remains observed.",
+      "The matching A6 work receipt's withheld_milli is redacted from 95 to null and source explicitly labels this edit. Its dependent net_milli remains null, never an invented zero or profit.",
+      "No simulation was rerun. Cash, cargo, work, aggregate accounting and every other saved observation are unchanged. This copy demonstrates unknown personal cost, not natural activation or a policy effect."
+    ]
+  },
+  "undo_exact_edits_matches_decoded_source": true,
+  "coherence": "Only individual observation visibility is redacted in PL3 and matching A6; dependent A6 net stays unknown. Actual cash/work/cargo and aggregate observations are preserved.",
+  "simulation_rerun": false,
+  "paid_narration_calls": 0
+}

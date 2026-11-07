@@ -1,0 +1,106 @@
+{
+  "constructed": {
+    "from": "f6cb5562a4aaec888b6f2a03b4c4b01bd1e8d49737aec22673034eba30ce0ee2",
+    "edits": [
+      "Constructed visibility demonstration: at snapshot 27, person 13's PL3 income_replaced observation is redacted from 0.09490852802991867 to null. The saved 2.000-coin wage remains observed.",
+      "The matching A6 work receipt's withheld_milli is redacted from 95 to null and source explicitly labels this edit. Its dependent net_milli remains null, never an invented zero or profit.",
+      "No simulation was rerun. Cash, cargo, work, aggregate accounting and every other saved observation are unchanged. This copy demonstrates unknown personal cost, not natural activation or a policy effect."
+    ]
+  },
+  "bundle_sha256": "019f4b17c49f4e5960e5130b747e3790680312483e95d23eed50b33b29066d89",
+  "examples": [
+    {
+      "fact_id": "s27.lh.recovery_crews.receipts.0.members.0",
+      "pointer": "/history/26/livelihoods/recovery_crews/receipts/0/members/0",
+      "source_turn": 26,
+      "values": {
+        "agent_id": 13,
+        "origin": "rural_farmer",
+        "share": 1.0,
+        "worked": 1.0,
+        "farm_time": 1.0,
+        "veteran": false,
+        "wage_due_milli": 2000,
+        "wage_milli": 2000,
+        "wage_residual_milli": 0,
+        "income_replaced": null
+      },
+      "story_entry": {
+        "narrative": "Constructed illustration at snapshot 27 records {\"agent_id\": 13, \"farm_time\": 1.0, \"income_replaced\": null, \"origin\": \"rural_farmer\", \"share\": 1.0, \"veteran\": false, \"wage_due_milli\": 2000, \"wage_milli\": 2000, \"wage_residual_milli\": 0, \"worked\": 1.0}.",
+        "provenance": {
+          "v": 1,
+          "narrator": "mechanical",
+          "as_of": 26,
+          "facts": [
+            "s27.lh.recovery_crews.receipts.0.members.0"
+          ],
+          "names": [],
+          "spans": [
+            [
+              0,
+              251,
+              [
+                "s27.lh.recovery_crews.receipts.0.members.0"
+              ]
+            ]
+          ]
+        }
+      }
+    },
+    {
+      "fact_id": "s27.lh.adaptive_livelihoods.frame.work.0",
+      "pointer": "/history/26/livelihoods/adaptive_livelihoods/frame/work/0",
+      "source_turn": 26,
+      "values": {
+        "turn": 26,
+        "id": 13,
+        "kind": "granary",
+        "paid_milli": 2000,
+        "withheld_milli": null,
+        "title_forgone_milli": null,
+        "progress": null,
+        "source": "constructed demonstration: actual saved wage retained; personal income-cost observation deliberately redacted",
+        "net_milli": null
+      },
+      "story_entry": {
+        "narrative": "Constructed illustration at snapshot 27 records {\"id\": 13, \"kind\": \"granary\", \"net_milli\": null, \"paid_milli\": 2000, \"progress\": null, \"source\": \"constructed demonstration: actual saved wage retained; personal income-cost observation deliberately redacted\", \"title_forgone_milli\": null, \"turn\": 26, \"withheld_milli\": null}.",
+        "provenance": {
+          "v": 1,
+          "narrator": "mechanical",
+          "as_of": 26,
+          "facts": [
+            "s27.lh.adaptive_livelihoods.frame.work.0"
+          ],
+          "names": [],
+          "spans": [
+            [
+              0,
+              323,
+              [
+                "s27.lh.adaptive_livelihoods.frame.work.0"
+              ]
+            ]
+          ]
+        }
+      }
+    }
+  ],
+  "story_audit": {
+    "totals": {
+      "entries": 2,
+      "with_provenance": 2,
+      "by_narrator": {
+        "mechanical": 2
+      },
+      "facts": 2,
+      "retrospective_facts": 0,
+      "spans": 2,
+      "cited": 2,
+      "cited_retrospective": 0,
+      "sentences": 5,
+      "uncited_sentences": 0,
+      "flags": {}
+    },
+    "flags": []
+  }
+}
