@@ -87,9 +87,10 @@ export function InfrastructureCondition({ bundle, snapshot, currentTurn, onSelec
     <td><Trace points={trace(a.aid)} /></td>
   </tr>;
   const counters = record.counters;
+  const named = record.receipts?.some(r => r.crew_mode !== undefined) ?? false;
   return <section className="systems-section" aria-label="Infrastructure condition">
     {header}
-    <p className="systems-note">{MODE_NOTE[record.mode]} Serving works wear each turn (irrigation {show(0.01)}, roads {show(0.005)}); service is min(1, condition ÷ 0.5); the works' coins go to a public-works sink that pays no one (they leave the economy) and the farmers whose time does the work are not paid; food at risk is the food an irrigation work's region would lose over the budget horizon without repair (the arable ceiling lost × observed production ÷ arable capacity); irrigation's arable bonus scales with service, and irrigation's water effect and a road's two-hop trade range need service of at least 0.5. Constants are declared, not calibrated.</p>
+    <p className="systems-note">{named ? `Named farm crews (${record.receipts?.find(r => r.crew_mode)?.crew_mode}): reserved adult farmers give only their available farm time; ordinary income for that work is withheld. Accepted wages go to the named workers and ceiling refusals return to the payer. Materials remain a public-works sink. Paid bills reserve one extra coin for separate rounding; cost-only keeps the same work and spending.` : MODE_NOTE[record.mode]} Serving works wear each turn (irrigation {show(0.01)}, roads {show(0.005)}); service is min(1, condition ÷ 0.5); {named ? "materials leave the economy through the public-works sink" : "the works' coins go to a public-works sink that pays no one and the farmers are unpaid"}; food at risk is the food an irrigation work's region would lose over the budget horizon without repair (the arable ceiling lost × observed production ÷ arable capacity); irrigation's arable bonus scales with service, and irrigation's water effect and a road's two-hop trade range need service of at least 0.5. Constants are declared, not calibrated.</p>
     <div className="systems-table-wrap"><table className="systems-table" aria-label={`Infrastructure assets at snapshot ${at}`}>
       <thead><tr><th>Id</th><th>Kind</th><th>Region</th><th>Responsible</th><th>Condition</th><th>Service</th><th>Status</th><th>Food at risk</th><th>History</th></tr></thead>
       <tbody>{record.assets.length === 0 && record.terminal.length === 0
@@ -109,13 +110,23 @@ export function InfrastructureCondition({ bundle, snapshot, currentTurn, onSelec
           </tr>)}</tbody>
       </table></div>
       {record.ledger && record.ledger.length > 0 ? <div className="systems-table-wrap"><table className="systems-table" aria-label={`Works charges at snapshot ${at}`}>
-        <thead><tr><th>Civilization</th><th>Work</th><th>Coins (cost)</th><th>Charged (destroyed)</th><th>RS2 charged</th><th>Works envelope</th></tr></thead>
+        <thead><tr><th>Civilization</th><th>Work</th><th>Coins (cost)</th><th>Treasury charged</th><th>RS2 charged</th><th>Works envelope</th></tr></thead>
         <tbody>{record.ledger.map((row) => <tr key={row.civ}>
           <td>{civ(row.civ)}</td><td>{show(row.work_delivered)}</td><td>{coins(row.coin_cost_milli)}</td><td>{row.charged}</td>
           <td>{row.rs2_charged}</td><td>{row.envelope === null ? "No budget rule" : row.envelope}</td>
         </tr>)}</tbody>
       </table></div> : null}
     </>}
+    {named ? <>
+      <h4>Named public-works crews</h4>
+      <div className="systems-table-wrap"><table className="systems-table" aria-label={`Infrastructure crews at snapshot ${at}`}>
+        <thead><tr><th>Work / person</th><th>Region</th><th>Reserved / worked</th><th>Wages accepted / refused</th><th>Ordinary income withheld</th></tr></thead>
+        <tbody>{record.receipts?.flatMap(r=>(r.members ?? []).map(m=><tr key={`${r.wid}-${m.agent_id}`}>
+          <td>{r.wid} / person {m.agent_id}</td><td>{region(r.region)}</td><td>{show(m.share)} / {show(m.worked)}</td>
+          <td>{coins(m.wages_milli)} / {coins(m.wage_refused_milli)}</td><td>{show(m.income_replaced)}</td>
+        </tr>))}</tbody>
+      </table></div>
+    </> : null}
     {record.timber_needs !== undefined ? <>
       <h4>Timber asked of the woodcutters</h4>
       <p className="systems-note">Recorded at this snapshot's Phase 10: the open works' timber for one turn, asked of PL1's woodcutting expeditions only after every RS2 need of the turn (RS2's want in the same region counts first), with the same forests, crews, wages and work reservation.{(record.timber_needs_dropped ?? 0) > 0 ? ` ${record.timber_needs_dropped} more rows were not kept.` : ""}</p>

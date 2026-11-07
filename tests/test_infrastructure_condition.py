@@ -1342,3 +1342,60 @@ def test_the_stored_cw3b_held_report_regenerates_with_only_the_exclusion_labels_
     assert text.count("excluded: pre-treatment check") == 14 and "excluded: sets differ" not in text
     stored = (folder / "report.md").read_text(encoding="utf-8")
     assert text.replace("excluded: pre-treatment check", "unknown") == stored
+
+
+@pytest.fixture
+def named_works(monkeypatch):
+    from chronicler import money, recovery_crews as RC
+    from chronicler.wealth_accounting_state import MONEY_PURPOSE_CHANNELS
+    from tests.test_recovery_crews import _Sim as CrewSim
+    world = _world(infrastructure=((0, IRR), (0, ROADS)))
+    RC.set_recovery_crews_enabled(world, True)
+    _worn(world, condition=0.5)
+    sim = CrewSim({1:(0,0,30,0),2:(0,0,30,0),3:(0,0,30,0),4:(0,0,30,0),
+                   5:(0,0,30,0),6:(0,0,30,0),7:(0,2,30,0),8:(0,0,10,0)})
+    sim.wealth_transfer_purposes = lambda: money.NATIVE_PURPOSES
+    monkeypatch.setitem(MONEY_PURPOSE_CHANNELS, "infrastructure_wage", "infrastructure_wage")
+    return world, sim
+
+
+def test_named_infrastructure_requests_only_unbooked_adult_farmer_time_and_pays_once(named_works):
+    from chronicler.infrastructure_crews import WAGE_BATCH
+    world, sim = named_works
+    sim.trips.add(1)
+    sim.reserve_work(world.turn, 3, [(2, 1.0)])
+    treasury = world.civilizations[0].treasury
+    _turn(world, sim)
+    rows = _state(world).receipts
+    members = [m for row in rows for m in row.members]
+    assert members and {m.agent_id for m in members} <= {3,4,5,6}
+    assert len({m.agent_id for m in members}) == len(members)
+    assert sum(m.worked for m in members) == pytest.approx(sum(r.delivered for r in rows))
+    assert sum(m.wages_milli for m in members) == sum(row.wages_milli for row in _state(world).ledger)
+    assert sum(m.wages_milli for m in members) > 0
+    assert any(batch == WAGE_BATCH for _turn, _purpose, batch, _rows in sim.transfers)
+    for row in _state(world).ledger:
+        IC.check_ledger(row)
+    assert treasury-world.civilizations[0].treasury == sum(row.charged for row in _state(world).ledger)
+
+
+def test_named_ceiling_refusal_returns_wage_credit_instead_of_entering_material_sink(named_works):
+    world, sim = named_works
+    sim.wealth = {aid: sim.CEILING for aid in sim.people}
+    _turn(world, sim)
+    ledger = _state(world).ledger[0]
+    assert ledger.wages_requested_milli > 0
+    assert ledger.wages_milli == 0 and ledger.wages_refused_milli == ledger.wages_requested_milli
+    assert ledger.coin_cost_milli == ledger.nominal_cost_milli-ledger.wages_refused_milli
+    IC.check_ledger(ledger)
+    assert _state(world).book.sinks.get("public_works",0) < ledger.nominal_cost_milli+1000
+
+
+def test_named_unpaid_control_still_names_and_withholds_the_actual_work(named_works):
+    world, sim = named_works
+    world.livelihoods.recovery_crews.mode = "unpaid"
+    _turn(world, sim)
+    assert any(row.members for row in _state(world).receipts)
+    assert all(m.wages_milli == 0 and m.wage_requested_milli == 0 for row in _state(world).receipts for m in row.members)
+    assert sim.receipt is not None
+    assert _state(world).ledger[0].wages_requested_milli == 0

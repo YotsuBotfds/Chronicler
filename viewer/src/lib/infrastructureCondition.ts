@@ -90,6 +90,20 @@ function receiptProblem(x: unknown, regions: number, turn: number): string | nul
   if ((r.status === "progress") !== (r.delivered > 0)) return "a receipt's status disagrees with its work";
   if (Math.abs(r.timber_held - r.timber_used - r.timber_returned) > 1e-6) return "a receipt's timber does not close";
   if (r.status === "stalled" && r.reasons.length === 0) return "a stalled receipt without a reason";
+  if (r.crew_mode !== undefined || r.members !== undefined) {
+    if (!["paid", "unpaid"].includes(r.crew_mode ?? "") || !Array.isArray(r.members)) return "malformed named crew";
+    const seen = new Set();
+    for (const m of r.members) {
+      if (!object(m) || !count(m.agent_id) || seen.has(m.agent_id) || typeof m.origin !== "string"
+        || !unit(m.share) || !amount(m.worked) || m.worked > m.share + 1e-6
+        || ![m.wage_requested_milli,m.wages_milli,m.wage_refused_milli].every(count)
+        || m.wages_milli + m.wage_refused_milli !== m.wage_requested_milli
+        || !(m.income_replaced === null || amount(m.income_replaced))) return "malformed named crew member";
+      seen.add(m.agent_id);
+      if (r.crew_mode === "unpaid" && m.wage_requested_milli !== 0) return "an unpaid infrastructure crew was paid";
+    }
+    if (Math.abs(r.members.reduce((sum,m)=>sum+m.worked,0)-r.delivered) > 1e-5) return "named infrastructure work does not close";
+  }
   return null;
 }
 
@@ -97,9 +111,14 @@ function ledgerProblem(x: unknown, turn: number): string | null {
   if (!object(x) || x.turn !== turn || !count(x.civ) || !count(x.works) || !amount(x.work_delivered)
     || !amount(x.timber_used) || ![x.coin_cost_milli, x.charged, x.prepaid_before_milli, x.prepaid_after_milli, x.rs2_charged]
       .every(count) || !(x.envelope === null || count(x.envelope))) return "malformed ledger";
+  const extra = ["nominal_cost_milli","wages_requested_milli","wages_milli","wages_refused_milli","wage_carry_before_milli","wage_carry_after_milli"];
+  const named = extra.some(k=>k in x);
+  if (named && (!extra.every(k=>count(x[k])) || (x.wage_carry_before_milli as number) >= 1000 || (x.wage_carry_after_milli as number) >= 1000
+    || (x.wages_milli as number)+(x.wages_refused_milli as number)!==x.wages_requested_milli
+    || (x.coin_cost_milli as number)+(x.wages_refused_milli as number)!==x.nominal_cost_milli)) return "named infrastructure money does not close";
   if ((x.prepaid_before_milli as number) >= 1000 || (x.prepaid_after_milli as number) >= 1000
-    || (x.charged as number) * 1000 + (x.prepaid_before_milli as number)
-      !== (x.coin_cost_milli as number) + (x.prepaid_after_milli as number)) return "a ledger row does not close";
+    || (x.charged as number) * 1000 + (x.prepaid_before_milli as number) + (named ? x.wage_carry_before_milli as number : 0)
+      !== (x.coin_cost_milli as number) + (x.prepaid_after_milli as number) + (named ? x.wage_carry_after_milli as number : 0)) return "a ledger row does not close";
   if (x.envelope !== null && (x.charged as number) > (x.envelope as number))
     return "the works spent beyond their envelope";
   return null;

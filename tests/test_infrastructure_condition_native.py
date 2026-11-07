@@ -198,3 +198,24 @@ def test_harvest_cover_record_only_keeps_native_outputs_identical(tmp_path, monk
     assert without(a["history"]) == without(b["history"])
     assert without(a["world_state"]) == without(b["world_state"])
     assert without(json.loads((off / "state.json").read_text())) == without(json.loads((on / "state.json").read_text()))
+
+
+def test_named_infrastructure_native_paid_work_and_exact_resume(tmp_path, monkeypatch):
+    from chronicler.wealth_accounting_state import MONEY_PURPOSE_CHANNELS
+    monkeypatch.setitem(MONEY_PURPOSE_CHANNELS, "infrastructure_wage", "infrastructure_wage")
+    straight, resumed = tmp_path / "straight", tmp_path / "resumed"
+    _cli(monkeypatch, straight, "--seed", "31", "--turns", "72", *FLAGS, *PROCEDURAL,
+         "--infrastructure-condition", "--recovery-crews", "--timber-stock", "--timber-supply", "--checkpoint-turns", "61")
+    _cli(monkeypatch, resumed, "--resume", str(straight / "checkpoint_turn_61.ckpt"))
+    a, b = _bundle(straight), _bundle(resumed)
+    assert a["history"] == b["history"] and a["world_state"] == b["world_state"]
+    assert (straight / "state.json").read_bytes() == (resumed / "state.json").read_bytes()
+    members = [m for s in a["history"] for r in s["livelihoods"]["infrastructure_condition"]["receipts"] or [] for m in r.get("members") or []]
+    assert members and sum(m["wages_milli"] for m in members) > 0
+    assert sum(m["income_replaced"] for m in members if m["income_replaced"] is not None) > 0
+    for snap in a["history"]:
+        receipts = snap["livelihoods"]["infrastructure_condition"]["receipts"] or []
+        ids = [m["agent_id"] for row in receipts for m in row.get("members") or []]
+        assert len(ids) == len(set(ids))
+        for row in receipts:
+            assert sum(m["worked"] for m in row["members"]) == pytest.approx(row["delivered"])

@@ -547,7 +547,8 @@ def flood_damage(world, region: int, excess: float, *, ref: str | None = None) -
 
 class _Plan:
     __slots__ = ("work", "kind", "region", "payer", "reasons", "request", "hold", "envelope",
-                 "condition_before", "planned_milli", "granary_request", "shared", "delivered")
+                 "condition_before", "planned_milli", "granary_request", "shared", "delivered",
+                 "named", "eligible", "planned", "short", "capacity", "crew_worked", "crew_wages", "members")
 
     def __init__(self, work, payer, condition_before):
         self.work, self.kind, self.region, self.payer = work, work.kind, work.region, payer
@@ -560,6 +561,9 @@ class _Plan:
         self.granary_request = 0.0
         self.shared = False
         self.delivered = 0.0
+        self.named, self.members, self.crew_worked = [], [], []
+        self.eligible, self.planned, self.capacity, self.short = 0, 0.0, 0.0, False
+        self.crew_wages = {}
 
 
 class _Turn:
@@ -577,6 +581,8 @@ class _Turn:
         self.shared: list[int] = []
         self.claimed: list[int] = []
         self.appended = False
+        self.named = False
+        self.crew_mode = None
 
 
 def _f32_floor(value: float) -> float:
@@ -630,6 +636,9 @@ def plan_phase2(world, rs2, region_input, snapshot, acc, commitments):
         return region_input
     from chronicler import repair_projects as R
     t = _begin(world, state)
+    from chronicler import infrastructure_crews as crews
+    t.named = crews.active(world)
+    t.crew_mode = crews.mode(world) if t.named else None
     turn = world.turn
     for work in list(state.works):
         if _controller(world, work.region) < 0:
@@ -694,12 +703,21 @@ def plan_phase2(world, rs2, region_input, snapshot, acc, commitments):
         rate = TIMBER_PER_WORK[work.kind]
         free = R._free_timber(world, rid, commitments, rs2.holds.get(rid, 0.0) + holds.get(rid, 0.0))
         per = COIN_MILLI_PER_WORK[work.kind]
+        # Paid named crews split wages/materials into two independently
+        # rounded bills. Reserve one extra whole coin before promising any
+        # work; never count either prepaid balance twice.
+        rounding = MILLI if t.named and t.crew_mode == "paid" else 0
         limits = {"no_timber": free / rate,
-                  "no_coins": max(0, budgets[payer] * MILLI - milli[payer]) / per}
+                  "no_coins": max(0, budgets[payer] * MILLI - milli[payer] - rounding) / per}
         if env is not None:
-            limits["no_envelope"] = max(0, env * MILLI - env_milli.get(payer, 0)) / per
+            limits["no_envelope"] = max(0, env * MILLI - env_milli.get(payer, 0) - rounding) / per
         amount = _f32_floor(max(0.0, min([want, *limits.values()])))
         p.reasons = [reason for reason, value in limits.items() if value + EPS < want]
+        if t.named and amount > 0:
+            wanted = amount
+            amount = crews.plan(world, p, amount, sim=rs2.sim, snapshot=snapshot)
+            if amount + EPS < wanted and "no_labor" not in p.reasons:
+                p.reasons.append("no_labor")
         p.request = amount
         if amount > 0:
             p.hold = amount * rate
@@ -808,17 +826,22 @@ def settle_phase2(world, rs2, economy_result, acc) -> None:
                 raise RuntimeError("infrastructure work payer changed while its work was pending")
         if p.payer >= 0:
             costs[p.payer] = costs.get(p.payer, 0) + _coin_milli(p.delivered, p.kind)
-    charges: dict[int, tuple[int, int, int]] = {}
-    for civ in sorted(costs):
-        before = int(state.prepaid.get(civ, 0))
-        need = costs[civ] - before
-        charged = max(0, -(-need // MILLI))
-        charges[civ] = (before, charged, charged * MILLI - need)
-        if charged:
-            q = quote(world, _bill(civ, charged), turn=turn, book=state.book, acc=acc)
-            if not q.ok:
-                raise RuntimeError(f"infrastructure works charge refused at settlement ({q.reason}); "
-                                   "another spender was missed")
+    extras = {}
+    if t.named:
+        from chronicler.infrastructure_crews import settle
+        charges, extras = settle(world, state, t, rs2.sim, acc)
+    else:
+        charges: dict[int, tuple[int, int, int]] = {}
+        for civ in sorted(costs):
+            before = int(state.prepaid.get(civ, 0))
+            need = costs[civ] - before
+            charged = max(0, -(-need // MILLI))
+            charges[civ] = (before, charged, charged * MILLI - need)
+            if charged:
+                q = quote(world, _bill(civ, charged), turn=turn, book=state.book, acc=acc)
+                if not q.ok:
+                    raise RuntimeError(f"infrastructure works charge refused at settlement ({q.reason}); "
+                                       "another spender was missed")
     rows: dict[int, dict] = {}
     receipts = []
     for p in t.plans:
@@ -871,7 +894,7 @@ def settle_phase2(world, rs2, economy_result, acc) -> None:
             delivered=done, credited=credit, granary_request=p.granary_request, shared=p.shared,
             timber_held=p.hold, timber_used=used, timber_returned=returned, coin_cost_milli=cost,
             envelope=p.envelope, condition_before=p.condition_before, condition_after=after,
-            remaining_after=remaining))
+            remaining_after=remaining, crew_mode=t.crew_mode, members=p.members if t.named else None))
         if p.payer >= 0:
             row = rows.setdefault(p.payer, dict(works=0, work=0.0, timber=0.0, cost=0,
                                                 envelope=envelope(world, p.payer, BUDGET_SERVICE)))
@@ -896,14 +919,16 @@ def settle_phase2(world, rs2, economy_result, acc) -> None:
             state.prepaid[civ] = after
         else:
             state.prepaid.pop(civ, None)
-        if charged:
+        if charged and not t.named:
             receipt = _charge(world, state, civ, charged, turn, acc)
             if not receipt.ok:
                 raise RuntimeError(f"infrastructure works charge refused at settlement ({receipt.reason}); "
                                    "another spender was missed")
+        extra = dict(extras.get(civ, {}))
+        actual_cost = extra.pop("coin_cost_milli", r["cost"])
         row = WorksLedger(turn=turn, civ=civ, works=r["works"], work_delivered=r["work"], timber_used=r["timber"],
-                          coin_cost_milli=r["cost"], charged=charged, prepaid_before_milli=before,
-                          prepaid_after_milli=after, envelope=r["envelope"], rs2_charged=rs2_charged.get(civ, 0))
+                          coin_cost_milli=actual_cost, charged=charged, prepaid_before_milli=before,
+                          prepaid_after_milli=after, envelope=r["envelope"], rs2_charged=rs2_charged.get(civ, 0), **extra)
         check_ledger(row)
         ledger.append(row)
         _bump(state, "charged", charged)
@@ -931,10 +956,15 @@ def _charge(world, state, civ: int, charged: int, turn: int, acc):
 def check_ledger(row: WorksLedger) -> None:
     """Exact integer closure of one civ's works accounts in one turn, and the
     works' own L9 envelope."""
-    if row.charged * MILLI + row.prepaid_before_milli != row.coin_cost_milli + row.prepaid_after_milli \
+    if row.charged * MILLI + row.prepaid_before_milli + (row.wage_carry_before_milli or 0) != row.coin_cost_milli + row.prepaid_after_milli + (row.wage_carry_after_milli or 0) \
             or not 0 <= row.prepaid_before_milli < MILLI or not 0 <= row.prepaid_after_milli < MILLI \
             or row.charged < 0:
         raise RuntimeError(f"infrastructure works accounts of civ {row.civ} do not close")
+    if row.nominal_cost_milli is not None:
+        if row.wages_requested_milli != (row.wages_milli or 0) + (row.wages_refused_milli or 0) or row.nominal_cost_milli != row.coin_cost_milli + (row.wages_refused_milli or 0):
+            raise RuntimeError("infrastructure named wage ledger does not close")
+        if not 0 <= (row.wage_carry_before_milli or 0) < MILLI or not 0 <= (row.wage_carry_after_milli or 0) < MILLI:
+            raise RuntimeError("infrastructure wage carry is not a subunit balance")
     if row.envelope is not None and row.charged > row.envelope:
         raise RuntimeError(f"infrastructure works of civ {row.civ} spent beyond their envelope")
 
@@ -1330,6 +1360,22 @@ def phase10_before_reserves(world, acc, economy_result, agent_bridge):
         _write_off(state, [civ for civ in sorted(state.prepaid)
                            if not 0 <= civ < len(world.civilizations) or not world.civilizations[civ].regions])
     state.unmet = unmet
+    return []
+
+
+def after_agent_tick(world, agent_bridge):
+    state = _state(world)
+    t = state._turn if state is not None else None
+    if t is None or not t.named or not t.finished:
+        return []
+    from chronicler.livelihoods import paid_work_receipt
+    receipt = paid_work_receipt(world, getattr(agent_bridge, "_sim", None))
+    for row in t.receipts:
+        for member in row.members or []:
+            if member.worked > 0:
+                if receipt is None or member.agent_id not in receipt:
+                    raise RuntimeError("named infrastructure worker lacks a withheld income receipt")
+                member.income_replaced = float(receipt[member.agent_id][2])
     return []
 
 

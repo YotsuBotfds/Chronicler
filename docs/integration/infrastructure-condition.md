@@ -574,3 +574,43 @@ gate and the procedural qualification gate.
   works sent more woodcutters (procedural +180 person-turns, 6 of 6), and the works stalled for
   timber on every world under PL1's real forest limits. Whole-trajectory differences on four to six
   worlds per stratum; no promotion.
+
+### Named farm crews (opt-in PL3 integration)
+
+When `--recovery-crews` is also active, every B3 irrigation/road request is
+limited to a named crew of living adult farmers in its region. Existing PL3
+exclusions apply: enlisted, trips, health work, mentors and shared-registry
+holders cannot be named. Earlier RS2/granary commitments keep priority. Each
+person contributes only their available farm share; the native shared labor
+column removes exactly the delivered named work from farming. No anonymous
+labor fills a named request. Unpaid PL3 control names, reserves and withholds
+the same work. PL3 being off preserves the explicitly anonymous B3 contract.
+
+Paid crews request 500 milli-coins per actual delivered worker-turn (the
+existing repair wage). Irrigation's remaining100 milli/work is material;
+roads' nominal500 milli/work is the wage. Fractional rounding can leave a
+small material remainder. `infrastructure_wage` routes through native
+`repair_wage`, batch `0xB3000 + civ`, separate from all existing consumers.
+Every payer's wages and materials are quoted against one finite treasury and
+one envelope before either bill is paid. Planning reserves one additional
+whole coin to cover the separate rounding of wage and material bills; this is
+a conservative restriction, especially on a one-coin envelope. Material and
+wage prepaid balances are distinct. The wage seam returns refused/absent
+credits to the payer's carry or treasury. Only accepted wages enter wealth;
+materials enter `public_works`. No money is minted from a sink.
+
+The named ledger records nominal cost, actual accepted cost, requested,
+accepted/refused wages and both prepaid balances. Its integer closure is
+`charged*1000 + material_before + wage_before = actual_cost + material_after + wage_after`.
+The same native paid-work receipt supplies each person's ordinary income
+withheld. Receipts retain stable ids, reservation/work shares and individual
+wages. `cost_only` changes no condition while retaining these same work and
+money mechanisms. None of this constitutes native occupation reassignment,
+a second spendable balance or a globally conserved cash system.
+
+A natural procedural31,32x10,72turn development run with PL1 supplied real
+active crews and passed exact resume at61. The earlier44turn run had no B3
+crew activation because timber was unavailable; that null is not evidence
+that wages ran. The helper contracts additionally exercise trip/registry and
+age exclusions, no duplicate worker, unpaid control and wealth-ceiling
+refusal with exact ledger closure. No fresh held efficacy cohort was consumed.
