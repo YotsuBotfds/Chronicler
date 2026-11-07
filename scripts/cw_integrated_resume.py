@@ -45,7 +45,8 @@ def transition_points(bundle):
                         for r in infrastructure.get("receipts") or [])
         ph = lv.get("public_health") or {}
         pending_reports = any(r.get("delivery", -1) > turn - 1 for r in ph.get("reports") or [])
-        guards = any(r.get("wages_paid_milli", r.get("wages_milli", 0)) > 0 for r in ph.get("guards") or [])
+        guards = any(member.get("wage_paid_milli", 0) > 0
+                     for team in ph.get("guards") or [] for member in team.get("members") or [])
         a6 = (lv.get("adaptive_livelihoods") or {}).get("frame") or {}
         personal = any(a6.get(key) for key in ("work", "refusals", "quick_departures", "trade")) or a6.get("rows_installed", 0) > 0
         x1 = ((lv.get("residence_ledger") or {}).get("frame") or {}).get("totals") or {}
@@ -79,15 +80,27 @@ def cli_for(stratum, seed):
 def make_plan(bundle_path, stratum, seed):
     path = Path(bundle_path).resolve()
     bundle = CW.load_bundle_file(path)
+    validate_pilot_world(bundle, stratum, seed)
     metrics, problems = CW.extract(bundle, CW.ARMS["FULL"][0])
     if problems:
         raise ValueError("cannot choose resume transitions from invalid pilot: " + "; ".join(problems))
-    if (stratum, seed) not in (("template", 5), ("procedural", 19)):
-        raise ValueError("CW6 resume plans use registered timing pilots template5/procedural19 only")
     return {"schema_version": 1, "stratum": stratum, "seed": seed, "turns": metrics["turns"],
             "bundle": str(path), "bundle_sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
             "source_identity": CW.SR.source_identity(CW.SCREEN), "transitions": transition_points(bundle),
             "cli": cli_for(stratum, seed), "comparator": "checkpoint_identity.run_case / cities_identity.compare"}
+
+
+def validate_pilot_world(bundle, stratum, seed):
+    if (stratum, seed) not in (("template", 5), ("procedural", 19)):
+        raise ValueError("CW6 resume plans use registered timing pilots template5/procedural19 only")
+    world = bundle.get("world_state") or {}
+    metadata = bundle.get("metadata") or {}
+    if metadata.get("seed") != seed or world.get("seed") != seed:
+        raise ValueError("pilot bundle metadata/world seed differs from requested resume world")
+    expected_regions = 8 if stratum == "template" else 32
+    geography = world.get("geography")
+    if len(world.get("regions") or []) != expected_regions or (geography is None) is (stratum == "procedural"):
+        raise ValueError("pilot bundle geography/region count differs from requested resume stratum")
 
 
 def run_plan(plan_path, output):

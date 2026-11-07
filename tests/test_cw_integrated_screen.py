@@ -44,7 +44,8 @@ def bundle():
             "health_care": {"source_turn": 0, "episodes": 2, "new_injuries": 1}, "campaign": {"battles": []},
             "migration": [[0, 0, 1]]}
     return {"world_state": {"regions": [{"name": "A"}]}, "history": [snap],
-            "_cw6_events": {"present": True, "migration": 1, "unknown": 1, "deaths": 1, "bytes": 1, "sha256": "x"}}
+            "_cw6_events": {"present": True, "migration": 1, "unknown": 1, "deaths": 1, "bytes": 1, "sha256": "a" * 64,
+                            "turn_min": 0, "turn_max": 0}}
 
 
 def test_five_arms_three_unconditioned_primaries_and_fixed_enrollment(CW):
@@ -129,3 +130,20 @@ def test_resume_selects_actual_live_state_and_keeps_missing_coverage_explicit(CW
     cli = module.cli_for("procedural", 19)
     assert "--watershed" in cli and cli[cli.index("--seed") + 1] == "19"
     assert "--turns" not in cli and "--simulate-only" not in cli
+    b["history"][4]["livelihoods"]["public_health"] = {"guards": [{"members": [{"wage_paid_milli": 250}]}]}
+    assert module.transition_points(b)["categories"]["dated_health_report_or_guard"] == 5
+    pilot = {"metadata": {"seed": 5}, "world_state": {"seed": 5, "regions": [{}] * 8}}
+    module.validate_pilot_world(pilot, "template", 5)
+    with pytest.raises(ValueError, match="seed differs"):
+        module.validate_pilot_world(pilot, "procedural", 19)
+    pilot["world_state"]["geography"] = {"generator": "procedural"}
+    with pytest.raises(ValueError, match="geography"):
+        module.validate_pilot_world(pilot, "template", 5)
+
+
+def test_absent_sidecar_is_unknown_evidence_even_without_migration(CW):
+    b = bundle()
+    b["history"][0]["migration"] = []
+    b["_cw6_events"] = {"present": False, "migration": 0, "deaths": 1, "unknown": 0, "bytes": 0, "sha256": None}
+    _, problems = CW.extract(b, CW.ARMS["FULL"][0])
+    assert any("absent or missing valid identity" in reason for reason in problems)

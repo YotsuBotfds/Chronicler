@@ -48,6 +48,7 @@ def option(flags, key, default):
 def event_sidecar(path):
     """Read exact event counts without changing the saved bundle or sidecar."""
     import pyarrow.ipc as ipc
+    from chronicler.models import MIGRATION_DRIVER_NAMES
     path = Path(path)
     if not path.exists():
         return {"present": False, "migration": 0, "unknown": 0, "deaths": 0, "bytes": 0, "sha256": None}
@@ -56,12 +57,18 @@ def event_sidecar(path):
     if not required <= set(batch.column_names):
         raise ValueError("CW6 requires event sidecar turn, event_type and migration_driver columns")
     migrations = unknown = deaths = 0
+    turns = batch.column("turn").to_pylist()
+    if any(type(turn) is not int or turn < 0 for turn in turns):
+        raise ValueError("event sidecar has malformed source turns")
     for kind, driver in zip(batch.column("event_type").to_pylist(), batch.column("migration_driver").to_pylist()):
+        if kind == "migration" and (type(driver) is not int or driver not in (*range(len(MIGRATION_DRIVER_NAMES)), 255)):
+            raise ValueError("event sidecar has an unrecognized migration driver")
         migrations += kind == "migration"
         unknown += kind == "migration" and driver == 255
         deaths += kind == "death"
     return {"present": True, "migration": migrations, "unknown": unknown, "deaths": deaths,
-            "bytes": path.stat().st_size, "sha256": hashlib.sha256(path.read_bytes()).hexdigest()}
+            "bytes": path.stat().st_size, "sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
+            "turn_min": min(turns) if turns else None, "turn_max": max(turns) if turns else None}
 
 
 _load_bundle_file = SR.load_bundle_file
@@ -144,6 +151,8 @@ def extract(bundle, flags):
         if status != "observed":
             problems.append(f"wealth ledger {status} at {turn}")
         else:
+            if turn > 0 and wealth.get("continuity", {}).get("status") != "exact":
+                problems.append(f"wealth continuity is not exact at {turn}")
             world = wealth["world"]
             m["balance_change"] += finite(world.get("delta"), "wealth delta", signed=True)
             m["deaths"] += finite(world.get("deaths"), "wealth observed deaths")
@@ -234,6 +243,9 @@ def extract(bundle, flags):
                 removed = finite(event.get("removed_milli"), "requisition removed")
                 destroyed = finite(event.get("destroyed_milli"), "requisition destroyed")
                 credited = sum(finite(row.get("rations"), "allocated kits") for row in rows(event, "allocations", "D4"))
+                if kind == "requisition" and removed != sum(finite(event.get(key), "requisition source")
+                        for key in ("commons_milli", "granary_milli", "owned_milli")):
+                    problems.append(f"requisition source removal split does not close at {turn}")
                 if removed != destroyed + 500 * credited or (d4_mode == "cost_only" and credited):
                     problems.append(f"requisition physical food does not close at {turn}")
                 m["requisition_milli"] += removed
@@ -297,8 +309,15 @@ def extract(bundle, flags):
     if not isinstance(sidecar, dict):
         problems.append("untruncated event sidecar measurement missing")
         sidecar = {}
+    if sidecar.get("present") is not True or not isinstance(sidecar.get("sha256"), str) \
+            or len(sidecar["sha256"]) != 64 or not SR._num(sidecar.get("bytes")) or sidecar["bytes"] <= 0:
+        problems.append("untruncated event sidecar absent or missing valid identity")
+    if sidecar.get("turn_min") is not None and (sidecar["turn_min"] < 0 or sidecar.get("turn_max", len(hist)) >= len(hist)):
+        problems.append("untruncated event sidecar source turns outside observed history")
     if sidecar.get("migration") != m["all_migrations"]:
         problems.append("untruncated migration sidecar count differs from aggregate migration authority")
+    if sidecar.get("deaths") != m["deaths"]:
+        problems.append("untruncated death sidecar count differs from A1 native death observation")
     m["unknown_migration_drivers"] = finite(sidecar.get("unknown"), "unknown migration drivers")
     m["unknown_migration_share"] = m["unknown_migration_drivers"] / m["all_migrations"] if m["all_migrations"] else 0
     m["event_sidecar"] = sidecar
