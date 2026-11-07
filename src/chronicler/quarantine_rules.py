@@ -594,6 +594,8 @@ def decide(world: Any, state: Any, rules: QuarantineRulesState, reports: dict, a
     before = {(c.civ, c.target): c for c in rules.closures}
     decided: dict[tuple[int, int], str] = {}   # (civ, target) -> cause
     closing: list[int] = []
+    from chronicler.public_health import report_targets
+    advised = report_targets(world, reports)
     if rules.mode in DECIDING_MODES and cl.ledger_enabled(world):
         sick = sorted(reports)
         neighbors = world.contact_ledger.neighbors()
@@ -610,6 +612,8 @@ def decide(world: Any, state: Any, rules: QuarantineRulesState, reports: dict, a
                 t_idx = index.get(ctrl) if ctrl is not None else None
                 if t_idx is not None and t_idx != idx:
                     targets.setdefault(t_idx, key)
+            if advised is not None:
+                targets = advised.get(idx, {})
             if not targets:
                 continue
             if civ.stability < QUARANTINE_MIN_STABILITY or civ.treasury < ENFORCEMENT_COST:
@@ -622,7 +626,7 @@ def decide(world: Any, state: Any, rules: QuarantineRulesState, reports: dict, a
                 civ.treasury -= ENFORCEMENT_COST
             first = min(targets.values())
             for t_idx, key in targets.items():
-                decided[(idx, t_idx)] = _report_cause(world, reports[key]) or ""
+                decided[(idx, t_idx)] = _report_cause(world, reports[key]) or "" if key in reports else ""
             names = [civs[t].name for t in sorted(targets)]
             listed = names[0] if len(names) == 1 else ", ".join(names[:-1]) + " and " + names[-1]
             label = PATHOGENS[first[1]].label
@@ -638,7 +642,8 @@ def decide(world: Any, state: Any, rules: QuarantineRulesState, reports: dict, a
             seat = civ.capital_region if civ.capital_region in civ.regions else civ.regions[0]
             ev = Event(turn=turn, event_type="quarantine", actors=[civ.name],
                        description=text, importance=4, region=seat)
-            provenance.cite(ev, _report_cause(world, reports[first]))
+            if first in reports:
+                provenance.cite(ev, _report_cause(world, reports[first]))
             events.append(ev)
     kept: list[QuarantineClosure] = []
     for pair in sorted(decided):

@@ -295,7 +295,8 @@ def care_factors(world, rows) -> list[float] | None:
         inf = infectious[rid]
         coverage = min(1.0, c.patients / inf) if inf > EPS else 0.0
         would = 1.0 - CARE_CFR_REDUCTION * coverage
-        factor = would if state.mode == "care" else 1.0
+        from chronicler.public_health import care_allowed
+        factor = would if state.mode == "care" and care_allowed(world) else 1.0
         factors[rid] = factor
         tech = techniques[rid] if techniques is not None else None
         combined = combine_one(tech, factor)
@@ -457,6 +458,8 @@ def prepare_phase2(world, region_input, agent_bridge, snapshot, acc):
                     # date no capacity): nobody is named for it.
                     continue
                 money_left = min(envelope_left, budgets[c.civ])
+                from chronicler.public_health import wage_budget
+                money_left = wage_budget(world, rid, money_left)
                 wage = _wage(share)
                 if wage > money_left:
                     share = _f32_floor(min(share, money_left / WAGE_MILLI))
@@ -467,8 +470,10 @@ def prepare_phase2(world, region_input, agent_bridge, snapshot, acc):
                 r.carers.append(Carer(agent_id=aid, origin="urban_farmer" if urban else "rural_farmer", share=share,
                                       wage_due_milli=wage))
                 care += share
-                envelope_left -= wage
-                budgets[c.civ] -= wage
+                from chronicler.public_health import supply_for_work
+                reserve_supplies = supply_for_work(world, rid, share)
+                envelope_left -= wage + reserve_supplies
+                budgets[c.civ] -= wage + reserve_supplies
                 taken.add(aid)
                 if limit is not None:
                     break
@@ -529,7 +534,8 @@ def finish_phase2(world, economy_result, agent_bridge, acc):
     people = [x.agent_id for r in t.receipts for x in r.carers]
     if len(set(people)) != len(people):
         raise RuntimeError("a carer was named twice in one turn")
-    state.capacity = capacity
+    from chronicler.public_health import supply_care
+    state.capacity = supply_care(world, t, capacity, economy_result, acc)
     receipts = t.receipts
     if len(receipts) > MAX_FRAME_ROWS:
         state.rows_dropped += len(receipts) - MAX_FRAME_ROWS
@@ -721,13 +727,15 @@ class _CareEnvelopes:
             return []
         need = math.fsum(infectious[rid] / PATIENTS_PER_CARER for rid in regions)
         wages = sum(_wage_total(infectious[rid] / PATIENTS_PER_CARER) for rid in regions)
-        cost = max(1, -(-wages // MILLI))
+        from chronicler.public_health import supply_estimate
+        supply = supply_estimate(world, math.fsum(infectious[rid] for rid in regions), regions)
+        cost = max(1, -(-(wages + supply) // MILLI))
         averted = CARE_CFR_REDUCTION * math.fsum(deaths[rid] for rid in regions)
         stake = averted * food_per_death
         return [dict(service=SERVICE, recipients=regions, claims=[f"{SERVICE}:{civ}"], cost=cost,
                      divisible=True, unit="care_time", expected=round(need, 6),
                      relief={"commons": round(stake, 6)} if stake > EPS else {},
-                     detail={"regions": len(regions), "wages_milli": wages,
+                     detail={"regions": len(regions), "wages_milli": wages, **({"supplies_milli": supply} if supply else {}),
                              "infectious": round(math.fsum(infectious[rid] for rid in regions), 6),
                              "expected_deaths": round(math.fsum(deaths[rid] for rid in regions), 6),
                              "deaths_averted": round(averted, 6), "food_per_death": round(food_per_death, 6)})]
@@ -750,7 +758,11 @@ class _CareEnvelopes:
                   "limits": ",".join(sorted(set(limits))), "wages_paid_milli": paid}
         # L9 counts whole coins: the wages, floored (the civ's exact charge,
         # whole units with a prepaid carry, is C2's wage ledger).
-        spent = paid // MILLI
+        from chronicler.public_health import supply_spent
+        supplies = supply_spent(world, c.civ)
+        if supplies:
+            detail["supplies_milli"] = supplies
+        spent = (paid + supplies) // MILLI
         if all(limit == "recipient_lost" for limit in limits):
             return {"outcome": "deferred", "reason": "recipient_lost", "spent": 0, "delivered": 0.0, "ratio": 0.0,
                     "detail": detail}

@@ -77,7 +77,7 @@ NATIVE_PURPOSES: tuple[str, ...] = (
 PAIRWISE_PURPOSES: tuple[str, ...] = ("cargo_purchase", "cargo_sale")
 #: Purposes Python-only accounts use (treasury <-> firm cash); they never
 #: reach native code (append only).
-PYTHON_PURPOSES: tuple[str, ...] = ("firm_capital", "firm_input_purchase")
+PYTHON_PURPOSES: tuple[str, ...] = ("firm_capital", "firm_input_purchase", "care_supply")
 #: Seam purposes that ride an existing native purpose code (append only).
 #: The connected-world Python-only lanes cannot add a native code, so a new
 #: agent-wealth purpose is keyed natively under an existing code with batches
