@@ -518,6 +518,34 @@ purpose (plus one assertion inside its test module).
   browser journey, the 200-seed and procedural qualification gates
   (restricted), profiling at the declared scale, PR CI.
 
+### A3-2 (owned output), with A4-1 in one native build
+
+Branch `claude/cw-a4-titled-trade` from `main` `8401aa74`, code commit
+`9c6c66ee`, extension SHA-256 `2ba123ab259b98cb2b2e66edef4852015c40cbc73172a3b6d2d265d9c2aa950b`
+(the full record is in [titled-trade.md](titled-trade.md), "Verification").
+
+- **A3-1 reproducibility**: workshop economics without the rules option, and
+  with the explicit `--workshop-economics-rules=1`, against `main` `8401aa74`
+  (its own tree and extension `20e77f99`) with `--grain-reserves
+  --public-grain-shipments --grain-storage --workshops --workshop-payroll
+  --workshop-economics` on `hybrid_s42` and `proc48_hybrid_s42`: 205 files,
+  0 differences each.
+- **Rust**: `economy::workshop_owned_tests` (no column or a null row is
+  bit-identical to the plain call; a firm's output never enters the commons,
+  is counted in production and the outflow, and its stock is priced; a
+  negative inventory is refused).
+- **Offline**: `tests/test_workshop_economics.py` (33, five for A3-2: rules 1
+  keeps A3-1's batch and bytes and a conflicting rules value is refused; the
+  option requires workshop economics; the output never enters the commons and
+  is titled whole; output reaches households only by sale; the ceiling stays
+  within the inventory room).
+- **Native** (`tests/test_workshop_economics_native.py`, template seed 1, 122
+  turns, `CHRONICLER_CHECK_RESOURCES=1`): every operating receipt has
+  `produced == titled == floor(native craft output x 1000)`, free use 0, no
+  title basis (nothing taken from the commons) and a ceiling within the room;
+  every ledger closure held; exact resume at turn 60 (live, producing firms)
+  equals the straight run.
+
 ## Evidence (development worlds only; not a screen)
 
 Development-only, 2026-11-06: source `636202f9` (exported tree: main after S1

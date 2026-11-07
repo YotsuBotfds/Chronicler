@@ -281,3 +281,33 @@ The household-retail reader accepts the three new flow kinds in its closure.
   other food or a seller hit the ceiling: marked approximate).
 - No toll exists: any toll must replace the model route income (owner's
   decision).
+
+## Verification
+
+On branch `claude/cw-a4-titled-trade` from `main` `8401aa74`, source `9c6c66ee`
+(the code commit; later commits on the branch change tests and documents
+only), native extension built once from this branch (`maturin develop
+--release --locked`, native venv `~/.venvs/native-a4`): SHA-256
+`2ba123ab259b98cb2b2e66edef4852015c40cbc73172a3b6d2d265d9c2aa950b`;
+`check_python_env.py --expect native` PASS; `wealth_transfer_purposes()` ends
+`wares_purchase, cargo_purchase, cargo_sale`, `work_reservation_categories()`
+ends `trade`.
+
+- **Witness**: one provisional layer `cwa4` against `main`'s bytes (parent
+  `8401aa74`, the last layer after `cwa3`) over the five pinned paths changed
+  (`batch_manifest.py` 2 hunks, `tests/test_batch_manifest.py` 1,
+  `economy.rs` 7, `ffi/mod.rs` 7, `merchant.rs` 2; every hunk read: only this
+  slice's changes): the witness modules 509 passed.
+- **Feature-off identity** (`turn_speed_identity.py`, each side its own
+  exported tree and extension): against the reference `8abc1acb` (`101a4cd5`),
+  9 cases, 399 files, 0 differences. Against `main` `8401aa74` (extension
+  `20e77f99`) with retail everywhere (`--grain-reserves
+  --public-grain-shipments --food-allocation --household-retail
+  --household-retail-boundary=all`) on `hybrid_s42` and `proc48_hybrid_s42`:
+  the switch absent and the explicit `--no-titled-trade` each 2 cases, 205
+  files, 0 differences.
+- **A3-1 reproducibility** (workshop economics without the A3-2 rules) against
+  `main` `8401aa74` with `--grain-reserves --public-grain-shipments
+  --grain-storage --workshops --workshop-payroll --workshop-economics` on the
+  same two cases: the rules option absent and the explicit
+  `--workshop-economics-rules=1` each 205 files, 0 differences.
