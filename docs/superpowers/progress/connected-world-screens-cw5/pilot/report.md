@@ -1,9 +1,9 @@
 # CW5: S4 titled trade (A4-1)
 
-Cohort pilot. Runs: 4; failed: 0 (missing outcomes: 0); simulation and extraction seconds 76 (0.021 core-hours)
-Projected held run time from this pilot: 0.126 core-hours (x1.5 = 0.189) for 24 runs
+Cohort pilot. Runs: 4; failed: 0 (missing outcomes: 0); simulation and extraction seconds 194 (0.054 core-hours)
+Projected held run time from this pilot: 0.323 core-hours (x1.5 = 0.484) for 24 runs
 
-Identity digests: f0d08bbcb6a5272750db5bfa8a06079314f4e49f652bfe3d62035958fb592ceb (source.txt holds the lines)
+Identity digests: 10e50af11af27d575307d1d9ee97b8cc7f89f138dc2253d4b238dd7d08c1bf3d (source.txt holds the lines)
 Schema versions read: {"bundle": 6, "livelihoods": [1], "packages": {"food_allocation": [1], "household_retail": [1], "titled_trade": [1], "wealth_accounting": [1]}, "records": {"food_accounting": [1], "regional_population": [1]}}; {"bundle": 6, "livelihoods": [1], "packages": {"food_allocation": [1], "household_retail": [1], "wealth_accounting": [1]}, "records": {"food_accounting": [1], "regional_population": [1]}}
 
 ## Activation per world (before any effect)
@@ -13,21 +13,21 @@ Schema versions read: {"bundle": 6, "livelihoods": [1], "packages": {"food_alloc
 | T | t | 5: activated | 1 of 1 |
 | T | p | 19: activated | 1 of 1 |
 
-## Pre-treatment window (world turns 0-19) and region sets per world
+## Pre-treatment windows and region sets per world (world turns 0 .. min(19, f - 1))
 
-| Stratum | World | Deficit / surplus regions | Purchases in the window (T) | Sets R = T | Valid |
-| --- | --- | --- | --- | --- | --- |
-| t | 5 | 3 / 4 | 1 | yes | NO: left out of every set-based outcome |
-| p | 19 | 9 / 9 | 20 | NO | NO: left out of every set-based outcome |
+| Stratum | World | T's first purchase (f) | Window turns | Deficit / surplus regions | Window records R = T | Status |
+| --- | --- | --- | --- | --- | --- | --- |
+| t | 5 | 18 | 18 | 3 / 4 | yes | valid |
+| p | 19 | 7 | 7 | 8 / 7 | yes | valid |
 
 ## Primary outcomes (arm minus control on each world; non-activated worlds excluded)
 
 | Outcome | Stratum | Per world (seed: value) | Mean [min, max] | >0 / <0 / =0 | Sign-flip |
 | --- | --- | --- | --- | --- | --- |
-| cw5_food_in_deficit: Food into the deficit regions by trade over the run: titled cargo in less titled cargo bought there, plus native commons trade, food units (T - R) | t | 5: unknown | n/a | 0 / 0 / 0 | n/a |
-| cw5_food_in_deficit: Food into the deficit regions by trade over the run: titled cargo in less titled cargo bought there, plus native commons trade, food units (T - R) | p | 19: unknown | n/a | 0 / 0 / 0 | n/a |
-| cw5_shortfall_deficit: Food shortfall share after relief in the deficit regions (T - R) | t | 5: unknown | n/a | 0 / 0 / 0 | n/a |
-| cw5_shortfall_deficit: Food shortfall share after relief in the deficit regions (T - R) | p | 19: unknown | n/a | 0 / 0 / 0 | n/a |
+| cw5_food_in_deficit: Food into the deficit regions by trade over the run: titled cargo in less titled cargo bought there, plus native commons trade, food units (T - R) | t | 5: +58.06 | +58.06 [+58.06, +58.06] | 1 / 0 / 0 | 2/2 as extreme; means [-58.06, +58.06] |
+| cw5_food_in_deficit: Food into the deficit regions by trade over the run: titled cargo in less titled cargo bought there, plus native commons trade, food units (T - R) | p | 19: -177 | -177 [-177, -177] | 0 / 1 / 0 | 2/2 as extreme; means [-177, +177] |
+| cw5_shortfall_deficit: Food shortfall share after relief in the deficit regions (T - R) | t | 5: -0.02159 | -0.02159 [-0.02159, -0.02159] | 0 / 1 / 0 | 2/2 as extreme; means [-0.02159, +0.02159] |
+| cw5_shortfall_deficit: Food shortfall share after relief in the deficit regions (T - R) | p | 19: -0.0149 | -0.0149 [-0.0149, -0.0149] | 0 / 1 / 0 | 2/2 as extreme; means [-0.0149, +0.0149] |
 
 ## Secondary outcomes (arm minus control on each world; non-activated worlds excluded)
 
@@ -41,32 +41,36 @@ Schema versions read: {"bundle": 6, "livelihoods": [1], "packages": {"food_alloc
 | cw5_held_returned: Titled food returned to origins, at purchase cost (T) | p | 19: +7.871 | +7.871 [+7.871, +7.871] | 1 / 0 / 0 | n/a (no control) |
 | cw5_held_aboard: Titled food aboard at the end, at purchase cost (T) | t | 5: +0 | +0 [+0, +0] | 0 / 0 / 1 | n/a (no control) |
 | cw5_held_aboard: Titled food aboard at the end, at purchase cost (T) | p | 19: +4.814 | +4.814 [+4.814, +4.814] | 1 / 0 / 0 | n/a (no control) |
-| cw5_titled_delivered_deficit: Titled food delivered into the deficit regions, food units (T) | t | 5: unknown | n/a | 0 / 0 / 0 | n/a |
-| cw5_titled_delivered_deficit: Titled food delivered into the deficit regions, food units (T) | p | 19: unknown | n/a | 0 / 0 / 0 | n/a |
-| cw5_titled_net_deficit: Titled food into less out of the deficit regions (T) | t | 5: unknown | n/a | 0 / 0 / 0 | n/a |
-| cw5_titled_net_deficit: Titled food into less out of the deficit regions (T) | p | 19: unknown | n/a | 0 / 0 / 0 | n/a |
-| cw5_native_net_deficit: Native commons trade into the deficit regions (T - R) | t | 5: unknown | n/a | 0 / 0 / 0 | n/a |
-| cw5_native_net_deficit: Native commons trade into the deficit regions (T - R) | p | 19: unknown | n/a | 0 / 0 / 0 | n/a |
-| cw5_met_deficit: Deficit regions' demand-weighted min(1, sufficiency) (T - R) | t | 5: unknown | n/a | 0 / 0 / 0 | n/a |
-| cw5_met_deficit: Deficit regions' demand-weighted min(1, sufficiency) (T - R) | p | 19: unknown | n/a | 0 / 0 / 0 | n/a |
-| cw5_priced_out_deficit: Priced-out person-turns in the deficit regions (T - R) | t | 5: unknown | n/a | 0 / 0 / 0 | n/a |
-| cw5_priced_out_deficit: Priced-out person-turns in the deficit regions (T - R) | p | 19: unknown | n/a | 0 / 0 / 0 | n/a |
-| cw5_price_deficit: Mean retail price in the deficit regions, milli per ration (T - R) | t | 5: unknown | n/a | 0 / 0 / 0 | n/a |
-| cw5_price_deficit: Mean retail price in the deficit regions, milli per ration (T - R) | p | 19: unknown | n/a | 0 / 0 / 0 | n/a |
+| cw5_titled_delivered_deficit: Titled food delivered into the deficit regions, food units (T) | t | 5: +69.17 | +69.17 [+69.17, +69.17] | 1 / 0 / 0 | n/a (no control) |
+| cw5_titled_delivered_deficit: Titled food delivered into the deficit regions, food units (T) | p | 19: +217.9 | +217.9 [+217.9, +217.9] | 1 / 0 / 0 | n/a (no control) |
+| cw5_titled_net_deficit: Titled food into less out of the deficit regions (T) | t | 5: +58.06 | +58.06 [+58.06, +58.06] | 1 / 0 / 0 | n/a (no control) |
+| cw5_titled_net_deficit: Titled food into less out of the deficit regions (T) | p | 19: -177 | -177 [-177, -177] | 0 / 1 / 0 | n/a (no control) |
+| cw5_native_net_deficit: Native commons trade into the deficit regions (T - R) | t | 5: +0 | +0 [+0, +0] | 0 / 0 / 1 | 2/2 as extreme; means [+0, +0] |
+| cw5_native_net_deficit: Native commons trade into the deficit regions (T - R) | p | 19: +0 | +0 [+0, +0] | 0 / 0 / 1 | 2/2 as extreme; means [+0, +0] |
+| cw5_met_deficit: Deficit regions' demand-weighted min(1, sufficiency) (T - R) | t | 5: +0.02159 | +0.02159 [+0.02159, +0.02159] | 1 / 0 / 0 | 2/2 as extreme; means [-0.02159, +0.02159] |
+| cw5_met_deficit: Deficit regions' demand-weighted min(1, sufficiency) (T - R) | p | 19: +0.0149 | +0.0149 [+0.0149, +0.0149] | 1 / 0 / 0 | 2/2 as extreme; means [-0.0149, +0.0149] |
+| cw5_priced_out_deficit: Priced-out person-turns in the deficit regions (T - R) | t | 5: -51 | -51 [-51, -51] | 0 / 1 / 0 | 2/2 as extreme; means [-51, +51] |
+| cw5_priced_out_deficit: Priced-out person-turns in the deficit regions (T - R) | p | 19: -245 | -245 [-245, -245] | 0 / 1 / 0 | 2/2 as extreme; means [-245, +245] |
+| cw5_price_deficit: Mean retail price in the deficit regions, milli per ration (T - R) | t | 5: -71.75 | -71.75 [-71.75, -71.75] | 0 / 1 / 0 | 2/2 as extreme; means [-71.75, +71.75] |
+| cw5_price_deficit: Mean retail price in the deficit regions, milli per ration (T - R) | p | 19: -23.76 | -23.76 [-23.76, -23.76] | 0 / 1 / 0 | 2/2 as extreme; means [-23.76, +23.76] |
 | cw5_shortfall_dest: Food shortfall share in the regions T delivered to (T; selection) | t | 5: +0.1568 | +0.1568 [+0.1568, +0.1568] | 1 / 0 / 0 | n/a (no control) |
 | cw5_shortfall_dest: Food shortfall share in the regions T delivered to (T; selection) | p | 19: +0.1376 | +0.1376 [+0.1376, +0.1376] | 1 / 0 / 0 | n/a (no control) |
 | cw5_t0_food_in_deficit: Food into the turn-0 deficit regions by trade (T - R; sensitivity) | t | 5: +58.06 | +58.06 [+58.06, +58.06] | 1 / 0 / 0 | 2/2 as extreme; means [-58.06, +58.06] |
 | cw5_t0_food_in_deficit: Food into the turn-0 deficit regions by trade (T - R; sensitivity) | p | 19: -270.6 | -270.6 [-270.6, -270.6] | 0 / 1 / 0 | 2/2 as extreme; means [-270.6, +270.6] |
 | cw5_t0_shortfall_deficit: Food shortfall share in the turn-0 deficit regions (T - R; sensitivity) | t | 5: -0.02101 | -0.02101 [-0.02101, -0.02101] | 0 / 1 / 0 | 2/2 as extreme; means [-0.02101, +0.02101] |
 | cw5_t0_shortfall_deficit: Food shortfall share in the turn-0 deficit regions (T - R; sensitivity) | p | 19: -0.01612 | -0.01612 [-0.01612, -0.01612] | 0 / 1 / 0 | 2/2 as extreme; means [-0.01612, +0.01612] |
-| cw5_shortfall_surplus: Food shortfall share after relief in the surplus regions (T - R) | t | 5: unknown | n/a | 0 / 0 / 0 | n/a |
-| cw5_shortfall_surplus: Food shortfall share after relief in the surplus regions (T - R) | p | 19: unknown | n/a | 0 / 0 / 0 | n/a |
-| cw5_price_surplus: Mean retail price in the surplus regions (T - R) | t | 5: unknown | n/a | 0 / 0 / 0 | n/a |
-| cw5_price_surplus: Mean retail price in the surplus regions (T - R) | p | 19: unknown | n/a | 0 / 0 / 0 | n/a |
-| cw5_priced_out_surplus: Priced-out person-turns in the surplus regions (T - R) | t | 5: unknown | n/a | 0 / 0 / 0 | n/a |
-| cw5_priced_out_surplus: Priced-out person-turns in the surplus regions (T - R) | p | 19: unknown | n/a | 0 / 0 / 0 | n/a |
-| cw5_food_in_surplus: Food into the surplus regions by trade (T - R) | t | 5: unknown | n/a | 0 / 0 / 0 | n/a |
-| cw5_food_in_surplus: Food into the surplus regions by trade (T - R) | p | 19: unknown | n/a | 0 / 0 / 0 | n/a |
+| cw5_rr_food_in_deficit: Food into the deficit regions of R's whole-run production ratio by trade (T - R; sensitivity, regression-to-the-mean risk) | t | 5: -28.42 | -28.42 [-28.42, -28.42] | 0 / 1 / 0 | 2/2 as extreme; means [-28.42, +28.42] |
+| cw5_rr_food_in_deficit: Food into the deficit regions of R's whole-run production ratio by trade (T - R; sensitivity, regression-to-the-mean risk) | p | 19: +453.5 | +453.5 [+453.5, +453.5] | 1 / 0 / 0 | 2/2 as extreme; means [-453.5, +453.5] |
+| cw5_rr_shortfall_deficit: Food shortfall share in the deficit regions of R's whole-run production ratio (T - R; sensitivity, regression-to-the-mean risk) | t | 5: -0.02722 | -0.02722 [-0.02722, -0.02722] | 0 / 1 / 0 | 2/2 as extreme; means [-0.02722, +0.02722] |
+| cw5_rr_shortfall_deficit: Food shortfall share in the deficit regions of R's whole-run production ratio (T - R; sensitivity, regression-to-the-mean risk) | p | 19: -0.009306 | -0.009306 [-0.009306, -0.009306] | 0 / 1 / 0 | 2/2 as extreme; means [-0.009306, +0.009306] |
+| cw5_shortfall_surplus: Food shortfall share after relief in the surplus regions (T - R) | t | 5: -0.02251 | -0.02251 [-0.02251, -0.02251] | 0 / 1 / 0 | 2/2 as extreme; means [-0.02251, +0.02251] |
+| cw5_shortfall_surplus: Food shortfall share after relief in the surplus regions (T - R) | p | 19: -0.04146 | -0.04146 [-0.04146, -0.04146] | 0 / 1 / 0 | 2/2 as extreme; means [-0.04146, +0.04146] |
+| cw5_price_surplus: Mean retail price in the surplus regions (T - R) | t | 5: -8.085 | -8.085 [-8.085, -8.085] | 0 / 1 / 0 | 2/2 as extreme; means [-8.085, +8.085] |
+| cw5_price_surplus: Mean retail price in the surplus regions (T - R) | p | 19: +10.98 | +10.98 [+10.98, +10.98] | 1 / 0 / 0 | 2/2 as extreme; means [-10.98, +10.98] |
+| cw5_priced_out_surplus: Priced-out person-turns in the surplus regions (T - R) | t | 5: -170 | -170 [-170, -170] | 0 / 1 / 0 | 2/2 as extreme; means [-170, +170] |
+| cw5_priced_out_surplus: Priced-out person-turns in the surplus regions (T - R) | p | 19: -336 | -336 [-336, -336] | 0 / 1 / 0 | 2/2 as extreme; means [-336, +336] |
+| cw5_food_in_surplus: Food into the surplus regions by trade (T - R) | t | 5: -61.99 | -61.99 [-61.99, -61.99] | 0 / 1 / 0 | 2/2 as extreme; means [-61.99, +61.99] |
+| cw5_food_in_surplus: Food into the surplus regions by trade (T - R) | p | 19: -226 | -226 [-226, -226] | 0 / 1 / 0 | 2/2 as extreme; means [-226, +226] |
 | cw5_shortfall_origin: Food shortfall share in the regions T bought from (T; selection) | t | 5: +0.1488 | +0.1488 [+0.1488, +0.1488] | 1 / 0 / 0 | n/a (no control) |
 | cw5_shortfall_origin: Food shortfall share in the regions T bought from (T; selection) | p | 19: +0.1141 | +0.1141 [+0.1141, +0.1141] | 1 / 0 / 0 | n/a (no control) |
 | cw5_shortfall_all: Food shortfall share after relief, all regions (T - R) | t | 5: -0.0223 | -0.0223 [-0.0223, -0.0223] | 0 / 1 / 0 | 2/2 as extreme; means [-0.0223, +0.0223] |
@@ -139,7 +143,7 @@ Schema versions read: {"bundle": 6, "livelihoods": [1], "packages": {"food_alloc
 
 | Arm | t | p |
 | --- | --- | --- |
-| R | 10.5 [10.5, 10.5] | 23.9 [23.9, 23.9] |
-| T | 10.5 [10.5, 10.5] | 30.8 [30.8, 30.8] |
+| R | 24.1 [24.1, 24.1] | 65.0 [65.0, 65.0] |
+| T | 16.5 [16.5, 16.5] | 88.1 [88.1, 88.1] |
 
 Descriptive only: the sign-flip column counts the 2^n sign assignments whose mean is at least as far from zero as the observed mean, with the range of those means; it is not a significance test.
