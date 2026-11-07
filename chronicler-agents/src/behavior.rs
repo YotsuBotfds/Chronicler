@@ -278,8 +278,9 @@ fn best_migration_target_observed<O: DecisionObserver>(
             continue;
         }
 
-        let adj_pop = region_population_count(stats, adj);
-        let adj_cap = regions[adj].carrying_capacity.max(1) as f32;
+        let known = pool.adaptive_information.as_ref().map_or(true, |info| info.knows(pool.ids[slot], adj as u16));
+        let adj_pop = if known { region_population_count(stats, adj) } else { 0 };
+        let adj_cap = if known { regions[adj].carrying_capacity.max(1) as f32 } else { 1.0 };
         let adj_pop_ratio = adj_pop as f32 / adj_cap;
         if own_pop_ratio <= 1.0 && adj_pop_ratio > MIGRATION_TARGET_SOFT_CAP {
             continue;
@@ -299,7 +300,7 @@ fn best_migration_target_observed<O: DecisionObserver>(
 
         // Healthy-world drivers: frontier, wage gap, chain, net of roots.
         let voluntary = match mobility {
-            Some(m) => {
+            Some(m) if known => {
                 let inputs = PullInputs {
                     own_ratio: own_pop_ratio,
                     adj_id: adj as u16,
@@ -319,7 +320,7 @@ fn best_migration_target_observed<O: DecisionObserver>(
                 if O::ENABLED { observer.candidate_pull(&gross, m.roots, &net); }
                 net
             }
-            None => VoluntaryPull::default(),
+            _ => VoluntaryPull::default(),
         };
         let pull = voluntary.total();
         if O::ENABLED { observer.candidate_before_hysteresis(pull); }
@@ -328,11 +329,16 @@ fn best_migration_target_observed<O: DecisionObserver>(
         // by (both read 0). An agent pulled there (frontier settlers) judges
         // it by home: home's mean satisfaction and food, the destination's
         // room. Everyone else scores it as before.
-        let mut adj_score = if pull > 0.0 && stats.civ_counts[adj].is_empty() {
+        let mut adj_score = if !known {
+            // Empty-land prior: only home-observed food and satisfaction.
+            // No current foreign capacity, population, stocks or service.
+            own_mean + MIGRATION_HEADROOM_BONUS
+                + (regions[region_id].food_sufficiency - 1.0).clamp(-1.0,0.5) * MIGRATION_FOOD_SIGNAL_WEIGHT
+        } else if pull > 0.0 && stats.civ_counts[adj].is_empty() {
             settler_region_score(&regions[adj], &regions[region_id], own_mean, adj_pop)
         } else {
             migration_region_score(&regions[adj], stats.mean_satisfaction[adj], adj_pop)
-        } + polity_alignment_score(&regions[region_id], &regions[adj], civ);
+        } + if known { polity_alignment_score(&regions[region_id], &regions[adj], civ) } else { 0.0 };
         let mut river = 0.0f32;
         if regions[region_id].shares_river(&regions[adj]) {
             adj_score += RIVER_MIGRATION_BONUS;
@@ -360,9 +366,9 @@ fn best_migration_target_observed<O: DecisionObserver>(
         }
 
         // M59b: Apply threat penalty from held packets (adjacent only, own-region excluded)
-        let threat_strength = crate::knowledge::strongest_threat_for_region(
+        let threat_strength = if known { crate::knowledge::strongest_threat_for_region(
             pool, slot, adj as u16, region_id as u16,
-        );
+        ) } else { 0.0 };
         if threat_strength > 0.0 {
             adj_score -= MAX_THREAT_PENALTY * threat_strength;
         }
@@ -373,7 +379,7 @@ fn best_migration_target_observed<O: DecisionObserver>(
 
         // Deferred backlog: religious_signal packets bias adjacent targets by
         // faith (strongest packet only; agents without a faith are unaffected).
-        if belief != crate::agent::BELIEF_NONE {
+        if known && belief != crate::agent::BELIEF_NONE {
             let religious_strength = crate::knowledge::strongest_religious_signal_for_region(
                 pool, slot, adj as u16, region_id as u16,
             );
@@ -1812,6 +1818,30 @@ mod tests {
 
         let stats = compute_region_stats(&pool, &regions, &default_signals(regions.len()));
         assert_eq!(stats.best_migration_target[0], 2);
+    }
+
+    #[test]
+    fn adaptive_unknown_land_ignores_foreign_truth_but_known_land_uses_it() {
+        let mut pool = AgentPool::new(32);
+        let mut regions = vec![make_region(0), make_region(1)];
+        regions[0].adjacency = vec![1];
+        for r in 0..2 { for _ in 0..8 {
+            let s = pool.spawn(r,0,Occupation::Farmer,25,0.5,0.5,0.5,0,1,2,crate::agent::BELIEF_NONE);
+            pool.set_satisfaction(s, if r == 0 { 0.2 } else { 0.1 });
+        }}
+        pool.adaptive_information = Some(crate::adaptive_information::AdaptiveInformation { turn:3, known:vec![] });
+        regions[1].carrying_capacity=1; regions[1].food_sufficiency=0.0;
+        let stats = compute_region_stats(&pool,&regions,&default_signals(2));
+        let first = best_migration_target_for_agent(&pool,&regions,&stats,0,0,None);
+        regions[1].carrying_capacity=10000; regions[1].food_sufficiency=100.0;
+        for s in 8..16 { pool.set_satisfaction(s,0.99); pool.wealth[s]=99.0; }
+        let stats = compute_region_stats(&pool,&regions,&default_signals(2));
+        let second = best_migration_target_for_agent(&pool,&regions,&stats,0,0,None);
+        assert_eq!(first.target,second.target);
+        assert_eq!(first.opportunity.to_bits(),second.opportunity.to_bits());
+        pool.adaptive_information.as_mut().unwrap().known=vec![(pool.ids[0],1)];
+        let known = best_migration_target_for_agent(&pool,&regions,&stats,0,0,None);
+        assert!(known.opportunity > second.opportunity);
     }
 
     #[test]

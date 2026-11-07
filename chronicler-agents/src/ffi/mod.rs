@@ -703,6 +703,14 @@ impl AgentSimulator {
         self.movements.branch_turn = Some(target_turn);
         Ok(())
     }
+    pub fn cancel_movement_branches(&mut self, target_turn: u32) -> PyResult<bool> {
+        if self.movements.branch_turn.is_some_and(|t| t != target_turn) {
+            return Err(PyValueError::new_err("cannot cancel another turn's movement branches"));
+        }
+        let pending = self.movements.branch_turn.take().is_some();
+        self.movements.branch_hosts.clear();
+        Ok(pending)
+    }
 
     /// Agent movements: replace the lasting reforms in force (creed u8, civ
     /// u8, region u16, faith u8; see `movements::parse_reform_table`). Sent
@@ -1015,6 +1023,27 @@ impl AgentSimulator {
     /// RS4: stable ids of living agents away on a merchant trip, ascending (reads only).
     pub fn trip_agent_ids(&self) -> Vec<u32> {
         crate::wealth_transfer::trip_ids(&self.pool)
+    }
+
+    /// A6-3 dated own-residence knowledge, extended by the person's existing
+    /// living bonds and unexpired pre-turn packets. Source masks: 1 own,
+    /// 2 bond, 4 packet; transient and consumed once by the native tick.
+    pub fn set_adaptive_information(&mut self, turn: u32, own_known: Vec<(u32,u16)>) -> PyResult<Vec<(u32,u16,u8)>> {
+        if own_known.iter().any(|r| r.1 as usize >= self.num_regions) {
+            return Err(PyValueError::new_err("adaptive information region out of range"));
+        }
+        if self.pool.adaptive_information.is_some() { return Err(PyValueError::new_err("adaptive information already pending")); }
+        let (mut input, mut receipt) = crate::adaptive_information::build(&self.pool,turn,&own_known);
+        input.known.retain(|r| (r.1 as usize) < self.num_regions);
+        receipt.retain(|r| (r.1 as usize) < self.num_regions);
+        self.pool.adaptive_information = Some(input);
+        Ok(receipt)
+    }
+    pub fn cancel_adaptive_information(&mut self) -> bool { self.pool.adaptive_information.take().is_some() }
+    /// Read-only batch query; only the named carrier's own dated trade packets.
+    pub fn usable_trade_destinations(&self, agent_ids: Vec<u32>, turn: u32) -> Vec<(u32,Vec<u16>)> {
+        crate::adaptive_information::trade_destinations(&self.pool,&agent_ids,turn).into_iter()
+            .map(|(id, mut rows)| { rows.retain(|&r| (r as usize) < self.num_regions); (id,rows) }).collect()
     }
 
     /// A6: signed per-person, adjacent-destination score deltas; abs <= 0.3.
@@ -1866,6 +1895,9 @@ impl AgentSimulator {
             if plan.source_turn != turn || plan.consumed {
                 return Err(PyValueError::new_err("teaching work must be prepared for this tick"));
             }
+        }
+        if self.pool.adaptive_information.as_ref().is_some_and(|a| a.turn != turn) {
+            return Err(PyValueError::new_err("adaptive information must be installed for this tick"));
         }
         if self.pool.adaptive_migration.as_ref().is_some_and(|a| a.turn != turn) {
             return Err(PyValueError::new_err("adaptive migration must be installed for this tick"));

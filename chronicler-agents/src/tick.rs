@@ -1516,6 +1516,7 @@ fn try_tick_agents_with_movements_observer<M: crate::decision_delivery::MoveObse
         });
     }
     pool.enlisted_service = None;
+    pool.adaptive_information = None;
     Ok((events, kin_bond_failures, formation_stats, demo_debug, household_stats, merchant_stats, knowledge_stats))
 }
 

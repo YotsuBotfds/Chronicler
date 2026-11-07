@@ -65,3 +65,31 @@ def test_movement_branch_input_requires_exact_prior_date_and_is_atomic():
     sim.set_movement_branches(0, 1, [1], [1])
     with pytest.raises(ValueError, match="already pending"):
         sim.set_movement_branches(0, 1, [2], [1])
+
+
+def test_information_gate_inputs_are_atomic_and_cancelled_by_owner():
+    from chronicler_agents import AgentSimulator
+    sim = AgentSimulator(2, 7)
+    with pytest.raises(ValueError, match="out of range"):
+        sim.set_adaptive_information(1, [(1, 2)])
+    assert sim.cancel_adaptive_information() is False
+    assert sim.set_adaptive_information(1, [(1, 0)]) == []  # no living person yet
+    with pytest.raises(ValueError, match="already pending"):
+        sim.set_adaptive_information(1, [])
+    assert sim.cancel_adaptive_information() is True
+    assert sim.usable_trade_destinations([3, 1, 3], 1) == [(1, []), (3, [])]
+    sim.set_movement_branches(0, 1, [1], [1])
+    with pytest.raises(ValueError, match="another turn"):
+        sim.cancel_movement_branches(2)
+    assert sim.cancel_movement_branches(1) is True
+    assert sim.cancel_movement_branches(1) is False
+
+
+def test_information_tick_date_is_checked_before_mutation():
+    import pyarrow as pa
+    from chronicler_agents import AgentSimulator
+    sim = AgentSimulator(2, 7)
+    sim.set_adaptive_information(1, [])
+    with pytest.raises(ValueError, match="adaptive information must be installed for this tick"):
+        sim.tick(2, pa.record_batch({"unused": [0]}))
+    assert sim.cancel_adaptive_information() is True
