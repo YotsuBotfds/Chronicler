@@ -110,3 +110,42 @@ composition fix, final execution evidence and PR/CI gates are **unfinished work*
 not technical deferrals. Full 200-seed/procedural qualification, default promotion,
 paid narration, deployment, purchases, credentials and sharing changes remain
 outside authorization. This draft supplies no reason to stop independent lanes.
+
+## Post-d609 closures and final evidence in progress
+
+At the next immutable runtime freeze,
+`eaa4a5d3e1cb5c958b5e32719601c28986c9f6ac`, the two functional blockers above
+are corrected rather than deferred:
+
+- `b1603c56` stores the legitimately observed personal home/date, keeps the
+  first known anchor and union of witnessed war instances, and matches return
+  against that memory after X1 rehomes unknown-cause moves. A late denied
+  OwnRow read preserves unknown. Exact call-site registrations permit only
+  the reviewed dated consumer and saved-bundle metadata reader; live-state
+  and unregistered decision reads remain denied. Independent source approval
+  examined the closed-loop and guard regressions; the earlier guard failure
+  is retained, not called a pass.
+- `3f0d16a7` values timber orders through current measured workshop idle and
+  bounded road repair worker-turn stakes. Granary/irrigation inputs are reserved
+  first without invented food relief. Region-scoped grants fund dispatch only,
+  not promised completed repairs. B3 and D4 independently reviewed the source;
+  real needs with no defensible stake can remain unfunded.
+
+Declared-scale profiling is executing serially against that detached source
+with verified extension `59f536b8…`, native source `38b21020…`, actual native
+counts, validation-sidecar rows/bytes, CPU/RSS, final output maps and strict
+same-source checkpoint read/write timings. Screen-scale profile cases remain
+**200 turns** and procedural 48×10 remains **150 turns**, independent of CW6's
+pre-held amendment to 120 turns. The first four profile runs passed: template
+5/23 off/full, four exact checkpoints each and no FULL extractor errors. CPU
+ratios 1.81/1.88 and bundle ratios 2.13/2.33 are material costs, not performance
+wins. The lead accepts flagged overhead only as opt-in experimental behavior
+and records, conditional on no OOM, balance-closure or source-guard failures;
+there is no default promotion. Later procedural/stress outcomes are not implied
+by those template passes.
+
+This appendendum does not close the remaining final gates or overwrite the
+matrix's dated d609 source observations. A new feature-off check on the last
+runtime, final whole-program profile/resume/held/browser/CI receipts and the
+lead's explicit A4-W proposal disposition must be attached before any completion
+statement.
