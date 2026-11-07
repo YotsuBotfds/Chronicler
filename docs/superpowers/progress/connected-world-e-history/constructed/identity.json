@@ -1,0 +1,13 @@
+{
+  "frontend_source": "e69f823b03e22242e59a3007667e1cabcab8fa9e",
+  "frontend_build": "/workspace/evidence/history/integrated-dist-accepted-immutable",
+  "frontend_tracked_tree_status": "",
+  "source_simulation": "eaa4a5d3e1cb5c958b5e32719601c28986c9f6ac",
+  "native_path": "/workspace/cw-evidence-native/lib/python3.13/site-packages/chronicler_agents/chronicler_agents.cpython-313-x86_64-linux-gnu.so",
+  "native_sha256": "59f536b8f4a6c2bc82c51eeaec55f3aff6b0a1c5c8f1a324049ad15b42c51617",
+  "production_source_edited": false,
+  "simulation_rerun": false,
+  "paid_narration_calls": 0,
+  "reproducer_sha256": "8b4aab76b97026c2517afeae9d6257131293d03aaf7107416683ea3abea6151f",
+  "banner_harness_sha256": "03cebe27e153d1ed5eda914e33593f9bc6ac56d850ca89881bb1abc8dd954e9f"
+}

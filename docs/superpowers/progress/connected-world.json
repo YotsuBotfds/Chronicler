@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "board_version": 23,
+  "board_version": 26,
   "title": "Connected-world program (A livelihoods and trade, B watersheds and infrastructure, C public health, D institutions and war, E stories and evidence) operational board",
   "plan": "docs/superpowers/roadmaps/connected-world-program.md",
   "owner_instruction": "2026-11-06 (after #82): own the A-E program end to end with parallel workers, integrating and evaluating each slice and continuing across slice boundaries; merges of this program authorized after independent review, green premerge Tests on the reviewed head and verified main CI; new systems opt-in and off by default; no default promotion; full 200-seed and procedural qualification gates restricted; bounded held screens (procedural included) authorized; no purchases, paid credits, paid narration APIs, deployments, credential or sharing changes. Amendment (same day): tiers sequence work and are not stopping points; failures block the affected merge, not the program; pin 8abc1acb as the original reference; default-path changes behind a switch or rules version.",
@@ -8,11 +8,12 @@
     "original": "8abc1acb3adf978ea212a570fb1dfbbfe9723ec3",
     "original_native_sha256": "101a4cd5b928b14f43539f925fa565036b94e38d91b9698071c80fa3656e0df3",
     "native_build": "maturin develop --release --locked into ~/.venvs/chronicler-native, 3m14s on 4 cores; identical to the checkpoint-2/3 extension",
-    "main_native_sha256": "20e77f9945efa71d597c142e99069337586cc865ddee7a17c6d20948a2c0c1ca (main 8401aa74: C1b's Rust plus A3's appended purpose)"
+    "main_native_sha256": "59f536b8f4a6c2bc82c51eeaec55f3aff6b0a1c5c8f1a324049ad15b42c51617 (reviewed isolated release artifact for integrated source; CI builds its own current-source wheel)",
+    "preceding_integrated_main": "f76436ae37c735b2b856caf98033122798ac88d2 (#95; tree equals11467a46)"
   },
   "durable_location": {
     "branch": "main (merged slices) plus the lane and integration branches listed in lanes",
-    "base": "f76436ae37c735b2b856caf98033122798ac88d2 (#95); main Tests42386261493 all nine verified success"
+    "base": "dde9e2f971eca864e90ecdb40cb3af8d1596a5e9 (#96); exact main Tests42393043134 all nine verified success"
   },
   "status_values": [
     "proposed",
@@ -35,33 +36,38 @@
   "slices": [
     {
       "id": "S0",
-      "status": "integrated",
+      "status": "merged",
       "summary": "Baseline verification, board, dependency map, seed registry, contract audits (A1-A2, B, C, D with A5/D4, E)."
     },
     {
       "id": "S1",
-      "status": "integrated",
+      "status": "merged",
       "summary": "A1 accounting, A2 wage vs paid_work enrollment with fixed cohorts, recorded-limit dispositions needing no new mechanism. Final A-E union and evidence in #96; earlier proposed labels superseded, not completion."
     },
     {
       "id": "S2",
-      "status": "integrated",
+      "status": "merged",
       "summary": "A3 workshop economics, A5 owned-stock lifecycle. Final A-E union and evidence in #96; earlier proposed labels superseded, not completion."
     },
     {
       "id": "S3",
-      "status": "integrated",
+      "status": "merged",
       "summary": "B1-B3 initial watershed and infrastructure slice, C1 quarantine. Final A-E union and evidence in #96; earlier proposed labels superseded, not completion."
     },
     {
       "id": "S4",
-      "status": "evaluated",
+      "status": "merged",
       "summary": "A4 merchants and owned cargo, B4 forest and water, B5 viewer, C2 care and sanitation, D2 attribution, D4 requisition and reconstruction. Final A-E union and evidence in #96; earlier proposed labels superseded, not completion."
     },
     {
       "id": "S5",
-      "status": "evaluated",
+      "status": "merged",
       "summary": "A6 adaptive decisions, D1 cross-border organization, D3 war's human consequences, C4 public-health choices. Final A-E union and evidence in #96; earlier proposed labels superseded, not completion."
+    },
+    {
+      "id": "E",
+      "status": "merged",
+      "summary": "Linked histories, strict dated provenance, natural adaptation/failure/mixed examples, real desktop/phone journeys, whole-program compatibility and identity,80 integrated resumes,14 declared-scale profiles, final bounded held evaluation and independently reviewed exact-head/main CI."
     }
   ],
   "lanes": [
@@ -212,19 +218,27 @@
       "id": "D4",
       "branch": "claude/cw-d4-requisition",
       "scope": "--war-requisition transfer|cost_only (requisitioned food to army rations, minted refill reduced), restitution (native purpose 10), A4-2 cargo in war; settles the soldier-movement discrepancy",
-      "status": "Reconstructed and implemented; independently reviewed; CW6 60/60 and all80 integrated exact resumes passed; final exact-head PR96 CI pending",
-      "integration_branch": "codex/cw-lead"
+      "status": "merged (#96); all nine exact-head premerge and exact main Tests verified success",
+      "integration_branch": "codex/cw-lead",
+      "head": "c32c2bbd742f96401171761ddff44f9ccfb96e67",
+      "merge_commit": "dde9e2f971eca864e90ecdb40cb3af8d1596a5e9",
+      "premerge_run": 42391897267,
+      "main_run": 42393043134
     },
     {
       "id": "A-E-final",
       "branch": "codex/cw-lead",
       "scope": "A1-2, A4-2/3, A6 full choices, B3 named crews/road funding, B4/B5, C2 supplies/sanitation/crowding, C4/named guards, D1c, D2 works attribution, D3/D4, E linked histories/provenance/examples",
-      "status": "PR #96 candidate; adopted scope implemented and independently reviewed; all bounded evidence complete; final exact-head nine-job Tests pending",
+      "status": "merged (#96); all nine exact-head premerge and exact main Tests verified success",
       "native_source": "9e0017017245870affa0401714d14cddccf98ff7",
       "native_sha256": "59f536b8f4a6c2bc82c51eeaec55f3aff6b0a1c5c8f1a324049ad15b42c51617",
       "native_inputs_sha256": "38b21020673a028ce6bcd76e19fb3e0c01eed5893b89f1ce6ff6eda6cf8925a2",
       "limitations": "No port service consumer; wealth is single spendable but not globally conserved cash; Soldier income remains modeled; irrigation sanitation proxy; A6 unknown causes change X1 classification and C2 crowding/exposure input, not proof of less physical displacement. Material cost and adverse held outcomes preclude efficacy/promotion claims.",
-      "runtime": "eaa4a5d3e1cb5c958b5e32719601c28986c9f6ac (valid runtime); startup guards c13768f6 reject only invalid configurations"
+      "runtime": "eaa4a5d3e1cb5c958b5e32719601c28986c9f6ac (valid runtime); startup guards c13768f6 reject only invalid configurations",
+      "head": "c32c2bbd742f96401171761ddff44f9ccfb96e67",
+      "merge_commit": "dde9e2f971eca864e90ecdb40cb3af8d1596a5e9",
+      "premerge_run": 42391897267,
+      "main_run": 42393043134
     }
   ],
   "recorded_limits": [
@@ -622,9 +636,21 @@
       "main_status": "success (all nine jobs verified)",
       "date": "2026-11-07",
       "verification": "Independent exact-head approval; all nine premerge Tests jobs success; merge tree equals reviewed head. CW6D1 60/60 completed, sparse relief activation suppresses summary, leagues mixed."
+    },
+    {
+      "pr": 96,
+      "slice": "Complete remaining adopted A–E implementation, integrated evaluation and linked histories",
+      "merge_commit": "dde9e2f971eca864e90ecdb40cb3af8d1596a5e9",
+      "merge_tree": "4e06aaa8989e51f9dc67f260497451f5d2ea0be6",
+      "reviewed_head": "c32c2bbd742f96401171761ddff44f9ccfb96e67",
+      "premerge_run": 42391897267,
+      "main_run": 42393043134,
+      "main_status": "success (all nine jobs independently verified)",
+      "date": "2026-11-07",
+      "verification": "Independent actual source/native/inverse/evidence/test-contract reviews; all nine premerge Tests success; tree equals reviewed head; all nine exact main Tests success."
     }
   ],
-  "next": "Final independent exact-head review and all-nine PR96 Tests; merge under existing authorization only after green, verify exact main CI, then record verified merge/run in durable completion ledger. All60 CW6 held,80 integrated resumes,both-reference identity,14 declared-scale profiles,52 checkpoint reads,health36 held and real browsers complete. No restricted qualification or default promotion.",
+  "next": "Adopted A–E implementation and bounded evaluation integrated and verified through #96. Keep all new behavior opt-in/off; retain recorded adverse results/costs/unknowns. Ports remain deferred until a maritime service consumer exists. Full qualification/default promotion require a new instruction. Documentation-only ledger changes follow the same independent review and exact-head/main CI policy.",
   "baseline": {
     "oracle_lane": "PASS, 63 chunks, 295.5 s, slowest 32.4 s of 110 s",
     "native_check": "check_python_env --expect native PASS (101a4cd5)",
@@ -649,7 +675,9 @@
     "inverse": "Append-only cwcomplete exact inverse to reviewed11467a46 tree,37hunks7files independently byte-verified; historical fixtures untouched.",
     "return_home": "D3 stores first personally known priorOwnRowhome/source and allwitnessedwarinstances; X1unknownmove rehoming neveroverwritesmemory. Latepriorreadrefusal keepsunknown, neverreadsT.",
     "a4_wares": "Unimplemented unadopted A4-W auditproposal; adoptedroadmap5.7 coversfood+timber. No ownedwarescrossborderclaim. Separate futurecontract, nottechnicalportdependency.",
-    "performance": "Accept substantial measured FULLCPU/RSS/artifactoverhead asoptinexperimental cost, with actualcounts/ratios/latency; never defaultpromotion orperformancequalification. Proposed25%/2x/500MiB flags remainvisible."
+    "performance": "Accept substantial measured FULLCPU/RSS/artifactoverhead asoptinexperimental cost, with actualcounts/ratios/latency; never defaultpromotion orperformancequalification. Proposed25%/2x/500MiB flags remainvisible.",
+    "per_pathogen_care": "Open coefficient choice resolved: retain adopted common0.3×coverage CFR reduction against distinct pathogen base CFRs, under one combined floor; not pathogen-calibrated, may overstate plague/pestilence care. Existing per-pathogen deaths/infectious-person-turn splits are checked outcome observations, not measured causal attenuation. Native endemic authority unchanged.",
+    "constructed_stories": "Natural saved story worlds and a positive explicitly constructed visibility demonstration are retained. Construction metadata/from/edits and actual desktop/phone banner verified. No full alternative simulation or broader constructed per-slice suite is claimed; auditE Part9 is explicitly PROPOSAL, adopted verification is Part1."
   },
   "screens": {
     "CW4": {
@@ -766,6 +794,21 @@
       "date": "2026-11-07",
       "event": "All final bounded execution evidence complete",
       "detail": "CW6 60/60 strict passed under unchanged1coreh, all80 integrated resumes pass; independent arithmetic/raw approvals retained. Adverse foodshortfall and epidemicdeaths in all12 integrated worlds, mixed primary outcomes and material cost explicitly retained. Offline75chunks7964pass69skip; later consumed-registry targeted156pass. Final exact-head CI required."
+    },
+    {
+      "date": "2026-11-07",
+      "event": "PR96 merged after independent review and exact-head all-nine Tests",
+      "detail": "dde9e2f971eca864e90ecdb40cb3af8d1596a5e9; reviewed c32c2bbd742f96401171761ddff44f9ccfb96e67; Tests42391897267 allnine success; merge tree equality verified. Exact main42393043134 pending; freeze further feature merges."
+    },
+    {
+      "date": "2026-11-07",
+      "event": "PR96 exact main CI verified",
+      "detail": "Tests42393043134 completed success at exact dde9e2f971eca864e90ecdb40cb3af8d1596a5e9; all nine jobs independently verified. Complete adopted program/evaluation with explicit limitations; no defaults or qualifications promoted."
+    },
+    {
+      "date": "2026-11-07",
+      "event": "Final adopted-scope completeness review and positive constructed visibility proof",
+      "detail": "Explicitly resolve uniform uncalibrated care coefficient choice, keep frozen physics and existing pathogen outcome observers; add clearly labeled three-field-redaction derived development bundle,34browser checks/1200strictreads/2editedcitations0flags, original untouched. No runtime, native, registry, defaults or held outcomes changed."
     }
   ],
   "defects_for_owner": [
@@ -780,9 +823,22 @@
     "identity": "final830d against original8abc and preceding11467/f764:9cases399files0diff each",
     "resume": "80 integrated exact branches (22active,58canonical) pass plus4health; compared rawArrow and declared artifacts",
     "profile": "14runs,52strictreads,actualpeak53138; CPU1.81–6.90x,bundle2.13–3.94x,RSS+60–1010MiB; acceptedoptin materialcost",
-    "browser": "30history+38branches+82health real desktop/phone checks; initialhistory4.8s",
+    "browser": "30 natural history +34 explicitly constructed visibility +38 branches +82 health desktop/phone checks; no model or natural-bundle changes; initial natural history4.8s",
     "examples": "1200strictobservations,21/24categories,3honestnulls,0audit/schemaerrors",
     "review": "independent source/native/inverse/profile/identity/heldarithmetic/browser/testcontracts retained",
-    "final_merge": "pending exact-head Tests and main CI; do not claim candidate merged"
+    "final_merge": "PR96 merged dde9e2f971eca864e90ecdb40cb3af8d1596a5e9; premerge42391897267 and exact main42393043134 each all nine verified success; reviewed-tree equality verified",
+    "ci_counts": "Reviewed-head CI: noRust11409pass452skip623subtests; native12083pass6skip623subtests across2shards; viewer192files1764pass2skip; allninejobs success",
+    "rust": "Reviewed-head CI:774unit+562integration=1336passed,0failed;2existing manual machine-dependent timing benchmarks ignored/unrun, separate from completed V11profiles.",
+    "constructed": "Derived019f4b17 from unchanged naturalf6cb5562; exactly3reversible personal-visibility edits+explicitmetadata;1200strictreads,2editedexactcitations0flags,34realbrowserchecks. Compact generator/patch/receipts committed; not a simulated counterfactual or natural efficacy evidence."
+  },
+  "completion": {
+    "state": "adopted scope integrated and evaluated; explicit technical deferrals and unadopted proposals retained",
+    "implementation_source": "dde9e2f971eca864e90ecdb40cb3af8d1596a5e9",
+    "reviewed_head": "c32c2bbd742f96401171761ddff44f9ccfb96e67",
+    "premerge_run": 42391897267,
+    "main_run": 42393043134,
+    "all_nine_main_jobs": "verified success",
+    "report": "docs/superpowers/progress/connected-world-final-report.md",
+    "final_documentation_policy": "The completion-ledger PR changes documentation only; its exact-head premerge and final main Tests are verified separately. The authoritative later ledger result is the GitHub Tests push run for current main HEAD, linked in the completion PR."
   }
 }

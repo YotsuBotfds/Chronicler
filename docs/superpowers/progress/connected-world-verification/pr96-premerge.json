@@ -1,0 +1,68 @@
+{
+  "run": 42391897267,
+  "head": "c32c2bbd742f96401171761ddff44f9ccfb96e67",
+  "url": "https://github.com/YotsuBotfds/Chronicler/actions/runs/42391897267",
+  "status": "completed",
+  "conclusion": "success",
+  "jobs": [
+    {
+      "name": "Build one current-source native wheel",
+      "id": 128461019695,
+      "conclusion": "success"
+    },
+    {
+      "name": "Viewer",
+      "id": 128461019915,
+      "conclusion": "success"
+    },
+    {
+      "name": "Python no-Rust",
+      "id": 128461019953,
+      "conclusion": "success"
+    },
+    {
+      "name": "Rust",
+      "id": 128461019973,
+      "conclusion": "success"
+    },
+    {
+      "name": "Python bounded offline",
+      "id": 128461020052,
+      "conclusion": "success"
+    },
+    {
+      "name": "Python native module shard 1",
+      "id": 128461567234,
+      "conclusion": "success"
+    },
+    {
+      "name": "Python native module shard 0",
+      "id": 128461567254,
+      "conclusion": "success"
+    },
+    {
+      "name": "Python native execution",
+      "id": 128464214256,
+      "conclusion": "success"
+    },
+    {
+      "name": "Python native",
+      "id": 128464307895,
+      "conclusion": "success"
+    }
+  ],
+  "independent_review_comments": [
+    5813643689,
+    5813661524
+  ],
+  "merge": "dde9e2f971eca864e90ecdb40cb3af8d1596a5e9",
+  "merge_tree": "4e06aaa8989e51f9dc67f260497451f5d2ea0be6",
+  "merge_tree_equals_reviewed_head": true,
+  "counts": {
+    "no_rust": "11409passed452skipped623subtests",
+    "native": "12083passed6skipped623subtests",
+    "viewer": "192files1764passed2skipped"
+  },
+  "main_run": 42393043134,
+  "main_status": "success; all nine exact-main jobs independently verified"
+}

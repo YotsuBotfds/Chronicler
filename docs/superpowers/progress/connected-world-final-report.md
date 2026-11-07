@@ -1,14 +1,17 @@
 # Connected World A–E: integrated implementation and evaluation
 
-The adopted program and amendment have been reconciled row by row in the
-[coverage matrix](connected-world-final-coverage.md). Recovered B3 and D1 are
-merged through #94 and #95 with independently reviewed heads, nine successful
-premerge jobs and nine successful main jobs each. The remaining implementation
-and final evidence are in [PR #96](https://github.com/YotsuBotfds/Chronicler/pull/96).
-Its final exact-head CI and postmerge main CI remain required; this report does
-not label an unmerged candidate complete.
+The adopted program and amendment are reconciled row by row in the
+[coverage matrix](connected-world-final-coverage.md). B3, D1 and the remaining
+adopted implementation/evidence are merged through #94, #95 and
+[PR #96](https://github.com/YotsuBotfds/Chronicler/pull/96). #96 merged at
+`dde9e2f971eca864e90ecdb40cb3af8d1596a5e9`, tree identical to independently
+reviewed `c32c2bbd742f96401171761ddff44f9ccfb96e67`; premerge Tests
+`42391897267` passed all nine jobs. Exact main Tests
+[`42393043134`](https://github.com/YotsuBotfds/Chronicler/actions/runs/42393043134)
+passed all nine jobs, independently verified. The adopted implementation and
+bounded evaluation are integrated, with the explicit limitations below.
 
-The completed candidate connects itemized income and wealth, real food and
+The integrated program connects itemized income and wealth, real food and
 timber custody, paid infrastructure work, forest/water feedback, funded care
 and enforcement, dated institutional permissions, actual army rations and
 restitution, war injury/separation/evacuation/return, adaptive migration and
@@ -47,17 +50,17 @@ chunk limit was retained.
 | Playbook | Retained result |
 | --- | --- |
 | V0–V2 identities, preflight, enrollment | Isolated lanes, source/native hashes, appended module/test/purpose registrations and source guards. Historical witness pins unchanged; independently reviewed `cwcomplete` exact inverse restores the preceding integrated source in 37 hunks across seven files. |
-| V3 bounded offline | Full local gate: 75 chunks, 7,964 passed, 69 skipped, 336.18 seconds total; slowest chunk 34.38 seconds. Later consumed-cohort fixture adjustment: 156 focused tests passed. Final exact-head CI reruns the gate. |
-| V4 native/Python/Rust | 774 Rust tests passed on the integrated native source; actual native timber dispatch/delivery regression and lifecycle contracts passed. Final corrected native purpose modules: 17 passed. Final complete Python/native CI is required separately. |
+| V3 bounded offline | Full local gate: 75 chunks, 7,964 passed, 69 skipped, 336.18 seconds total; slowest chunk 34.38 seconds. Later consumed-cohort fixture adjustment: 156 focused tests passed. Exact reviewed-head CI also passed the full gate. |
+| V4 native/Python/Rust | 774 Rust unit and 562 integration tests passed in reviewed-head CI (1,336 total); actual native timber dispatch/delivery regression and lifecycle contracts passed. Final corrected native purpose modules: 17 passed. Exact reviewed-head CI passed: 12,083 native Python tests, six skips and 623 successful subtests; no-Rust 11,409 passed, 452 skips and 623 subtests. |
 | V5 default identity | Both original `8abc1acb` and preceding reviewed `11467a46` (tree equals main #95): nine cases, 399 compared files, zero differences each. Only the declared generated timestamp normalization applies. |
 | V6 enabled exact resume | 22 active-event and 58 canonical branches: all 80 passed, including raw Arrow comparisons. Canonical cases retain 200-turn hybrid seed 42 and 32-region/8-civilization, 40-turn procedural seed 11. Four additional health active resumes passed. Precheckpoint per-turn JSON is not regenerated; compare scopes/exclusions are explicit in the receipts. |
 | V7 catalog/compatibility | Feature requirements, invalid-mode refusals, persisted state, append-only manifests and compatibility tests are enrolled in the complete offline/native gates. |
-| V8 viewer/browser/old bundles | Viewer unit/TypeScript/lint/build checks; real desktop and phone: 30 connected-history, 38 branch and 82 health checks. Missing-polity/minimal bundle and future-firm guards fixed. Actual source and asset hashes retained. |
-| V9 provenance/examples | Accepted 120-turn natural bundle: 1,200 strict reader observations, zero malformed; 21/24 exact-record example categories, three honest nulls, zero schema/audit errors. No paid narrator. |
+| V8 viewer/browser/old bundles | Viewer unit/TypeScript/lint/build checks; real desktop and phone: 30 natural connected-history, 34 explicitly constructed, 38 branch and 82 health checks. Missing-polity/minimal bundle and future-firm guards fixed. Actual source and asset hashes retained. |
+| V9 provenance/examples | Accepted 120-turn natural bundle: 1,200 strict reader observations, zero malformed; 21/24 exact-record example categories, three honest nulls, zero schema/audit errors. A separately labeled derived visibility demonstration also passes 1,200 reader checks and two exact edited-record citations with zero audit flags. No paid narrator. |
 | V10 held evaluation | D1: 60/60; health: 36/36 at 200 turns; integrated CW6: 60/60 at 120 turns, 131 outcomes per run, zero missing/malformed outcomes. Independent raw and report arithmetic review. Historical failures, nulls and adverse outcomes preserved. |
 | V11 scale/cost | Seven OFF/FULL pairs, 14 runs, 52 strict checkpoint readbacks; actual peak 53,138 native agents. CPU 1.81–6.90×, bundle bytes 2.13–3.94×, peak RSS +60–1,010 MiB. Largest process RSS 1,941.7 MiB; checkpoint write/read maxima 3.348/4.216 seconds. Material costs accepted only for the experimental opt-in path. |
-| V12 review/CI/merge | Actual-source/native, inverse, profile/identity, held arithmetic, browser and final test-contract independent reviews retained. #94 main Tests 42382492574 and #95 main Tests 42386261493 passed all nine jobs. Final #96 exact-head and main checks pending at this report revision. |
-| V13 durable records | Coverage matrix, board, continuation, consumed seed registry, immutable source refs and compact reproducible receipts committed. Final merge/CI identifiers will be recorded after verification. |
+| V12 review/CI/merge | Actual-source/native, inverse, profile/identity, held arithmetic, browser and final test-contract independent reviews retained. #94 main Tests 42382492574 and #95 main Tests 42386261493 passed all nine jobs. Final #96 Tests 42391897267 passed all nine jobs on reviewed c32c2bbd; merge tree equality verified. Exact main Tests 42393043134 passed all nine jobs, independently verified. |
+| V13 durable records | Coverage matrix, board, continuation, consumed seed registry, immutable source refs and compact reproducible receipts committed. Reviewed head, matching merge tree and all-nine premerge/main successes are recorded. The documentation-only completion ledger follows the same CI/review policy; its later main run is linked in its PR. |
 
 Sources: [offline and failed CI receipts](connected-world-verification/),
 [identity](connected-world-program-identity.md),
@@ -100,6 +103,19 @@ food shortfall increased in both strata against cost-only care. D1 relief activa
 primary summary is suppressed; league results were mixed. Invalid historical
 relief lower bounds were withdrawn without rewriting raw evidence.
 
+A [constructed visibility demonstration](connected-world-e-history/constructed/README.md)
+now positively exercises the production banner and exact source/edit disclosure:
+34 desktop/phone checks pass. Its three reversible edits redact person 13's
+individual income-cost observation and the matching A6 withholding/source;
+the 2.000-coin wage remains observed and unknown net income remains unknown.
+All 1,200 strict reader checks and two edited-record provenance entries pass.
+Original raw SHA256 `f6cb5562…` is unchanged; derived SHA256 is
+`019f4b17c49f4e5960e5130b747e3790680312483e95d23eed50b33b29066d89`.
+The compact manifest/reproducer recreates the labeled copy. This is a visibility
+illustration, not an alternative simulation, natural activation or policy
+counterfactual; original held/profile/resume evidence and model choices are
+unchanged. No broader set of constructed per-slice story worlds is claimed.
+
 The current history panel initially opens in about 4.8 seconds for the final
 120-turn bundle. Substantial simulation/recording costs, adverse physical
 outcomes and incomplete personal observations remain material limitations.
@@ -113,10 +129,20 @@ groups are inferred, not permanent lineages; restitution liabilities are not
 spendable wealth. Tax/tithe debtor and decay-versus-food policies retain their
 explicit later-decision status.
 
+Care retains the adopted common `0.3 × coverage` CFR reduction, applied to each
+pathogen's distinct base CFR under one combined floor. This resolves the roadmap's
+open coefficient choice without inventing differentiated, unvalidated values:
+it is **not pathogen-calibrated**, and may overstate care for plague/pestilence.
+Per-pathogen deaths and infectious person-turns are already recorded and checked
+against regional totals; these outcome splits are not measured causal deaths
+averted. Native endemic mortality remains unchanged.
+
 Default-path provenance consumers, merchant origin/current-region income
 mismatch and natural deaths counted as army casualties remain recorded rather
 than silently corrected. Full 200-seed and procedural qualification gates and
-default promotion remain restricted and unrun. No paid narration, purchases,
+default promotion remain restricted and unrun. The two existing ignored Rust
+wall-time benchmarks (6K/24 and 10K/24, 500 turns) were also not invoked; they
+remain manual machine-dependent checks, distinct from the completed V11 profiles. No paid narration, purchases,
 deployments or credential/sharing changes occurred. No raw workspace lifetime
 or automatic restart is promised.
 
