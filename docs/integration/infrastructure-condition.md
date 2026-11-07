@@ -490,6 +490,25 @@ under `/home/user/evidence/b3/` (outside the repository). Every check below ran 
 | Viewer | full suite 1,626 passed and 2 skipped (163 files, `--maxWorkers=2`); `npm run lint` clean; `npm run build` passes |
 | CW3b screen | `check --screen all` passes (42 outcomes, 3 primary); timing pilot at `dbfcd84a` (template 5, procedural 19) 12 runs, 0 failed, every arm activated, every pair in the primaries; `check --metrics` passes; held run on the frozen code: 72 runs, 0 failed, 0.288 core-hours, `check --metrics --cohort held` passes |
 
+**After merging `main` d8a5277b (PR #91, C2 epidemic care) at `7d19b2d6`.** Switch order `...,
+workshop_economics, infrastructure_condition, epidemic_care, attribution_records, wealth_accounting`
+(C2's guard: only observers follow its carers); L9 providers `..., epidemic_care,
+infrastructure_condition`; money books and bills in landing order; layer `cwb3` rebuilt last, after
+`cwc2`, against d8a5277b (the same 7 B3 hunks). The works' own labour is the anonymous storage column
+and names nobody; the woodcutters PL1 sends for them hold the native registry's `repair` category,
+which C2's shared query (`labour_reservations.booked`) reports (a test), so no carer is booked twice
+with them. Checks at `7d19b2d6`: feature-off identity against `8abc1acb` and against d8a5277b, 9
+cases and 399 files each, 0 differences; B3 off with PL1 and L9 against d8a5277b (hybrid_s42,
+proc48_hybrid_s42) 205 files, 0 differences; `record_only` against d8a5277b without the switch:
+only the bundle and `state.json` differ, and they are equal once the B3 record and its two keys are
+removed; exact resume with every livelihoods switch, C2 in place of A1 (they exclude each other),
+B3 and PL1 (`hybrid_s42_long`, 19 resume points) PASS, and flow x condition (`proc32_hybrid_s11`, 39)
+PASS; offline lane PASS (71 chunks, 7,481 passed, 0 failed); native B3, PL1, C2, RS2, closure and
+watershed modules 28 passed; witness 509 passed; viewer 1,636 passed, lint and build clean; every
+stored screen report (CW1, CW3, CW4, CW4b, CW5c, CW3b; held and pilot) regenerates byte for byte
+under the merged runner. The CW3b gate then moved to `Outcome.pair` (the CW3b page, post-run
+refactor): numbers unchanged, excluded cells labelled.
+
 Earlier identities still standing: `--watershed-mode flow` alone against main bac45cb5 (92 files, 0
 differences, at `e2b62e6c`) and `--infrastructure-condition` alone without L9 against the approved
 `10d73230` (205 files, 0 differences, at `e2b62e6c`); with `--local-budgets` the condition switch

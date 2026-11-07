@@ -290,14 +290,17 @@ strata (B is the root): every C and C_T world opened works on irrigation assets 
 per template world, 37 [30, 45] per procedural world, in C).
 
 **Pre-treatment check (snapshot 28).** R, W and W_T passed on every world. C failed on template 3503
-(a work opened by turn 27) and 3506 (work delivered by snapshot 28) and procedural 3604 and 3606
-(works opened by turn 27); C_T failed on template 3503 and procedural 3602 and 3604 (works opened
-and work delivered before snapshot 28). Under the frozen rule those pairs are excluded from the
+(a work opened by turn 27), template 3506 (works opened by turn 27 and 4.0 work units delivered by
+snapshot 28) and procedural 3604 and 3606 (works opened by turn 27); C_T failed on template 3503
+(works opened by turn 27; nothing delivered) and procedural 3602 and 3604 (works opened by turn 27
+and work delivered before snapshot 28: 3.01 and 5.4 units). Under the frozen rule those pairs are excluded from the
 primaries (reported, not imputed): **C - W on 4 template and 4 procedural worlds; C_T - W_T on 5
 template and 4 procedural worlds.** Every pair shares its irrigated-region set except procedural
 3602's treasury pair, whose C_T run had already delivered work before snapshot 28 (the check
 failed, so the trajectories had diverged: not the defect case of two passing arms with different
-sets). With four worlds the most extreme sign-flip share possible is 2 of 16; with five, 2 of 32.
+sets). With four worlds and no zero difference the most extreme sign-flip share possible is 2 of
+16 (with five, 2 of 32); with one world's difference exactly zero the floor is 4 of 16 (four
+worlds) or 4 of 32 (five).
 
 Uncertainty below is descriptive (the runner's report): the mean, min/max, sign counts (> 0 / < 0
 / = 0) and how many sign assignments of the per-world differences give a mean at least as far from
@@ -319,17 +322,20 @@ no test).**
 
 - **Treasury-funded repair kept more irrigation serving** on every gated world where it differed:
   +0.12 of irrigation asset-turns in procedural (4 of 4, the most extreme assignment) and +0.05 in
-  template (4 of 5, the fifth unchanged; 4 of 32).
+  template (4 of 5, the fifth unchanged; 4 of 32, the floor with one zero). Beside it, as a harm,
+  the treasury pair's world-wide food shortfall was higher on 4 of 6 template worlds (+85 [-495,
+  +504], 4/1/1, 32 of 64) and mixed in procedural (-154, 3/3/0, 44 of 64): no consistent loss, and
+  no gain either.
 - **Under L9 the procedural worlds kept more irrigation serving too** (+0.09, 4 of 4, 2 of 16), while
-  **the template L9 result is a null** (+0.02: one world +0.07, the others within ±0.01 or
-  unchanged; 8 of 16). That is the expected exposure-with-little-delivery case the frozen page
+  **the template L9 result is a null** (+0.02: one world +0.07, the others between -0.001 and
+  +0.0105 or unchanged; 8 of 16). That is the expected exposure-with-little-delivery case the frozen page
   names: the template L9 works delivered 5.8 [0, 17.6] work units per world over 200 turns, won 3.3
   [0, 11] awards and stalled 1,138 work-turns for want of an envelope and 1,116 for want of timber
   per world; on template 3502 they opened 7 works and delivered nothing, and the C and W runs were
   identical in every harm. The procedural L9 works delivered 78.6 [1.2, 140] per world (30 awards).
 - **Food in the irrigated regions: a lower shortfall under L9 repair on every gated world that
   differed** (procedural -0.016 of demand, 4 of 4, 2 of 16; template -0.006, 3 of 4 with one
-  unchanged, 4 of 16). Small in size, as predicted, and of consistent sign here; whole-trajectory
+  unchanged, 4 of 16, the floor with one zero). Small in size, as predicted, and of consistent sign here; whole-trajectory
   differences on four worlds per stratum, not a mechanism estimate.
 
 ### Harms beside the primaries
@@ -348,8 +354,9 @@ Screen harms (the harm outcomes of the frozen panel; template / procedural):
   expeditions per world).
 - **Farm time removed** (the works' delivered work, C): 5.8 / 78.6 work units per world; C_T 28.5 /
   221.6. **Coins destroyed** by the public-works sink: C 3.8 / 50.3 per world; C_T 17.0 / 129.3.
-- **Treasury at the end** (C - W): +37.5 (3/2/1, 48 of 64) / **-1,375 [-3,317, +1,898] (1/5/0, 8 of
-  64)**; **mean stability** -3.4 (28 of 64) / -0.3 (60 of 64): no consistent direction.
+- **Treasury at the end**, the L9 pair (C - W): +37.5 (3/2/1, 48 of 64) / **-1,375 [-3,317, +1,898]
+  (1/5/0, 8 of 64)**; the treasury pair (C_T - W_T, runner panel): +90 (3/2/1) / -674.5 (3/3/0);
+  **mean stability** (C - W) -3.4 (28 of 64) / -0.3 (60 of 64): no consistent direction.
 - **Food shortfall world-wide** (C - W): -63 (3/2/1, 44 of 64) / -655 [-2,032, +227] (1/5/0, 6 of
   64); C_T - W_T +85 (4/1/1, 32 of 64) / -154 (3/3/0, 44 of 64). **Population at the end**: C - W
   -9.3 [-20, 0] (0/5/1, 4 of 64) / -8.2 (4/2/0, 60 of 64); C_T - W_T +15.3 (4/1/1, 12 of 64) / +20.7
@@ -397,3 +404,31 @@ No run failed, none was incomplete, no outcome was missing, and no run was stopp
 comparisons on four to six worlds per stratum: they describe direction and spread on held worlds,
 not a mechanism, and they do not license promotion (the owner's decision). Constants are declared
 and uncalibrated; nothing was tuned on these or any held worlds.
+
+### Post-run refactor of the pair gate (2026-11-07, after the held run; not a design change)
+
+The first gate (`_cw3b_gated`, frozen code `dbfcd84a`) read each row separately and kept the arm's
+irrigated set between calls, so it depended on the runner reading a world's arm row before its
+control row (it failed closed: a reversed order would have dropped the pair as "unknown", never
+included it wrongly). When `main`'s runner gained `Outcome.pair` (PR #91), the gated outcomes moved
+to a stateless pair reading (`_cw3b_pair`: both runs pass the pre-treatment check and share the
+set) with a label for an excluded cell (`Outcome.why`: "excluded: pre-treatment check" or
+"excluded: sets differ"; a one-field addition to the runner, default unchanged). The stored held
+and pilot reports regenerate with every number identical: the pilot report byte for byte, the
+held report with only its 14 "unknown" cells of excluded pairs now reading "excluded:
+pre-treatment check" (a test checks this, `tests/test_infrastructure_condition.py`), and every
+other stored screen report (CW1, CW3, CW4, CW4b, CW5c, held and pilot) byte for byte under the
+merged runner. The stored `report.md` files are left as the run wrote them.
+
+### Corrections after the independent check (2026-11-07)
+
+The independent check confirmed the freeze, the identities and every number (no numeric
+correction). Wording corrected above: the pre-treatment failures now name each run's own reasons
+(template 3503's C_T run only opened works; template 3506's C run opened works and delivered 4.0
+units; procedural 3602 and 3604's C_T runs delivered 3.01 and 5.4); the most extreme sign-flip
+shares are stated with and without a zero difference (4 of 16 and 4 of 32 are the floors with one
+zero, which template `cw3b_food_l9` and `cw3b_service_treasury` reach); the template L9 null's other
+worlds lie between -0.001 and +0.0105 (not "within ±0.01"); the procedural treasury harm of -1,375
+belongs to the L9 pair (C - W), the treasury pair's being -674.5 (3/3/0); and the template treasury
+pair's world-wide food shortfall (+85, higher on 4 of 6, 32 of 64) is now read beside that service
+result as a harm.

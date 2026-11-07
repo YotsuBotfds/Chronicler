@@ -2129,29 +2129,41 @@ def cw3b_extract(bundle: dict, flags) -> tuple[dict, list[str]]:
     return m, problems
 
 
-def _cw3b_gated(key, arm, control):
-    """A gated reading of ``arm`` - ``control``: a row reads only where its run passed the
-    pre-treatment check, and the control's row only where its irrigated-region set is the
-    arm's on the same world. The runner reads a world's arm row and then its control row
-    (``screen_runner.paired_values``), so the arm's set is recorded at its reading and the
-    control's reading is missing unless it matches (fail closed when none was recorded).
-    A world failing either rule is excluded from the pair (the value is missing), as the
-    report's pair table says."""
-    seen: dict = {}
+def _cw3b_gated(key):
+    """A primary's per-row reading where the run passed the pre-treatment check (``read``;
+    the pairs below use :func:`_cw3b_pair`, which the runner prefers)."""
+    return lambda row: (row.get("m") or {}).get(key) if (row.get("m") or {}).get("pre_ok") is True else None
 
-    def read(row):
+
+def _cw3b_pair(key):
+    """A gated pair reading (``Outcome.pair``, stateless): ``(arm value, control value)``
+    where both runs passed the pre-treatment check and recorded the same irrigated-region
+    set; otherwise the failing side's value is missing: a run that failed the check reads
+    None on its own side, and with both passing but different sets the control's value is
+    missing. A world failing either rule is excluded from the pair, as the report's pair
+    table says (:func:`_cw3b_why` labels the cell)."""
+    def pair(arm_row, control_row):
+        a, c = arm_row.get("m") or {}, control_row.get("m") or {}
+        if a.get("pre_ok") is not True:
+            return None, c.get(key)
+        if c.get("pre_ok") is not True:
+            return a.get(key), None
+        if a.get("irrigated_set_sha") != c.get("irrigated_set_sha"):
+            return a.get(key), None
+        return a.get(key), c.get(key)
+    return pair
+
+
+def _cw3b_why(key):
+    """The report's label for a missing gated value (the row whose value is missing)."""
+    def why(row):
         m = row.get("m") or {}
         if m.get("pre_ok") is not True:
-            return None
-        world = (row.get("stratum"), row.get("seed"))
-        if row.get("arm") == arm:
-            seen[world] = m.get("irrigated_set_sha")
-            return m.get(key)
-        if row.get("arm") == control:
-            sha = seen.pop(world, None)
-            return m.get(key) if sha is not None and sha == m.get("irrigated_set_sha") else None
-        return None
-    return read
+            return "excluded: pre-treatment check"
+        if m.get(key) is None:
+            return "unknown"
+        return "excluded: sets differ"
+    return why
 
 
 def _cw3b_report(rows, strata) -> list[str]:
@@ -2197,15 +2209,16 @@ def _cw3b_outcomes() -> tuple[SR.Outcome, ...]:
         # arms recorded different irrigated-region sets, is excluded from that pair (_cw3b_gated).
         SR.Outcome("cw3b_service_l9", "Irrigation asset-turns at service >= 0.5 after snapshot 28, share (C - W: "
                    "works funded only through their own L9 proposal, against none)", "C", "W",
-                   _cw3b_gated(service, "C", "W"), primary=True),
+                   _cw3b_gated(service), primary=True, pair=_cw3b_pair(service), why=_cw3b_why(service)),
         SR.Outcome("cw3b_food_l9", "Food shortfall share after relief after snapshot 28, in the regions irrigated "
-                   "at snapshot 28 (C - W)", "C", "W", _cw3b_gated(food, "C", "W"), primary=True),
+                   "at snapshot 28 (C - W)", "C", "W", _cw3b_gated(food), primary=True,
+                   pair=_cw3b_pair(food), why=_cw3b_why(food)),
         SR.Outcome("cw3b_service_treasury", "Irrigation asset-turns at service >= 0.5 after snapshot 28, share "
                    "(C_T - W_T: works funded by the treasury against none)", "C_T", "W_T",
-                   _cw3b_gated(service, "C_T", "W_T"), primary=True),
+                   _cw3b_gated(service), primary=True, pair=_cw3b_pair(service), why=_cw3b_why(service)),
         SR.Outcome("cw3b_food_treasury", "Food shortfall share after snapshot 28 in the irrigated regions (C_T - W_T; "
                    "C_T also repairs roads, which C does not: the works' L9 proposal is irrigation-only)",
-                   "C_T", "W_T", _cw3b_gated(food, "C_T", "W_T")),
+                   "C_T", "W_T", _cw3b_gated(food), pair=_cw3b_pair(food), why=_cw3b_why(food)),
         # Full-trajectory versions (pre-treatment snapshots included, every world).
         SR.Outcome("cw3b_service_l9_all", "Irrigation serving share over the whole run (C - W)", "C", "W",
                    _m("irrigation_serving_share")),

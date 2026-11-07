@@ -1015,8 +1015,23 @@ def test_the_cw3b_screen_is_declared_with_its_cohort_and_reads_the_record():
                 "m": {"pre_ok": True, "irrigated_set_sha": sha, "irrigation_serving_share_after": value}}
     rows = [row("C_T", 1, "a", 0.75), row("W_T", 1, "a", 0.5), row("C_T", 2, "a", 0.9), row("W_T", 2, "b", 0.1)]
     primary = next(o for o in screen.outcomes if o.id == "cw3b_service_treasury")
-    cells, values = cws.SR.paired_values(rows, screen, "C_T", "W_T", primary.read, "t", [1, 2])
-    assert values == [0.25] and cells[1] == "2: unknown"
+    assert all(o.pair is not None and o.why is not None for o in screen.outcomes if o.primary)
+    cells, values = cws.SR.paired_values(rows, screen, "C_T", "W_T", primary.read, "t", [1, 2], pair=primary.pair,
+                                         why=primary.why)
+    assert values == [0.25] and cells[1] == "2: excluded: sets differ"
+    failed = [row("C_T", 1, "a", 0.75), {**row("W_T", 1, "a", 0.5), "m": {"pre_ok": False}}]
+    cells, values = cws.SR.paired_values(failed, screen, "C_T", "W_T", primary.read, "t", [1], pair=primary.pair,
+                                         why=primary.why)
+    assert values == [] and cells == ["1: excluded: pre-treatment check"]
+    # Stateless: the reading depends only on the two rows, not on the order or history of calls
+    # (the first gate kept the arm's set between calls and needed the arm row read first).
+    a2, c2, a1, c1 = rows[2], rows[3], rows[0], rows[1]
+    assert primary.pair(c1, a1) == (0.5, 0.75)                      # reversed read order: same gate
+    assert primary.pair(a2, c2) == (0.9, None) and primary.pair(c2, a2) == (0.1, None)
+    assert [primary.pair(*r) for r in ((a2, c2), (a1, c1), (a1, c1))] == [(0.9, None), (0.75, 0.5), (0.75, 0.5)]
+    cells_rev, values_rev = cws.SR.paired_values(list(reversed(rows)), screen, "C_T", "W_T", primary.read, "t", [2, 1],
+                                                 pair=primary.pair, why=primary.why)
+    assert values_rev == [0.25] and cells_rev[0] == "2: excluded: sets differ"
     report = "\n".join(cws._cw3b_report(rows, {"t": [1, 2]}))
     assert "| t | 2 | C_T - W_T | DIFFERENT SETS | excluded from the primaries |" in report
     acted, text = cws.cw3b_activation(bundle, flags)
@@ -1294,3 +1309,21 @@ def test_the_works_woodcutters_are_visible_to_the_one_labour_reservation():
         if plan.status == "pending":
             S.rollback_storage_work(world, plan)
         LV.rollback_phase2(world)
+
+
+def test_the_stored_cw3b_held_report_regenerates_with_only_the_exclusion_labels_changed():
+    """The post-run refactor of the gate (stateful read -> stateless ``Outcome.pair``): the
+    stored held report's every number regenerates; only "unknown" cells of excluded pairs
+    now name their exclusion."""
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("cws", ROOT / "scripts/connected_world_screens.py")
+    cws = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(cws)
+    screen, SR = cws.SCREENS["CW3b"], cws.SR
+    folder = ROOT / "docs/superpowers/progress/connected-world-screens-cw3b/held"
+    rows = SR.read_rows(folder / "metrics.jsonl", screen)
+    lines = SR.report_lines(rows, screen, SR.cohort_seeds(screen, "held"))
+    text = "\n".join(lines) + "\n"
+    assert text.count("excluded: pre-treatment check") == 14 and "excluded: sets differ" not in text
+    stored = (folder / "report.md").read_text(encoding="utf-8")
+    assert text.replace("excluded: pre-treatment check", "unknown") == stored
