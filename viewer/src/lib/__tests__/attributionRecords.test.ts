@@ -49,6 +49,11 @@ it("rejects malformed records with a reason", () => {
     [withFrame({ burdens: { ...frame.burdens, pairs: [{ ...frame.burdens.pairs[0], nature: "taken" }] } }),
       "malformed burden pair"],
     [withFrame({ identity: [{ ...frame.identity[0], kind: "reborn" }] }), "malformed identity event"],
+    [withFrame({ casualties: { ...frame.casualties, battle_checks: [{ battle: 1, side: "A", recorded: -1 }] } }),
+      "malformed battle checks"],
+    [withFrame({ casualties: { ...frame.casualties, war_drains: [{ region: 1, staged: 2, actors: [3], unnamed: 0 }] } }),
+      "malformed war drains"],
+    [withFrame({ burdens: { ...frame.burdens, zero_events: { city_sack: -1 } } }), "malformed zero events"],
   ];
   for (const [livelihoods, reason] of cases) expect(read(livelihoods)).toEqual({ state: "malformed", reason });
 });

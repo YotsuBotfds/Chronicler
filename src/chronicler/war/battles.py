@@ -163,7 +163,8 @@ def _split(total: int, weights: list[int]) -> list[int]:
     return [min(b, w) for b, w in zip(base, weights)]
 
 
-def _apply_side_losses(ctx: WarContext, side: Side, losses: int, region: "Region", cause: str) -> int:
+def _apply_side_losses(ctx: WarContext, side: Side, losses: int, region: "Region", cause: str,
+                       enemy: "Civilization | None" = None) -> int:
     parts = [a.soldiers for a in side.armies] + [side.mercs, side.garrison]
     shares = _split(losses, parts)
     killed = 0
@@ -184,7 +185,7 @@ def _apply_side_losses(ctx: WarContext, side: Side, losses: int, region: "Region
     garrison_loss = shares[-1]
     if garrison_loss:
         side.garrison -= garrison_loss
-        killed += drain_population(ctx, [region.name], garrison_loss)
+        killed += drain_population(ctx, [region.name], garrison_loss, actor=enemy)
     return killed
 
 
@@ -244,8 +245,8 @@ def fight(ctx: WarContext, war: "WarRecord", region: "Region", attacker: Side, d
     d_loss = int(round(d_n * d_rate * rng.uniform(0.8, 1.2) * scale))
     a_gen = attacker.armies and general_of(world, attacker.armies[0])
     d_gen = defender.armies and general_of(world, defender.armies[0])
-    a_killed = _apply_side_losses(ctx, attacker, a_loss, region, "battle")
-    d_killed = _apply_side_losses(ctx, defender, d_loss, region, "battle")
+    a_killed = _apply_side_losses(ctx, attacker, a_loss, region, "battle", enemy=defender.civ)
+    d_killed = _apply_side_losses(ctx, defender, d_loss, region, "battle", enemy=attacker.civ)
 
     outcome = ("attacker_wins" if winner is attacker else "defender_wins" if winner is defender
                else "stalemate")
@@ -397,7 +398,8 @@ def siege_turn(ctx: WarContext, war: "WarRecord", region: "Region", armies: list
         emit(ctx, "siege_begun", [besieger.name, owner.name],
              f"{lead.name} lays siege to {region.name} ({required} turns to breach).", importance=5,
              region=region.name)
-    drain_population(ctx, [region.name], region.population * P.SIEGE_CIVILIAN_LOSS_PERMILLE // 1000)
+    drain_population(ctx, [region.name], region.population * P.SIEGE_CIVILIAN_LOSS_PERMILLE // 1000,
+                     actor=besieger)
     from chronicler.war.occupation import _requisition
     _requisition(region, 0.85, ctx.world, cause="siege", actor=besieger)
     if lead.siege_turns < required:

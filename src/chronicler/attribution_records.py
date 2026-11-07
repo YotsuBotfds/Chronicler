@@ -20,9 +20,13 @@ them, at the event, in one dated record:
    ``buyer``, stale after a same-turn conquest), matched to the flow by index.
 2. **Casualties** per war, turn, victim, actor and cause: campaign combat
    (``battle``, ``trapped`` after a lost battle, occupation ``revolt``),
-   ``attrition`` and the ``natural`` deaths of enlisted soldiers that
-   ``reconcile_rosters`` books as casualties, with a per-army closure against
-   the army's own casualty counter (kept outside ``models.Army``).
+   ``attrition``, and the deaths ``reconcile_rosters`` books as casualties,
+   split into ``war_drain``/``possibly_enemy`` (the agent died in a region
+   where a war drain staged deaths that turn) and ``natural`` (the rest:
+   native mortality with its x2 for soldiers at war, plague and other non-war
+   catastrophes). A per-army closure against the army's own casualty counter
+   (kept outside ``models.Army``) shows that no note was dropped; a per-battle
+   check bounds each side's recorded battle deaths by its battle record.
 3. **Identity**: each reuse of a civilization index (a restoration resets the
    dead polity's founding turn under the same index and name; a "New"
    restoration appends a second index with an old name), dated, with the old
@@ -34,7 +38,7 @@ them, at the event, in one dated record:
 
 Seams. Event-time notes from the unpinned decision modules, each behind the
 existing ``world.livelihoods`` guard and a no-op unless this switch is active
-(``war.armies.apply_casualties`` and ``reconcile_rosters``,
+(``war.armies.apply_casualties``, ``reconcile_rosters`` and ``drain_population``,
 ``war.occupation._requisition``, ``start_occupation`` and
 ``tick_occupations``, ``action_engine.apply_region_conquest``,
 ``cities._commerce`` and ``cities._sack``), plus the Phase 10 commit (the last
@@ -69,22 +73,35 @@ LABELS: dict[str, str] = {
     "casualties": ("enlisted soldiers who died this turn, per war (war key and start turn), victim (the army's "
                    "civilization), actor and cause; combat: battle (field, skirmish or assault; the actor is the "
                    "other side of the battle record), trapped (a beaten army with no retreat; the battle's "
-                   "winner), revolt (an occupation uprising; the actor is the region's owner); attrition: "
-                   "terrain, hunger, supply and siege disease (no actor; the war's other side is the opponent); "
-                   "natural: native mortality of enlisted agents found dead after the tick, which reconcile_rosters "
-                   "books as army casualties (no actor; includes the native x2 soldier-at-war mortality, which "
-                   "cannot be separated without a native change). Militia, mercenary and civilian deaths are not "
-                   "soldiers of a roster and are not here (battle records count them)"),
+                   "winner), revolt (an occupation uprising: the actor is the region's owner polity, whose "
+                   "partisans are drawn from the population); attrition: terrain, hunger, supply and siege "
+                   "disease (no actor; the war's other side is the opponent); war_drain: found dead after the "
+                   "tick in a region where a war drain (siege civilians, a battle's garrison, occupation "
+                   "depopulation, a crushed revolt) staged deaths that turn, the drain's actor when the region's "
+                   "drains name one (possibly_enemy: several or none) - possibly killed by it, possibly natural; "
+                   "natural: the other deaths found after the tick, which reconcile_rosters books as army "
+                   "casualties (no actor): native mortality including its x2 for soldiers at war, which cannot "
+                   "be separated without a native change, plague and other non-war catastrophes. Militia, "
+                   "mercenary and civilian deaths are not soldiers of a roster and are not here (battle records "
+                   "count them)"),
     "army_closure": ("per live army: the deaths recorded this turn against the change of its casualty counter "
-                     "since the last commit; unchecked (null) for an army without a baseline"),
+                     "since the last commit; unchecked (null) for an army without a baseline. Both writers of the "
+                     "counter note the same number, so this proves only that no note was dropped, not the cause "
+                     "split"),
+    "battle_checks": ("per battle and side: the battle deaths recorded for that side's armies, at most the side's "
+                      "losses in the battle record (which also count mercenaries and garrison), so a death "
+                      "attributed to the wrong battle or side shows"),
     "granary": ("each SEIZED flow of the turn with its actor and victim at the event; books_owner is the flow's "
                 "buyer (the granary owner on the books, set at the Phase 2 opening), stale after an earlier "
                 "same-turn conquest; unattributed counts SEIZED flows no note saw (null: granaries inactive)"),
     "burdens": ("recorded burdens per actor -> victim pair: transfer (paid by the victim, received by the actor), "
                 "minted (credited to the actor, taken from nobody), destroyed (lost by the victim, received by "
                 "nobody), restriction (no amount moves); each entry names the authority that decided it. "
-                "Internal pairs (actor == victim) are a polity's own dues. Not recorded: diplomacy tribute "
-                "installments, vassal tribute, siege and occupation civilian deaths"),
+                "Dues and sacks are paid from the city purse, not the victim polity's treasury; dues are "
+                "assessed (a dead lord's are dropped at payment). Internal pairs (actor == victim) are a "
+                "polity's own dues. Events of amount zero (but restrictions) are counted in zero_events, not "
+                "in pairs. Not recorded: diplomacy tribute installments, vassal tribute, siege and occupation "
+                "civilian deaths"),
     "identity": ("a civilization index reused by another polity: restored (a new founding turn under the same "
                  "index and name), revived (alive again without a new founding), name_reused (a new index named "
                  "like an older one), renamed; records keyed by index or name before the event belong to the "
@@ -95,7 +112,7 @@ LABELS: dict[str, str] = {
 class _Turn:
     """The notes of one turn, first note to the Phase 10 commit (never checkpointed)."""
 
-    __slots__ = ("turn", "casualties", "entries", "seizures", "granary_flows", "retail_seqs")
+    __slots__ = ("turn", "casualties", "entries", "seizures", "granary_flows", "retail_seqs", "drains")
 
     def __init__(self, turn: int):
         self.turn = turn
@@ -104,6 +121,7 @@ class _Turn:
         self.seizures: list[dict] = []
         self.granary_flows: set[int] = set()
         self.retail_seqs: set[int] = set()
+        self.drains: dict[int, list[tuple[int, int | None, str | None]]] = {}
 
 
 # ---------------------------------------------------------------------------
@@ -257,7 +275,7 @@ def _entry(world, kind: str, actor, victim, amount, *, region: int | None = None
     return row
 
 
-def note_casualties(world, army, count: int, cause: str) -> None:
+def note_casualties(world, army, count: int, cause: str, *, actor: tuple | None = None) -> None:
     """``war.armies.apply_casualties``: ``count`` soldiers of ``army`` killed by
     ``cause``. The actor of a battle is resolved at the commit from the battle
     record the engagement appends next (``trapped``: the one it just
@@ -271,6 +289,8 @@ def note_casualties(world, army, count: int, cause: str) -> None:
     v_idx, v_name = _civ(world, army.civ)
     row = {"army": army.army_id, "victim": v_idx, "victim_name": v_name, "war": army.war_key,
            "cause": cause, "count": int(count)}
+    if actor is not None:
+        row.update(actor=actor[0], actor_name=actor[1])
     battles = world.war_state.battles
     if cause == "battle":
         row["battle"] = len(battles)
@@ -285,10 +305,47 @@ def note_casualties(world, army, count: int, cause: str) -> None:
     t.casualties.append(row)
 
 
-def note_natural_deaths(world, army, lost: int) -> None:
-    """``war.armies.reconcile_rosters``: enlisted agents of ``army`` found dead
-    after the native tick (natural mortality), booked there as casualties."""
-    note_casualties(world, army, lost, "natural")
+def note_war_drain(world, regions, drains, actor) -> None:
+    """``war.armies.drain_population`` (agent modes): deaths staged in each
+    region by a war drain this turn, with the enemy whose action it is when the
+    caller names one (siege, garrison, occupation, revolt)."""
+    found = _active_turn(world, "war_drain")
+    if found is None:
+        return
+    _s, t = found
+    a_idx, a_name = _civ(world, actor)
+    for region, staged in zip(regions, drains):
+        if staged > 0:
+            rid = _region_index(world, region)
+            if rid is not None:
+                t.drains.setdefault(rid, []).append((int(staged), a_idx, a_name))
+
+
+def note_natural_deaths(world, army, entries) -> None:
+    """``war.armies.reconcile_rosters``: the roster entries ``(agent id,
+    region)`` of ``army`` found dead after the native tick, booked there as
+    casualties. A death in a region where a war drain staged deaths this turn
+    is ``war_drain`` (the drains name one actor) or ``possibly_enemy``;
+    otherwise ``natural``."""
+    if not entries:
+        return
+    state = _state(world)
+    if state is None or not attribution_records_active(world):
+        return
+    t = state._turn if state._turn is not None and state._turn.turn == int(world.turn) else None
+    drains = t.drains if t is not None else {}
+    groups: dict[tuple, int] = {}
+    for _aid, region in entries:
+        hit = drains.get(region)
+        if not hit:
+            key = ("natural", None)
+        else:
+            actors = {(idx, name) for _n, idx, name in hit}
+            key = ("war_drain", next(iter(actors))) if len(actors) == 1 and None not in next(iter(actors)) \
+                else ("possibly_enemy", None)
+        groups[key] = groups.get(key, 0) + 1
+    for (cause, actor), n in sorted(groups.items(), key=lambda kv: (kv[0][0], kv[0][1] or (-1, ""))):
+        note_casualties(world, army, n, cause, actor=actor)
 
 
 def _seizure(world, t: _Turn, rid: int | None, cause: str, actor, victim, via: str | None) -> None:
@@ -439,9 +496,11 @@ def note_city_sack(world, city, sacker_idx: int, victim_idx: int, loot: float, p
     sacker = sacker_idx if sacker_idx >= 0 else None
     victim = victim_idx if victim_idx >= 0 else None
     receipt = {"settlement": city.settlement_id}
-    t.entries.append(_entry(world, "city_sack", sacker, victim, int(paid), region=city.region,
+    # Without a sacker nothing is credited (cities._sack): the whole loot is lost.
+    paid_to = int(paid) if sacker is not None else 0
+    t.entries.append(_entry(world, "city_sack", sacker, victim, paid_to, region=city.region,
                             city=city.settlement_id, cause="sack", receipt=receipt))
-    t.entries.append(_entry(world, "city_sack_loss", sacker, victim, float(loot) - int(paid), region=city.region,
+    t.entries.append(_entry(world, "city_sack_loss", sacker, victim, float(loot) - paid_to, region=city.region,
                             city=city.settlement_id, cause="sack", receipt=receipt))
 
 
@@ -487,6 +546,29 @@ def _casualties(world, state: AttributionRecordsState, t: _Turn, turn: int) -> d
         row["deaths"] += note["count"]
         by_army[note["army"]] = by_army.get(note["army"], 0) + note["count"]
     ordered = [rows[k] for k in sorted(rows)]
+    # Per battle and side: recorded battle deaths at most the battle record's losses.
+    per_battle: dict[tuple[int, str], int] = {}
+    for note in t.casualties:
+        if note["cause"] == "battle":
+            key = (note["battle"], note["victim_name"] or "")
+            per_battle[key] = per_battle.get(key, 0) + note["count"]
+    battle_checks = []
+    for (i, name), recorded in sorted(per_battle.items()):
+        b = battles[i] if 0 <= i < len(battles) else None
+        if b is None or b.turn != turn or name not in (b.attacker, b.defender):
+            losses = None
+        else:
+            losses = b.attacker_losses if name == b.attacker else b.defender_losses
+        holds = losses is not None and recorded <= losses
+        battle_checks.append({"battle": i, "side": name, "recorded": recorded, "battle_losses": losses,
+                              "holds": holds})
+        _bump(state, "battle_checks")
+        if not holds:
+            _bump(state, "battle_checks_failed")
+    war_drains = [{"region": rid, "staged": sum(n for n, _i, _a in hits),
+                   "actors": sorted({a for _n, _i, a in hits if a is not None}),
+                   "unnamed": sum(1 for _n, i, _a in hits if i is None)}
+                  for rid, hits in sorted(t.drains.items())]
     by_class = {c: 0 for c in CASUALTY_CLASSES}
     by_cause = {c: 0 for c in CASUALTY_CAUSES}
     for row in ordered:
@@ -527,8 +609,11 @@ def _casualties(world, state: AttributionRecordsState, t: _Turn, turn: int) -> d
             _total(state, f"deaths_{cause}", n)
     if unresolved:
         _bump(state, "combat_unresolved", unresolved)
+    drained = by_class.get("war_drain", 0)
+    if drained:
+        _bump(state, "war_drain_deaths", drained)
     return {"rows": ordered, "by_class": by_class, "by_cause": by_cause, "unresolved": unresolved,
-            "armies": armies}
+            "armies": armies, "battle_checks": battle_checks, "war_drains": war_drains}
 
 
 def _treaties(world, t: _Turn, turn: int) -> None:
@@ -587,7 +672,16 @@ def _retail_unattributed(world, state: AttributionRecordsState, t: _Turn, turn: 
 
 def _burdens(state: AttributionRecordsState, entries: list[dict]) -> dict:
     pairs: dict[tuple, dict] = {}
+    zero: dict[str, int] = {}
+    kept_entries = []
     for e in entries:
+        if e["amount"] == 0 and e["nature"] != "restriction":
+            # A burden event that moved nothing (no plunder from an empty
+            # region, nothing left to spend or seize): counted, not paired.
+            zero[e["kind"]] = zero.get(e["kind"], 0) + 1
+            _bump(state, "zero_amount_events")
+            continue
+        kept_entries.append(e)
         key = (e["kind"], e["nature"], e["unit"], e["actor"] if e["actor"] is not None else -1,
                e["victim"] if e["victim"] is not None else -1)
         row = pairs.get(key)
@@ -604,11 +698,12 @@ def _burdens(state: AttributionRecordsState, entries: list[dict]) -> dict:
         row["events"] += 1
         _total(state, f"burden_{e['kind']}", e["amount"] or 0)
         _total(state, f"burden_{e['kind']}_events", 1)
-    kept = entries[:MAX_ENTRIES]
-    dropped = len(entries) - len(kept)
+    kept = kept_entries[:MAX_ENTRIES]
+    dropped = len(kept_entries) - len(kept)
     if dropped:
         _bump(state, "entries_dropped", dropped)
-    return {"pairs": [pairs[k] for k in sorted(pairs)], "entries": kept, "entries_dropped": dropped}
+    return {"pairs": [pairs[k] for k in sorted(pairs)], "entries": kept, "entries_dropped": dropped,
+            "zero_events": dict(sorted(zero.items()))}
 
 
 def _identity(world, state: AttributionRecordsState, turn: int) -> list[dict]:

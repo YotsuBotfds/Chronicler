@@ -223,7 +223,7 @@ def tick_occupations(ctx: WarContext) -> None:
         add_stat(ctx, owner, "stability", -max(1, int(get_severity_multiplier(owner, world))), "signal")
         owner.war_weariness += P.OCCUPATION_WEARINESS
         if occ.unrest >= P.UNREST_DEPOPULATION and region.population > 2:
-            drain_population(ctx, [region.name], max(1, region.population // 100))
+            drain_population(ctx, [region.name], max(1, region.population // 100), actor=occupier)
         # Resistance.
         if occ.unrest >= revolt_threshold:
             rng = war_rng(ctx, "revolt", occ.region)
@@ -271,7 +271,7 @@ def _revolt(ctx: WarContext, occ, region, owner, occupier, garrison, rng) -> Non
         name_event(ctx, title, "uprising", [owner.name, occupier.name], region.name,
                    f"The people of {region.name} rise against {occupier.name}", 6)
     else:
-        killed = drain_population(ctx, [region.name], partisans)
+        killed = drain_population(ctx, [region.name], partisans, actor=occupier)
         occ.unrest = max(0, occ.unrest - 300)
         for army in garrison:
             apply_casualties(ctx, army, partisans // (3 * len(garrison)), cause="revolt")

@@ -14,8 +14,9 @@ import type { TurnSnapshot } from "../types";
  * unknown (a granary `unattributed` of null: granaries inactive). Never reads
  * final-world state.
  */
-export const CASUALTY_CAUSES = ["battle", "trapped", "revolt", "attrition", "natural"] as const;
-export const CASUALTY_CLASSES = ["combat", "attrition", "natural"] as const;
+export const CASUALTY_CAUSES = ["battle", "trapped", "revolt", "attrition", "natural", "war_drain",
+  "possibly_enemy"] as const;
+export const CASUALTY_CLASSES = ["combat", "attrition", "natural", "war_drain"] as const;
 export const NATURES = ["transfer", "minted", "destroyed", "restriction"] as const;
 export const UNITS = ["treasury", "food", "goods", "grain", "milli_food", "routes"] as const;
 export const IDENTITY_KINDS = ["restored", "revived", "name_reused", "renamed"] as const;
@@ -28,6 +29,7 @@ export type IdentityKind = (typeof IDENTITY_KINDS)[number];
 /** The class of each cause (``attribution_records_state.CASUALTY_CLASS``). */
 export const CLASS_OF: Record<CasualtyCause, CasualtyClass> = {
   battle: "combat", trapped: "combat", revolt: "combat", attrition: "attrition", natural: "natural",
+  war_drain: "war_drain", possibly_enemy: "war_drain",
 };
 
 export interface CasualtyRow {
@@ -66,14 +68,25 @@ export interface BurdenEntry {
 
 export interface IdentityEvent { turn: number; kind: IdentityKind; civ: number; name: string; detail: Record<string, unknown> }
 
+/** Per battle and side: recorded battle deaths at most the battle record's losses (null: no record). */
+export interface BattleCheck { battle: number; side: string; recorded: number; battle_losses: number | null; holds: boolean }
+/** Deaths a war drain staged in a region this turn, with the actors it named. */
+export interface WarDrain { region: number; staged: number; actors: string[]; unnamed: number }
+
 export interface AttributionFrame {
   turn: number;
   casualties: {
     rows: CasualtyRow[]; by_class: Record<string, number>; by_cause: Record<string, number>;
     unresolved: number; armies: ArmyClosure[];
+    /** Present from the review revision on; older records omit them. */
+    battle_checks?: BattleCheck[]; war_drains?: WarDrain[];
   };
   granary: { active: boolean; seizures: GranarySeizure[]; unattributed: number | null };
-  burdens: { pairs: BurdenPair[]; entries: BurdenEntry[]; entries_dropped: number; retail_unattributed: number | null };
+  burdens: {
+    pairs: BurdenPair[]; entries: BurdenEntry[]; entries_dropped: number; retail_unattributed: number | null;
+    /** Burden events that moved nothing, per kind (not in the pairs). */
+    zero_events?: Record<string, number>;
+  };
   identity: IdentityEvent[];
 }
 
@@ -129,6 +142,12 @@ function casualtyProblem(c: unknown, civs: number): string | null {
       || !(a.counter_change === null || Number.isInteger(a.counter_change))
       || !(a.closes === null || typeof a.closes === "boolean")) return "malformed army closure";
   }
+  if (c.battle_checks !== undefined && (!Array.isArray(c.battle_checks) || !c.battle_checks.every((b) => object(b)
+    && count(b.battle) && text(b.side) && count(b.recorded) && (b.battle_losses === null || count(b.battle_losses))
+    && typeof b.holds === "boolean"))) return "malformed battle checks";
+  if (c.war_drains !== undefined && (!Array.isArray(c.war_drains) || !c.war_drains.every((d) => object(d)
+    && count(d.region) && count(d.staged) && Array.isArray(d.actors) && d.actors.every(text) && count(d.unnamed))))
+    return "malformed war drains";
   return null;
 }
 
@@ -156,6 +175,8 @@ function burdenProblem(b: unknown, civs: number): string | null {
     if (!object(e) || !text(e.kind) || !one(NATURES, e.nature) || !one(UNITS, e.unit) || !index(e.actor, civs)
       || !index(e.victim, civs) || !(e.amount === null || finite(e.amount))) return "malformed burden entry";
   }
+  if (b.zero_events !== undefined && (!object(b.zero_events) || !Object.values(b.zero_events).every(count)))
+    return "malformed zero events";
   return null;
 }
 

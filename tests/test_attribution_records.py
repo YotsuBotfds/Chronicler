@@ -316,6 +316,7 @@ def test_two_conquests_in_one_turn_are_two_seizures_and_the_second_owner_on_the_
     world.invalidate_civ_map()
     _granaries(world)
     crag = world.regions[CRAG]
+    crag.stockpile.goods = {"grain": 8.0, "timber": 4.0}
     apply_region_conquest(world.civ_map["A"], world.civ_map["B"], crag, world, seed=1)
     apply_region_conquest(world.civ_map["C"], world.civ_map["A"], crag, world, seed=2)
     frame = _commit(world)
@@ -326,6 +327,8 @@ def test_two_conquests_in_one_turn_are_two_seizures_and_the_second_owner_on_the_
     losses = _entries(frame, "conquest_stock_loss")
     assert [(e["actor_name"], e["victim_name"], e["cause"]) for e in losses] == [("A", "B", "conquest"),
                                                                                 ("C", "A", "conquest")]
+    assert [e["amount"] for e in losses] == pytest.approx([6.0, 3.0])
+    assert [e["detail"]["food"] for e in losses] == pytest.approx([4.0, 2.0])
     pairs = {(p["kind"], p["actor_name"], p["victim_name"]): p for p in frame["burdens"]["pairs"]}
     assert pairs[("granary_seizure", "C", "A")]["amount"] == pytest.approx(25.0)
 
@@ -470,8 +473,8 @@ def test_city_dues_are_internal_transfers_and_a_sack_pays_the_sacker():
     sack = _entries(frame, "city_sack")
     loss = _entries(frame, "city_sack_loss")
     assert [(e["actor"], e["victim"], e["amount"], e["nature"]) for e in sack] == [(KETHANI, THORNWALL, 40, "transfer")]
-    assert [(e["actor"], e["victim"], e["nature"]) for e in loss] == [(KETHANI, THORNWALL, "destroyed")]
-    assert loss[0]["amount"] == pytest.approx(0.0)
+    # loot 40.0, all paid: the destroyed fraction is zero, counted but not paired.
+    assert loss == [] and frame["burdens"]["zero_events"] == {"city_sack_loss": 1}
 
 
 def test_a_guild_levy_is_split_from_the_ordinary_dues(monkeypatch):
@@ -654,8 +657,8 @@ def test_with_the_switch_on_everything_but_its_record_equals_the_switch_off():
     assert record["frame"]["turn"] == 6 and dump_on == dump_off
     assert bridge_on._sim.queued == bridge_off._sim.queued and LV.livelihoods_snapshot_fields(off) == {}
     frame = record["frame"]
-    assert {e["kind"] for e in frame["burdens"]["entries"]} >= {"occupation_tax_loss", "conquest_stock_loss",
-                                                                 "granary_seizure"}
+    assert {e["kind"] for e in frame["burdens"]["entries"]} >= {"occupation_tax_loss", "granary_seizure"}
+    assert frame["burdens"]["zero_events"] == {"conquest_stock_loss": 1}        # Dun's market was empty
 
 
 @pytest.mark.parametrize("case", ["absent", "malformed", "unobserved", "recorded_zero", "recorded"])
@@ -690,3 +693,101 @@ def test_the_snapshot_never_aliases_the_state():
     record = LV.livelihoods_snapshot_fields(world)["livelihoods"]["attribution_records"]
     record["frame"]["identity"].append("x")
     assert _state(world).frame["identity"] == []
+
+
+# --- review m1, m2, n1, n2 ------------------------------------------------------------------
+
+def test_deaths_where_a_war_drain_staged_deaths_are_not_filed_as_natural():
+    """A siege drains Crag (actor A) and an occupation's crushed revolt drains
+    Edge twice by different hands: B's soldiers found dead after the tick in
+    Crag are war_drain with actor A; in Edge possibly_enemy; elsewhere natural."""
+    from chronicler.war.armies import drain_population
+    world = _world()
+    ctx, war = start_war(world)
+    world.regions[EDGE].population = 400
+    ctx, bridge, army_a, army_b = _armies(world, war)
+    army_b.roster = [(1, CRAG), (2, CRAG), (3, EDGE), (4, DUN)] + [(i, CRAG) for i in range(5, 31)]
+    drain_population(ctx, ["Crag"], 3, actor=world.civ_map["A"])
+    drain_population(ctx, ["Edge"], 2, actor=world.civ_map["A"])
+    drain_population(ctx, ["Edge"], 2)                                 # no actor named
+    alive = [(i, CRAG, 1, B) for i in range(5, 31)] + [(i, AVALON, 1, A) for i in range(101, 141)]
+    reconcile_rosters(world, FakeSnapshot(alive))
+    frame = _commit(world)
+    rows = {(r["cause"], r["actor"]): r["deaths"] for r in _rows(frame, victim=B)}
+    assert rows == {("war_drain", A): 2, ("possibly_enemy", None): 1, ("natural", None): 1}
+    assert frame["casualties"]["by_class"] == {"combat": 0, "attrition": 0, "natural": 1, "war_drain": 3}
+    assert [(d["region"], d["staged"], d["actors"], d["unnamed"]) for d in frame["casualties"]["war_drains"]] == [
+        (CRAG, 3, ["A"], 0), (EDGE, 4, ["A"], 1)]
+    assert _state(world).counters["war_drain_deaths"] == 3 and _state(world).lifetime["deaths_war_drain"] == 2
+
+
+@pytest.mark.parametrize("site", ["siege", "garrison", "depopulation", "crushed_revolt"])
+def test_each_war_drain_names_its_actor(site):
+    import random
+    world = _world()
+    ctx, war = start_war(world)
+    ctx, bridge, army_a, army_b = _armies(world, war)
+    crag = world.regions[CRAG]
+    crag.population = 400
+    if site == "siege":
+        siege_turn(ctx, war, crag, [army_a], world.civ_map["A"], world.civ_map["B"])
+    elif site == "garrison":
+        from chronicler.war.battles import skirmish
+        skirmish(ctx, war, crag, [army_a], world.civ_map["A"], world.civ_map["B"], 20)
+    else:
+        occ = start_occupation(ctx, crag, world.civ_map["A"], war, army_a)
+        occ.unrest = 900
+        if site == "depopulation":
+            from chronicler.war import params as P
+            # After this turn's change, unrest sits between depopulation and revolt.
+            delta = P.UNREST_BASE + P.UNREST_CULTURE - min(P.UNREST_GARRISON_CAP, army_a.soldiers * P.UNREST_PER_SOLDIER)
+            occ.unrest = P.UNREST_DEPOPULATION + 10 - delta
+            tick_occupations(ctx)
+        else:
+            crag.population = 100                                      # few partisans: the garrison crushes them
+            _revolt(ctx, occ, crag, world.civ_map["B"], world.civ_map["A"], [army_a], random.Random(1))
+    frame = _commit(world)
+    drains = {d["region"]: d for d in frame["casualties"]["war_drains"]}
+    assert drains[CRAG]["actors"] == ["A"] and drains[CRAG]["unnamed"] == 0 and drains[CRAG]["staged"] > 0
+
+
+def test_battle_checks_bound_each_sides_recorded_deaths_by_its_battle_record():
+    world = _world()
+    ctx, war = start_war(world)
+    ctx, bridge, army_a, army_b = _armies(world, war)
+    fight(ctx, war, world.regions[CRAG], side_for(world, world.civ_map["A"], [army_a]),
+          side_for(world, world.civ_map["B"], [army_b]), kind="field")
+    battle = world.war_state.battles[-1]
+    frame = _commit(world)
+    assert frame["casualties"]["battle_checks"] == [
+        {"battle": len(world.war_state.battles) - 1, "side": "A", "recorded": battle.attacker_losses,
+         "battle_losses": battle.attacker_losses, "holds": True},
+        {"battle": len(world.war_state.battles) - 1, "side": "B", "recorded": battle.defender_losses,
+         "battle_losses": battle.defender_losses, "holds": True}]
+    # A note resolved to the wrong side would exceed the record and fail.
+    world.turn += 1
+    note = {"army": army_a.army_id, "victim": A, "victim_name": "A", "war": war.war_key, "cause": "battle",
+            "count": battle.attacker_losses + 1, "battle": len(world.war_state.battles) - 1}
+    t = AR._Turn(world.turn)
+    t.casualties.append(note)
+    _state(world)._turn = t
+    frame = _commit(world)
+    assert frame["casualties"]["battle_checks"][0]["holds"] is False
+    assert _state(world).counters["battle_checks_failed"] == 1
+
+
+def test_zero_amount_events_are_counted_not_paired_and_a_sack_without_a_sacker_is_lost():
+    from chronicler.cities_state import City
+    world = _world()
+    ctx, war = start_war(world)
+    ctx, _bridge, army_a, _b = _armies(world, war)
+    crag = world.regions[CRAG]
+    crag.population = 5                                                # plunder 5 // 10 == 0
+    start_occupation(ctx, crag, world.civ_map["A"], war, army_a)
+    city = City(settlement_id=3, name="Crag Town", region=CRAG, founded_turn=0, founder=B, lord=B)
+    AR.note_city_sack(world, city, -1, B, 7.5, 7)
+    frame = _commit(world)
+    zero = frame["burdens"]["zero_events"]
+    assert zero["occupation_plunder"] == 1 and zero["city_sack"] == 1
+    assert not _entries(frame, "occupation_plunder")
+    assert [(e["actor"], e["victim"], e["amount"]) for e in _entries(frame, "city_sack_loss")] == [(None, B, 7.5)]

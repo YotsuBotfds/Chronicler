@@ -297,8 +297,10 @@ def queue_deaths(ctx: WarContext, agent_ids: list[int]) -> None:
         sim.queue_targeted_deaths(sorted(int(a) for a in agent_ids))
 
 
-def drain_population(ctx: WarContext, region_names: list[str], amount: int) -> int:
-    """Remove ``amount`` people across regions (civilian/militia deaths)."""
+def drain_population(ctx: WarContext, region_names: list[str], amount: int, *, actor=None) -> int:
+    """Remove ``amount`` people across regions (civilian/militia deaths).
+    ``actor`` (the enemy whose action drains them, when the caller knows it) is
+    only reported to the attribution records; it changes nothing here."""
     if amount <= 0:
         return 0
     regions = [ctx.world.region_map[n] for n in region_names if n in ctx.world.region_map]
@@ -309,6 +311,12 @@ def drain_population(ctx: WarContext, region_names: list[str], amount: int) -> i
     if getattr(ctx.world, "agent_mode", None) in ("demographics-only", "shadow", "hybrid"):
         for region, actual in zip(regions, drains):
             stage_region_catastrophe_deaths(region, actual)
+        if getattr(ctx.world, "livelihoods", None) is not None:
+            # --attribution-records (D2): staged war deaths by region, so an
+            # enlisted agent found dead there after the tick is not filed as
+            # natural (a no-op unless active).
+            from chronicler.attribution_records import note_war_drain
+            note_war_drain(ctx.world, regions, drains, actor)
     return sum(drains)
 
 
@@ -425,10 +433,11 @@ def reconcile_rosters(world, snapshot) -> int:
             army.casualties += lost
             removed += lost
             if getattr(world, "livelihoods", None) is not None:
-                # --attribution-records (D2): natural deaths booked as
-                # casualties, observed as such (a no-op unless active).
+                # --attribution-records (D2): deaths found at reconciliation,
+                # booked here as casualties, observed with the regions they
+                # died in (a no-op unless active).
                 from chronicler.attribution_records import note_natural_deaths
-                note_natural_deaths(world, army, lost)
+                note_natural_deaths(world, army, [entry for entry in army.roster if entry[0] not in alive])
         army.roster = kept
         army.soldiers = len(kept)
         army.rations = min(army.rations, army.soldiers * P.POLICY.carried_limit)

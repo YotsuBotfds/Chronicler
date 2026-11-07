@@ -8,30 +8,49 @@ causes back into the outcomes and give agents omniscient causal links.
 
 This test walks every module under ``src/chronicler`` except the narration
 and curation modules that exist to read provenance (``NOT_DECISION_CODE``)
-and collects each read: a call of a provenance read function through the
-module (``prov.recall``, ``provenance.open_episode``, an imported
-``open_episode``) and each load of an attribute ``provenance``, ``causes`` or
-``episode``. Every read site - (module, enclosing function, read) with its
-number of occurrences - must be registered in ``PROVENANCE_READS`` with a
-reviewed classification:
+and collects each read (``collect_reads``): a call of, or any other reference
+to, a provenance read function through the module (``prov.recall``,
+``provenance.open_episode``, an imported ``open_episode``, absolute or
+relative imports, ``f = prov.recall``, ``getattr(prov, "recall")``), an
+``import_module``/``__import__`` of the provenance module, and each read of
+an attribute ``provenance``, ``causes`` or ``episode`` - as an attribute,
+through ``getattr``/``hasattr`` with a constant name, as a constant subscript
+(``vars(w)["provenance"]``) or through ``.get`` with a constant key. Every
+read site - (module, enclosing function, read) with its number of
+occurrences - must be registered in ``PROVENANCE_READS`` with a reviewed
+classification:
 
 * ``cites``: the value only becomes the causes of an emitted event (or of a
   record that is only ever cited), or is written back into provenance;
 * ``labels``: the value only chooses an event's description text;
 * ``filters``: an ``episode`` check that skips the closing events provenance
   adds to the timeline, so the decision sees what a provenance-free run sees;
+* ``analysis``: a reader of saved bundles after a run (audit and forensics
+  tools), which decides no simulation outcome;
 * ``decision``: the value gates simulation state or an event. These are
   recorded breaches of the contract that predate this guard
   (``KNOWN_DECISION_READS``, documented in
-  ``docs/integration/attribution-records.md``); they are default-path
-  behaviour and stay unchanged (any change goes behind a switch for the
+  ``docs/integration/attribution-records.md``); four run on the default path
+  of a new world (cities, diplomacy, epidemiology with the contact ledger and
+  nomads are on by default), three only under ``--scholarship`` (off by
+  default). They stay unchanged (any change goes behind a switch for the
   owner's decision).
 
 The test fails closed on any unregistered read, a changed number of
 occurrences, a stale row, or a new ``decision`` row, and on a new read
-function in ``provenance.py`` that is not declared. The classification itself
-is a human review of the listed functions: a new ``cites`` row must be read
-like code. The D-program record and war modules read none.
+function in ``provenance.py`` that is not declared. The D-program record and
+war modules read none.
+
+Limits (not caught): a name computed at run time (``getattr(x, name)`` with a
+non-constant ``name``, ``eval``/``exec``); a value that flows from a
+registered ``cites`` helper into a decision elsewhere (the classification is
+a human review per reading function, so a new ``cites`` row must be read like
+code, callers included); a read hidden behind a non-provenance helper that
+returns provenance-derived values without the names above; and the
+provenance-shaped timeline itself: ``provenance.observe`` folds chronic repeats
+of some event types, so a decision that reads timeline events sees the folded
+timeline (``causal-provenance.md``, Chronic conditions) - the guard does not
+treat timeline reads as provenance reads.
 """
 from __future__ import annotations
 
@@ -88,6 +107,7 @@ PROVENANCE_READS: dict[tuple[str, str, str], tuple[int, str]] = {
     ('emergence', 'check_tech_regression', 'recall'): (7, 'cites'),
     ('emergence', 'tick_pandemic', 'recall'): (2, 'cites'),
     ('epidemiology', '_introduce', 'open_episode'): (1, 'cites'),
+    ('expansion_audit', 'audit_bundle', ".get('causes')"): (1, 'analysis'),
     ('epidemiology', '_report_cause', 'open_episode'): (1, 'cites'),
     ('epidemiology', '_reports', 'open_episode'): (2, 'decision'),
     ('epidemiology', '_reports', 'recall'): (1, 'cites'),
@@ -112,6 +132,7 @@ PROVENANCE_READS: dict[tuple[str, str, str], tuple[int, str]] = {
     ('gp_agendas', 'note_succession', 'recall'): (1, 'cites'),
     ('grain_reserves', 'open_granaries', 'open_episode'): (2, 'cites'),
     ('guilds', '_update', 'recall'): (1, 'cites'),
+    ('history_forensics', 'inspect', ".get('causes')"): (1, 'analysis'),
     ('maritime', '_commission', 'recall'): (1, 'cites'),
     ('maritime', '_war_cause', 'recall'): (1, 'cites'),
     ('nomads', '_conquest_waves', 'recall'): (3, 'cites'),
@@ -131,6 +152,8 @@ PROVENANCE_READS: dict[tuple[str, str, str], tuple[int, str]] = {
     ('scholarship', '_newly_occupied', 'recall'): (1, 'decision'),
     ('scholarship', '_persecution', 'recall'): (1, 'cites'),
     ('scholarship', '_sack_cause', 'recall'): (3, 'decision'),
+    ('scientific_receipts_audit', '_events', ".get('causes')"): (1, 'analysis'),
+    ('scientific_receipts_audit', 'dependency', ".get('causes')"): (1, 'analysis'),
     ('simulation', '_roll_leader_mortality', 'leader_death_causes'): (1, 'cites'),
     ('simulation', 'phase_consequences', 'great_person_causes'): (1, 'cites'),
     ('simulation', 'phase_environment', 'excitation_cause'): (1, 'cites'),
@@ -143,6 +166,9 @@ PROVENANCE_READS: dict[tuple[str, str, str], tuple[int, str]] = {
     ('techniques', '_land_causes', 'recall'): (4, 'cites'),
     ('techniques', '_regress', 'recall'): (3, 'cites'),
 }
+
+#: Bundle readers run after a simulation (the only modules an ``analysis`` row may name).
+ANALYSIS_MODULES = frozenset({"expansion_audit", "history_forensics", "scientific_receipts_audit"})
 
 #: The ``decision`` rows: pre-existing reads of provenance by decisions.
 KNOWN_DECISION_READS: frozenset[tuple[str, str, str]] = frozenset({
@@ -164,7 +190,9 @@ KNOWN_DECISION_READS: frozenset[tuple[str, str, str]] = frozenset({
 
 
 def _aliases(tree: ast.AST) -> tuple[set[str], dict[str, str]]:
-    """Names bound to the provenance module, and names imported from it."""
+    """Names bound to the provenance module, and names imported from it
+    (absolute and relative imports; ``import_module`` of it is a read site of
+    its own)."""
     modules: set[str] = set()
     names: dict[str, str] = {}
     for node in ast.walk(tree):
@@ -173,17 +201,31 @@ def _aliases(tree: ast.AST) -> tuple[set[str], dict[str, str]]:
                 if alias.name == "chronicler.provenance" and alias.asname:
                     modules.add(alias.asname)
         elif isinstance(node, ast.ImportFrom):
-            if node.module == "chronicler":
+            package = node.module if node.level == 0 else ("chronicler" + ("." + node.module if node.module else "")
+                                                           if node.level == 1 else None)
+            if package == "chronicler":
                 for alias in node.names:
                     if alias.name == "provenance":
                         modules.add(alias.asname or "provenance")
-            elif node.module == "chronicler.provenance":
+            elif package == "chronicler.provenance":
                 for alias in node.names:
                     names[alias.asname or alias.name] = alias.name
     return modules, names
 
 
+def _const(node) -> str | None:
+    return node.value if isinstance(node, ast.Constant) and isinstance(node.value, str) else None
+
+
 def collect_reads(src: Path = SRC) -> dict[tuple[str, str, str], int]:
+    """Every read of provenance outside ``NOT_DECISION_CODE``, keyed by
+    (module, innermost enclosing function, read). Reads: a call of, or any
+    other reference to, a provenance read function through the module (also
+    through ``getattr`` with a constant name); an import of the provenance
+    module by ``import_module``/``__import__``; an attribute ``provenance``,
+    ``causes`` or ``episode`` read as an attribute, through ``getattr``/``hasattr``
+    with a constant name, as a constant subscript or through ``.get`` with a
+    constant key."""
     found: dict[tuple[str, str, str], int] = {}
     for path in sorted(src.rglob("*.py")):
         module = path.relative_to(src).with_suffix("").as_posix().replace("/", ".")
@@ -191,23 +233,49 @@ def collect_reads(src: Path = SRC) -> dict[tuple[str, str, str], int]:
             continue
         tree = ast.parse(path.read_text(encoding="utf-8"))
         modules, imported = _aliases(tree)
+        called: set[int] = set()
+
+        def add(where, read):
+            key = (module, where, read)
+            found[key] = found.get(key, 0) + 1
 
         def visit(node, where):
             if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
                 where = node.name                          # the innermost enclosing function
             if isinstance(node, ast.Call):
                 f = node.func
+                called.add(id(f))
                 name = None
                 if isinstance(f, ast.Attribute) and isinstance(f.value, ast.Name) and f.value.id in modules:
                     name = f.attr
                 elif isinstance(f, ast.Name) and f.id in imported:
                     name = imported[f.id]
                 if name in READ_FUNCTIONS:
-                    key = (module, where, name)
-                    found[key] = found.get(key, 0) + 1
-            if isinstance(node, ast.Attribute) and node.attr in READ_ATTRIBUTES and isinstance(node.ctx, ast.Load):
-                key = (module, where, "." + node.attr)
-                found[key] = found.get(key, 0) + 1
+                    add(where, name)
+                fname = f.attr if isinstance(f, ast.Attribute) else f.id if isinstance(f, ast.Name) else None
+                first = _const(node.args[0]) if node.args else None
+                second = _const(node.args[1]) if len(node.args) > 1 else None
+                if fname in ("getattr", "hasattr") and second in READ_ATTRIBUTES:
+                    add(where, f"{fname}('{second}')")
+                if fname == "getattr" and second in READ_FUNCTIONS and isinstance(node.args[0], ast.Name) \
+                        and node.args[0].id in modules:
+                    add(where, f"getattr('{second}')")
+                if fname in ("import_module", "__import__") and first in ("chronicler.provenance", ".provenance"):
+                    add(where, "import_module(provenance)")
+                if fname == "get" and isinstance(f, ast.Attribute) and first in READ_ATTRIBUTES:
+                    add(where, f".get('{first}')")
+            elif isinstance(node, ast.Attribute) and isinstance(node.ctx, ast.Load):
+                if node.attr in READ_ATTRIBUTES:
+                    add(where, "." + node.attr)
+                if id(node) not in called and isinstance(node.value, ast.Name) and node.value.id in modules \
+                        and node.attr in READ_FUNCTIONS:
+                    add(where, "ref:" + node.attr)
+            elif isinstance(node, ast.Name) and isinstance(node.ctx, ast.Load) and id(node) not in called \
+                    and imported.get(node.id) in READ_FUNCTIONS:
+                add(where, "ref:" + imported[node.id])
+            elif isinstance(node, ast.Subscript) and isinstance(node.ctx, ast.Load) \
+                    and _const(node.slice) in READ_ATTRIBUTES:
+                add(where, f"['{_const(node.slice)}']")
             for child in ast.iter_child_nodes(node):
                 visit(child, where)
         visit(tree, "<module>")
@@ -227,7 +295,8 @@ def test_every_provenance_read_outside_narration_is_registered():
 
 def test_no_new_decision_reads_provenance():
     classes = {c for _n, c in PROVENANCE_READS.values()}
-    assert classes <= {"cites", "labels", "filters", "decision"}
+    assert classes <= {"cites", "labels", "filters", "analysis", "decision"}
+    assert {key[0] for key, (_n, c) in PROVENANCE_READS.items() if c == "analysis"} <= ANALYSIS_MODULES
     decisions = {key for key, (_n, c) in PROVENANCE_READS.items() if c == "decision"}
     assert decisions == KNOWN_DECISION_READS
 
@@ -262,7 +331,24 @@ def test_the_collector_sees_every_kind_of_read(tmp_path):
         "    if prov.recall(world, 'k') and oe(world, 'famine', 'R'):\n"
         "        return world.provenance.keys, ev.causes, ev.episode\n"
         "    prov.remember(world, 'k', ev)\n", encoding="utf-8")
+    (pkg / "sneaky.py").write_text(
+        "import importlib\n"
+        "from . import provenance as p2\n"
+        "from .provenance import recall as r\n"
+        "def choose(world, ev):\n"
+        "    f = p2.recall\n"
+        "    g = r\n"
+        "    h = getattr(p2, 'open_episode')\n"
+        "    m = importlib.import_module('chronicler.provenance')\n"
+        "    return (getattr(world, 'provenance'), hasattr(ev, 'causes'), ev.get('causes'),\n"
+        "            vars(world)['provenance'], ev['episode'])\n", encoding="utf-8")
     (pkg / "narrative.py").write_text("def tell(world):\n    return world.provenance\n", encoding="utf-8")
-    assert collect_reads(pkg) == {("decider", "choose", "recall"): 1, ("decider", "choose", "open_episode"): 1,
-                                  ("decider", "choose", ".provenance"): 1, ("decider", "choose", ".causes"): 1,
-                                  ("decider", "choose", ".episode"): 1}
+    found = collect_reads(pkg)
+    assert {k: v for k, v in found.items() if k[0] == "decider"} == {
+        ("decider", "choose", "recall"): 1, ("decider", "choose", "open_episode"): 1,
+        ("decider", "choose", ".provenance"): 1, ("decider", "choose", ".causes"): 1,
+        ("decider", "choose", ".episode"): 1}
+    assert {k[2] for k in found if k[0] == "sneaky"} == {
+        "ref:recall", "getattr('open_episode')", "import_module(provenance)", "getattr('provenance')",
+        "hasattr('causes')", ".get('causes')", "['provenance']", "['episode']"}
+    assert not [k for k in found if k[0] == "narrative"]

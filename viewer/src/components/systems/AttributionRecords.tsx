@@ -8,7 +8,8 @@ const show = (value: number | null | undefined, digits = 3) =>
   value === null || value === undefined ? "Unknown" : value.toLocaleString(undefined, { maximumFractionDigits: digits });
 const CAUSE_LABEL: Record<string, string> = {
   battle: "battle", trapped: "trapped after a lost battle", revolt: "occupation revolt", attrition: "attrition",
-  natural: "natural death while enlisted",
+  natural: "natural death while enlisted", war_drain: "war drain (siege, garrison, occupation or revolt)",
+  possibly_enemy: "war drain, actor unclear",
 };
 const IDENTITY_LABEL: Record<string, string> = {
   restored: "restored: a new polity under the dead polity's index and name",
@@ -57,7 +58,7 @@ function Frame({ frame, source, regionName }: { frame: AttributionFrame; source:
   const name = (n: string | null, i: number | null) => n ?? (i === null ? "no one" : `Civ ${i}`);
   return <>
     {c.rows.length === 0 ? <p className="systems-note">No enlisted soldier died this turn (recorded zero).</p> : <>
-      <p className="systems-note">Soldiers' deaths: combat {c.by_class.combat ?? 0}, attrition {c.by_class.attrition ?? 0}, natural {c.by_class.natural ?? 0}. Army casualty counters merge natural deaths; this record keeps them apart{failed.length ? "" : unchecked ? `; ${unchecked} army closure(s) unchecked (no baseline)` : "; every army's counter closes"}.{c.unresolved ? ` ${c.unresolved} combat death(s) could not be matched to a battle record.` : ""}</p>
+      <p className="systems-note">Soldiers' deaths: combat {c.by_class.combat ?? 0}, attrition {c.by_class.attrition ?? 0}, war drain {c.by_class.war_drain ?? 0}, natural {c.by_class.natural ?? 0}. Army casualty counters merge them; this record keeps them apart. A war-drain death was found after the tick in a region where a siege, garrison fight, occupation or crushed revolt staged deaths that turn: possibly killed by it, possibly natural. Natural deaths include the native doubled mortality of soldiers at war and plague{failed.length ? "" : unchecked ? `; ${unchecked} army closure(s) unchecked (no baseline)` : "; no note was dropped (every army's counter closes)"}.{c.unresolved ? ` ${c.unresolved} combat death(s) could not be matched to a battle record.` : ""}{(c.battle_checks ?? []).some((b) => !b.holds) ? " A battle's recorded deaths exceed its record: see the battle checks." : ""}</p>
       {failed.length ? <p className="systems-note">Army closures failed: {failed.map((a) => `${a.army} (recorded ${a.recorded}, counter ${show(a.counter_change, 0)})`).join(", ")}.</p> : null}
       <div className="systems-table-wrap"><table className="systems-table" aria-label={`Soldiers' deaths at snapshot ${source + 1}`}>
         <thead><tr><th>War</th><th>Died (victim)</th><th>Killed by (actor)</th><th>Cause</th><th>Deaths</th></tr></thead>
@@ -95,6 +96,7 @@ function Frame({ frame, source, regionName }: { frame: AttributionFrame; source:
         </tr>)}</tbody>
       </table></div>
       {frame.burdens.entries_dropped ? <p className="systems-note">{frame.burdens.entries_dropped} detailed entries were not kept; the pairs above include them.</p> : null}
+      {Object.keys(frame.burdens.zero_events ?? {}).length ? <p className="systems-note">Burden events that moved nothing (not in the table): {Object.entries(frame.burdens.zero_events ?? {}).map(([k, n]) => `${BURDEN_LABEL[k] ?? k} ${n}`).join(", ")}.</p> : null}
     </>}
     {frame.identity.length ? <ul className="systems-list" aria-label={`Identity events at snapshot ${source + 1}`}>
       {frame.identity.map((e, i) => <li key={i}>{e.name} (index {e.civ}): {IDENTITY_LABEL[e.kind] ?? e.kind}. Records under this index or name before turn {e.turn} belong to the earlier polity.</li>)}

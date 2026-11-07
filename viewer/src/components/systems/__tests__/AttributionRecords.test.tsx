@@ -17,8 +17,9 @@ const row = (table: string, label: RegExp) => within(screen.getByRole("table", {
 it("shows deaths by cause with their actors, seizures, burdens and identity reuse", () => {
   render(<AttributionRecords {...props({ attribution_records: record() })} />);
   expect(screen.getByRole("heading", { name: "Attribution records · snapshot 10" })).toBeInTheDocument();
-  expect(screen.getByText(/combat 4, attrition 0, natural 2/)).toBeInTheDocument();
-  expect(screen.getByText(/every army's counter closes/)).toBeInTheDocument();
+  expect(screen.getByText(/combat 4, attrition 0, war drain 0, natural 2/)).toBeInTheDocument();
+  expect(screen.getByText(/no note was dropped \(every army's counter closes\)/)).toBeInTheDocument();
+  expect(screen.getByText(/moved nothing \(not in the table\): Occupation plunder 2/)).toBeInTheDocument();
   expect(row("Soldiers' deaths at snapshot 10", /battle \(field\)/)).toHaveTextContent("Selurian");
   expect(row("Soldiers' deaths at snapshot 10", /natural death while enlisted/)).toHaveTextContent("no actor (at war with Selurian)");
   expect(row("Granary seizures at snapshot 10", /Dun/)).toHaveTextContent("the granary books still name Selurian");

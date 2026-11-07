@@ -28,13 +28,21 @@ from typing import Any, Literal
 from pydantic import BaseModel, Field, PrivateAttr
 
 #: Casualty causes as ``war.armies.apply_casualties`` names them, then the
-#: natural deaths ``war.armies.reconcile_rosters`` books as casualties.
-CASUALTY_CAUSES: tuple[str, ...] = ("battle", "trapped", "revolt", "attrition", "natural")
+#: deaths ``war.armies.reconcile_rosters`` books as casualties: ``natural``
+#: (native mortality with its x2 for soldiers at war, plague and other non-war
+#: catastrophes) unless the agent died in a region where a war drain
+#: (``war.armies.drain_population``: siege civilians, a battle's garrison,
+#: occupation depopulation, a crushed revolt) staged deaths that turn:
+#: ``war_drain`` when that region's drains name one actor, ``possibly_enemy``
+#: when they name several or none.
+CASUALTY_CAUSES: tuple[str, ...] = ("battle", "trapped", "revolt", "attrition", "natural", "war_drain",
+                                    "possibly_enemy")
 #: The class each cause belongs to (the separation D2 records).
 CASUALTY_CLASS: dict[str, str] = {
     "battle": "combat", "trapped": "combat", "revolt": "combat", "attrition": "attrition", "natural": "natural",
+    "war_drain": "war_drain", "possibly_enemy": "war_drain",
 }
-CASUALTY_CLASSES: tuple[str, ...] = ("combat", "attrition", "natural")
+CASUALTY_CLASSES: tuple[str, ...] = ("combat", "attrition", "natural", "war_drain")
 
 #: Burden kinds: ``kind -> (authority that decides it, nature, unit)``.
 #: Natures: ``transfer`` (a real payment from the victim to the actor),
@@ -80,9 +88,11 @@ MAX_ENTRIES = 256
 #: Lifetime totals (declaration order; append only): deaths per cause, then
 #: each burden kind's amount (its own unit) and its number of events.
 LIFETIME: tuple[str, ...] = (
-    *(f"deaths_{cause}" for cause in CASUALTY_CAUSES),
+    *(f"deaths_{cause}" for cause in CASUALTY_CAUSES[:5]),
     *(f"burden_{kind}" for kind in BURDEN_KINDS),
     *(f"burden_{kind}_events" for kind in BURDEN_KINDS),
+    # Review m1 (appended): deaths at reconciliation in a region a war drain hit.
+    "deaths_war_drain", "deaths_possibly_enemy",
 )
 
 #: Lifetime counters (declaration order; append only).
@@ -91,6 +101,8 @@ COUNTERS: tuple[str, ...] = (
     "combat_unresolved", "army_closures_checked", "army_closures_failed", "army_closures_unchecked",
     "granary_seizures", "granary_unattributed", "retail_war_losses", "retail_unattributed",
     "entries_dropped", "identity_events",
+    # Review m1, m2 and n1 (appended).
+    "war_drain_deaths", "battle_checks", "battle_checks_failed", "zero_amount_events",
 )
 
 
