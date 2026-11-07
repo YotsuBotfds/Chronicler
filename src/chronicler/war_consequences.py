@@ -46,9 +46,33 @@ def _note(world, kind, **fields):
     # Campaign hooks may run more than once in a turn, but a person can leave
     # a given army only once per cause. Stable keys also protect replayed hooks.
     key = (row["turn"], kind, fields.get("id"), fields.get("army"), fields.get("cause"))
-    if not any((r["turn"], r["kind"], r.get("id"), r.get("army"), r.get("cause")) == key
-               for r in state.pending):
+    if state.noted_turn != world.turn:
+        state.noted_turn, state.noted_keys, state._key_set = world.turn, [], set()
+    if key in state._key_set:
+        return
+    state._key_set.add(key)
+    state.noted_keys.append(key)
+    if state.last_turn == world.turn and state.frame is not None:
+        # End-of-turn demobilization follows livelihoods Phase 10. Record it
+        # now instead of clearing it as stale at next turn's settlement.
+        _commit_history(state, [row])
+        events = state.frame["events"]
+        if len(events) < MAX_HISTORY:
+            events.append(row)
+        else:
+            state.frame["events_dropped"] += 1
+    else:
         state.pending.append(row)
+
+
+def _commit_history(state, rows):
+    for row in rows:
+        state.counters[row["kind"]] = state.counters.get(row["kind"], 0) + 1
+    state.history.extend(rows)
+    if len(state.history) > MAX_HISTORY:
+        state.history_dropped += len(state.history) - MAX_HISTORY
+        del state.history[:-MAX_HISTORY]
+
 
 
 def split_victims(world, army, victims, cause):
@@ -119,13 +143,9 @@ def phase10(world, acc, economy_result, agent_bridge):
                 episodes[row["id"]] = InjuryEpisode(agent_id=row["id"], onset_turn=world.turn,
                     remaining=health.recovery_work, origin_region=row["region"])
         health.episodes = [episodes[aid] for aid in sorted(episodes)]
-    for row in rows:
-        state.counters[row["kind"]] = state.counters.get(row["kind"], 0) + 1
-    state.history.extend(rows)
-    if len(state.history) > MAX_HISTORY:
-        state.history_dropped += len(state.history) - MAX_HISTORY
-        del state.history[:-MAX_HISTORY]
-    state.frame = {"turn": world.turn, "events": rows, "separation": state.separation,
+    _commit_history(state, rows)
+    state.frame = {"turn": world.turn, "events": rows[:MAX_HISTORY],
+                   "events_dropped": max(0, len(rows) - MAX_HISTORY), "separation": state.separation,
                    "separation_source": "T-1; computed before this turn's native tick",
                    "injury_authority": "health_care", "wound_share": WOUND_SHARE}
     state.last_turn = world.turn

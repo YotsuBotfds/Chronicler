@@ -481,7 +481,9 @@ def rebind_rosters(ctx: WarContext) -> None:
         live = set()
     for army in sorted(world.war_state.armies, key=lambda a: a.army_id):
         from chronicler.war_consequences import war_consequences_active
-        if army.roster and all(aid in live for aid, _ in army.roster) and not war_consequences_active(world):
+        consequences = getattr(getattr(world, "livelihoods", None), "war_consequences", None)
+        repair_identity = war_consequences_active(world) and consequences.mode == "active"
+        if army.roster and all(aid in live for aid, _ in army.roster) and not repair_identity:
             continue
         civ = world.civ_map.get(army.civ)
         army.roster = []

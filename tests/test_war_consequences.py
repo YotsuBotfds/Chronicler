@@ -80,3 +80,59 @@ def test_history_is_bounded_and_reports_loss():
     record = d3.snapshot_summary(w)
     assert len(record["history"]) == d3.MAX_HISTORY
     assert record["history_dropped"] == 300 - d3.MAX_HISTORY
+
+
+def test_late_release_is_committed_once_after_phase10_and_output_is_bounded():
+    import pickle
+    w = world()
+    d3.phase10(w, None, None, bridge([]))
+    for aid in range(1, 301):
+        d3.note_release(w, NS(army_id=1), [(aid, 0)], "demobilized")
+    state = w.livelihoods.war_consequences
+    assert not state.pending
+    assert len(state.frame["events"]) == d3.MAX_HISTORY
+    assert state.frame["events_dropped"] == 300 - d3.MAX_HISTORY
+    assert state.counters["released"] == 300
+    restored = pickle.loads(pickle.dumps(state))
+    w.livelihoods.war_consequences = restored
+    d3.note_release(w, NS(army_id=1), [(300, 0)], "demobilized")
+    assert restored.counters["released"] == 300
+
+
+def test_many_wounds_all_reach_health_even_when_bundle_events_are_capped():
+    w = world()
+    for aid in range(1, 301):
+        d3._note(w, "wounded", id=aid, army=1, region=0, cause="battle")
+    d3.phase10(w, None, None, bridge(list(range(1, 301))))
+    state = w.livelihoods.war_consequences
+    assert len(w.health_care.episodes) == 300
+    assert len(state.frame["events"]) == d3.MAX_HISTORY
+    assert state.frame["events_dropped"] == 300 - d3.MAX_HISTORY
+
+
+def test_real_casualty_hook_removes_wounds_without_booking_them_as_deaths():
+    from chronicler.livelihoods_state import LivelihoodsState
+    from chronicler.war.armies import apply_casualties
+    from chronicler.war.common import build_context
+    from tests.war_fixtures import war_world, start_war, place_army
+    w = war_world(pop_a=100)
+    w.agent_mode = "hybrid"
+    w.livelihoods = LivelihoodsState()
+    object.__setattr__(w.livelihoods, "war_consequences", WarConsequencesState())
+    w.health_care = HealthCareState()
+    _, war = start_war(w)
+    army = place_army(w, "A", "Avalon", 30, war.war_key,
+                      roster=[(aid, 0) for aid in range(1, 31)])
+    queued = []
+    ctx = build_context(w, bridge=NS(_sim=NS(queue_targeted_deaths=queued.extend)))
+    old_pop = w.regions[0].population
+    killed = apply_casualties(ctx, army, 30, cause="battle")
+    wounds = [r["id"] for r in w.livelihoods.war_consequences.pending if r["kind"] == "wounded"]
+    assert 0 < len(wounds) < 30
+    assert killed + len(wounds) == 30
+    assert army.soldiers == 0 and not army.roster
+    assert army.casualties == killed and len(queued) == killed
+    assert not set(queued).intersection(wounds)
+    assert w.regions[0].population == old_pop - killed
+    d3.phase10(w, None, None, bridge(wounds))
+    assert [e.agent_id for e in w.health_care.episodes] == sorted(wounds)
