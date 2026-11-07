@@ -40,6 +40,8 @@ export const entityLabel = (e: EntityRef) => `${e.kind[0].toUpperCase()}${e.kind
 const ref = (kind: EntityKind, id: number | string): EntityRef => ({ kind, id });
 const coins = (n: number) => (n / 1000).toLocaleString(undefined, { maximumFractionDigits: 3 });
 const num = (n: number) => n.toLocaleString(undefined, { maximumFractionDigits: 3 });
+const futureFirm = (f:{opened_turn:number;closed_turn:number|null;last_operating_turn?:number|null}, source:number) =>
+  f.opened_turn>source || f.closed_turn!==null&&f.closed_turn>source || f.last_operating_turn!=null&&f.last_operating_turn>source;
 
 /** Parse once per bundle, through the producers' strict readers. Does not read final-state histories. */
 export function indexEntityHistory(bundle: Bundle): EntityHistoryIndex {
@@ -285,12 +287,14 @@ export function indexEntityHistory(bundle: Bundle): EntityHistoryIndex {
       } else if (key === "workshop_economics") {
         const r=workshopEconomicsAt(snapshot,regions);
         if (r.status==="malformed" || !r.record) { bad(); continue; }
+        if([...r.record.firms,...r.record.closed].some(f=>futureFirm(f,r.record!.source_turn))){bad();continue;}
         for(const name of ["firms","closed"] as const) r.record[name].forEach((f,j)=>add(ref("firm",f.firm),`/${name}/${j}`,`Firm ${f.status}; capital ${coins(f.capital)} coins; ${f.operating_turns} operating turns. Capital payer is a polity index, not a person`,f.region));
         if (!r.record.receipts) { unknown(); continue; }
         r.record.receipts.forEach((f,j)=>add(ref("firm",f.firm),`/receipts/${j}`,`Firm ${f.status}${f.operating?", operating":""}; cash ${coins(f.cash_open)} to ${coins(f.cash_close)} coins; wages actually paid ${coins(f.wages_paid)}; wages still owed ${coins(f.owed_after)}; wares produced ${num(f.produced/1000)}, unsold ${num(f.unsold_inventory/1000)}. Regional household sales are not attributed to named buyers`,f.region));
       } else {
         const r=workshopFinanceAt(snapshot,regions);
         if (!r) { bad(); continue; }
+        if([...r.firms,...r.closed].some(f=>futureFirm(f,r.source_turn))){bad();continue;}
         for(const name of ["firms","closed"] as const) r[name].forEach((f,j)=>add(ref("firm",f.site),`/${name}/${j}`,`Firm ${f.status}; actual cash ${coins(f.cash)} coins, inventory ${num(f.inventory/1000)} loads; unpaid wage obligations ${coins(f.owed.reduce((s,o)=>s+o.amount,0))} coins (liabilities, not paid wages)`,f.region));
         if (!r.receipts || !r.transfers) { unknown(); continue; }
         r.receipts.forEach((f,j)=>{
