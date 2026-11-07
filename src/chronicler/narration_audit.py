@@ -48,6 +48,7 @@ from pathlib import Path
 from typing import Any, Iterable
 
 from chronicler.narration_provenance import STRAY_ID, EntityUniverse, expand_entries, fact_rows, resolve_record_pointer
+from chronicler.record_identity import person_namespace
 
 FLAG_KINDS = (
     "unsupplied_citation", "unknown_citation", "future_citation", "future_supplied",
@@ -251,14 +252,18 @@ def audit_entry(index: int, entry: dict, records: BundleRecords | None,
     # The facts given: in the bundle, with their dates, none later than the
     # moment outside a retrospective section.
     for fid, (turn, retro) in facts.items():
+        actual_turn = None
         if records is not None:
             exists, real = records.resolve(fid, entry)
+            if re.match(r"s[0-9]+\.lh\.", fid):
+                actual_turn = real
             if exists is False:
                 add("unresolved_fact", f"{fid} names no record of the bundle", [fid])
             elif real is not None and turn is not None and _EXACT_DATES.match(fid) and real != turn:
                 add("date_mismatch", f"{fid} is dated {turn} in the provenance and {real} in the bundle", [fid])
-        if turn is not None and as_of is not None and turn > as_of and not retro:
-            add("future_supplied", f"{fid} (turn {turn}) was given as of turn {as_of} outside a "
+        supplied_turn = max((t for t in (turn, actual_turn) if t is not None), default=None)
+        if supplied_turn is not None and as_of is not None and supplied_turn > as_of and not retro:
+            add("future_supplied", f"{fid} (turn {supplied_turn}) was given as of turn {as_of} outside a "
                                    "retrospective section", [fid])
 
     # Spans and citations.
@@ -295,10 +300,12 @@ def audit_entry(index: int, entry: dict, records: BundleRecords | None,
                         continue
                     lk, rk = link.get("left_key"), link.get("right_key")
                     value = link.get("value")
-                    # A declared stable identity must actually occur in both
-                    # cited objects. Equal regional aggregates are not ids.
-                    allowed = {"id", "agent_id", "holder", "owner", "carrier", "pid", "eid", "order", "shipment", "army"}
-                    if lk in allowed and rk in allowed and value is not None and not isinstance(value, (bool, list, dict)) and a.value.get(lk) == value == b.value.get(rk):
+                    # Only reviewed package/path aliases for the SAME native
+                    # person epoch authorize this personal identity join.
+                    # Civilization owner ids, project ids, expedition ids and
+                    # unknown schemas cannot borrow a matching scalar value.
+                    namespace = person_namespace(records.bundle, a, lk)
+                    if namespace is not None and namespace == person_namespace(records.bundle, b, rk) and value is not None and not isinstance(value, (bool, list, dict)) and a.value.get(lk) == value == b.value.get(rk):
                         linked = True
                         break
             if not linked:
@@ -317,6 +324,9 @@ def audit_entry(index: int, entry: dict, records: BundleRecords | None,
                                            "and was not given", [fid], [s, e])
                 continue
             turn, retro = given
+            if records is not None and re.match(r"s[0-9]+\.lh\.", fid):
+                _exists, actual_turn = records.resolve(fid, entry)
+                turn = max((t for t in (turn, actual_turn) if t is not None), default=None)
             if retro:
                 stats.cited_retrospective += 1
             elif turn is not None and as_of is not None and turn > as_of:

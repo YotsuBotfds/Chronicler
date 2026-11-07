@@ -205,13 +205,20 @@ export function indexEntityHistory(bundle: Bundle): EntityHistoryIndex {
         if(!r){bad();continue;}
         if(!r.frame)Object.assign(frame,{state:"unknown",reason:"Named epidemic care work was unobserved, not zero; any regional tick is separate context"});
         r.frame?.forEach((receipt,j)=>receipt.carers.forEach((c,k)=>add(ref("person",c.agent_id),`/frame/${j}/carers/${k}`,`Epidemic care work ${num(c.share)} share; wage actually paid ${coins(c.wage_paid_milli)}, refused ${coins(c.wage_residual_milli)} coins; ordinary income withheld ${c.income_withheld===null?"unknown":num(c.income_withheld)}. A named carer is not an identified patient or a cause of an individual's survival`,receipt.region)));
-        r.tick?.applied.forEach((a,j)=>add(ref("region",a.region),`/tick/applied/${j}`,`Regional epidemic tick: prior care capacity source turn ${a.source_turn}; coverage ${num(a.coverage)}, case-fatality factor ${num(a.care_factor)}, regional deaths ${a.deaths===null?"unobserved":a.deaths}. These are epidemic fractions and regional counts; no individual infection, treatment or death is inferred`,a.region,[],"recorded","region",a.source_turn));
+        r.tick?.applied.forEach((a,j)=>{
+          add(ref("region",a.region),`/tick/applied/${j}/patients`,`Prior regional care capacity input: ${num(a.patients)} patient capacity, supplied in source turn ${a.source_turn}. Capacity is not an observed patient's treatment or survival`,a.region,[],"recorded","region",a.source_turn);
+          add(ref("region",a.region),`/tick/applied/${j}`,`Current regional epidemic tick: infectious ${num(a.infectious)}, coverage ${num(a.coverage)}, case-fatality factor ${num(a.care_factor)}, regional deaths ${a.deaths===null?"unobserved":a.deaths}; prior capacity source turn ${a.source_turn}. These are epidemic fractions and regional counts; no individual infection, treatment or death is inferred`,a.region,[],"recorded","region");
+        });
       } else if (key === "public_health") {
         const r=publicHealthAt(snapshot,regions,civs);
         if (!r) { bad(); continue; }
         if (!r.enabled) { Object.assign(frame,{state:"disabled",reason:"Public health is explicitly disabled"}); continue; }
         if ([r.report_turn,r.environment_turn,r.supply_turn,r.guard_turn].every((t)=>t===null)) { unknown(); continue; }
-        r.environment.forEach((e,j)=>add(ref("region",e.region),`/environment/${j}`,`Regional public-health exposure context: displaced share ${num(e.displaced_share)}, water service ${num(e.water_service)}, crowding factor ${num(e.crowding_factor)}. No individual diagnosis or mortality attribution`,e.region,[],e.residence_observed&&e.sanitation_observed?"recorded":"unknown","id",e.source_turn));
+        r.environment.forEach((e,j)=>{
+          for(const [field,label,observed] of [["displaced_share","displaced share",e.residence_observed],["water_service","water service",e.sanitation_observed],["crowding_factor","crowding factor",e.residence_observed]] as const)
+            add(ref("region",e.region),`/environment/${j}/${field}`,`Prior regional public-health exposure input: ${label} ${observed?num(e[field]):"unobserved, not zero"}. No individual diagnosis or mortality attribution`,e.region,[],observed?"recorded":"unknown","region",e.source_turn);
+          add(ref("region",e.region),`/environment/${j}/flux_factor`,`Current public-health flux multiplier ${num(e.flux_factor)}; mode ${r.mode}. A model input is not an individual outcome`,e.region,[],"recorded","region");
+        });
         r.supplies.forEach((p,j)=>add(ref("region",p.region),`/supplies/${j}`,`Regional patient supply: ${num(p.food_milli/1000)} food of ${num(p.need_milli/1000)} needed; ${p.reason}. Patients and recipient households are not identified`,p.region));
         r.guards.forEach((g,j)=>g.members.forEach((m,k)=>add(ref("person",m.agent_id),`/guards/${j}/members/${k}`,`Public-health guard work ${num(m.share)} share; wage actually paid ${coins(m.wage_paid_milli)} coins, refused ${coins(m.wage_residual_milli)}; ordinary income withheld ${m.income_withheld===null?"unknown":num(m.income_withheld)}. Work does not imply illness or exposure`,m.region)));
       } else if (key === "infrastructure_condition") {

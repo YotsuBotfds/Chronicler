@@ -45,6 +45,7 @@ it("links real named care wages while keeping prior epidemic capacity and mortal
  const receipt=c.frame!.find(r=>r.carers.length)!;const person=receipt.carers[0];
  const rows=entityHistory(indexEntityHistory(b),{kind:"person",id:person.agent_id});
  expect(rows.some(r=>r.source?.includes("/carers/")&&r.text.includes("wage actually paid"))).toBe(true);
- const regional=rows.find(r=>r.source?.includes("/tick/applied/"));
- expect(regional).toBeDefined();expect(regional!.join).toBe("region");expect(regional!.sourceTurn).toBe(c.source_turn-1);expect(regional!.text).toContain("no individual infection");
+ const capacity=rows.find(r=>r.source?.endsWith("/patients")),regional=rows.find(r=>r.source?.includes("/tick/applied/")&&!r.source.endsWith("/patients"));
+ expect(capacity?.sourceTurn).toBe(c.source_turn-1);
+ expect(regional).toBeDefined();expect(regional!.join).toBe("region");expect(regional!.sourceTurn).toBe(c.source_turn);expect(regional!.text).toContain("no individual infection");
 });
