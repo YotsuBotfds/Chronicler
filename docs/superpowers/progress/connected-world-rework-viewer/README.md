@@ -20,8 +20,9 @@ overflow/console checks. Wide tables scroll independently.
 
 The production index builds 190,555 observations and 3,279 named entities.
 A diagnostic wrapper around `Number.prototype.toLocaleString` measured
-**203,160 calls, 3,669 ms of a 4,352 ms index build** (about 84%). Repeating with
-complete semantic hashing measured 4,870 ms before and 612 ms after. Each old
+**203,160 calls, 4,114 ms of a 4,870 ms index build** (about 84%) in
+[the retained diagnostic](node-index-before.json). The complete semantic hash
+comparison measured 4,870 ms before and 612 ms after. Each old
 call constructed the same locale/precision machinery. Reusing one
 `Intl.NumberFormat(undefined, {maximumFractionDigits: 3})` per document removes
 that repeated work. Every row, string, state, order, pointer and identity stays.
