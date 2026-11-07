@@ -5,7 +5,7 @@ No second spendable balance: liabilities are promises, paid only by money.py.
 """
 from __future__ import annotations
 from typing import Any, Literal
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, PrivateAttr
 from chronicler.money import MoneyBook
 
 MODES = ("transfer", "cost_only")
@@ -29,6 +29,7 @@ class RestitutionClaim(BaseModel):
     status: str = "open"
 
 class WarRequisitionState(BaseModel):
+    _sim: Any = PrivateAttr(default=None)
     schema_version: Literal[1] = 1
     enabled: bool = True
     mode: Literal["transfer", "cost_only"] = "transfer"

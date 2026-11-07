@@ -135,6 +135,7 @@ PROVIDERS: tuple[str, ...] = (
     "chronicler.maintenance_obligation:BUDGET_PROVIDER",
     "chronicler.epidemic_care:BUDGET_PROVIDER",
     "chronicler.infrastructure_condition:BUDGET_PROVIDER",
+    "chronicler.timber_orders:BUDGET_PROVIDER",
 )
 
 

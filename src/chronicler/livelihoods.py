@@ -130,6 +130,7 @@ from chronicler.livelihoods_state import LIVELIHOODS_SWITCHES, LivelihoodsState
 
 #: Non-boolean options, with their choices (first: the default when enabled).
 LIVELIHOODS_CHOICES: dict[str, tuple[str, ...]] = {
+    "wealth_accounting_mode": ("observe", "strict"),
     "war_requisition_mode": ('transfer', 'cost_only'),
     "war_consequences_mode": ('active', 'record_only'),
     "adaptive_livelihoods_mode": ('adapt', 'record_only', 'shuffled'),
@@ -183,7 +184,7 @@ LIVELIHOODS_ARG_KEYS: tuple[str, ...] = (
     "remittances", "remittance_mode",
     "clearing_protection", "clearing_protection_mode",
     "operating_wear",
-    "timber_supply", "timber_supply_mode",
+    "timber_supply", "timber_supply_mode", "timber_orders",
     "recovery_crews", "recovery_crew_mode",
     "maintenance_obligation", "maintenance_obligation_mode",
     "household_retail", "household_retail_mode", "household_retail_boundary",
@@ -211,7 +212,7 @@ LIVELIHOODS_ARG_KEYS: tuple[str, ...] = (
     "public_health_report_delay",
     "residence_ledger",
     "attribution_records",
-    "wealth_accounting",
+    "wealth_accounting", "wealth_accounting_mode",
 )
 #: Options that take a file path (A2R), parser destinations owned here too
 #: (``batch_manifest.SIMULATION_ARG_KEYS``). Command line only: the feature
@@ -222,6 +223,8 @@ LIVELIHOODS_PATH_KEYS: tuple[str, ...] = ("household_retail_schedule",)
 _AGENT_ECONOMY = ("hybrid", "shadow", "demographics-only")
 
 _HELP = {
+    "timber_orders": "Cross-civilization timber procurement for measured repair gaps, real carrier purchases, finite escrow and delivery (default off).",
+    "wealth_accounting_mode": "observe (default): itemized source/sink ledger; strict: refuse an unexplained balance closure.",
     "war_requisition": 'D4 real army supply, seizure and treasury-funded restitution (default off); requires hybrid, campaigns and retail rules 2.',
     "war_requisition_mode": "Saved option; choices ('transfer', 'cost_only')",
     "war_consequences": 'D3 combat wounds and dated family separation (default off); requires real army supply, health care and residence ledger.',
@@ -853,6 +856,8 @@ def _check_prerequisites(world: Any, values: dict, agent_mode: str, args: Any = 
     for name in ("war_requisition", "war_consequences", "adaptive_livelihoods"):
         if _on(world, values, name) and agent_mode != "hybrid":
             raise LivelihoodsRefusal(f"--{name.replace('_', '-')} requires --agents hybrid; pass --no-{name.replace('_', '-')} to end it")
+    if _on(world, values, "timber_orders") and (agent_mode != "hybrid" or not _on(world, values, "timber_supply") or not _on(world, values, "local_budgets")):
+        raise ValueError("--timber-orders requires --agents hybrid, --timber-supply and --local-budgets")
     if _on(world, values, "war_requisition"):
         retail = getattr(livelihoods_state(world), "household_retail", None)
         rules = getattr(args, "household_retail_rules", None) or (retail.rules if retail else "2")
@@ -1011,7 +1016,7 @@ def livelihoods_resume_conflicts(world: Any, args: Any, recorded: dict) -> list[
             continue
         sub = getattr(state, name, None) if state is not None else None
         saved = getattr(sub, field) if sub is not None else None
-        if given != saved:
+        if (str(given) != str(saved) if key == "public_health_report_delay" else given != saved):
             conflicts.append(f"--{key.replace('_', '-')} {given!r} conflicts with the checkpoint "
                              f"(saved: {saved!r})")
     schedule = getattr(args, "household_retail_schedule", None)

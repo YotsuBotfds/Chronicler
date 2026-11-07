@@ -448,3 +448,38 @@ def note_cargo_seizure(world, *, owner, region, actor, value_milli, shipment, go
     _event(world, state, kind="cargo_seizure", goods=str(goods), shipment=shipment,
            package="timber_orders", owner=int(owner), region=int(region), payer=payer,
            quantity_milli=int(quantity_milli), acquisition_value_milli=value_milli)
+
+
+def _install_service(world, sim, *, after_logistics):
+    consequences = getattr(getattr(world, "livelihoods", None), "war_consequences", None)
+    suppress = consequences is not None and consequences.enabled and consequences.mode == "active"
+    sim.set_enlisted_service(world.turn, enlisted_service_rows(world, after_logistics=after_logistics), suppress)
+
+
+def prepare_phase2(world, region_input, agent_bridge, snapshot, acc):
+    """Freeze the service census before civilian production and consumption."""
+    state = _state(world)
+    state._sim = agent_bridge._sim
+    _install_service(world, state._sim, after_logistics=False)
+    return region_input
+
+
+def before_agent_tick(world, agent_bridge, economy_result):
+    """Refresh actual meal adequacy, preserving the economic service census."""
+    _install_service(world, agent_bridge._sim, after_logistics=True)
+
+
+def after_agent_tick(world, agent_bridge):
+    _state(world)._sim = None
+
+
+def rollback_phase2(world):
+    state = _state(world)
+    if state is not None and state._sim is not None:
+        state._sim.cancel_enlisted_service()
+        state._sim = None
+
+
+def rollback_agent_tick(world, agent_bridge):
+    agent_bridge._sim.cancel_enlisted_service()
+    _state(world)._sim = None

@@ -59,6 +59,7 @@ from chronicler.relocation_costs_state import RelocationCostsState
 from chronicler.remittances_state import RemittancesState
 from chronicler.repair_projects_state import RepairProjectsState
 from chronicler.residence_ledger_state import ResidenceLedgerState
+from chronicler.timber_orders_state import TimberOrdersState
 from chronicler.timber_stock_state import TimberStockState
 from chronicler.timber_supply_state import TimberSupplyState
 from chronicler.titled_trade_state import TitledTradeState
@@ -75,7 +76,7 @@ LIVELIHOODS_SWITCHES: tuple[str, ...] = ("workshops", "food_allocation", "timber
                                          "relocation_costs", "local_budgets",
                                          "apprenticeship", "repair_projects", "veteran_reintegration",
                                          "remittances", "clearing_protection",
-                                         "operating_wear", "timber_supply",
+                                         "operating_wear", "timber_supply", "timber_orders",
                                          "recovery_crews", "maintenance_obligation", "reform_services",
                                          "household_retail", "watershed", "workshop_economics", "titled_trade",
                                          "infrastructure_condition", "epidemic_care", "guild_leagues", "war_requisition", "war_consequences", "adaptive_livelihoods", "public_health", "residence_ledger", "attribution_records",
@@ -90,6 +91,7 @@ class LivelihoodsState(BaseModel):
     schema_version: Literal[1] = 1
     workshops: WorkshopState | None = Field(default=None, exclude_if=_is_none)
     food_allocation: FoodAllocationState | None = Field(default=None, exclude_if=_is_none)
+    timber_orders: TimberOrdersState | None = Field(default=None, exclude_if=_is_none)
     timber_stock: TimberStockState | None = Field(default=None, exclude_if=_is_none)
     grain_convoys: GrainConvoyState | None = Field(default=None, exclude_if=_is_none)
     commons_rules: CommonsRulesState | None = Field(default=None, exclude_if=_is_none)
