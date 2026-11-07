@@ -74,3 +74,15 @@ describe("EpidemicCare", () => {
     expect(screen.getByText("Factor (not applied)")).toBeInTheDocument();
   });
 });
+
+describe("EpidemicCare payment refusal", () => {
+  it("names a bill refused at payment instead of showing wages", () => {
+    const record = clone(FIXTURE.recorded.record) as { frame: Record<string, unknown>[] };
+    const staffed = record.frame.find((row) => (row.carers as unknown[]).length > 0)!;
+    staffed.paid = false;
+    staffed.unpaid_reason = "payer_short";
+    const s = snap(T, record);
+    render(<EpidemicCare bundle={bundle([s])} snapshot={s} currentTurn={T} />);
+    expect(screen.getByText("unpaid (payer short)")).toBeInTheDocument();
+  });
+});

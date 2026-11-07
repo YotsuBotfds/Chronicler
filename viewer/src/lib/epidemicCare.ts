@@ -35,7 +35,7 @@ export interface CareApplied {
   infectious_after: number | null;
 }
 
-export interface CareRefusal { region: number; source_turn: number; reason: "stale" | "future" }
+export interface CareRefusal { region: number; source_turn: number; reason: "stale" | "future" | "out_of_range" }
 
 export interface Carer {
   agent_id: number;
@@ -65,11 +65,15 @@ export interface CareReceipt {
   farm_time_removed: number;
   limit: CareLimit;
   paid: boolean;
+  /** The seam's refusal of the civ's bill at payment: nobody of that civ was paid or withheld. */
+  unpaid_reason?: string | null;
 }
 
 export interface CareLedger {
   turn: number;
   civ: number;
+  /** Coins of the civ's care envelope executed this turn (L9's award). */
+  envelope_coins?: number;
   due_milli: number;
   paid_milli: number;
   residual_milli: number;
@@ -81,10 +85,13 @@ export interface CareLedger {
 
 export interface CareCapacity { region: number; source_turn: number; carers: number; care_time: number; patients: number }
 
+/** Every infected region of the tick, after it: deaths, infectious person-turns, new infections. */
+export interface CareTickRegion { region: number; deaths: number; infectious_pt: number; cases: number }
+
 export interface EpidemicCareRecord {
   mode: CareMode;
   source_turn: number;
-  tick: { turn: number; applied: CareApplied[]; refused: CareRefusal[] } | null;
+  tick: { turn: number; applied: CareApplied[]; refused: CareRefusal[]; regions?: CareTickRegion[] } | null;
   frame: CareReceipt[] | null;
   ledger: CareLedger[] | null;
   capacity: CareCapacity[];
@@ -142,6 +149,7 @@ function receipt(row: unknown, regions: number, civs: number, turn: number): row
     && Array.isArray(row.carers) && row.carers.every(carer) && nonneg(row.care_time) && nonneg(row.patients)
     && [row.wages_due_milli, row.wages_paid_milli, row.wage_residual_milli].every((v) => int(v) && (v as number) >= 0)
     && nonneg(row.farm_time_removed) && (CARE_LIMITS as readonly unknown[]).includes(row.limit) && typeof row.paid === "boolean"
+    && (row.unpaid_reason === undefined || row.unpaid_reason === null || typeof row.unpaid_reason === "string")
     && new Set((row.carers as Carer[]).map((c) => c.agent_id)).size === (row.carers as Carer[]).length;
 }
 
@@ -149,6 +157,7 @@ function ledger(row: unknown, civs: number, turn: number): row is CareLedger {
   return object(row) && row.turn === turn && index(row.civ, civs)
     && [row.due_milli, row.paid_milli, row.residual_milli, row.treasury_units, row.carry_before, row.carry_after]
       .every((v) => int(v) && (v as number) >= 0)
+    && (row.envelope_coins === undefined || (int(row.envelope_coins) && (row.envelope_coins as number) >= 0))
     && typeof row.status === "string";
 }
 
@@ -170,7 +179,10 @@ export function epidemicCareAt(snapshot: TurnSnapshot, regions: number, civs: nu
     if (!object(tick) || tick.turn !== source || !Array.isArray(tick.applied) || !Array.isArray(tick.refused)) return null;
     if (!tick.applied.every((row) => applied(row, regions, source))) return null;
     if (!tick.refused.every((row) => object(row) && int(row.region) && int(row.source_turn)
-      && (row.reason === "stale" || row.reason === "future"))) return null;
+      && (row.reason === "stale" || row.reason === "future" || row.reason === "out_of_range"))) return null;
+    if (tick.regions !== undefined && !(Array.isArray(tick.regions) && tick.regions.every((row) => object(row)
+      && index(row.region, regions) && int(row.deaths) && (row.deaths as number) >= 0 && nonneg(row.infectious_pt)
+      && nonneg(row.cases)))) return null;
     if (new Set((tick.applied as CareApplied[]).map((row) => row.region)).size !== tick.applied.length) return null;
     // cost_only never changes fatality; care applies the factor it computes.
     if ((tick.applied as CareApplied[]).some((row) => raw.mode === "cost_only" ? row.care_factor !== 1

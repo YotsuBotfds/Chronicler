@@ -49,7 +49,8 @@ export function EpidemicCare({ bundle, snapshot, currentTurn }: {
       <StatTile label="Carers named" value={record.frame === null ? "not observed" : carers}
         detail={record.frame === null ? "no Phase 2 recorded" : `${frame.length} envelope(s)`} />
       <StatTile label="Wages paid" value={record.frame === null ? "not observed" : units(paid)}
-        detail={record.frame === null ? undefined : `treasury units of ${units(due)} due`} />
+        detail={record.frame === null ? undefined : `treasury units of ${units(due)} due; envelopes ${
+          (record.ledger ?? []).reduce((s, row) => s + (row.envelope_coins ?? 0), 0)} coin(s)`} />
       <StatTile label="Capacity for the next tick" value={record.capacity.reduce((s, c) => s + c.patients, 0).toFixed(1)}
         detail={`patients in ${record.capacity.length} region(s)`} />
     </div>
@@ -82,7 +83,7 @@ export function EpidemicCare({ bundle, snapshot, currentTurn }: {
               <td>{receipt ? `${receipt.carers.length} (${civs[receipt.civ] ?? `civ ${receipt.civ}`})` : "none"}</td>
               <td>{receipt ? fixed(receipt.care_time) : "-"}</td>
               <td>{receipt ? (receipt.wages_due_milli === 0 ? "0" : receipt.paid ? units(receipt.wages_paid_milli)
-                : "unpaid") : "-"}</td>
+                : `unpaid${receipt.unpaid_reason ? ` (${receipt.unpaid_reason.replace(/_/g, " ")})` : ""}`) : "-"}</td>
               <td>{receipt ? CARE_LIMIT_LABEL[receipt.limit] : "-"}</td>
             </tr>
           ))}</tbody>

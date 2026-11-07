@@ -1,5 +1,5 @@
 {
- "source": "development run of the C2 branch (source 120d8c46): template world, seed 42, 60 turns, --agents hybrid --grain-reserves --local-budgets --epidemic-care",
+ "source": "development run of the C2 branch (source 39af589a): template world, seed 42, 60 turns, --agents hybrid --grain-reserves --local-budgets --epidemic-care",
  "regions": [
   "Frostholm Tundra",
   "Iron Peaks",
@@ -48,6 +48,21 @@
       "infectious_after": 7.387190416
      },
      {
+      "region": 4,
+      "source_turn": 35,
+      "patients": 0.4789019748568535,
+      "infectious": 0.47890199800000005,
+      "coverage": 0.9999999516745667,
+      "care_factor": 0.7000000144976299,
+      "would_be": 0.7000000144976299,
+      "techniques_factor": 1.0,
+      "combined_factor": 0.7000000144976299,
+      "floored": false,
+      "deaths": 0,
+      "cases": 9.937297,
+      "infectious_after": 1.240105932
+     },
+     {
       "region": 5,
       "source_turn": 35,
       "patients": 3.8280004262924194,
@@ -63,7 +78,45 @@
       "infectious_after": 1.18270019
      }
     ],
-    "refused": []
+    "refused": [],
+    "regions": [
+     {
+      "region": 1,
+      "deaths": 0,
+      "infectious_pt": 0.0,
+      "cases": 0.0
+     },
+     {
+      "region": 2,
+      "deaths": 1,
+      "infectious_pt": 7.387190416,
+      "cases": 32.019085
+     },
+     {
+      "region": 3,
+      "deaths": 0,
+      "infectious_pt": 0.72809445,
+      "cases": 3.820179
+     },
+     {
+      "region": 4,
+      "deaths": 0,
+      "infectious_pt": 1.240105932,
+      "cases": 9.937297
+     },
+     {
+      "region": 5,
+      "deaths": 0,
+      "infectious_pt": 1.18270019,
+      "cases": 2.089047
+     },
+     {
+      "region": 7,
+      "deaths": 0,
+      "infectious_pt": 0.760130943,
+      "cases": 4.38993
+     }
+    ]
    },
    "frame": [
     {
@@ -93,13 +146,15 @@
      "wage_residual_milli": 0,
      "farm_time_removed": 0.2365400344133377,
      "limit": "need_met",
-     "paid": true
+     "paid": true,
+     "unpaid_reason": null
     }
    ],
    "ledger": [
     {
      "turn": 36,
      "civ": 1,
+     "envelope_coins": 1,
      "due_milli": 118,
      "paid_milli": 118,
      "residual_milli": 0,
@@ -121,20 +176,21 @@
    "rows_dropped": 0,
    "counters": {
     "ticks_observed": 37,
-    "covered_region_turns": 6,
-    "capacity_applied": 6,
+    "covered_region_turns": 7,
+    "capacity_applied": 7,
     "frames": 37,
-    "envelopes": 7,
-    "carer_turns": 8,
-    "care_time": 4.042032,
-    "patients": 20.210162,
-    "farm_time_removed": 4.042032,
-    "wages_due_milli": 2022,
-    "wages_paid_milli": 2022,
+    "envelopes": 8,
+    "carer_turns": 9,
+    "care_time": 4.137812,
+    "patients": 20.689064,
+    "farm_time_removed": 4.137812,
+    "wages_due_milli": 2070,
+    "wages_paid_milli": 2070,
     "wage_residual_milli": 0,
     "treasury_units": 4,
-    "income_withheld": 0.200218,
-    "limit_need_met": 7
+    "income_withheld": 0.222536,
+    "limit_need_met": 8,
+    "envelope_coins": 7
    },
    "parameters": {
     "care_cfr_reduction": 0.3,
@@ -164,7 +220,39 @@
    "tick": {
     "turn": 0,
     "applied": [],
-    "refused": []
+    "refused": [],
+    "regions": [
+     {
+      "region": 2,
+      "deaths": 0,
+      "infectious_pt": 0.0,
+      "cases": 0.0
+     },
+     {
+      "region": 3,
+      "deaths": 0,
+      "infectious_pt": 0.0,
+      "cases": 0.0
+     },
+     {
+      "region": 4,
+      "deaths": 0,
+      "infectious_pt": 0.0,
+      "cases": 0.0
+     },
+     {
+      "region": 5,
+      "deaths": 0,
+      "infectious_pt": 0.0,
+      "cases": 0.0
+     },
+     {
+      "region": 7,
+      "deaths": 0,
+      "infectious_pt": 0.0,
+      "cases": 0.0
+     }
+    ]
    },
    "frame": [],
    "ledger": [],
