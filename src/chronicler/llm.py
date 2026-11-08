@@ -8,11 +8,18 @@ can be re-added as an optional mode via `pip install chronicler[api]`.
 """
 from __future__ import annotations
 
+import logging
 import numbers
 import time
 from typing import Protocol, runtime_checkable, Any
 
+logger = logging.getLogger(__name__)
+
 DEFAULT_LOCAL_URL = "http://localhost:1234/v1"
+# Per-request timeout passed to every SDK client constructor (seconds).
+DEFAULT_TIMEOUT_S = 120.0
+# Longest a Message Batches poll loop waits before giving up (seconds).
+BATCH_DEADLINE_S = 86400.0
 _TRANSIENT_RETRY_ATTEMPTS = 2
 _TRANSIENT_RETRY_BASE_DELAY_S = 0.5
 _TRANSIENT_STATUS_CODES = {408, 409, 429, 500, 502, 503, 504}
@@ -69,6 +76,52 @@ def _call_with_transient_retry(fn, *, sleep=None):
             sleep_fn(_TRANSIENT_RETRY_BASE_DELAY_S * (2 ** attempt))
 
 
+class LLMTruncated(RuntimeError):
+    """A completion stopped at its output-token limit."""
+
+
+class LLMBudgetExceeded(RuntimeError):
+    """A client reached its configured token or call budget.
+
+    A ``RuntimeError`` so the narrator's existing ``except Exception``
+    fallback renders mechanical text instead of stopping the run.
+    """
+
+
+class _UsageBudget:
+    """Shared token/call budget and truncation counting for API clients."""
+
+    total_input_tokens: int
+    total_output_tokens: int
+    call_count: int
+    max_total_tokens: int | None
+    max_calls: int | None
+    truncated_count: int
+
+    def _check_budget(self) -> None:
+        if self.max_total_tokens is not None:
+            used = self.total_input_tokens + self.total_output_tokens
+            if used >= self.max_total_tokens:
+                raise LLMBudgetExceeded(
+                    f"token budget reached: {used} of {self.max_total_tokens} tokens used"
+                )
+        if self.max_calls is not None and self.call_count >= self.max_calls:
+            raise LLMBudgetExceeded(
+                f"call budget reached: {self.call_count} of {self.max_calls} calls made"
+            )
+
+    def _note_truncation(self, max_tokens: int) -> None:
+        self.truncated_count += 1
+        if self.truncated_count == 1:
+            logger.warning(
+                "%s: a completion stopped at its output limit (max_tokens=%d); "
+                "the partial text is kept and later truncations are counted in "
+                "truncated_count",
+                type(self).__name__,
+                max_tokens,
+            )
+
+
 def _extract_anthropic_text(content: Any) -> str:
     """Return the first non-empty text block from an Anthropic response."""
     if not content:
@@ -98,7 +151,9 @@ class LocalClient:
         self.base_url = base_url
         self.temperature = temperature
         from openai import OpenAI
-        self._client = OpenAI(base_url=base_url, api_key="not-needed")
+        self._client = OpenAI(
+            base_url=base_url, api_key="not-needed", timeout=DEFAULT_TIMEOUT_S
+        )
 
     def complete(self, prompt: str, max_tokens: int = 500, system: str | None = None) -> str:
         messages: list[dict[str, str]] = []
@@ -137,20 +192,30 @@ class MechanicalClient:
         raise RuntimeError("MechanicalClient does not generate text")
 
 
-class AnthropicClient:
+class AnthropicClient(_UsageBudget):
     """Anthropic SDK client for Claude API calls.
 
     Optional — requires `pip install chronicler[api]`.
     """
 
-    def __init__(self, client: Any, model: str = "claude-sonnet-4-6"):
+    def __init__(
+        self,
+        client: Any,
+        model: str = "claude-sonnet-4-6",
+        max_total_tokens: int | None = None,
+        max_calls: int | None = None,
+    ):
         self.model = model
         self._client = client
         self.total_input_tokens: int = 0
         self.total_output_tokens: int = 0
         self.call_count: int = 0
+        self.max_total_tokens = max_total_tokens
+        self.max_calls = max_calls
+        self.truncated_count: int = 0
 
     def complete(self, prompt: str, max_tokens: int = 500, system: str | None = None) -> str:
+        self._check_budget()
         kwargs: dict[str, Any] = {
             "model": self.model,
             "max_tokens": max_tokens,
@@ -166,18 +231,26 @@ class AnthropicClient:
         self.total_input_tokens += _coerce_token_count(getattr(usage, "input_tokens", 0))
         self.total_output_tokens += _coerce_token_count(getattr(usage, "output_tokens", 0))
         self.call_count += 1
+        if getattr(response, "stop_reason", None) == "max_tokens":
+            self._note_truncation(max_tokens)
         return _extract_anthropic_text(getattr(response, "content", None))
 
     def batch_complete(
         self,
         requests: list[dict[str, Any]],
         poll_interval: float = 10.0,
+        deadline_s: float = BATCH_DEADLINE_S,
+        sleep: Any = None,
+        clock: Any = None,
     ) -> list[str | None]:
         """Submit requests via Anthropic Message Batches API (50% cheaper).
 
         Each request dict has keys: prompt, max_tokens, system (optional).
         Returns list of response texts in the same order, None for failures.
+        Polling stops after ``deadline_s`` seconds; every result is then None.
         """
+        sleep_fn = time.sleep if sleep is None else sleep
+        clock_fn = time.monotonic if clock is None else clock
         batch_requests = []
         for i, req in enumerate(requests):
             params: dict[str, Any] = {
@@ -196,10 +269,14 @@ class AnthropicClient:
             lambda: self._client.messages.batches.create(requests=batch_requests)
         )
         print(f"  Batch submitted: {batch.id} ({len(batch_requests)} requests)")
+        start = clock_fn()
 
         # Poll until complete (terminal statuses: ended, expired, canceled)
         while batch.processing_status not in ("ended", "expired", "canceled"):
-            time.sleep(poll_interval)
+            if clock_fn() - start > deadline_s:
+                print(f"  Batch deadline of {deadline_s:g}s passed: {batch.id}")
+                return [None] * len(requests)
+            sleep_fn(poll_interval)
             batch = _call_with_transient_retry(
                 lambda: self._client.messages.batches.retrieve(batch.id)
             )
@@ -235,21 +312,31 @@ class AnthropicClient:
         return [results.get(f"moment-{i}") for i in range(len(requests))]
 
 
-class GeminiClient:
+class GeminiClient(_UsageBudget):
     """Google Gemini SDK client for Gemini API calls.
 
     Optional — requires `pip install -e ".[gemini]"` or `pip install google-genai`.
     """
 
-    def __init__(self, client: Any, model: str = "gemini-2.5-pro"):
+    def __init__(
+        self,
+        client: Any,
+        model: str = "gemini-2.5-pro",
+        max_total_tokens: int | None = None,
+        max_calls: int | None = None,
+    ):
         self.model = model
         self._client = client
         self.total_input_tokens: int = 0
         self.total_output_tokens: int = 0
         self.call_count: int = 0
+        self.max_total_tokens = max_total_tokens
+        self.max_calls = max_calls
+        self.truncated_count: int = 0
         self._rate_limit_delay: float = 12.0  # 5 RPM free tier
 
     def complete(self, prompt: str, max_tokens: int = 500, system: str | None = None) -> str:
+        self._check_budget()
         # Blocking sleep is safe here: narration is sequential, post-simulation.
         if self.call_count > 0:
             time.sleep(self._rate_limit_delay)
@@ -275,7 +362,19 @@ class GeminiClient:
         # Thinking models (2.5-flash/pro) split output into candidates + thoughts
         self.total_output_tokens += candidate_tokens + thought_tokens
         self.call_count += 1
+        if _gemini_hit_max_tokens(response):
+            self._note_truncation(max_tokens)
         return (response.text or "").strip()
+
+
+def _gemini_hit_max_tokens(response: Any) -> bool:
+    """True when the first candidate finished on its output-token limit."""
+    candidates = getattr(response, "candidates", None)
+    if not isinstance(candidates, (list, tuple)) or not candidates:
+        return False
+    reason = getattr(candidates[0], "finish_reason", None)
+    name = getattr(reason, "name", reason)
+    return name == "MAX_TOKENS"
 
 
 def create_clients(
@@ -283,11 +382,15 @@ def create_clients(
     sim_model: str | None = None,
     narrative_model: str | None = None,
     narrator: str = "local",
+    *,
+    max_total_tokens: int | None = None,
+    max_calls: int | None = None,
 ) -> tuple[LLMClient, LLMClient]:
     """Create simulation and narrative clients.
 
     sim_client always routes to local LM Studio (free, high volume).
     narrative_client routes to local or Anthropic API based on narrator mode.
+    ``max_total_tokens`` and ``max_calls`` cap the API narrators only.
     """
     sim_client: LLMClient = LocalClient(
         base_url=local_url,
@@ -300,14 +403,22 @@ def create_clients(
     elif narrator == "api":
         import anthropic
         narrative_client = AnthropicClient(
-            client=anthropic.Anthropic(),
+            # max_retries=0: _call_with_transient_retry already retries.
+            client=anthropic.Anthropic(timeout=DEFAULT_TIMEOUT_S, max_retries=0),
             model=narrative_model or "claude-sonnet-4-6",
+            max_total_tokens=max_total_tokens,
+            max_calls=max_calls,
         )
     elif narrator == "gemini":
         from google import genai
         narrative_client = GeminiClient(
-            client=genai.Client(),
+            # google-genai reads http_options.timeout in milliseconds.
+            client=genai.Client(
+                http_options={"timeout": int(DEFAULT_TIMEOUT_S * 1000)}
+            ),
             model=narrative_model or "gemini-2.5-pro",
+            max_total_tokens=max_total_tokens,
+            max_calls=max_calls,
         )
     else:
         narrative_client = LocalNarrativeClient(
