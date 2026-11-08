@@ -1,18 +1,19 @@
 # Connected World correctness, causal evaluation and performance rework
 
-## Current state — 2026-11-07, 23:42 UTC
+## Current state — 2026-11-08: runtime integrated and main CI verified
 
 Implementation, historical audit, performance admission, default identity,
 active resume, real browser checks and the fresh bounded CWR1 screen are
-complete and independently checked. Final report/diff review, exact final-head
-Tests, authorized merge and main CI remain required. This is a pre-merge checkpoint.
+complete and independently checked. PR #99 merged after final independent
+review and all nine exact-head Tests. All nine exact main Tests also passed.
+No implementation or evaluation task remains in this focused rework.
 
-- Verified main: `125a69066ea158a973ac5207f393e4eeb330aee8` (#98).
-  Tests `42417310582` passed all nine jobs.
-- Lead integration branch: `codex/cw-rework`; draft #99 contains the rework.
-  Code/evidence head `27074bba` passed all nine jobs in `42424371808`.
-  Later changes are closed held evidence, registry records and documentation;
-  final-head CI remains a merge gate.
+- Main: `a5ccbbf528de82d8a4fa19dbebe7d6ab805b2b96` (#99).
+  Exact main Tests `42428257952` passed all nine jobs.
+- Reviewed head: `72d89dde42a3b53cc36d7e002b7f164b7d63d645`, all nine
+  premerge Tests `42426724513` passed; merge tree equals reviewed tree.
+- Current integration-ledger branch: `codex/cwr-closeout`, isolated checkout
+  `/workspace/cwr-closeout`; late audits and reproduction are documentation only.
 - Corrected runtime: `8792be88dd36ba4d7c22e480de6a19dd64ea1300`, published
   `codex/cwr-final-runtime`, checkout `/workspace/cwr-final-runtime`.
 - Held source: `b45c1e99572d4d6a60fb01fbd75cb7688aa54e93`, published
@@ -25,7 +26,7 @@ Tests, authorized merge and main CI remain required. This is a pre-merge checkpo
 
 The [report](connected-world-rework-report.md), [reconciled coverage](connected-world-rework-coverage.md)
 and [machine board](connected-world.json) contain the evidence and limitations.
-The report includes closed held results and remains pending final integration.
+The report includes closed held results, independently reviewed integration and verified runtime main CI.
 
 ## Closed held evaluation — do not rerun as fresh
 
@@ -95,17 +96,18 @@ causes are not zero. No tuning or favorable-world selection occurred.
   two existing manual timing benches ignored. All source pins remain intact;
   the appended cwr1 exact inverse is independently reviewed.
 
-## Exact next work
+## Completion and later work
 
-1. Finish publishing the closed held packet and final report/coverage/board;
-   obtain independent review of this final evidence/documentation delta.
-2. Push the final reviewed #99 head and require all nine Tests jobs green on
-   that exact head. Reconfirm fetched main and its CI before authorized merge.
-3. Merge through the PR, verify the merge tree and all nine exact main jobs.
-   Freeze further feature merges if main fails; repair or revert through a PR.
-4. Record verified integration in a reviewed documentation PR, require its
-   exact-head checks, merge and verify final main CI. Report the actual final
-   commit, CI links, results and limitations. No direct push to main.
+No implementation or evaluation task remains in this focused rework. Preserve
+the experimental defaults, completed evidence and explicit limits. New feature
+work, restricted qualification or default promotion requires a new instruction.
+
+The final integration ledger and late read-only harm-audit/reproduction receive
+their own independent actual-diff review, green exact-head Tests, authorized
+PR merge and verified final main CI. Their later verification is linked in the
+completion PR and final handoff. The authoritative current documentation check
+is the Tests push run for current main HEAD; runtime #99's exact verification
+above is already complete. No new simulation or held-cohort use is needed.
 
 Resources are four cgroup CPUs / 16 GiB RAM. One held simulation and a bounded
 readback job fit; there are no native builds running. Preserve other worktrees

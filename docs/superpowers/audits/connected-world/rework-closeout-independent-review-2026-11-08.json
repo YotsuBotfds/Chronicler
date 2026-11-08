@@ -1,0 +1,70 @@
+{
+  "status": "APPROVED_FOR_AUTHORIZED_GATED_DOCUMENTATION_PR",
+  "reviewed_head": "dc1ef0b5eb936418f8866487035736cf4e5030f0",
+  "baseline_main": "a5ccbbf528de82d8a4fa19dbebe7d6ab805b2b96",
+  "reviewed_branch": "codex/cwr-closeout",
+  "changed_paths": 13,
+  "reviewed_changed_sha256": {
+    "docs/CONTINUATION.md": "e591e9a7890b16582012d85b8e09dacb724c3007033d7384c08e00a94b51256c",
+    "docs/superpowers/audits/connected-world/rework-cwr1-independent/README.md": "7c7f1a69148ddf6186548d5325d5a83f98d6c4ae2b0a7e12fbd299859497c8f1",
+    "docs/superpowers/audits/connected-world/rework-cwr1-independent/check-held-observations.py": "b99e52f11bda289fd8e85b83147d3b726985822d522a1ff8fde4518bb9c95fee",
+    "docs/superpowers/audits/connected-world/rework-cwr1-independent/held-observations-summary.json": "01f387828bb84b0712cbd0832c7e994c4785821b9cc9d6453a1cd376039b3c0c",
+    "docs/superpowers/audits/connected-world/rework-cwr1-independent/held-reproduction-staging-receipt.json": "3bcafd5fe1ba01e63b3b7393e6f31909b3dac790ac102f2e923241cbeb93f43b",
+    "docs/superpowers/audits/connected-world/rework-cwr1-independent/held-review-2026-11-07.md": "1bfc8d9f45382821025420b816488a0cdc72d7997f66c4a855887ea5aa4d950f",
+    "docs/superpowers/audits/connected-world/rework-cwr1-independent/raw/README.md": "f62f7569aee20c7af629d7492179f10a9554d764a23af34d8cf89a490d81eeb6",
+    "docs/superpowers/progress/connected-world-rework-coverage.md": "712db4c97f283555c6b080813ecccc69572f1579718adea66b3fbd877b0b134d",
+    "docs/superpowers/progress/connected-world-rework-report.md": "23472a17bd3b214c770ed631a52710728973a7eb2f53ac142a0e50b2d8121339",
+    "docs/superpowers/progress/connected-world-rework.md": "71cbdd400b3e9f1569d464d4147716fe8ad3750fd3b856cb61ac7ad9eba0ea4e",
+    "docs/superpowers/progress/connected-world-rework/verification/pr99-main-tests.json": "46758a7e50def4a14d873fbea30b3d8ace32401914947b1c219c257011a652b9",
+    "docs/superpowers/progress/connected-world-rework/verification/pr99-premerge-tests.json": "ea59748020ab3ccef8f848861f6f58a4f892978807aa652b31a2fdb8186daa8b",
+    "docs/superpowers/progress/connected-world.json": "10c1ca45fde203c81724ffc89220e99e5a059d2923c2bdeffcce5d7854e218cc"
+  },
+  "production_native_scripts_tests_viewer_workflows_dependencies_delta": [],
+  "registry_protocol_raw_results_defaults_unchanged": true,
+  "runtime_merge_tree": "71d45b2f289e08cc663f03a45cb431d99c1132f8",
+  "runtime_merge_tree_equals_reviewed_head72": true,
+  "runtime_CI_receipts": {
+    "pr99-premerge-tests.json": {
+      "sha256": "ea59748020ab3ccef8f848861f6f58a4f892978807aa652b31a2fdb8186daa8b",
+      "run": 42426724513,
+      "head": "72d89dde42a3b53cc36d7e002b7f164b7d63d645",
+      "event": "pull_request",
+      "jobs": 9,
+      "all_nine": "success",
+      "url": "https://github.com/YotsuBotfds/Chronicler/actions/runs/42426724513"
+    },
+    "pr99-main-tests.json": {
+      "sha256": "46758a7e50def4a14d873fbea30b3d8ace32401914947b1c219c257011a652b9",
+      "run": 42428257952,
+      "head": "a5ccbbf528de82d8a4fa19dbebe7d6ab805b2b96",
+      "event": "push",
+      "jobs": 9,
+      "all_nine": "success",
+      "url": "https://github.com/YotsuBotfds/Chronicler/actions/runs/42428257952"
+    }
+  },
+  "CI_review_scope": "Read exact saved compact receipts; lead reports live GitHub verification. This reviewer did not requery live CI or rerun checks.",
+  "late_audit": {
+    "rendered_harm_rows": 242,
+    "paired_world_cells": 1452,
+    "observation_cells": 3744,
+    "verification": "Independent standard-library comparison of compact/full retained receipt and closed144metric rows; allmatched",
+    "imports": "Only standard library; no simulator/native imports, modelcalls or subprocess",
+    "executions_for_this_final_delta": 0
+  },
+  "reproduction": {
+    "fix": "Fresh mktemp staging aliases committed closure-receipt.json\u2192receipt.json and start.json\u2192held-run.json, isolated unchangedhelper, fresh output",
+    "actual_staging_readback_sha256": "40a58fbeff690bb5178eb08df191f8aaf0e3dedb342e36bd47ebb6d5e4951039",
+    "actual_staging_bytes": 1183863,
+    "actual_status": "PASS242",
+    "independent_hashes_checked": "8committed inputs,5aliases,newoutputSHA/size/summary and normalized512e recipehash",
+    "simulation_or_native_execution": false,
+    "original_evidence_bytes_changed": false
+  },
+  "current_docs": "Final report/coverage/continuation/board truthfully close runtime99 after exact mainCI, remove stale held/premerge summaries, retain adverse/null/mixed results and scope/qualification limits. AllchangedMarkdown local links resolve.",
+  "documentation_CI_policy": "Later documentation follows independent review, exact-head Tests, authorized PR merge and verified exact final main. PR/finalhandoff link its receipts; authoritative currentdocumentation CI is Tests push run for actualcurrent mainHEAD. No self-recording CI loop or unrun-gate success claim.",
+  "unrun_and_restricted": "Full200seed/procedural qualification and defaultpromotion remain unrun; no new heldseeds/modelcalls/paidnarration/deployment/credentialsharing actions.",
+  "blockers": [],
+  "approval_scope": "Reviewed13docfiles plus audit-only additions. Any production/evidence change requires renewed review. Exact pushed documentation-head Tests and postmerge main CI still mandatory.",
+  "executed_this_final_review": "Read-only diffs/source/contracts/receipts, small hashes/linkchecks only; no simulation/nativeimport/profile/test repeat."
+}

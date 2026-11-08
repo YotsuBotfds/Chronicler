@@ -1,8 +1,8 @@
 # Connected World correctness, causal evaluation and performance rework
 
 Implementation and the preregistered bounded evaluation are complete and
-independently checked. Final reviewed-head checks, authorized integration and
-verified main CI remain pending in this pre-merge report. Source, controls,
+independently checked. PR #99 merged after independent final review and all
+nine exact-head Tests; all nine exact main CI jobs also passed. Source, controls,
 cohort, horizon and budget stayed frozen throughout the held run.
 
 ## Source and boundaries
@@ -318,9 +318,9 @@ The broad offline gate passes 76 chunks, 8,119 tests and 69 conditional skips,
 maximum 31.99 s within the unchanged 110 s chunk limit. This source precedes
 only the final exact-floor change; 70 focused trade tests and nine native
 lifecycle checks cover that delta. Full Rust: 1,339 pass, two pre-existing
-manual timing benches ignored. All nine Tests jobs pass on code/evidence head
-`27074bba` (run `42424371808`); final reviewed-head and post-merge checks remain
-required. The appended cwr1 inverse is independently verified bidirectionally;
+manual timing benches ignored. All nine Tests jobs pass on the final independently
+reviewed head `72d89dde` (run `42426724513`); the merged tree is identical.
+Exact #99 main Tests `42428257952` also passed all nine jobs. The appended cwr1 inverse is independently verified bidirectionally;
 historical source and registry hash pins are preserved.
 
 ## Scope and remaining limits
@@ -369,5 +369,18 @@ read-only arithmetic reproduction without simulation. Exact commands, source
 hashes, environment paths and controls are linked above; workspace lifetime is
 not guaranteed.
 
-**Final PR/head/main-CI disposition: held closure and independent arithmetic
-passed; final result/diff review and authorized integration checks remain pending.**
+**Integration:** #99 merged at `a5ccbbf528de82d8a4fa19dbebe7d6ab805b2b96`.
+Its tree equals reviewed `72d89dde`; all nine
+[premerge Tests](https://github.com/YotsuBotfds/Chronicler/actions/runs/42426724513)
+passed. Exact [main Tests](https://github.com/YotsuBotfds/Chronicler/actions/runs/42428257952)
+passed all nine jobs. The current
+[registry and integration board](connected-world.json) records the verified runtime.
+
+The final integration ledger and late independent audit add no runtime change.
+The read-only [harm audit and archived-artifact reproduction](../audits/connected-world/rework-cwr1-independent/held-review-2026-11-07.md)
+check all 242 rendered harm rows / 1,452 paired-world cells and 3,744 activation/
+coverage observation cells. Its fresh staging recipe preserves original hashes;
+no simulation or native agent module is invoked. This reporting PR follows the
+same independent-review, green exact-head Tests and verified final main policy.
+Its later verification is recorded in the PR and final handoff; the authoritative
+current documentation CI is the Tests push run for current main HEAD.

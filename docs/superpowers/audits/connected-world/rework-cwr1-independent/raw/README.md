@@ -3,7 +3,10 @@
 Both retained first worlds now pass: **24 cases × 120 turns**. The
 [combined review](review-first-worlds-2026-11-07.md) and
 [template receipt](readback-t4101.json) complete this raw sampling gate.
-The full 144-run held arithmetic/effect review remains separate and pending.
+The full 144-run [held arithmetic review](../held-review-2026-11-07.md)
+subsequently completed as a separate gate. This raw review still covers
+only 24 retained first-world cases. Manifest hashes describe the original
+first-world checkpoint at `5e26abb2`; this index now links the later review.
 
 The initial procedural checkpoint follows; its resource table is the
 historical budget position before template readback, not the current balance.
