@@ -297,6 +297,8 @@ CHUNKS = {
         "tests/test_decision_ablation.py",
         "tests/test_ablation_output.py",
         "tests/test_spec_communities.py",
+        "tests/test_seed_registry_check.py",
+        "tests/test_validation_multiplicity.py",
     ],
     "learning": [
         "tests/test_scholarship.py",
