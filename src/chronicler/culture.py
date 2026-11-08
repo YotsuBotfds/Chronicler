@@ -16,7 +16,7 @@ from chronicler.tuning import (
     K_RECONQUEST_COOLDOWN, K_ASSIMILATION_AGENT_THRESHOLD,
     K_ASSIMILATION_GUARD_TURNS, K_PROPAGANDA_COST,
     K_PROPAGANDA_ACCELERATION, K_COUNTER_PROPAGANDA_COST,
-    K_CULTURE_PROJECTION_THRESHOLD, K_PRESTIGE_DECAY, K_PRESTIGE_TRADE_DIVISOR,
+    K_PRESTIGE_DECAY, K_PRESTIGE_TRADE_DIVISOR,
     get_override,
 )
 from chronicler.utils import civ_index, clamp
@@ -141,9 +141,7 @@ def apply_value_drift(world: WorldState, agent_snapshot=None, *, agent_rows: Age
 
 
 ASSIMILATION_THRESHOLD = 15
-ASSIMILATION_STABILITY_DRAIN = 3
 RECONQUEST_COOLDOWN = 10
-ASSIMILATION_AGENT_THRESHOLD = 0.60
 ASSIMILATION_GUARD_TURNS = 5
 
 
@@ -319,7 +317,6 @@ def tick_cultural_assimilation(world: WorldState, acc=None, agent_snapshot=None,
 PROPAGANDA_COST = 5
 PROPAGANDA_ACCELERATION = 3
 COUNTER_PROPAGANDA_COST = 3
-CULTURE_PROJECTION_THRESHOLD = 60
 
 
 def _counter_propaganda_reaction(world: WorldState, defender, region, seed: int, acc=None) -> int:

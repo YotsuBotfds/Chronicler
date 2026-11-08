@@ -691,10 +691,6 @@ class FactSheet:
     def __contains__(self, fid: str) -> bool:
         return fid in self._facts
 
-    @property
-    def fact_ids(self) -> list[str]:
-        return list(self._order)
-
     def fact(self, fid: str | None, turn: int | None, text: str = "", retro: bool = False) -> str | None:
         """Register a fact (dated ``turn``) and the names ``text`` mentions."""
         if not fid:

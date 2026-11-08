@@ -150,10 +150,6 @@ def holds(region: "Region", civ_name: str) -> bool:
     return region.controller == civ_name
 
 
-def held_regions(world: "WorldState", civ_name: str) -> list[str]:
-    return [r.name for r in world.regions if holds(r, civ_name)]
-
-
 def own_free_regions(world: "WorldState", civ_name: str) -> list[str]:
     return [r.name for r in world.regions
             if r.controller == civ_name and r.occupied_by in (None, civ_name)]

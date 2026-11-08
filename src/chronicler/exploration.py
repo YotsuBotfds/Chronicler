@@ -220,16 +220,6 @@ def reveal_migration_source(civ: Civilization, source_region: str) -> None:
         civ.known_regions.sort()
 
 
-def filter_targets_by_fog(
-    world: WorldState, civ: Civilization, target_regions: list[str],
-) -> list[str]:
-    """Remove regions the civ doesn't know about. No-op if fog disabled."""
-    if not world.fog_of_war or civ.known_regions is None:
-        return target_regions
-    known_set = set(civ.known_regions)
-    return [r for r in target_regions if r in known_set]
-
-
 def tick_trade_knowledge_sharing(
     world: WorldState,
     routes: list[tuple[str, str]] | None = None,

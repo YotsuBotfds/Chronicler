@@ -4,7 +4,7 @@ from __future__ import annotations
 from chronicler.history_index import history_index
 from chronicler.contact_ledger import ledger_enabled, merchant_hub_partners, trade_partner_count
 from chronicler.models import (
-    FOOD_CRISIS_EVENT_TYPES, WorldState, Civilization, Event, NamedEvent, GreatPerson, Disposition,
+    FOOD_CRISIS_EVENT_TYPES, WorldState, Civilization, Event, GreatPerson, Disposition,
 )
 from chronicler.utils import stable_hash_int
 
@@ -198,42 +198,3 @@ def compute_folk_hero_asabiya_bonus(civ: Civilization) -> float:
     """Return total asabiya bonus from folk heroes."""
     return len(civ.folk_heroes) * FOLK_HERO_ASABIYA
 
-
-# --- Task 23: Prophet martyrdom ---
-
-def apply_prophet_martyrdom(gp: GreatPerson, civ: Civilization, world: WorldState) -> list:
-    """Apply martyrdom effects when a prophet dies: boost movement and upgrade co-adherent relations."""
-    events: list = []
-    if gp.role != "prophet" or gp.movement_id is None:
-        return events
-
-    movement = next((m for m in world.movements if m.id == gp.movement_id), None)
-    if not movement:
-        return events
-
-    key = f"martyrdom_bonus_movement_{movement.id}"
-    civ.event_counts[key] = civ.event_counts.get(key, 0) + 1
-
-    # Disposition upgrade for co-adherents
-    order = [
-        Disposition.HOSTILE, Disposition.SUSPICIOUS, Disposition.NEUTRAL,
-        Disposition.FRIENDLY, Disposition.ALLIED,
-    ]
-    for other_name in movement.adherents:
-        if other_name == civ.name:
-            continue
-        rel = world.relationships.get(other_name, {}).get(civ.name)
-        if rel:
-            idx = order.index(rel.disposition) if rel.disposition in order else 2
-            if idx < len(order) - 1:
-                rel.disposition = order[idx + 1]
-
-    world.named_events.append(NamedEvent(
-        name=f"The Martyrdom of {gp.name}",
-        event_type="martyrdom",
-        turn=world.turn,
-        actors=[civ.name],
-        description=f"The death of {gp.name} defined the orthodox faith.",
-        importance=8,
-    ))
-    return events

@@ -1,5 +1,5 @@
 # tests/test_traditions.py
-"""Tests for Task 19-23: event_counts, traditions, folk heroes, secession inheritance, and prophet martyrdom."""
+"""Tests for Task 19-22: event_counts, traditions, folk heroes, and secession inheritance."""
 import pytest
 from chronicler.traditions import (
     update_event_counts,
@@ -10,9 +10,8 @@ from chronicler.traditions import (
     check_folk_hero,
     compute_folk_hero_asabiya_bonus,
     _add_folk_hero,
-    apply_prophet_martyrdom,
 )
-from chronicler.models import Event, GreatPerson, Movement
+from chronicler.models import Event, GreatPerson
 
 
 # --- Task 19: Event counts tracking ---
@@ -206,26 +205,6 @@ def test_tradition_inherited_on_secession(make_world):
         if new_civs:
             assert "martial" in new_civs[-1].traditions
             assert "resilience" in new_civs[-1].traditions
-
-
-# --- Task 23: Prophet martyrdom ---
-
-def test_prophet_martyrdom_boosts_movement(make_world):
-    world = make_world(num_civs=2, seed=42)
-    civ = world.civilizations[0]
-    movement = Movement(
-        id="0", origin_civ=civ.name, origin_turn=0,
-        value_affinity="freedom", adherents={civ.name: 0},
-    )
-    world.movements = [movement]
-    gp = GreatPerson(
-        name="Martyr", role="prophet", trait="zealous",
-        civilization=civ.name, origin_civilization=civ.name,
-        born_turn=0, death_turn=10, fate="dead", movement_id="0",
-    )
-    apply_prophet_martyrdom(gp, civ, world)
-    key = f"martyrdom_bonus_movement_0"
-    assert civ.event_counts.get(key, 0) >= 1
 
 
 # --- Task 24: M17d integration test ---
