@@ -10,7 +10,14 @@ The external review of `b0811a73` requested changes, all at P2. All are addresse
 
 The guide also creates `output/` before writing receipts and saves a native receipt. It gives the same-source reproduction steps for the reference CI gate run, separates a local PASS from a reproduction, and states the Python patch requirement (3.13.5 fails the argparse golden on untouched `main`). The plan's `--machine --json` usage is corrected.
 
-Exact-head CI has still not run: `tests.yml` does not run on pushes to this branch, so a PR or a dispatch is needed.
+The full bounded oracle lane passed on the code of `567571f`, both ways:
+
+| Run | Tests | Lane time | Slowest chunk |
+|---|---|---|---|
+| `--jobs 4` | 8,139 passed, 69 skipped, 0 failed | 96.9 s | 37.7 s of 110 s |
+| serial | the same per-chunk counts, in the same chunk order | 339.6 s | 33.0 s |
+
+The `--jobs 4` receipt records HEAD `b0811a7` because it started before the commit; the working tree held the same code. Exact-head CI has still not run: `tests.yml` does not run on pushes to this branch, so a PR or a dispatch is needed.
 
 # 2026-11-08 — workstation tooling (Linux 9950X / 3950X)
 
