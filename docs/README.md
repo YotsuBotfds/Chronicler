@@ -10,6 +10,8 @@ Treat dated records as evidence, not instructions.
 | --- | --- |
 | [RECOVERY.md](RECOVERY.md) | Current source identity, private archives, safe restoration, open gates. |
 | [DEVELOPMENT.md](DEVELOPMENT.md) | Setup, test lanes, native builds, gate commands. |
+| [workstations.md](workstations.md) | Setting up the 16-core workstations (9950X, 3950X): layout, toolchain, threads, identity and gate reproduction. |
+| [superpowers/roadmaps/streamline-and-deepen.md](superpowers/roadmaps/streamline-and-deepen.md) | Current roadmap (streamlining, corrections, simulation depth), with its task board, specs and plans. |
 | [CONTINUATION.md](CONTINUATION.md) | Continuation ledger: current state on top, dated handoffs below. |
 | [local-simulate-view-resume.md](local-simulate-view-resume.md) | Walkthrough: simulate, view, resume exactly. |
 | [superpowers/progress/phase-6-progress.md](superpowers/progress/phase-6-progress.md) | Milestone ledger (newest entries first). |

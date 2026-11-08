@@ -18,7 +18,9 @@ lanes. Build the Rust extension into a separate native venv,
 `CHRONICLER_NATIVE_VENV` (default `~/.venvs/chronicler-native`;
 `%USERPROFILE%\.venvs\chronicler-native` on Windows). `maturin develop`
 installs into `VIRTUAL_ENV`, or into `./.venv` when none is set, so always
-build with the native venv active.
+build with the native venv active. For the 16-core workstations (9950X, 3950X), see
+[workstations.md](workstations.md): it covers WSL2 layout, threads, the identity matrix
+and running the validation gate locally.
 
 `bash setup.sh --native-venv` (Mac, Linux, Git Bash) and
 `setup.bat --native-venv` (Windows Command Prompt) set both up. Without

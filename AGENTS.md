@@ -12,7 +12,10 @@ boards are under `docs/superpowers/` (`livelihoods-*`, `recovery-skills*`,
 `productive-recovery*`).
 Older branch instructions and machine paths are dated historical evidence.
 In Claude Code cloud sessions, `scripts/cloud_setup.sh` installs dependencies;
-build native extensions only into the separate venv it describes.
+build native extensions only into the separate venv it describes. On a
+workstation, use `setup.sh --native-venv` (see [docs/workstations.md](docs/workstations.md)).
+The current roadmap is
+[docs/superpowers/roadmaps/streamline-and-deepen.md](docs/superpowers/roadmaps/streamline-and-deepen.md).
 The current milestone ledger is `docs/superpowers/progress/phase-6-progress.md`;
 dated evidence describes the source and platform it actually tested.
 

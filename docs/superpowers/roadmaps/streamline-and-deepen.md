@@ -1,9 +1,10 @@
 # Streamline and deepen — roadmap (2026-11)
 
-> **Status:** Proposed. No task is started.
+> **Status:** Proposed. ENV-1 and ENV-8 are in review; no other task has started.
 > **Date:** 2026-11-08
 > **Source:** [repository scout and streamlining plan](../audits/2026-11-08-streamlining-scout.md) and its [32 area reports](../audits/2026-11-08-scout/)
-> **Board:** [`progress/streamline-and-deepen.json`](../progress/streamline-and-deepen.json). Every task on it is `proposed`.
+> **Board:** [`progress/streamline-and-deepen.json`](../progress/streamline-and-deepen.json). Statuses: `ready` (no unmet prerequisite), `blocked` (waits on `depends_on`), `proposed` (owner decision or R7 brief), `review`.
+> **Machines:** the 9950X and 3950X workstations ([setup guide](../../workstations.md)).
 > **Specs and plans:** `docs/superpowers/specs/2026-11-08-*-design.md` and `docs/superpowers/plans/2026-11-08-*.md` (index below)
 
 ## Owner instruction
@@ -36,7 +37,7 @@ Then make Chronicler a grand, broad, wide and detailed simulation. This roadmap 
 
 | Milestone | Phases | Done when (measured, not asserted) |
 |---|---|---|
-| **M-S1 Lean and honest** | R1, R2 | One current-status source. Unpinned dead code removed (about 2,650 source lines). The unpinned fixes merged with regression tests. FIX-1, FIX-3, FIX-10 and FIX-11 follow PIN-1. CI critical path shortened by the shard rebalance. `cloud_setup.sh` fails loudly. |
+| **M-S1 Lean and honest** | R1, R2 | At least one workstation environment is set up per `docs/workstations.md` and has a receipt. Its local full gate is compared with CI run 42491150017, and the identity matrix is recorded. One current-status source. Unpinned dead code removed (about 2,650 source lines). The unpinned fixes merged with regression tests. FIX-1, FIX-3, FIX-10 and FIX-11 follow PIN-1. CI critical path shortened by the shard rebalance. `cloud_setup.sh` fails loudly. |
 | **M-S2 Refactorable** | R0, R3 | DEC-1–DEC-8 recorded. Current-source enforced pins go from 84 files to the policy's target. Under option A, witnesses read committed frozen copies (about 91 files, 2.75 MB), so every former chain still verifies offline. The identity gate covers the formerly pinned modules (PIN-2 inventory complete). |
 | **M-S3 Correct** | R4 | COR-1–COR-10 merged, each with its baseline. The provenance decision-read guard list is empty. A PYTHONHASHSEED sweep test is green. Live and CLI produce the same defaults. |
 | **M-S4 Extensible** | R5 | `src/chronicler` contains no lab-only module. Adding a default-off switch touches one module, one state class and one registry row. That count is measured before CON-1 and again after CON-2. `run_turn_result` hooks come from the phase registry. Python↔Rust constants have one source. |
@@ -70,6 +71,7 @@ flowchart LR
 
 | Workstream | Tasks | Spec | Plan |
 |---|---|---|---|
+| Workstation environments | ENV-1–ENV-8 | [spec](../specs/2026-11-08-workstation-environments-design.md) | [plan](../plans/2026-11-08-workstation-environments.md) |
 | Repository hygiene | HYG-1–HYG-8, DEC-8 | [spec](../specs/2026-11-08-repo-hygiene-design.md) | [plan](../plans/2026-11-08-repo-hygiene.md) |
 | Dead-code removal | DEAD-2, DEAD-3, DEAD-5 | [spec](../specs/2026-11-08-dead-code-removal-design.md) | [plan](../plans/2026-11-08-dead-code-removal.md) |
 | Behaviour-neutral fixes | FIX-1–FIX-7, FIX-9–FIX-13 | [spec](../specs/2026-11-08-behaviour-neutral-fixes-design.md) | [plan](../plans/2026-11-08-behaviour-neutral-fixes.md) |
@@ -86,6 +88,11 @@ flowchart LR
 
 ## Suggested execution order
 
+0. **First, set up a workstation (ENV-1–ENV-6).**
+   - Follow [docs/workstations.md](../../workstations.md) on the 9950X (WSL2) or the 3950X.
+   - Record the machine receipt and the identity matrix.
+   - Reproduce CI's full gate locally.
+   - The workstation then runs every later lane and gate in minutes. ENV-2–ENV-4 are small tooling PRs that need no decision.
 1. **Now, in parallel:**
    - R1: HYG-1–HYG-6 and HYG-8.
    - R2: DEAD-1–DEAD-4, then the unpinned fixes (FIX-2, FIX-4–FIX-9, FIX-12, FIX-13). FIX-1, FIX-3, FIX-10 and FIX-11 touch pinned files, so they take an exact-inverse layer or wait for PIN-1.
@@ -121,12 +128,20 @@ _Owner decisions D1–D8 recorded._
 | DEC-7 | Duplicate models: era-advance cost rule, legacy war kernel scope, formation fallback | decision | — | - | - | [spec](../specs/2026-11-08-behaviour-corrections-design.md) | [plan](../plans/2026-11-08-behaviour-corrections.md) |
 | DEC-8 | Which evidence (logs, jsonl, held output) may leave git | decision | — | - | - | [spec](../specs/2026-11-08-repo-hygiene-design.md) | [plan](../plans/2026-11-08-repo-hygiene.md) |
 
-### R1 — Hygiene
+### R1 — Hygiene and workstations
 
-_One status source, clean ignore rules, CI and setup hardened, dead scripts archived._
+_One status source, clean ignore rules, CI and setup hardened, dead scripts archived; the 9950X/3950X workstations set up, measured and able to run every lane and the full gate._
 
 | ID | Task | Class | Depends on | Risk | Size | Spec | Plan |
 |---|---|---|---|---|---|---|---|
+| ENV-1 | Workstation setup guide (docs/workstations.md) and links | docs | — | low | +250 doc lines | [spec](../specs/2026-11-08-workstation-environments-design.md) | [plan](../plans/2026-11-08-workstation-environments.md) |
+| ENV-2 | Machine receipt: check_python_env.py --machine --json | tooling | — | low | ~+150 | [spec](../specs/2026-11-08-workstation-environments-design.md) | [plan](../plans/2026-11-08-workstation-environments.md) |
+| ENV-3 | Parallel oracle lane: run_python_oracle_checks.py --jobs N (default serial) | tooling | — | med | ~+80 | [spec](../specs/2026-11-08-workstation-environments-design.md) | [plan](../plans/2026-11-08-workstation-environments.md) |
+| ENV-4 | Parallel batches: spawn pool with PYTHONHASHSEED 0 | fix | — | low | ~+15 | [spec](../specs/2026-11-08-workstation-environments-design.md) | [plan](../plans/2026-11-08-workstation-environments.md) |
+| ENV-5 | Cross-machine identity matrix (9950X WSL2/Windows, 3950X, CI-like Linux) | measurement | ENV-1 | low | record | [spec](../specs/2026-11-08-workstation-environments-design.md) | [plan](../plans/2026-11-08-workstation-environments.md) |
+| ENV-6 | Local full validation gate vs CI run 42491150017 at c3d752fa | measurement | ENV-1 | med | record | [spec](../specs/2026-11-08-workstation-environments-design.md) | [plan](../plans/2026-11-08-workstation-environments.md) |
+| ENV-7 | Native build tuning (jemalloc on Linux, x86-64-v3) behind identity compare | perf | ENV-5 | low | record | [spec](../specs/2026-11-08-workstation-environments-design.md) | [plan](../plans/2026-11-08-workstation-environments.md) |
+| ENV-8 | Agent-session notes for workstations (AGENTS.md, guide) | docs | — | low | small | [spec](../specs/2026-11-08-workstation-environments-design.md) | [plan](../plans/2026-11-08-workstation-environments.md) |
 | HYG-1 | One current-status block; split CONTINUATION history | docs | — | low | ~2,000 lines moved | [spec](../specs/2026-11-08-repo-hygiene-design.md) | [plan](../plans/2026-11-08-repo-hygiene.md) |
 | HYG-2 | .gitignore additions | config | — | low | small | [spec](../specs/2026-11-08-repo-hygiene-design.md) | [plan](../plans/2026-11-08-repo-hygiene.md) |
 | HYG-3 | Archive superseded audits; fix stale docs | docs | — | low | ~3,100 md lines archived | [spec](../specs/2026-11-08-repo-hygiene-design.md) | [plan](../plans/2026-11-08-repo-hygiene.md) |
