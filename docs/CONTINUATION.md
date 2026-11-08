@@ -1,32 +1,30 @@
-# Connected World rework — current recovery checkpoint
+# Connected World rework — runtime merged, main CI pending
 
-Implementation and bounded evaluation are complete; final reviewed integration
-is pending. Read the [current ledger](superpowers/progress/connected-world-rework.md),
+PR #99 merged at `a5ccbbf528de82d8a4fa19dbebe7d6ab805b2b96` on
+2026-11-08. Its tree equals independently reviewed `72d89dde`; premerge Tests
+`42426724513` passed all nine jobs. Exact main Tests **42428257952 is pending**.
+Freeze further feature merges until it passes; repair or revert through a PR
+if it fails. No direct push to main.
+
+Implementation and bounded evaluation are complete and independently reviewed.
+Read the [current ledger](superpowers/progress/connected-world-rework.md),
 [machine board](superpowers/progress/connected-world.json),
 [closed-results report](superpowers/progress/connected-world-rework-report.md)
-and [current coverage](superpowers/progress/connected-world-rework-coverage.md).
+and [coverage](superpowers/progress/connected-world-rework-coverage.md).
 They supersede historical next-task/completion entries below.
 
-Verified main is `125a6906` (#98), all nine Tests green in `42417310582`.
-Draft #99 carries the rework; code/evidence head `27074bba` passed all nine
-jobs in `42424371808`. Production runtime `8792be88` and frozen held source
-`b45c1e99` have identical production source/native/scripts. Legacy feature and
-version defaults remain unchanged; corrected use is explicit rules 3 / density_only.
+All 144 CWR1 cases passed under the fixed two-core-hour cap; the twelve held
+seeds are recorded used once. Do not rerun them as fresh. Old CW6 and fresh
+adverse/null/mixed outcomes, access/demographic limits and capped traces remain
+explicit. Defaults remain unchanged; corrected use selects explicit rules 3
+and density_only. Restricted qualification/default promotion remains unrun.
 
-CWR1 **closed 144/144**, zero failures, 0.92911 budget-counted core-hours below two.
-Independent all-world arithmetic and 24 retained raw first-world cases pass.
-All twelve seeds 4101–4106/4201–4206 are recorded used once after closure;
-**do not restart or rerun them as fresh**. Metrics/source/control identities,
-raw-report heading erratum, nulls/harms/access limits and registry receipts are
-retained. The data remain adverse on average; no tuning targeted favorable signs.
-
-Next: final evidence/report delta review, green Tests on final reviewed #99
-head, authorized merge and exact main CI, then reviewed final integration
-ledger and its checks/main verification. Default identity against both
-references, performance admission, 14 enabled resumes and real browser checks
-are complete. Restricted qualification/default promotion, paid narration,
-deployments and credential/sharing changes remain unauthorized. Container
-lifetime or automatic recovery is not promised.
+The isolated `codex/cwr-closeout` branch at `/workspace/cwr-closeout` carries
+this integration ledger and late read-only harm-audit reproduction. Next:
+verify #99 exact main CI, finish independent ledger review, open draft PR,
+require green reviewed-head Tests, merge and verify final main CI. Runtime,
+profiles and held source remain frozen; no new simulations are required.
+No automatic recovery after reclamation is promised.
 
 ## Historical checkpoints (not current tasks)
 

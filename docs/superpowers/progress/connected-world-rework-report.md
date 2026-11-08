@@ -1,8 +1,8 @@
 # Connected World correctness, causal evaluation and performance rework
 
 Implementation and the preregistered bounded evaluation are complete and
-independently checked. Final reviewed-head checks, authorized integration and
-verified main CI remain pending in this pre-merge report. Source, controls,
+independently checked. PR #99 merged after independent final review and all
+nine exact-head Tests; exact main CI remains pending. Source, controls,
 cohort, horizon and budget stayed frozen throughout the held run.
 
 ## Source and boundaries
@@ -369,5 +369,8 @@ read-only arithmetic reproduction without simulation. Exact commands, source
 hashes, environment paths and controls are linked above; workspace lifetime is
 not guaranteed.
 
-**Final PR/head/main-CI disposition: held closure and independent arithmetic
-passed; final result/diff review and authorized integration checks remain pending.**
+**Integration:** #99 merged at `a5ccbbf528de82d8a4fa19dbebe7d6ab805b2b96`.
+Its tree equals reviewed `72d89dde`; all nine
+[premerge Tests](https://github.com/YotsuBotfds/Chronicler/actions/runs/42426724513)
+passed. Exact [main Tests](https://github.com/YotsuBotfds/Chronicler/actions/runs/42428257952)
+is pending. Further feature merges remain frozen until verified.

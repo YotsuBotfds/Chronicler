@@ -1,18 +1,19 @@
 # Connected World correctness, causal evaluation and performance rework
 
-## Current state — 2026-11-07, 23:42 UTC
+## Current state — 2026-11-08: #99 merged, main CI pending
 
 Implementation, historical audit, performance admission, default identity,
 active resume, real browser checks and the fresh bounded CWR1 screen are
-complete and independently checked. Final report/diff review, exact final-head
-Tests, authorized merge and main CI remain required. This is a pre-merge checkpoint.
+complete and independently checked. PR #99 merged after final independent
+review and all nine exact-head Tests. Its main CI is pending; further feature
+merges are frozen until verified.
 
-- Verified main: `125a69066ea158a973ac5207f393e4eeb330aee8` (#98).
-  Tests `42417310582` passed all nine jobs.
-- Lead integration branch: `codex/cw-rework`; draft #99 contains the rework.
-  Code/evidence head `27074bba` passed all nine jobs in `42424371808`.
-  Later changes are closed held evidence, registry records and documentation;
-  final-head CI remains a merge gate.
+- Main: `a5ccbbf528de82d8a4fa19dbebe7d6ab805b2b96` (#99).
+  Exact main Tests `42428257952` is pending.
+- Reviewed head: `72d89dde42a3b53cc36d7e002b7f164b7d63d645`, all nine
+  premerge Tests `42426724513` passed; merge tree equals reviewed tree.
+- Current integration-ledger branch: `codex/cwr-closeout`, isolated checkout
+  `/workspace/cwr-closeout`; late audits and reproduction are documentation only.
 - Corrected runtime: `8792be88dd36ba4d7c22e480de6a19dd64ea1300`, published
   `codex/cwr-final-runtime`, checkout `/workspace/cwr-final-runtime`.
 - Held source: `b45c1e99572d4d6a60fb01fbd75cb7688aa54e93`, published
@@ -97,15 +98,14 @@ causes are not zero. No tuning or favorable-world selection occurred.
 
 ## Exact next work
 
-1. Finish publishing the closed held packet and final report/coverage/board;
-   obtain independent review of this final evidence/documentation delta.
-2. Push the final reviewed #99 head and require all nine Tests jobs green on
-   that exact head. Reconfirm fetched main and its CI before authorized merge.
-3. Merge through the PR, verify the merge tree and all nine exact main jobs.
-   Freeze further feature merges if main fails; repair or revert through a PR.
-4. Record verified integration in a reviewed documentation PR, require its
-   exact-head checks, merge and verify final main CI. Report the actual final
-   commit, CI links, results and limitations. No direct push to main.
+1. Verify all nine #99 main Tests jobs on exact `a5ccbbf5`. If red, freeze
+   further feature merges and repair or revert through a PR.
+2. Record verified main CI, finish independent review of the integration ledger
+   and late audit reproduction, and open its PR in draft.
+3. Require all nine Tests green on the exact reviewed documentation head,
+   merge through the authorized PR and verify final main CI.
+4. Report actual final commit, CI links, results and limitations. Do not reopen
+   held cohorts, promote defaults or infer missing deaths/access as zero.
 
 Resources are four cgroup CPUs / 16 GiB RAM. One held simulation and a bounded
 readback job fit; there are no native builds running. Preserve other worktrees
