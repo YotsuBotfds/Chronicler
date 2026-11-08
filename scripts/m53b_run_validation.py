@@ -28,6 +28,12 @@ beside the batch. The needs oracle's ablation component (method 7) and the
 cohort oracle's (method 4) read them: causal evidence, reported but not yet
 required; ``--require-causal-oracles`` makes them decide. See
 docs/integration/ablation-oracles.md.
+
+Seeds: the subset and full profiles check ``--seed-start``/``--seeds`` against
+``scripts/seed_registry.json`` (``scripts/check_seed_registry.py``) before
+anything runs: a full run off its gate range is refused, a subset mismatch is a
+warning. ``--hash-seed`` sets every child's ``PYTHONHASHSEED`` (default 0, the
+gate's environment; other values are for hash-seed sweeps).
 """
 from __future__ import annotations
 
@@ -89,12 +95,39 @@ def _run(cmd: list[str], cwd: Path, env: dict[str, str]) -> None:
     subprocess.run(cmd, cwd=cwd, env=env, check=True)
 
 
-def _build_env() -> dict[str, str]:
+def _build_env(hash_seed: str = "0") -> dict[str, str]:
+    """The child environment: this checkout's ``src`` first on ``PYTHONPATH`` and a
+    fixed ``PYTHONHASHSEED`` (``--hash-seed``, default ``"0"``, the gate's)."""
     env = os.environ.copy()
     existing = env.get("PYTHONPATH", "")
     env["PYTHONPATH"] = str(SRC) if not existing else f"{SRC}{os.pathsep}{existing}"
-    env["PYTHONHASHSEED"] = "0"
+    env["PYTHONHASHSEED"] = hash_seed
     return env
+
+
+def _hash_seed(value: str) -> str:
+    """``--hash-seed``: ``random`` or an integer in Python's PYTHONHASHSEED range."""
+    if value == "random" or (value.isdigit() and 0 <= int(value) <= 4294967295 and str(int(value)) == value):
+        return value
+    raise argparse.ArgumentTypeError(f"expected 'random' or an integer 0..4294967295, got {value!r}")
+
+
+# The seed registry check (scripts/check_seed_registry.py) for the profiles that
+# take --seed-start/--seeds: a full run's seeds must be the gate range of a
+# restricted_gate entry (refused otherwise); a subset's mismatch is a warning.
+SEED_REGISTRY_CHECK = ROOT / "scripts" / "check_seed_registry.py"
+SEED_REGISTRY_PROFILES = ("subset", "full")
+
+
+def registry_seed_problems(args: argparse.Namespace) -> list[str]:
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location("check_seed_registry", SEED_REGISTRY_CHECK)
+    module = importlib.util.module_from_spec(spec)
+    assert spec.loader is not None
+    spec.loader.exec_module(module)
+    worldgen = getattr(args, "worldgen", None) or "template"
+    return module.check(args.profile, module.profile_seeds(args.seed_start, args.seeds), worldgen)
 
 
 PROFILE_DEFAULTS = {
@@ -857,6 +890,9 @@ def main() -> None:
     parser.add_argument("--seed-start", type=int, default=42)
     parser.add_argument("--seeds", type=int, default=None)
     parser.add_argument("--turns", type=int, default=None)
+    parser.add_argument("--hash-seed", type=_hash_seed, default="0",
+                        help="PYTHONHASHSEED of every child process: an integer or 'random' (default 0, "
+                             "the gate's; other values are for hash-seed sweeps)")
     parser.add_argument("--parallel", type=int, default=None,
                         help="batch worker processes (default: affinity/cgroup-aware CPU budget, "
                              "reserving one CPU when possible; 1 is one worker, 0 sequential)")
@@ -1066,6 +1102,12 @@ def main() -> None:
         parser.error(f"--ablation-oracles applies to the {' and '.join(ABLATION_PROFILES)} profiles")
     if args.profile in ABLATION_PROFILES and require_causal(args) and not ablation_enabled(args):
         parser.error(f"{CAUSAL_ORACLES_FLAG} needs the ablation arms (--ablation-oracles)")
+    if args.profile in SEED_REGISTRY_PROFILES:
+        problems = registry_seed_problems(args)
+        if problems and args.profile == "full":
+            parser.error("seed registry: " + "; ".join(problems))
+        for problem in problems:
+            print(f"warning: seed registry: {problem}", file=sys.stderr)
     if args.baseline_report is not None:
         try:
             load_validation_report(args.baseline_report)
@@ -1079,7 +1121,7 @@ def main() -> None:
         parser.error(str(exc))
 
     cwd = Path.cwd()
-    env = _build_env()
+    env = _build_env(args.hash_seed)
 
     timings: dict[str, float] = {}
     arms_result = None

@@ -23,6 +23,7 @@ and `setup.bat` run it last.
 | `run_python_oracle_checks.py` | Bounded offline Python lane in guarded chunks (see `docs/DEVELOPMENT.md`). |
 | `python_qualification.py` | Fixed full pytest lane with immutable execution evidence. |
 | `m53b_run_validation.py` | Canonical validation profiles and the 200-seed gate runner. |
+| `check_seed_registry.py` | Read-only check of gate seeds against `seed_registry.json` (a `full` run off the gate range is refused) and of restricted-range reuse. |
 | `run_oracle_gate.py`, `m58b_convergence_gate.py` | Hybrid-versus-aggregate and convergence gates. |
 | `native_ci_shards.py`, `native_wheel_receipt.py`, `native_release_cache.py` | Native CI shard ownership, wheel receipts, dormant cache adapter. |
 | `ci_critical_path.py`, `ci_artifact_intake.py` | Offline CI timing analysis and bounded artifact intake. |
