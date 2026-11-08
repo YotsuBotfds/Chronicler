@@ -599,7 +599,11 @@ try:
         def run_parallel(item):
             name, nodes = item
             captured = []
-            chunk = run_chunk(new_chunk(name, nodes), show=captured.append)
+            chunk = new_chunk(name, nodes)
+            try:
+                run_chunk(chunk, show=captured.append)
+            except Exception as error:  # keep the finished chunks' rows; record this one as failed
+                chunk.update(passed=False, error=f"runner error: {type(error).__name__}: {error}")
             with printing:  # one chunk's header and output together, in completion order
                 print(f"== chunk {name}: {len(nodes)} node IDs, {CHUNK_LIMIT_SECONDS}-second limit "
                       f"({chunk['seconds']:.1f} s)", flush=True)
