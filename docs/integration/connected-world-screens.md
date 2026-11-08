@@ -16,7 +16,7 @@ whose served output is byte-identical (section 5).
 | `scripts/cw_program_profile.py` | Serial off/FULL CPU/RSS/artifact/checkpoint profile with actual native counts, source and extension guards; development worlds only |
 | `scripts/feature_matrix.py` | The switch compatibility matrix, generated from `feature_catalog` |
 | `viewer/src/lib/recordReading.ts` | The RL8 fix: absent, malformed, disabled and recorded-zero records told apart |
-| `tests/test_screen_runner.py`, `tests/test_feature_matrix.py` | Offline tests (oracle chunk `connected-world-e`, native shard 0) |
+| `tests/test_screen_runner.py`, `tests/test_feature_matrix.py`, `tests/test_screen_frozen_evidence.py` | Offline tests (oracle chunk `connected-world-e`, native shard 0) |
 
 ## 1. The seed registry
 
@@ -204,6 +204,35 @@ with a control, an exact enumeration of the paired sign flips (all 2^n sign assi
 per-world differences; with 6 worlds, 64), summarized by how many give a mean at least as far
 from zero as the observed one and the range of those means. It is not a significance test; an
 outcome of one arm alone shows `n/a (no control)`.
+
+### One runner; frozen older screens
+
+**Unspent cohorts (2026-11-08, `scripts/seed_registry.json`).** These entries are not yet run,
+so a pilot made today may still be paired with a held or reserve run later:
+
+| Entry | Cohort | Status | Seeds |
+| --- | --- | --- | --- |
+| `cw-reserve-t` | reserve | reserved | template 791-796 |
+| `cw-reserve-p` | reserve | reserved | procedural 891-896 |
+| `cw3-held-t` | held (CW3) | never_run (unused by design: CW3 declares no template cohort) | template 751-756 |
+| `cw-pilot-t`, `cw-pilot-p` | pilot (shared by every CW screen) | reserved | template 5, procedural 19 |
+| `brainstorm-t` | none | never_run | template 213, 847 |
+
+`scripts/screen_runner.py` is the one screen runner. New screens declare `SR.Screen` entries
+(section 4) and add no runner code of their own. The runner's own SHA-256 is the `runner` line
+of every `source.txt` (`identity_lines`), and `load_pilot` refuses a held or reserve run whose
+pilot recorded another `runner` digest (as it does for `native`, `screens`, `registry-content`
+and `dirty-code`), and `--resume` refuses a changed identity. Editing `screen_runner.py`
+therefore invalidates every pilot made before the edit for a cohort that is still unspent:
+change it only when no pilot/held pair is in flight, and re-run the pilot after the change.
+
+`scripts/productive_recovery_screens.py` and `scripts/livelihoods_screens.py` are older,
+self-contained screens kept as frozen preregistration evidence. They are not ports of the runner
+(only 18 and 6 top-level functions share a name with it; `connected_world_screens.py` shares
+only `main`), and `tests/test_screen_frozen_evidence.py` pins their SHA-256. Do not edit them; a
+new screen of either program is a new file that uses the runner. The same test writes a run
+directory by hand (`source.txt`, `metrics.jsonl`, `derived.jsonl`) and checks that the runner's
+report, identity, resume and pilot readers parse it.
 
 ## 3. The fixed harm panel
 
