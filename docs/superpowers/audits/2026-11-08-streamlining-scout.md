@@ -33,13 +33,13 @@ Tags used below:
 1. **Size and bloat.** The repo is not bloated everywhere: about 10% of the production package and a few clusters of scripts, docs and viewer code carry most of the dead weight.
    - **Totals:** about 154k lines of Python package, 75k Rust, 64k TypeScript, 187k tests, 47k scripts, and 40 MB of docs in 1,519 files.
    - **Unreachable modules:** 29 modules (13,880 lines, 9% of `src/chronicler`) are unreachable from the CLI, live, validate and narration-audit entry points [V, S-27].
-   - **Dead code:** about 1,100 more lines of dead or test-only Python and Rust symbols, and 2,096 lines of dead legacy viewer components [V].
-   - **Scripts and workflows:** about 11k lines of scripts are archived, doc-only or self-referencing [S-26], and two workflows are byte-for-byte duplicates [S-26].
+   - **Dead code:** about 530 lines of unpinned dead Python and Rust symbols, about 135 more in pinned files, 216 lines of test-only analytics extractors awaiting an owner call, and 2,096 lines of dead legacy viewer components [V; counts from the dead-code spec].
+   - **Scripts and workflows:** about 8k lines of scripts are archived or doc-only and can be retired. Two workflows are byte-for-byte duplicates, but they are pinned and stay [S-26, spec repo-hygiene].
 2. **The main cost of change is the pin tax, not dead code.**
    - Enforced source pins cover 37 `src/chronicler` modules (27,274 lines), 14 Rust files, 26 viewer files and 7 scripts [V, from preflight data]. They include `main.py`, `simulation.py`, `models.py`, `economy.py`, `agent_bridge.py`, `live.py`, `tuning.py`, `ffi/mod.rs`, `tick.rs` and `economy.rs`.
    - Every byte change to one of these needs a reviewed exact-inverse layer added to a witness fixture (54 fixtures, 1.1 MB, 13 witness scripts).
    - This is decision D1. Most consolidation that would help expansion goes through these files.
-3. **Correctness comes before expansion.** Eleven bugs or contract breaches are lead-verified (section 4). Two affect every new world:
+3. **Correctness comes before expansion.** Ten bugs or contract breaches are lead-verified (section 4). Two affect every new world:
    - The EXPAND target draw ignores the world seed.
    - Four default-path decisions read causal provenance.
 
@@ -106,7 +106,7 @@ The Python `compute_economy` (economy.py:1742–2137) is a test oracle with no p
 | **D4** | **Provenance decision reads.** Seven are grandfathered at `tests/test_provenance_decision_guard.py:176`. Four are on the default path: `cities._lord_change`, `diplomacy._aid_convoys`, `epidemiology._reports`, `nomads._herds` [V]. | The contract says causal records describe outcomes, not decide them. Fixing these changes default-path outcomes. | Move each decision onto simulation state, one per PR, each with a baseline. |
 | **D5** | **Health crowding default.** `public_health_state.py:46` defaults to `legacy_displacement`, the coupling the rework confirmed, while the corrected screens used `density_only` [V]. | Changing a persisted default changes results when the feature is enabled. Public health itself is default-off. | Keep `legacy` for saved worlds, and make new worlds that enable `--public-health` default to `density_only`. Document this as a correction. |
 | **D6** | **Where detached harnesses live.** The 29 unreachable modules: experiment sessions, governance measurement and capture, expansion audits, memome, health-care observation and others. | Several have digest pins and live in the production import namespace. Their tests are 7.5% of `test_*.py`. | Move them to a sibling package (for example `src/chronicler_lab/`) or `tools/`, with an import shim for one release. Delete only on owner request. |
-| **D7** | **Duplicate models.** Two war models (legacy `resolve_war` and campaigns). Two era-advance paths: legacy charges treasury, `techniques` (default-on) does not. Two movement models. A Python ecology copy and a Rust one. A Python relationship-formation fallback (`relationships.py:201–415`, `simulation.py:2576–2600`, about 250 lines) that production never reaches, because `agent_bridge.py:1290` sets `rust_owns_formation = True` unconditionally [V]. | Each pair doubles the cost of every change in that area. | Keep the legacy war model only as the `--no-campaigns` kernel for old saved worlds. Choose one cost rule for era advance (bug 6). Keep the Python ecology oracle, because it is the `--agents off` tick. Delete the formation fallback, or put it behind an explicit test flag. Generate shared constants from one source. |
+| **D7** | **Duplicate models.** Two war models (legacy `resolve_war` and campaigns). Two era-cost rules: legacy charges at advance, while `techniques` (default-on) charges per invention. Two movement models. A Python ecology copy and a Rust one. A Python relationship-formation fallback (`relationships.py:201–415`, `simulation.py:2576–2600`, about 250 lines) that production never reaches, because `agent_bridge.py:1290` sets `rust_owns_formation = True` unconditionally [V]. | Each pair doubles the cost of every change in that area. | Keep the legacy war model only as the `--no-campaigns` kernel for old saved worlds. Choose one cost rule for era advance (bug 5). Keep the Python ecology oracle, because it is the `--agents off` tick. Delete the formation fallback, or put it behind an explicit test flag. Generate shared constants from one source. |
 | **D8** | **Evidence in git.** 69 `.log` files, about 5.8 MB of `.jsonl`, and dated progress boards. | They slow every clone and grep, and old status text contradicts itself: README names #69, AGENTS #81, RECOVERY #92 and CONTINUATION #99. | Move logs and run output to release assets or archive branches, keeping one summary per screen family. Byte-identical evidence JSON that tests read stays in place [S-30]. |
 
 ---
@@ -120,16 +120,16 @@ The Python `compute_economy` (economy.py:1742–2137) is a test oracle with no p
 | 1 | Live int parsing crashes on `Infinity` | `live.py:1129–1136` catches `(TypeError, ValueError)` around `int(value)`; `int(float('inf'))` raises `OverflowError` | A client message with `1e999` or `Infinity` kills the live sim thread | Also catch `OverflowError`, or check `math.isfinite` first | Nothing (`live.py` is pinned, so it needs D1 or an inverse layer) |
 | 2 | EXPAND target draw ignores the world seed | `action_engine.py:198`: `random.Random(world.turn * 1000 + civ_idx)` | Every seed draws the same expansion targets on the default path, which correlates seed sweeps | `stable_hash_int("expand", world.seed, world.turn, civ.name)` | Outcome change on the default path (D3) |
 | 3 | Live new worlds miss the governance default | `main.py:1648–1653` sets governance only when `fresh_world`; `live._live_world` (1290–1440) sets the other 16 defaults but never governance (`grep governance live.py` is empty) | Live runs and CLI runs of the same world diverge | One default registry used by both paths | Live outcomes change, so document it as a correction |
-| 4 | Food debit order depends on PYTHONHASHSEED | `war_requisition.py:183` iterates `FOOD_GOODS`, a `frozenset` (economy.py:51); five seeds gave five orders | Stockpile composition after army supply varies between processes (hybrid + `--war-requisition` only) | Iterate a fixed tuple | Outcome change in that mode only |
-| 5 | Public food residual omits captured grain | `food_accounting.py:58–60` subtracts released, spoiled and abandoned but not the `CAPTURED` that `grain_reserves.py:288` emits | The residual is wrong whenever reserves capture grain | Add the term | Metric only. `food_accounting.py` is pinned |
-| 6 | Era-advance cost and the spurious `capability_scholarship` event | `tech.py:95–115` emits `capability_scholarship` before the affordability check, then charges treasury; `techniques._advance` (default-on) charges nothing | The event is emitted on turns the civ cannot afford; era advance is free on the default path but costs on the legacy path | Move the emit after the check; choose one cost rule (D7) | Event stream; outcome if the cost changes |
-| 7 | Health crowding default keeps the confirmed coupling | `public_health_state.py:46`; `public_health.py:427` applies `1 + DISPLACEMENT_CROWDING * displaced` | Enabling public health without the flag reproduces the defect the rework found | D5 | Persisted default |
-| 8 | Provenance read by decisions on the default path | `tests/test_provenance_decision_guard.py:176` `KNOWN_DECISION_READS` | Breaks the "narration and provenance only describe" contract | D4 | Default-path outcomes |
-| 9 | Off-mode transient flags are never cleared | Off-mode clears at `simulation.py:2379–2387` omit `_raided_this_turn` (set by `nomads.py:1163`) and `_catastrophe_deaths_this_turn` (`utils.py:86–87` adds to it every turn); only `agent_bridge.py:570–571` clears them | Latent: the catastrophe counter grows without bound in off mode and would leak into the first native batch after a mode change | Shared `clear_region_transients(world)` called on both paths | `simulation.py` is pinned |
-| 10 | Frozen tuning file cannot be loaded | `load_tuning(Path("tuning/m53a_frozen.yaml"))` raises `ValueError: non-numeric leaf at 'substrate_changes'`; `m53_baseline.yaml` loads with about 130 unknown-key warnings (Rust-side agent constants Python cannot set) | Users pointing `--tuning` at shipped files get a crash or silent no-ops | Move these files to docs evidence, or give them a `kind: record` header that the loader refuses with a clear message | `tests/test_tuning.py:218` glob test |
-| 11 | Treasury money and merchant income created from nothing | `wealth_accounting.py:71–75` documents tax and tithe as "credited to the treasury, debited from nobody"; `economy.rs:2335–2337` pays priests `TITHE_RATE × tithe_base` while `factions.py:426–428` credits the treasury from the same base [S-21] | No closed money supply. Agent wealth and treasuries inflate by design | Depth item (section 7): debit payers, collect the tithe once, add a closure test | Outcome change; native rebuild |
+| 4 | Food iteration order depends on PYTHONHASHSEED | `war_requisition.py:183` iterates `FOOD_GOODS`, a `frozenset` (economy.py:51); `PYTHONHASHSEED` 0–3 give four different orders, while seed 0 is stable (`salt, grain, fish, exotic, botanicals` on Python 3.13). The same set also orders float sums and a draw-down loop in the goods economy (`economy.py:167,405,465,479` and `consume_from_stockpile`) [V, spec rng-and-defaults] | Stockpile composition after army supply, and the last bits of goods-economy sums, vary between processes run under different hash seeds | A fixed tuple equal to the seed-0 order, which keeps the existing seed-0 baselines byte-identical | Changes only runs made under other hash seeds |
+| 5 | Spurious `capability_scholarship` event; two era-cost rules | `tech.py:95–115` emits `capability_scholarship` before the affordability check. The legacy path charges the era cost at advance; the `techniques` path (default-on) charges `era_cost / INVENTIONS_PER_ERA` per invention instead (`techniques.py:105,544–565`), so it is not free [V] | The event is emitted on turns the civ cannot afford; the two paths price eras differently | Move the emit after the check; choose one cost rule (D7) | Event stream; outcome if the cost rule changes |
+| 6 | Health crowding default keeps the confirmed coupling | `public_health_state.py:46`; `public_health.py:427` applies `1 + DISPLACEMENT_CROWDING * displaced` | Enabling public health without the flag reproduces the defect the rework found | D5 | Persisted default |
+| 7 | Provenance read by decisions on the default path | `tests/test_provenance_decision_guard.py:176` `KNOWN_DECISION_READS` | Breaks the "narration and provenance only describe" contract | D4 | Default-path outcomes |
+| 8 | Off-mode transient flags are never cleared | Off-mode clears at `simulation.py:2379–2387` omit `_raided_this_turn` (set by `nomads.py:1163`) and `_catastrophe_deaths_this_turn` (`utils.py:86–87` adds to it every turn); only `agent_bridge.py:570–571` clears them | Latent: the catastrophe counter grows without bound in off mode and would leak into the first native batch after a mode change | Shared `clear_region_transients(world)` called on both paths | `simulation.py` is pinned |
+| 9 | Frozen tuning file cannot be loaded | `load_tuning(Path("tuning/m53a_frozen.yaml"))` raises `ValueError: non-numeric leaf at 'substrate_changes'`; `m53_baseline.yaml` loads with about 130 unknown-key warnings (Rust-side agent constants Python cannot set) | Users pointing `--tuning` at shipped files get a crash or silent no-ops | Move these files to docs evidence, or give them a `kind: record` header that the loader refuses with a clear message | `tests/test_tuning.py:218` glob test |
+| 10 | Treasury money and merchant income created from nothing | `wealth_accounting.py:71–75` documents tax and tithe as "credited to the treasury, debited from nobody"; `economy.rs:2335–2337` pays priests `TITHE_RATE × tithe_base` while `factions.py:426–428` credits the treasury from the same base [S-21] | No closed money supply. Agent wealth and treasuries inflate by design | Depth item (section 7): debit payers, collect the tithe once, add a closure test | Outcome change; native rebuild |
 
 **Downgraded:**
+- **Former bug 5 (food residual) is retracted** [V]. `CAPTURED` (`grain_reserves.py:286–291`) only reassigns `granary.owner` and leaves the grain where it is, so the public residual (`food_accounting.py:58–60`) is correct without a captured term. FIX-2 becomes a regression test.
 - `simulation.py`'s `except BaseException` handlers re-raise after rollback (2134–2140, 2326–2333), so they do not swallow errors.
 - `timber_orders.py:266,327,391,564` hard-codes `0.99`, but `TRANSIT_DECAY["timber"]` is `0.01`, so the values agree. This is fragile, not a bug.
 - A deterministic CI failure on `codex/cw-rework` (run 42417373801) was fixed in later pushes [S-26].
@@ -155,7 +155,7 @@ The Python `compute_economy` (economy.py:1742–2137) is a test oracle with no p
 - `settle_food_purchases` panics across FFI (`wealth_transfer.rs:459,475`). With zero sale weights, buyer money is neither credited nor refunded (`:470`) [S-21].
 - `partial_cmp().unwrap()` in sorts panics on NaN (`provisioning.rs:275,847`) [S-21].
 - `tick_economy` discards its `season_id` argument (`ffi/mod.rs:3438`) [S-21].
-- `TITHE_RATE` is not passed through `set_economy_config`, so a tuning override silently desyncs Python and Rust [S-21].
+- `TITHE_RATE` is a duplicated literal (`factions.py:35`, `economy.rs:113`). There is no tuning key for it, so no override can desync; the risk is the two literals drifting [V, corrected from S-21].
 
 **Rust society**
 - Culture-distribution weights saturate at `u16` (`culture_tick.rs:95–104`). A region with more than 65,535 agents loses its dominant value in drift sampling, which matters at M61b scale [S-22].
@@ -165,7 +165,7 @@ The Python `compute_economy` (economy.py:1742–2137) is a test oracle with no p
 
 **Tuning, terrain and numerics**
 - Eight tuning keys are accepted but never read (`tuning.py:29,47,57–59,110,199,201`) [S-02].
-- The `hills` terrain is missing from `TERRAIN_ECOLOGY_DEFAULTS` and `TERRAIN_ECOLOGY_CAPS` [S-02, S-12].
+- `hills` has no row in `TERRAIN_ECOLOGY_DEFAULTS` or `TERRAIN_ECOLOGY_CAPS`, but `ffi_constants.py:12–24` maps it to plains on purpose, so Python and Rust agree. The fix is an explicit row plus a parity test, not a behaviour change [V, corrected from S-02, S-12].
 - `economy.py:442–450` sums floats over a set, so the last bits depend on order [S-31].
 - Additive seeds collide (`agent_bridge.py:2244`, `simulation.py:1066`, `emergence.py` `seed + turn*K`) [S-31].
 
@@ -176,14 +176,18 @@ The Python `compute_economy` (economy.py:1742–2137) is a test oracle with no p
 **Live server and persistence**
 - A failed start is silent, blocking work runs on the event loop, the scenario path has no guard, and reconnect state is held twice [S-18].
 - Three bundle readers apply different strictness [S-18].
-- `historiography.py:490–496` writes its sidecar non-atomically [S-18].
+- `historiography.py:490–496` and the identical code in `languages.py` already write by temp file plus `replace`. They lack fsync, a unique temp name and cleanup [corrected, spec behaviour-neutral-fixes].
 - Simulate-only runs write `state.json` relative to the working directory. A scout run created `./output/`, which the lead removed [S-28].
 
 **Viewer**
 - WebSocket messages are parsed into `any` with no shape check (`useLiveConnection.ts:260–263`) [S-23].
 - History is validated twice per load [S-23].
-- `npx eslint src -f unix` exits 2 on ESLint 9 [S-23].
+- `npm run lint` works and CI runs it. Only the scout's `-f unix` invocation failed. The real gap is that `viewer/scripts/*.mjs` sit outside the eslint globs [corrected, spec viewer-streamlining].
 - `playwright` is used by 10 viewer scripts and the Python QA scripts but is not declared as a dependency [S-23].
+
+**Treasury paths**
+- With agents off, in shadow mode and in demographics-only mode, `phase10_acc` is `None`, so the direct `civ.treasury` writes run in production and do not floor at zero, while the accumulator path does. AST finds 48 treasury dual-path sites [spec turn-loop-consolidation].
+- `gp_agendas._projected_treasury` ignores the accumulator watermark; this is a suspected double count, filed as a correction candidate [spec turn-loop-consolidation].
 
 **Validation**
 - No multiple-comparison correction.
@@ -218,37 +222,32 @@ The line counts are approximate. "Pinned" means an enforced pin, so the change n
 | Candidate | Lines | Also update | Risk |
 |---|---:|---|---|
 | Viewer legacy components `ChroniclePanel`, `EventLog`, `FactionDashboard`, `Header`, `RegionMap`, `SetupLobby`, `StatGraphs`, `TerritoryMap`, `TimelineScrubber` [V: none has a non-test importer; `RegionMap` is imported only by `SetupLobby`] | 2,096 (+about 440 test lines; drops the `d3-force` dependency) | `components.test.tsx`, `SetupLobby.test.tsx`, `RegionMap.test.tsx`, the legacy block of `FeatureRequests.test.tsx` | low |
-| `analytics.py` test-only extractors (1816–2198) | about 216 | their tests (historical pin only) | low-med |
-| `scripts/wealth_floor_outcome_checkpoints.py` (v1; v2 is the pinned one) | 222 | none | low |
+| `analytics.py` test-only extractors (1816–2198): delete, or wire into the analytics that DEP-7/DEP-4 need (owner call) | about 216 | their tests (historical pin only) | low-med |
 | Rust `behavior.rs:1275–1398` `evaluate_region_decisions_v1` | 124 | none | low |
 | `narrative.py` wrappers: `build_before_summary`, `build_after_summary`, `build_chronicle_prompt`, `thread_domains`, `render_because` | about 56 | 3 test files | low |
-| `events.py` `roll_for_event` and `apply_probability_cascade` | about 55 | `tests/test_events.py` | low |
 | `named_events.py` 4 `generate_*_name` functions | about 50 | `tests/test_culture.py:637–666` | low |
 | `traditions.apply_prophet_martyrdom` | 36 | `tests/test_traditions.py` | low |
 | Rust `satisfaction.rs` `resource_satisfaction` and `trade_satisfaction`; `sort.rs` `sort_by_region` (+ bench arm) | about 40 | in-file tests, `benches/cache_bench.rs` | low |
 | `adjacency.is_chokepoint` | 24 | `tests/test_adjacency.py:80` | low |
 | `timber_supply.pending_bills` | 14 | docs mention it | low |
-| `culture.py` unused constants; `K_CULTURE_PROJECTION_THRESHOLD` | about 11 | some test imports | low |
+| `culture.py` unused constants (`K_CULTURE_PROJECTION_THRESHOLD` stays: it is a live tuning key) | about 9 | some test imports | low |
 | Viewer `factionColorDark`, `movementsOf`, `famineSpans`, `templeEventText`, the `useBundle` `parseBundle` re-export; 46 `export` keywords that nothing outside the module uses | about 30 | a few tests | low |
-| `filter_targets_by_fog`, `reform_services._service`, `narration_provenance.fact_ids`, `ritual_gatherings_enabled`, `war/common.held_regions`, `accumulator.DEMAND_SCALE_FACTOR`, `ScenarioConfig.secession_pool`, the `sandstorm` labels | about 30 | 1–2 tests | low |
-| Rust `PURPOSE_RESTITUTION`, `DEFAULT_AGENT_LIMIT`, `DEFAULT_CANDIDATE_LIMIT` | 3 | none | low |
-| Rust public API used only by tests, moved under `#[cfg(test)]` or repointed: `formation::marriage_scan`, `spatial_drift_step`/`_with_mode`/`_with_kernel`, `relationships::drift_relationships`/`remove_symmetric`, `named_characters::find_candidates`; `marriage_scan_reference` becomes a loop over `marriage_region_reference` [S-22] | about 130 | `tests/*.rs` callers | low |
+| `filter_targets_by_fog`, `reform_services._service`, `narration_provenance.fact_ids`, `ritual_gatherings_enabled`, `war/common.held_regions`, `ScenarioConfig.secession_pool` | about 25 | 1–2 tests | low |
+| Rust `DEFAULT_AGENT_LIMIT`, `DEFAULT_CANDIDATE_LIMIT` (`PURPOSE_RESTITUTION` stays: the `PURPOSES` table is append-only) | 2 | none | low |
+| Rust items only in-file tests use, moved under `#[cfg(test)]`; `marriage_scan_reference` becomes a loop over `marriage_region_reference`. `marriage_scan` and `spatial_drift_step*` stay, because the `chronicler-agents/tests/*.rs` integration crates call them [S-22, corrected] | see the dead-code spec | in-file tests | low |
 | `religion.py:43–44` `PERSECUTION_REBEL_BOOST` and `PERSECUTION_MIGRATE_BOOST` (stale; the live values are in `agent.rs:221`) [V] | 2 | none | low |
-| **Subtotal** | **about 3,100 source lines** (+ about 500 test lines) | | |
+| **Subtotal** | **about 2,650 source lines**: viewer about 2,130, Python about 300, Rust about 230. The 216 analytics lines are separate (owner call). The [dead-code spec](../specs/2026-11-08-dead-code-removal-design.md) is the authoritative list. | | |
 
 **Pinned (D1 or inverse layers):**
 - `main.run_chronicle` (37)
+- `events.roll_for_event` and `apply_probability_cascade` (about 55; `simulation.py:54` re-exports them as historical module attributes, so the import path needs a shim or stays)
 - `sidecar.SidecarReader` and its 6 readers (about 130)
 - `economy.py` test-only helpers (about 48)
-- `economy.rs` five test-only wrappers (about 110)
-- 8 FFI exports with no Python caller (about 50)
 - `harvest_forecasts_enabled`
-- `INFRASTRUCTURE_DISCOUNT`
 - `ASABIYA_COLLAPSE_VARIANCE_THRESHOLD`
 - `ecology.rs` 3 constants
-- `tick.rs` duplicate clears
 
-Together these come to about 400 lines.
+Together these come to about 135 lines, after the corrections in section 8. The `economy.rs` wrappers are not on this list: about 85 integration-test callers use them, so they are a test API (CON-6 makes merging them optional).
 
 **Keep (looks dead but is not):**
 - `persist.rs` `field_schema` (checkpoint fingerprint)
@@ -266,9 +265,9 @@ Together these come to about 400 lines.
 
 1. **Neutral:**
    - bug 1 (live `OverflowError`)
-   - bug 5 (food residual; a metric only)
-   - bug 9 (transient clear; neutral in off mode)
-   - bug 10 (tuning files)
+   - a regression test for the food residual (former bug 5, retracted)
+   - bug 8 (transient clear; neutral in off mode)
+   - bug 9 (tuning files)
    - atomic historiography sidecar
    - `cloud_setup.sh`
    - viewer WebSocket shape guard
@@ -277,10 +276,10 @@ Together these come to about 400 lines.
    - generic orphan-mode and saved-mode checks driven by the catalog's `requires` [S-32]
 2. **Corrections**, each with a baseline and a CONTINUATION entry:
    - bugs 2, 3 and 4 (as one D3 RNG and defaults correction)
-   - bug 6
-   - bugs 7 and 8 (D4, D5)
+   - bug 5 (scholarship event order and era-cost rule)
+   - bugs 6 and 7 (D5 health crowding, D4 provenance)
    - the war event and casualty findings [S-09]
-   - tithe and tax closure (bug 11)
+   - tithe and tax closure (bug 10)
 
 ### Wave 3: move detached harnesses out of `src/chronicler` (D6)
 
@@ -320,7 +319,7 @@ Together these come to about 400 lines.
 | **13,880** | **29 modules in total** |
 
 **Cost of the move:**
-- About 26 scripts and 27 test files (13,669 lines) import these modules.
+- 21 scripts and 50 test files (25,241 lines) import these modules [spec lab-package-relocation; the audit counted 27 files]. `validation_compare` (used by `validation-gate.yml` through `m53b_run_validation.py`) and `community_admissibility` should stay where they are. `checkpoint_replay.py:144` hashes `Path(__file__).parent`, so moving it needs a fix.
 - `experiment_sessions`, `campaign_snapshot_adapter`, `evidence_admission`, `memome_experiment` and `shadow_oracle` have digest pins.
 - The `reference_baselines` MANIFEST names some of their paths.
 - `load_session` (experiment_sessions.py:1555) reads experiment-session directories that already exist on disk, so readers must keep working.
@@ -331,10 +330,10 @@ Together these come to about 400 lines.
 | Cluster | Lines | Proposed action | Notes |
 |---|---:|---|---|
 | Archive | about 5.7k | Delete, with the manifest | It is pinned by `tests/test_script_smoke_manifest.py:53`, and four `m53_*` probes are inside the `seed_registry.json` content hash. |
-| 18 doc-only scripts | 3,210 | Archive | |
-| `wealth_floor_*` cluster | 2,331 | Archive | |
-| Duplicate `native-two-shards*.yml` | 519 | Delete one | |
-| 4 dormant workflows | about 660 | Move to `docs/workflows/` | |
+| Doc-only scripts | most of 3,210 | Archive 15 of the 18 | Two are fixture generators, and one is named in hash-recorded evidence JSON. |
+| `wealth_floor_*` cluster | 2,331 | Keep | `tests/test_wealth_floor_outcome_checkpoints_v2.py:122–123` hashes v1, and the oracle and shard lists reach the whole cluster. |
+| Duplicate `native-two-shards*.yml` | 519 | Keep, and add an index | Both are pinned by `tests/test_native_ci_shards.py` and `tests/test_native_build_lanes.py`. |
+| 4 dormant workflows | about 660 | Keep, and add an index | Scripts hash the benchmark workflows. |
 | Superseded gates `run_oracle_gate.py` and `m58b_convergence_gate.py` | 367 + 540 | Owner decision | |
 
 ### Wave 4: consolidation that unblocks expansion
@@ -347,7 +346,7 @@ Together these come to about 400 lines.
 | **Treasury writes through the `money` seam**: about 45–55 direct `civ.treasury` writes and about 40 `if acc … else direct` sites, routed through one helper | the ledger/no-ledger split | about 100 | the accumulator `keep` category; `simulation.py` is pinned | med-high |
 | **Phase registry** for `run_turn_result`'s per-feature hook blocks | an edit in the 882-line function for every new system | about 150 | exact order is part of behaviour; prove it with `turn_speed_identity` | high |
 | **One source for Python↔Rust constants**: terrain tables, hunger, bonds, movement enums, `SCHISM_SECESSION_MODIFIER`, `TITHE_FOOD_GATE`, `TITHE_RATE`, the 0.1 supply floor (five places), `EconomyConfig::default` | silent drift (only a few parity tests exist) | about 60 | generated file or parity tests; native rebuild | med |
-| **One screen runner**: `productive_recovery_screens.py` (2,233), `livelihoods_screens.py` (764) and `connected_world_screens.py` (3,262) share the run/report/check logic with `screen_runner.py` | three frameworks | about 1,000 (unverified) | keep the frozen screens as evidence; screen-state files must still parse | high |
+| **Screen runner (re-scoped)**: `screen_runner.py` already is the shared runner. `connected_world_screens.py` and the `cw_*_screen.py` scripts use it, and the older screen files are deliberately frozen evidence (only 18, 6 and 1 top-level names overlap) | nothing to merge | about 0 | CON-8 becomes a hash test for the frozen evidence plus docs; editing `screen_runner.py` invalidates pilots for cohorts not yet spent | low |
 | **FFI generics**: 10 local `col_*` macros in `ffi/mod.rs` and 4 in `ffi/batch.rs` become one; one-shot `take_`/`cancel_`/`set_` triads become a generic slot; move `mod tests` (about 1,070 lines) to `ffi/tests.rs`; move the agent-count derivation in `tick_economy` into `economy.rs` | FFI bulk | about 200 | method names must stay; pinned files | med |
 | **`tick.rs` phase structs** (the 498–1523 monolith) and `pool.rs` `try_spawn` init helper | Rust hot-path complexity | about 65 | in-file tests pin behaviour; determinism tests | high |
 | **Python `compute_economy` becomes a test oracle** (economy.py:1742–2137) | about 800 lines of shadow implementation in the production module | about 800 | 21 test files, 2 scripts, about 17 inverse fixtures | med |
@@ -366,9 +365,9 @@ These are merges of families of switches, recorded only as candidates (`unverifi
 Each merge keeps every CLI flag and saved field as an alias, and has to reproduce the held results it replaces.
 
 **Approximate total:**
-- Waves 1, 3 and 4 remove about 5–6k lines outright.
+- Waves 1, 3 and 4 remove about 4–5k lines outright.
 - They move about 14k package lines and 14k test lines out of the production namespace.
-- They remove about 11k lines of dead scripts and workflows.
+- They archive about 8k lines of dead scripts. The duplicate and dormant workflows stay, because they are pinned.
 
 The larger gain is that Wave 4 turns "add a system" from edits in about 6 files plus pinned text into one module and one registry entry.
 
@@ -399,7 +398,7 @@ The larger gain is that Wave 4 turns "add a system" from edits in about 6 files 
 - Unpinned Rust toolchain.
 - `cloud_setup.sh` hides failures.
 - Undeclared `playwright` dependency.
-- A broken lint invocation.
+- The viewer's `.mjs` scripts are not linted.
 
 ---
 
@@ -410,7 +409,7 @@ The held results so far (connected-world adverse in 11 of 12 worlds; quarantine 
 **A. Make the core loop carry information** [S-28]
 - Replace hard caps on culture, economy and asabiya with saturating curves or decay. They pin at the cap 73–84%, 24–48% and 20–31% of the time.
 - Give military a stock: mustering, upkeep and attrition tied to war state (it is 0 in 39–68% of civ-turns; war is 0.6–1.5% of actions).
-- Make famine an episode with a start, peak and recovery, emit named events for it, and audit its trigger rate (`ecology.py:263`).
+- Famine episodes already exist (`provenance.py` `ChronicEpisode`, `famine_ended`). Give them a peak and named events, and audit the trigger rate (`ecology.py:263`).
 - Rebalance the named-event generator: `propaganda_campaign` is 34–42% of named events.
 - Compute an aggregate inequality measure. `gini` is 0 in every aggregate civ-turn.
 
@@ -440,12 +439,45 @@ The held results so far (connected-world adverse in 11 of 12 worlds; quarantine 
 
 **F. Make grand runs reproducible and comparable**
 - Add `--feature-profile` (`classic`, `new-world`, `agent-economy`, `connected-full`, `controls`), expanded and validated by `feature_catalog` and recorded in batch manifests [S-32].
-- Enforce the seed registry on the gate, add a multiple-comparison correction, and add a PYTHONHASHSEED sweep and a scheduled small multi-world regression in CI [S-17, S-26, S-31].
+- Enforce the seed registry on the gate, add a multiple-comparison correction, add a PYTHONHASHSEED sweep, and add a cheap nightly smoke regression. The weekly `full` gate already runs from `validation-gate.yml` [S-17, S-26, S-31, spec economy-depth-and-measurement].
 - **Viewer:** a zoomable timeline and map pan and zoom, a turning-point strip across systems, a same-run turn-versus-turn diff, CSV export of the per-turn series, and memoised scrub paths [S-23, S-24].
 
 ---
 
-## 8. Scout index
+## 8. Errata (2026-11-08, found while writing the specs)
+
+These corrections were found while writing the [roadmap](../roadmaps/streamline-and-deepen.md) specs. They are applied in the sections above, and the lead re-checked the marked ones [V].
+
+- **Food order [V].** The audit's first probes ran `python -I`, and isolated mode ignores `PYTHONHASHSEED`, so the "per-seed" orders they recorded were random. Re-measured without `-I`, the seed-0 order is stable and seeds 0–3 differ. The conclusion stands. The fix uses the seed-0 order, so the existing baselines stay byte-identical.
+- **Era cost [V].** The default `techniques` path charges per invention, so era advances are not free on it.
+- **`hills` and `TITHE_RATE` [V].** `hills` maps to plains intentionally. There is no tuning key for `TITHE_RATE`; it is only a duplicated literal.
+- **`wealth_floor` v1 [V].** v1 is hash-pinned by the v2 test, so it is not dead.
+- **`economy.rs` wrappers.** They have about 85 integration-test callers, so they are not dead.
+- **Screen runner.** The screen-runner merge is already done; CON-8 is re-scoped.
+- **Validation gate.** A weekly `full` validation gate already exists.
+- **Workflows.** The duplicate and dormant workflows are pinned or hashed, so they stay.
+- **`_rng` helpers.** They are not uniform: `gp_agendas` and `epidemiology` hash without a system prefix.
+- **Live defaults.** Live applies the defaults in a different order from the CLI, as well as missing governance.
+- **`gini`.** `gini` is set at `main.py:980`. A separate aggregate field avoids shifting `validation_regression`.
+- **Hybrid mode.** Hybrid mode overwrites military, economy and culture from Rust aggregates.
+- **Food residual [V].** Former bug 5 is retracted: `CAPTURED` changes owner only, so the residual is already correct.
+- **Sidecars.** The historiography and languages sidecars are already written by temp file plus `replace`; only durability is missing.
+- **Comparators.** `total_cmp` alone would reorder `-0.0` against `0.0`, so FIX-6 normalises with `+ 0.0` first.
+- **Provenance reads.** The seventh grandfathered read is `scholarship._sack_cause`.
+- **Dead-code list [V for the first four].** These are not dead:
+  - `DEMAND_SCALE_FACTOR` and `INFRASTRUCTURE_DISCOUNT`: inert 1.0 multipliers that code still reads.
+  - `sandstorm`: emitted at `climate.py:343`.
+  - `events.roll_for_event`: re-exported at `simulation.py:54` as a historical attribute.
+  - `K_CULTURE_PROJECTION_THRESHOLD`: a live tuning key.
+  - The 8 FFI exports: the observation surface of native-only tests.
+  - `PURPOSE_RESTITUTION`: part of an append-only table.
+  - The `tick.rs` "duplicate" clears: a start-of-turn reset plus an end-of-tick clear.
+  - `marriage_scan` and `spatial_drift_step`: called by integration tests.
+- **Viewer lint.** `npm run lint` works; only the `.mjs` scripts are unlinted. The audit also missed several enforced viewer pins (`useLiveConnection.ts`, `historyComparison.ts` and seven more `lib/` files).
+- **Lab modules.** 21 scripts and 50 test files import them, not 27 files. Keep `validation_compare` and `community_admissibility` in place.
+- **Treasury.** There are 48 dual-path sites by AST, not about 40. The direct-write branch is live in off, shadow and demographics-only modes and has no floor at zero.
+
+## 9. Scout index
 
 | # | Area | # | Area |
 |---|---|---|---|

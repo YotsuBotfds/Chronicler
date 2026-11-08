@@ -1,0 +1,1132 @@
+{
+  "schema_version": 1,
+  "board_version": 1,
+  "title": "Streamline and deepen: operational board",
+  "plan": "docs/superpowers/roadmaps/streamline-and-deepen.md",
+  "source": "docs/superpowers/audits/2026-11-08-streamlining-scout.md",
+  "owner_instruction": "Streamline the codebase (remove unneeded or buggy code, refactor anything that blocks expansion) and make it a grand, broad, wide and detailed simulation; turn the audit into a roadmap, task list, specs and implementation plans.",
+  "status_values": [
+    "proposed",
+    "ready",
+    "active",
+    "blocked",
+    "review",
+    "merged",
+    "deferred",
+    "dropped"
+  ],
+  "phases": [
+    {
+      "id": "R0",
+      "name": "Decide",
+      "goal": "Owner decisions D1–D8 recorded"
+    },
+    {
+      "id": "R1",
+      "name": "Hygiene",
+      "goal": "One status source, clean ignore rules, CI and setup hardened, dead scripts archived"
+    },
+    {
+      "id": "R2",
+      "name": "Safe removal and neutral fixes",
+      "goal": "Unpinned dead code gone; behaviour-neutral bugs fixed"
+    },
+    {
+      "id": "R3",
+      "name": "Pin transition",
+      "goal": "Refactors gated by behaviour, not source bytes; history still verifiable"
+    },
+    {
+      "id": "R4",
+      "name": "Corrections",
+      "goal": "Each verified outcome bug fixed in its own baselined, signed-off PR"
+    },
+    {
+      "id": "R5",
+      "name": "Relocate and consolidate",
+      "goal": "Lab code out of the package; adding a system touches one module and one registry"
+    },
+    {
+      "id": "R6",
+      "name": "Deep core",
+      "goal": "Core stats carry information, money is conserved, welfare is measured, runs are reproducible by profile"
+    },
+    {
+      "id": "R7",
+      "name": "Breadth",
+      "goal": "New mechanisms on the consolidated core, each default-off and gated"
+    }
+  ],
+  "tasks": [
+    {
+      "id": "DEC-1",
+      "title": "Pin policy: freeze witness lane (A), keep (B) or scoped (C)",
+      "phase": "R0",
+      "class": "decision",
+      "depends_on": [],
+      "risk": "-",
+      "size": "-",
+      "status": "proposed",
+      "spec": "docs/superpowers/specs/2026-11-08-pin-policy-transition-design.md",
+      "plan": "docs/superpowers/plans/2026-11-08-pin-policy-transition.md"
+    },
+    {
+      "id": "DEC-2",
+      "title": "Name the 17 default-on systems the production core (governance/fisheries stay on?)",
+      "phase": "R0",
+      "class": "decision",
+      "depends_on": [],
+      "risk": "-",
+      "size": "-",
+      "status": "proposed",
+      "spec": "docs/superpowers/specs/2026-11-08-rng-and-defaults-design.md",
+      "plan": "docs/superpowers/plans/2026-11-08-rng-and-defaults.md"
+    },
+    {
+      "id": "DEC-3",
+      "title": "Sign off one aggregate RNG hygiene correction",
+      "phase": "R0",
+      "class": "decision",
+      "depends_on": [],
+      "risk": "-",
+      "size": "-",
+      "status": "proposed",
+      "spec": "docs/superpowers/specs/2026-11-08-rng-and-defaults-design.md",
+      "plan": "docs/superpowers/plans/2026-11-08-rng-and-defaults.md"
+    },
+    {
+      "id": "DEC-4",
+      "title": "Provenance must not decide outcomes: approve per-read corrections",
+      "phase": "R0",
+      "class": "decision",
+      "depends_on": [],
+      "risk": "-",
+      "size": "-",
+      "status": "proposed",
+      "spec": "docs/superpowers/specs/2026-11-08-behaviour-corrections-design.md",
+      "plan": "docs/superpowers/plans/2026-11-08-behaviour-corrections.md"
+    },
+    {
+      "id": "DEC-5",
+      "title": "New public-health enables default to density_only",
+      "phase": "R0",
+      "class": "decision",
+      "depends_on": [],
+      "risk": "-",
+      "size": "-",
+      "status": "proposed",
+      "spec": "docs/superpowers/specs/2026-11-08-behaviour-corrections-design.md",
+      "plan": "docs/superpowers/plans/2026-11-08-behaviour-corrections.md"
+    },
+    {
+      "id": "DEC-6",
+      "title": "Move detached harnesses to a lab package (name, shim lifetime)",
+      "phase": "R0",
+      "class": "decision",
+      "depends_on": [],
+      "risk": "-",
+      "size": "-",
+      "status": "proposed",
+      "spec": "docs/superpowers/specs/2026-11-08-lab-package-relocation-design.md",
+      "plan": "docs/superpowers/plans/2026-11-08-lab-package-relocation.md"
+    },
+    {
+      "id": "DEC-7",
+      "title": "Duplicate models: era-advance cost rule, legacy war kernel scope, formation fallback",
+      "phase": "R0",
+      "class": "decision",
+      "depends_on": [],
+      "risk": "-",
+      "size": "-",
+      "status": "proposed",
+      "spec": "docs/superpowers/specs/2026-11-08-behaviour-corrections-design.md",
+      "plan": "docs/superpowers/plans/2026-11-08-behaviour-corrections.md"
+    },
+    {
+      "id": "DEC-8",
+      "title": "Which evidence (logs, jsonl, held output) may leave git",
+      "phase": "R0",
+      "class": "decision",
+      "depends_on": [],
+      "risk": "-",
+      "size": "-",
+      "status": "proposed",
+      "spec": "docs/superpowers/specs/2026-11-08-repo-hygiene-design.md",
+      "plan": "docs/superpowers/plans/2026-11-08-repo-hygiene.md"
+    },
+    {
+      "id": "HYG-1",
+      "title": "One current-status block; split CONTINUATION history",
+      "phase": "R1",
+      "class": "docs",
+      "depends_on": [],
+      "risk": "low",
+      "size": "~2,000 lines moved",
+      "status": "proposed",
+      "spec": "docs/superpowers/specs/2026-11-08-repo-hygiene-design.md",
+      "plan": "docs/superpowers/plans/2026-11-08-repo-hygiene.md"
+    },
+    {
+      "id": "HYG-2",
+      "title": ".gitignore additions",
+      "phase": "R1",
+      "class": "config",
+      "depends_on": [],
+      "risk": "low",
+      "size": "small",
+      "status": "proposed",
+      "spec": "docs/superpowers/specs/2026-11-08-repo-hygiene-design.md",
+      "plan": "docs/superpowers/plans/2026-11-08-repo-hygiene.md"
+    },
+    {
+      "id": "HYG-3",
+      "title": "Archive superseded audits; fix stale docs",
+      "phase": "R1",
+      "class": "docs",
+      "depends_on": [],
+      "risk": "low",
+      "size": "~3,100 md lines archived",
+      "status": "proposed",
+      "spec": "docs/superpowers/specs/2026-11-08-repo-hygiene-design.md",
+      "plan": "docs/superpowers/plans/2026-11-08-repo-hygiene.md"
+    },
+    {
+      "id": "HYG-4",
+      "title": "CI: concurrency group, toolchain 1.85, SHA action pins",
+      "phase": "R1",
+      "class": "ci",
+      "depends_on": [],
+      "risk": "low",
+      "size": "small",
+      "status": "proposed",
+      "spec": "docs/superpowers/specs/2026-11-08-repo-hygiene-design.md",
+      "plan": "docs/superpowers/plans/2026-11-08-repo-hygiene.md"
+    },
+    {
+      "id": "HYG-5",
+      "title": "cloud_setup.sh reports failures (non-zero only with CHRONICLER_SETUP_STRICT=1)",
+      "phase": "R1",
+      "class": "tooling",
+      "depends_on": [],
+      "risk": "low",
+      "size": "small",
+      "status": "proposed",
+      "spec": "docs/superpowers/specs/2026-11-08-repo-hygiene-design.md",
+      "plan": "docs/superpowers/plans/2026-11-08-repo-hygiene.md"
+    },
+    {
+      "id": "HYG-6",
+      "title": "Archive 15 doc-only scripts; index the pinned workflows (wealth_floor and duplicate workflows stay)",
+      "phase": "R1",
+      "class": "tooling",
+      "depends_on": [],
+      "risk": "low",
+      "size": "~2,700 lines archived",
+      "status": "proposed",
+      "spec": "docs/superpowers/specs/2026-11-08-repo-hygiene-design.md",
+      "plan": "docs/superpowers/plans/2026-11-08-repo-hygiene.md"
+    },
+    {
+      "id": "HYG-7",
+      "title": "Move logs/jsonl/held output out of git",
+      "phase": "R1",
+      "class": "docs",
+      "depends_on": [
+        "DEC-8"
+      ],
+      "risk": "med",
+      "size": "~6 MB",
+      "status": "proposed",
+      "spec": "docs/superpowers/specs/2026-11-08-repo-hygiene-design.md",
+      "plan": "docs/superpowers/plans/2026-11-08-repo-hygiene.md"
+    },
+    {
+      "id": "HYG-8",
+      "title": "Rebalance native shards by recorded duration (160 later-added modules movable)",
+      "phase": "R1",
+      "class": "ci",
+      "depends_on": [],
+      "risk": "med",
+      "size": "up to ~7 min CI",
+      "status": "proposed",
+      "spec": "docs/superpowers/specs/2026-11-08-repo-hygiene-design.md",
+      "plan": "docs/superpowers/plans/2026-11-08-repo-hygiene.md"
+    },
+    {
+      "id": "DEAD-1",
+      "title": "Delete 9 legacy viewer components (+tests, d3-force)",
+      "phase": "R2",
+      "class": "removal",
+      "depends_on": [],
+      "risk": "low",
+      "size": "-2,096 (+440 test)",
+      "status": "proposed",
+      "spec": "docs/superpowers/specs/2026-11-08-viewer-streamlining-design.md",
+      "plan": "docs/superpowers/plans/2026-11-08-viewer-streamlining.md"
+    },
+    {
+      "id": "DEAD-2",
+      "title": "Delete unpinned dead/test-only Python symbols",
+      "phase": "R2",
+      "class": "removal",
+      "depends_on": [],
+      "risk": "low",
+      "size": "~-300 (+216 analytics, owner call)",
+      "status": "proposed",
+      "spec": "docs/superpowers/specs/2026-11-08-dead-code-removal-design.md",
+      "plan": "docs/superpowers/plans/2026-11-08-dead-code-removal.md"
+    },
+    {
+      "id": "DEAD-3",
+      "title": "Delete or cfg(test) unpinned dead Rust symbols",
+      "phase": "R2",
+      "class": "removal",
+      "depends_on": [],
+      "risk": "low",
+      "size": "~-230",
+      "status": "proposed",
+      "spec": "docs/superpowers/specs/2026-11-08-dead-code-removal-design.md",
+      "plan": "docs/superpowers/plans/2026-11-08-dead-code-removal.md"
+    },
+    {
+      "id": "DEAD-4",
+      "title": "Delete dead viewer exports; narrow module exports",
+      "phase": "R2",
+      "class": "removal",
+      "depends_on": [],
+      "risk": "low",
+      "size": "~-30",
+      "status": "proposed",
+      "spec": "docs/superpowers/specs/2026-11-08-viewer-streamlining-design.md",
+      "plan": "docs/superpowers/plans/2026-11-08-viewer-streamlining.md"
+    },
+    {
+      "id": "DEAD-5",
+      "title": "Dead code inside enforced-pinned files",
+      "phase": "R3",
+      "class": "removal",
+      "depends_on": [
+        "PIN-1"
+      ],
+      "risk": "med",
+      "size": "~-135",
+      "status": "proposed",
+      "spec": "docs/superpowers/specs/2026-11-08-dead-code-removal-design.md",
+      "plan": "docs/superpowers/plans/2026-11-08-dead-code-removal.md"
+    },
+    {
+      "id": "FIX-1",
+      "title": "Live int parsing: OverflowError on Infinity",
+      "phase": "R2",
+      "class": "fix",
+      "depends_on": [
+        "PIN-1"
+      ],
+      "risk": "low",
+      "size": "small",
+      "status": "proposed",
+      "spec": "docs/superpowers/specs/2026-11-08-behaviour-neutral-fixes-design.md",
+      "plan": "docs/superpowers/plans/2026-11-08-behaviour-neutral-fixes.md"
+    },
+    {
+      "id": "FIX-2",
+      "title": "Food residual regression test (bug retracted: CAPTURED moves ownership only)",
+      "phase": "R2",
+      "class": "test",
+      "depends_on": [],
+      "risk": "low",
+      "size": "small",
+      "status": "proposed",
+      "spec": "docs/superpowers/specs/2026-11-08-behaviour-neutral-fixes-design.md",
+      "plan": "docs/superpowers/plans/2026-11-08-behaviour-neutral-fixes.md"
+    },
+    {
+      "id": "FIX-3",
+      "title": "Shared transient clear on all agent modes",
+      "phase": "R2",
+      "class": "fix",
+      "depends_on": [
+        "PIN-1"
+      ],
+      "risk": "low",
+      "size": "small",
+      "status": "proposed",
+      "spec": "docs/superpowers/specs/2026-11-08-behaviour-neutral-fixes-design.md",
+      "plan": "docs/superpowers/plans/2026-11-08-behaviour-neutral-fixes.md"
+    },
+    {
+      "id": "FIX-4",
+      "title": "Tuning record files load or refuse clearly",
+      "phase": "R2",
+      "class": "fix",
+      "depends_on": [],
+      "risk": "low",
+      "size": "small",
+      "status": "proposed",
+      "spec": "docs/superpowers/specs/2026-11-08-behaviour-neutral-fixes-design.md",
+      "plan": "docs/superpowers/plans/2026-11-08-behaviour-neutral-fixes.md"
+    },
+    {
+      "id": "FIX-5",
+      "title": "Historiography sidecar durability (fsync, unique temp, cleanup)",
+      "phase": "R2",
+      "class": "fix",
+      "depends_on": [],
+      "risk": "low",
+      "size": "small",
+      "status": "proposed",
+      "spec": "docs/superpowers/specs/2026-11-08-behaviour-neutral-fixes-design.md",
+      "plan": "docs/superpowers/plans/2026-11-08-behaviour-neutral-fixes.md"
+    },
+    {
+      "id": "FIX-6",
+      "title": "Rust money path: Err not panic; total comparators",
+      "phase": "R2",
+      "class": "fix",
+      "depends_on": [],
+      "risk": "low",
+      "size": "small",
+      "status": "proposed",
+      "spec": "docs/superpowers/specs/2026-11-08-behaviour-neutral-fixes-design.md",
+      "plan": "docs/superpowers/plans/2026-11-08-behaviour-neutral-fixes.md"
+    },
+    {
+      "id": "FIX-7",
+      "title": "Livelihoods orphan-mode, saved-mode and _on() checks",
+      "phase": "R2",
+      "class": "fix (CLI acceptance)",
+      "depends_on": [],
+      "risk": "med",
+      "size": "~-30 net",
+      "status": "proposed",
+      "spec": "docs/superpowers/specs/2026-11-08-behaviour-neutral-fixes-design.md",
+      "plan": "docs/superpowers/plans/2026-11-08-behaviour-neutral-fixes.md"
+    },
+    {
+      "id": "FIX-8",
+      "title": "Viewer WebSocket guard, lint script, declared deps",
+      "phase": "R2",
+      "class": "fix",
+      "depends_on": [],
+      "risk": "low",
+      "size": "small",
+      "status": "proposed",
+      "spec": "docs/superpowers/specs/2026-11-08-viewer-streamlining-design.md",
+      "plan": "docs/superpowers/plans/2026-11-08-viewer-streamlining.md"
+    },
+    {
+      "id": "FIX-9",
+      "title": "LLM clients: timeouts, truncation, budget",
+      "phase": "R2",
+      "class": "fix",
+      "depends_on": [],
+      "risk": "low",
+      "size": "small",
+      "status": "proposed",
+      "spec": "docs/superpowers/specs/2026-11-08-behaviour-neutral-fixes-design.md",
+      "plan": "docs/superpowers/plans/2026-11-08-behaviour-neutral-fixes.md"
+    },
+    {
+      "id": "FIX-10",
+      "title": "Live server start failure and event-loop blocking",
+      "phase": "R2",
+      "class": "fix",
+      "depends_on": [
+        "PIN-1"
+      ],
+      "risk": "med",
+      "size": "small",
+      "status": "proposed",
+      "spec": "docs/superpowers/specs/2026-11-08-behaviour-neutral-fixes-design.md",
+      "plan": "docs/superpowers/plans/2026-11-08-behaviour-neutral-fixes.md"
+    },
+    {
+      "id": "FIX-11",
+      "title": "Live set command: unhashable stat crashes live",
+      "phase": "R2",
+      "class": "fix",
+      "depends_on": [
+        "PIN-1"
+      ],
+      "risk": "low",
+      "size": "small",
+      "status": "proposed",
+      "spec": "docs/superpowers/specs/2026-11-08-behaviour-neutral-fixes-design.md",
+      "plan": "docs/superpowers/plans/2026-11-08-behaviour-neutral-fixes.md"
+    },
+    {
+      "id": "FIX-12",
+      "title": "Languages sidecar durability (same as FIX-5)",
+      "phase": "R2",
+      "class": "fix",
+      "depends_on": [],
+      "risk": "low",
+      "size": "small",
+      "status": "proposed",
+      "spec": "docs/superpowers/specs/2026-11-08-behaviour-neutral-fixes-design.md",
+      "plan": "docs/superpowers/plans/2026-11-08-behaviour-neutral-fixes.md"
+    },
+    {
+      "id": "FIX-13",
+      "title": "Total comparator at behavior.rs:91",
+      "phase": "R2",
+      "class": "fix",
+      "depends_on": [],
+      "risk": "low",
+      "size": "small",
+      "status": "proposed",
+      "spec": "docs/superpowers/specs/2026-11-08-behaviour-neutral-fixes-design.md",
+      "plan": "docs/superpowers/plans/2026-11-08-behaviour-neutral-fixes.md"
+    },
+    {
+      "id": "PIN-2",
+      "title": "Identity-gate coverage for witness-pinned code",
+      "phase": "R3",
+      "class": "tooling",
+      "depends_on": [
+        "DEC-1"
+      ],
+      "risk": "med",
+      "size": "new cases",
+      "status": "proposed",
+      "spec": "docs/superpowers/specs/2026-11-08-pin-policy-transition-design.md",
+      "plan": "docs/superpowers/plans/2026-11-08-pin-policy-transition.md"
+    },
+    {
+      "id": "PIN-1",
+      "title": "Pin-policy transition (D1 option A: witnesses read committed frozen copies)",
+      "phase": "R3",
+      "class": "policy+tooling",
+      "depends_on": [
+        "DEC-1",
+        "PIN-2"
+      ],
+      "risk": "med",
+      "size": "+2.75 MB frozen copies",
+      "status": "proposed",
+      "spec": "docs/superpowers/specs/2026-11-08-pin-policy-transition-design.md",
+      "plan": "docs/superpowers/plans/2026-11-08-pin-policy-transition.md"
+    },
+    {
+      "id": "COR-1",
+      "title": "RNG hygiene correction (system_rng, EXPAND seed, additive seeds, seed-0 food order, hash-seed sweep)",
+      "phase": "R4",
+      "class": "correction",
+      "depends_on": [
+        "DEC-3"
+      ],
+      "risk": "high",
+      "size": "baseline; pinned wave after PIN-1",
+      "status": "proposed",
+      "spec": "docs/superpowers/specs/2026-11-08-rng-and-defaults-design.md",
+      "plan": "docs/superpowers/plans/2026-11-08-rng-and-defaults.md"
+    },
+    {
+      "id": "COR-2",
+      "title": "Governance default for live worlds",
+      "phase": "R4",
+      "class": "correction",
+      "depends_on": [
+        "DEC-2",
+        "CON-1"
+      ],
+      "risk": "med",
+      "size": "small",
+      "status": "proposed",
+      "spec": "docs/superpowers/specs/2026-11-08-rng-and-defaults-design.md",
+      "plan": "docs/superpowers/plans/2026-11-08-rng-and-defaults.md"
+    },
+    {
+      "id": "COR-3",
+      "title": "Scholarship emit order and one era-cost rule",
+      "phase": "R4",
+      "class": "correction",
+      "depends_on": [
+        "DEC-7"
+      ],
+      "risk": "med",
+      "size": "small",
+      "status": "proposed",
+      "spec": "docs/superpowers/specs/2026-11-08-behaviour-corrections-design.md",
+      "plan": "docs/superpowers/plans/2026-11-08-behaviour-corrections.md"
+    },
+    {
+      "id": "COR-4",
+      "title": "Health crowding default for new enables",
+      "phase": "R4",
+      "class": "correction",
+      "depends_on": [
+        "DEC-5"
+      ],
+      "risk": "low",
+      "size": "small",
+      "status": "proposed",
+      "spec": "docs/superpowers/specs/2026-11-08-behaviour-corrections-design.md",
+      "plan": "docs/superpowers/plans/2026-11-08-behaviour-corrections.md"
+    },
+    {
+      "id": "COR-5",
+      "title": "Remove provenance decision reads (one PR each)",
+      "phase": "R4",
+      "class": "correction",
+      "depends_on": [
+        "DEC-4",
+        "PIN-1"
+      ],
+      "risk": "high",
+      "size": "7 PRs",
+      "status": "proposed",
+      "spec": "docs/superpowers/specs/2026-11-08-behaviour-corrections-design.md",
+      "plan": "docs/superpowers/plans/2026-11-08-behaviour-corrections.md"
+    },
+    {
+      "id": "COR-6",
+      "title": "War event and casualty accounting",
+      "phase": "R4",
+      "class": "correction",
+      "depends_on": [],
+      "risk": "med",
+      "size": "small",
+      "status": "proposed",
+      "spec": "docs/superpowers/specs/2026-11-08-behaviour-corrections-design.md",
+      "plan": "docs/superpowers/plans/2026-11-08-behaviour-corrections.md"
+    },
+    {
+      "id": "COR-7",
+      "title": "Politics step-11 authority (Rust vs Python)",
+      "phase": "R4",
+      "class": "correction",
+      "depends_on": [],
+      "risk": "med",
+      "size": "~-140",
+      "status": "proposed",
+      "spec": "docs/superpowers/specs/2026-11-08-behaviour-corrections-design.md",
+      "plan": "docs/superpowers/plans/2026-11-08-behaviour-corrections.md"
+    },
+    {
+      "id": "COR-8",
+      "title": "Explicit hills ecology row + parity, unread tuning keys, single TITHE_RATE literal",
+      "phase": "R4",
+      "class": "correction",
+      "depends_on": [
+        "PIN-1"
+      ],
+      "risk": "low",
+      "size": "small",
+      "status": "proposed",
+      "spec": "docs/superpowers/specs/2026-11-08-behaviour-corrections-design.md",
+      "plan": "docs/superpowers/plans/2026-11-08-behaviour-corrections.md"
+    },
+    {
+      "id": "COR-9",
+      "title": "Rust stable_hash_int repr parity with Python",
+      "phase": "R4",
+      "class": "correction",
+      "depends_on": [],
+      "risk": "low",
+      "size": "small",
+      "status": "proposed",
+      "spec": "docs/superpowers/specs/2026-11-08-rng-and-defaults-design.md",
+      "plan": "docs/superpowers/plans/2026-11-08-rng-and-defaults.md"
+    },
+    {
+      "id": "COR-10",
+      "title": "gp_agendas projected treasury ignores the accumulator watermark",
+      "phase": "R4",
+      "class": "correction",
+      "depends_on": [],
+      "risk": "med",
+      "size": "small",
+      "status": "proposed",
+      "spec": "docs/superpowers/specs/2026-11-08-turn-loop-consolidation-design.md",
+      "plan": "docs/superpowers/plans/2026-11-08-turn-loop-consolidation.md"
+    },
+    {
+      "id": "LAB-1",
+      "title": "Move 27 lab-only modules to chronicler_lab with sys.modules shims",
+      "phase": "R5",
+      "class": "relocation",
+      "depends_on": [
+        "DEC-6"
+      ],
+      "risk": "med",
+      "size": "~13k moved",
+      "status": "proposed",
+      "spec": "docs/superpowers/specs/2026-11-08-lab-package-relocation-design.md",
+      "plan": "docs/superpowers/plans/2026-11-08-lab-package-relocation.md"
+    },
+    {
+      "id": "CON-1",
+      "title": "One defaults and switch registry (main, live, catalog, batch)",
+      "phase": "R5",
+      "class": "refactor",
+      "depends_on": [
+        "PIN-1"
+      ],
+      "risk": "med",
+      "size": "~-170",
+      "status": "proposed",
+      "spec": "docs/superpowers/specs/2026-11-08-rng-and-defaults-design.md",
+      "plan": "docs/superpowers/plans/2026-11-08-rng-and-defaults.md"
+    },
+    {
+      "id": "CON-2",
+      "title": "SwitchState base for *_state modules",
+      "phase": "R5",
+      "class": "refactor",
+      "depends_on": [],
+      "risk": "med",
+      "size": "~-400",
+      "status": "proposed",
+      "spec": "docs/superpowers/specs/2026-11-08-switch-state-base-design.md",
+      "plan": "docs/superpowers/plans/2026-11-08-switch-state-base.md"
+    },
+    {
+      "id": "CON-3",
+      "title": "Treasury seam and acc-route helper",
+      "phase": "R5",
+      "class": "refactor",
+      "depends_on": [
+        "PIN-1"
+      ],
+      "risk": "med",
+      "size": "~-100",
+      "status": "proposed",
+      "spec": "docs/superpowers/specs/2026-11-08-turn-loop-consolidation-design.md",
+      "plan": "docs/superpowers/plans/2026-11-08-turn-loop-consolidation.md"
+    },
+    {
+      "id": "CON-4",
+      "title": "Phase registry for run_turn_result hooks",
+      "phase": "R5",
+      "class": "refactor",
+      "depends_on": [
+        "PIN-1"
+      ],
+      "risk": "high",
+      "size": "~-150",
+      "status": "proposed",
+      "spec": "docs/superpowers/specs/2026-11-08-turn-loop-consolidation-design.md",
+      "plan": "docs/superpowers/plans/2026-11-08-turn-loop-consolidation.md"
+    },
+    {
+      "id": "CON-5",
+      "title": "Single source for Python<->Rust constants",
+      "phase": "R5",
+      "class": "refactor",
+      "depends_on": [
+        "PIN-1"
+      ],
+      "risk": "med",
+      "size": "~-60",
+      "status": "proposed",
+      "spec": "docs/superpowers/specs/2026-11-08-rust-cross-language-consolidation-design.md",
+      "plan": "docs/superpowers/plans/2026-11-08-rust-cross-language-consolidation.md"
+    },
+    {
+      "id": "CON-6",
+      "title": "FFI generics, ffi/mod.rs split; economy.rs wrapper merge optional",
+      "phase": "R5",
+      "class": "refactor",
+      "depends_on": [
+        "PIN-1"
+      ],
+      "risk": "med",
+      "size": "~-200",
+      "status": "proposed",
+      "spec": "docs/superpowers/specs/2026-11-08-rust-cross-language-consolidation-design.md",
+      "plan": "docs/superpowers/plans/2026-11-08-rust-cross-language-consolidation.md"
+    },
+    {
+      "id": "CON-7",
+      "title": "compute_economy becomes a test oracle",
+      "phase": "R5",
+      "class": "refactor",
+      "depends_on": [
+        "PIN-1"
+      ],
+      "risk": "med",
+      "size": "~800 moved",
+      "status": "proposed",
+      "spec": "docs/superpowers/specs/2026-11-08-rust-cross-language-consolidation-design.md",
+      "plan": "docs/superpowers/plans/2026-11-08-rust-cross-language-consolidation.md"
+    },
+    {
+      "id": "CON-8",
+      "title": "Frozen-screen evidence hash test and docs (runner already unified)",
+      "phase": "R5",
+      "class": "tooling",
+      "depends_on": [],
+      "risk": "low",
+      "size": "~0",
+      "status": "proposed",
+      "spec": "docs/superpowers/specs/2026-11-08-economy-depth-and-measurement-design.md",
+      "plan": "docs/superpowers/plans/2026-11-08-economy-depth-and-measurement.md"
+    },
+    {
+      "id": "CON-9",
+      "title": "Viewer primitives; AppShell helpers and memoisation",
+      "phase": "R5",
+      "class": "refactor",
+      "depends_on": [],
+      "risk": "med",
+      "size": "~-900 to -1,300",
+      "status": "proposed",
+      "spec": "docs/superpowers/specs/2026-11-08-viewer-streamlining-design.md",
+      "plan": "docs/superpowers/plans/2026-11-08-viewer-streamlining.md"
+    },
+    {
+      "id": "CON-10",
+      "title": "Table-driven build_signals validation",
+      "phase": "R5",
+      "class": "refactor",
+      "depends_on": [
+        "PIN-1"
+      ],
+      "risk": "low",
+      "size": "~-50",
+      "status": "proposed",
+      "spec": "docs/superpowers/specs/2026-11-08-switch-state-base-design.md",
+      "plan": "docs/superpowers/plans/2026-11-08-switch-state-base.md"
+    },
+    {
+      "id": "CON-11",
+      "title": "Python formation fallback removed or test-flagged",
+      "phase": "R5",
+      "class": "refactor",
+      "depends_on": [
+        "DEC-7",
+        "PIN-1"
+      ],
+      "risk": "med",
+      "size": "~-250",
+      "status": "proposed",
+      "spec": "docs/superpowers/specs/2026-11-08-turn-loop-consolidation-design.md",
+      "plan": "docs/superpowers/plans/2026-11-08-turn-loop-consolidation.md"
+    },
+    {
+      "id": "CON-13",
+      "title": "Opt-in default fill for state classes without __setstate__",
+      "phase": "R5",
+      "class": "correction",
+      "depends_on": [
+        "CON-2"
+      ],
+      "risk": "med",
+      "size": "small",
+      "status": "proposed",
+      "spec": "docs/superpowers/specs/2026-11-08-switch-state-base-design.md",
+      "plan": "docs/superpowers/plans/2026-11-08-switch-state-base.md"
+    },
+    {
+      "id": "CON-14",
+      "title": "Shuffle helper, cities/agent_movements twins, proven-identical _controller",
+      "phase": "R5",
+      "class": "refactor",
+      "depends_on": [
+        "CON-2"
+      ],
+      "risk": "low",
+      "size": "~-100",
+      "status": "proposed",
+      "spec": "docs/superpowers/specs/2026-11-08-switch-state-base-design.md",
+      "plan": "docs/superpowers/plans/2026-11-08-switch-state-base.md"
+    },
+    {
+      "id": "CON-12",
+      "title": "Family merges (upkeep, care, teaching, forest, transfers)",
+      "phase": "R7",
+      "class": "refactor",
+      "depends_on": [
+        "CON-2",
+        "CON-4"
+      ],
+      "risk": "high",
+      "size": "unverified",
+      "status": "proposed",
+      "spec": null,
+      "plan": null
+    },
+    {
+      "id": "DEP-9",
+      "title": "Validation hygiene (seed registry enforcement, multiple comparison, hash-seed sweep, nightly smoke)",
+      "phase": "R6",
+      "class": "tooling",
+      "depends_on": [],
+      "risk": "med",
+      "size": "tooling",
+      "status": "proposed",
+      "spec": "docs/superpowers/specs/2026-11-08-economy-depth-and-measurement-design.md",
+      "plan": "docs/superpowers/plans/2026-11-08-economy-depth-and-measurement.md"
+    },
+    {
+      "id": "DEP-8",
+      "title": "Feature profiles (--feature-profile)",
+      "phase": "R6",
+      "class": "feature (tooling)",
+      "depends_on": [
+        "CON-1",
+        "PIN-1"
+      ],
+      "risk": "low",
+      "size": "small",
+      "status": "proposed",
+      "spec": "docs/superpowers/specs/2026-11-08-economy-depth-and-measurement-design.md",
+      "plan": "docs/superpowers/plans/2026-11-08-economy-depth-and-measurement.md"
+    },
+    {
+      "id": "DEP-7",
+      "title": "Household welfare and access metrics",
+      "phase": "R6",
+      "class": "measurement",
+      "depends_on": [],
+      "risk": "med",
+      "size": "medium",
+      "status": "proposed",
+      "spec": "docs/superpowers/specs/2026-11-08-economy-depth-and-measurement-design.md",
+      "plan": "docs/superpowers/plans/2026-11-08-economy-depth-and-measurement.md"
+    },
+    {
+      "id": "DEP-5",
+      "title": "Aggregate inequality metric",
+      "phase": "R6",
+      "class": "measurement",
+      "depends_on": [],
+      "risk": "low",
+      "size": "small",
+      "status": "proposed",
+      "spec": "docs/superpowers/specs/2026-11-08-core-loop-depth-design.md",
+      "plan": "docs/superpowers/plans/2026-11-08-core-loop-depth.md"
+    },
+    {
+      "id": "DEP-1",
+      "title": "Saturating culture/economy/asabiya",
+      "phase": "R6",
+      "class": "feature",
+      "depends_on": [
+        "DEP-9",
+        "PIN-1"
+      ],
+      "risk": "high",
+      "size": "medium",
+      "status": "proposed",
+      "spec": "docs/superpowers/specs/2026-11-08-core-loop-depth-design.md",
+      "plan": "docs/superpowers/plans/2026-11-08-core-loop-depth.md"
+    },
+    {
+      "id": "DEP-2",
+      "title": "Military stock and mustering",
+      "phase": "R6",
+      "class": "feature",
+      "depends_on": [
+        "DEP-9",
+        "PIN-1",
+        "COR-6"
+      ],
+      "risk": "high",
+      "size": "medium",
+      "status": "proposed",
+      "spec": "docs/superpowers/specs/2026-11-08-core-loop-depth-design.md",
+      "plan": "docs/superpowers/plans/2026-11-08-core-loop-depth.md"
+    },
+    {
+      "id": "DEP-3",
+      "title": "Famine episodes and named events",
+      "phase": "R6",
+      "class": "feature",
+      "depends_on": [
+        "DEP-9",
+        "PIN-1"
+      ],
+      "risk": "med",
+      "size": "medium",
+      "status": "proposed",
+      "spec": "docs/superpowers/specs/2026-11-08-core-loop-depth-design.md",
+      "plan": "docs/superpowers/plans/2026-11-08-core-loop-depth.md"
+    },
+    {
+      "id": "DEP-4",
+      "title": "Named-event generator balance",
+      "phase": "R6",
+      "class": "feature",
+      "depends_on": [
+        "DEP-9",
+        "PIN-1"
+      ],
+      "risk": "med",
+      "size": "small",
+      "status": "proposed",
+      "spec": "docs/superpowers/specs/2026-11-08-core-loop-depth-design.md",
+      "plan": "docs/superpowers/plans/2026-11-08-core-loop-depth.md"
+    },
+    {
+      "id": "DEP-6",
+      "title": "Closed money supply",
+      "phase": "R6",
+      "class": "feature",
+      "depends_on": [
+        "CON-3",
+        "DEP-9",
+        "PIN-1"
+      ],
+      "risk": "high",
+      "size": "large",
+      "status": "proposed",
+      "spec": "docs/superpowers/specs/2026-11-08-economy-depth-and-measurement-design.md",
+      "plan": "docs/superpowers/plans/2026-11-08-economy-depth-and-measurement.md"
+    },
+    {
+      "id": "BRD-1",
+      "title": "Per-region asabiya (M55b)",
+      "phase": "R7",
+      "class": "feature",
+      "depends_on": [
+        "DEP-1"
+      ],
+      "risk": "high",
+      "size": "brief",
+      "status": "proposed",
+      "spec": null,
+      "plan": null
+    },
+    {
+      "id": "BRD-2",
+      "title": "Commons and exploitation (M64)",
+      "phase": "R7",
+      "class": "feature",
+      "depends_on": [
+        "DEP-7"
+      ],
+      "risk": "high",
+      "size": "brief",
+      "status": "proposed",
+      "spec": null,
+      "plan": null
+    },
+    {
+      "id": "BRD-3",
+      "title": "Revolution cascades on knowledge packets (M70)",
+      "phase": "R7",
+      "class": "feature",
+      "depends_on": [
+        "DEP-1"
+      ],
+      "risk": "high",
+      "size": "brief",
+      "status": "proposed",
+      "spec": null,
+      "plan": null
+    },
+    {
+      "id": "BRD-4",
+      "title": "Beliefs, decay and deception (M71)",
+      "phase": "R7",
+      "class": "feature",
+      "depends_on": [],
+      "risk": "high",
+      "size": "brief",
+      "status": "proposed",
+      "spec": null,
+      "plan": null
+    },
+    {
+      "id": "BRD-5",
+      "title": "Routes, roads and settlement hierarchy",
+      "phase": "R7",
+      "class": "feature",
+      "depends_on": [
+        "CON-4"
+      ],
+      "risk": "high",
+      "size": "brief",
+      "status": "proposed",
+      "spec": null,
+      "plan": null
+    },
+    {
+      "id": "BRD-6",
+      "title": "Goods, per-good prices and craft chains",
+      "phase": "R7",
+      "class": "feature",
+      "depends_on": [
+        "DEP-6",
+        "CON-5"
+      ],
+      "risk": "high",
+      "size": "brief",
+      "status": "proposed",
+      "spec": null,
+      "plan": null
+    },
+    {
+      "id": "BRD-7",
+      "title": "Age structure and demography",
+      "phase": "R7",
+      "class": "feature",
+      "depends_on": [],
+      "risk": "high",
+      "size": "brief",
+      "status": "proposed",
+      "spec": null,
+      "plan": null
+    },
+    {
+      "id": "BRD-8",
+      "title": "Technology diffusion across controllers",
+      "phase": "R7",
+      "class": "feature",
+      "depends_on": [],
+      "risk": "med",
+      "size": "brief",
+      "status": "proposed",
+      "spec": null,
+      "plan": null
+    },
+    {
+      "id": "BRD-9",
+      "title": "World-generation variety (regions, civ templates, traits)",
+      "phase": "R7",
+      "class": "feature",
+      "depends_on": [],
+      "risk": "med",
+      "size": "brief",
+      "status": "proposed",
+      "spec": null,
+      "plan": null
+    },
+    {
+      "id": "BRD-10",
+      "title": "Scale: M61b validation, Morton order, incremental IdSlots, u16 widening",
+      "phase": "R7",
+      "class": "perf",
+      "depends_on": [
+        "PIN-1"
+      ],
+      "risk": "high",
+      "size": "brief",
+      "status": "proposed",
+      "spec": null,
+      "plan": null
+    },
+    {
+      "id": "BRD-11",
+      "title": "Viewer for grand runs (zoomable timeline, map pan/zoom, turn diff, export)",
+      "phase": "R7",
+      "class": "feature",
+      "depends_on": [
+        "CON-9"
+      ],
+      "risk": "med",
+      "size": "brief",
+      "status": "proposed",
+      "spec": null,
+      "plan": null
+    }
+  ],
+  "recorded_limits": [
+    "No task is started; every status is proposed.",
+    "Gates not run for this plan: oracle lane, native tests, viewer test/lint/build, turn_speed_identity, 200-seed gate.",
+    "Sizes are estimates from the audit; specs refine them."
+  ],
+  "next": "Owner records DEC-1..DEC-8; R1 and R2 tasks need no decision and are ready to start."
+}

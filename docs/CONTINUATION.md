@@ -16,7 +16,7 @@ It ran:
 It did not run the oracle lane, native tests, viewer tests/lint/build,
 `turn_speed_identity.py` or the 200-seed gate.
 
-It lists eleven lead-verified bugs or contract breaches. Among them:
+It lists ten lead-verified bugs or contract breaches. Among them:
 - the EXPAND draw ignores the world seed;
 - new live worlds miss the governance default;
 - a food debit's order depends on PYTHONHASHSEED;
@@ -24,8 +24,18 @@ It lists eleven lead-verified bugs or contract breaches. Among them:
 - four default-path provenance decision reads.
 
 It also lists eight owner decisions (D1–D8) that gate the streamlining waves. D1 is
-whether source-witness pins keep enforcing current source. No wave has started. The
-connected-world rework entry below is still the current runtime state.
+whether source-witness pins keep enforcing current source. Its section 8 records the
+errata found while writing the specs, including one retracted bug, the food residual.
+
+The [streamline-and-deepen roadmap](superpowers/roadmaps/streamline-and-deepen.md)
+turns the audit into eight phases (R0–R7) and six milestones. Its task board,
+`superpowers/progress/streamline-and-deepen.json`, holds 81 tasks, all `proposed`. There are
+13 design specs (`superpowers/specs/2026-11-08-*-design.md`) and 13 implementation plans
+(`superpowers/plans/2026-11-08-*.md`). Each plan gives its PR sequence, verification
+commands and pin handling.
+
+No wave has started. The plans were written without running any gate, so their commands
+are untested. The connected-world rework entry below is still the current runtime state.
 
 # Connected World rework — runtime integrated and verified
 
