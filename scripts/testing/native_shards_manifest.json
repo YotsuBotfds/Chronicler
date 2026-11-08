@@ -220,6 +220,7 @@
       "tests/test_scientific_research_experiment.py",
       "tests/test_scientific_research_state.py",
       "tests/test_scientific_research_wiring.py",
+      "tests/test_screen_frozen_evidence.py",
       "tests/test_screen_runner.py",
       "tests/test_serialization_dormant_fields.py",
       "tests/test_session_comparison.py",
