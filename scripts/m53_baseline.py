@@ -138,7 +138,7 @@ def extract_sidecar_metrics(sidecar_dir: Path) -> dict:
 def main():
     parser = argparse.ArgumentParser(description="M53 Baseline Metrics Collector")
     parser.add_argument("--batch-dir", required=True, type=Path)
-    parser.add_argument("--output", default="tuning/m53_baseline.yaml", type=Path)
+    parser.add_argument("--output", default="docs/validation/m53/m53_baseline.yaml", type=Path)
     args = parser.parse_args()
 
     # Collect constants
