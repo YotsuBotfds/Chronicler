@@ -19,6 +19,15 @@ by an ``ExtensionFileLoader`` from a file with an extension-module suffix) and
 real ``AgentSimulator``, ``EcologySimulator`` and ``PoliticsSimulator`` classes,
 the checks of README.md's native lane and ``scripts/native_ci_shards.py``.
 
+``--machine`` adds a workstation receipt (docs/workstations.md):
+- CPU model, cores and threads, AVX2/AVX-512, and the batch CPU budget;
+- memory, OS and distribution, WSL, CPU governor;
+- ``git``, ``uv``, ``rustc``, ``cargo``, ``node`` and ``npm`` versions;
+- run variables such as ``PYTHONHASHSEED`` and ``RAYON_NUM_THREADS``;
+- git HEAD and whether the checkout has uncommitted changes.
+
+It runs each tool's ``--version`` and git as child processes. It never changes the result.
+
 Exit status 0 when every check passes, 1 otherwise. A pass describes this one
 environment; it is not native, POSIX-persistence or scientific qualification.
 """
@@ -34,6 +43,8 @@ import json
 import os
 from pathlib import Path
 import platform
+import shutil
+import subprocess
 import sys
 import sysconfig
 
@@ -42,6 +53,108 @@ NATIVE = "chronicler_agents"
 SUBMODULE = "chronicler_agents.chronicler_agents"
 CLASSES = ("AgentSimulator", "EcologySimulator", "PoliticsSimulator")
 EXPECTATIONS = ("native", "no-native")
+TOOLS = ("git", "uv", "rustc", "cargo", "node", "npm")
+MACHINE_ENV = ("PYTHONHASHSEED", "RAYON_NUM_THREADS", "RUSTFLAGS", "CARGO_TARGET_DIR", "CHRONICLER_NATIVE_VENV")
+
+
+def read_text(path: Path):
+    try:
+        return path.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return None
+
+
+def cpu_info(cpuinfo) -> dict:
+    """Model, physical cores and vector-ISA flags from Linux ``/proc/cpuinfo`` text."""
+    if not cpuinfo:
+        return {"model": platform.processor() or None, "physical_cores": None, "avx2": None, "avx512f": None}
+    model, cores, flags, physical, core = None, set(), None, None, None
+    for line in [*cpuinfo.splitlines(), ""]:
+        key, _, value = (part.strip() for part in line.partition(":"))
+        if key == "model name" and model is None:
+            model = value
+        elif key == "physical id":
+            physical = value
+        elif key == "core id":
+            core = value
+        elif key == "flags" and flags is None:
+            flags = set(value.split())
+        elif not line.strip():
+            if core is not None:
+                cores.add((physical, core))
+            physical = core = None
+    return {"model": model, "physical_cores": len(cores) or None,
+            "avx2": None if flags is None else "avx2" in flags,
+            "avx512f": None if flags is None else "avx512f" in flags}
+
+
+def memory_bytes(sysconf=getattr(os, "sysconf", None)):
+    if sysconf is None:
+        return None
+    try:
+        return int(sysconf("SC_PAGE_SIZE")) * int(sysconf("SC_PHYS_PAGES"))
+    except (ValueError, OSError):
+        return None
+
+
+def tool_version(name: str, which=shutil.which, run=subprocess.run) -> str:
+    """First line of ``name --version``, or ``absent`` when it is not on PATH."""
+    path = which(name)
+    if path is None:
+        return "absent"
+    try:
+        result = run([path, "--version"], capture_output=True, text=True, timeout=5)
+    except (OSError, subprocess.SubprocessError) as error:
+        return f"error: {type(error).__name__}"
+    lines = (result.stdout or result.stderr or "").strip().splitlines()
+    return lines[0] if lines else f"exit {result.returncode}"
+
+
+def git_state(which=shutil.which, run=subprocess.run) -> dict:
+    git = which("git")
+    if git is None:
+        return {"head": None, "dirty": None}
+    base = [git, "-c", f"safe.directory={ROOT.as_posix()}", "-C", str(ROOT)]
+    try:
+        head = run([*base, "rev-parse", "HEAD"], capture_output=True, text=True, timeout=10)
+        status = run([*base, "status", "--porcelain"], capture_output=True, text=True, timeout=30)
+    except (OSError, subprocess.SubprocessError):
+        return {"head": None, "dirty": None}
+    return {"head": head.stdout.strip() or None,
+            "dirty": bool(status.stdout.strip()) if status.returncode == 0 else None}
+
+
+def batch_cpu_budget():
+    """``automatic_workers()`` of this checkout's ``cpu_budget.py`` (what a bare ``--parallel``
+    uses), loaded by path so the check never imports the ``chronicler`` package."""
+    try:
+        spec = importlib.util.spec_from_file_location("chronicler_cpu_budget_probe",
+                                                      ROOT / "src/chronicler/cpu_budget.py")
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        return module.automatic_workers()
+    except Exception as error:  # A report, never a reason for the check to fail.
+        return f"error: {type(error).__name__}: {error}"
+
+
+def machine_report(*, read=read_text, which=shutil.which, run=subprocess.run,
+                   sysconf=getattr(os, "sysconf", None), budget=batch_cpu_budget) -> dict:
+    """CPU, memory, OS, toolchain, run-relevant variables and git state (report only)."""
+    os_release = read(Path("/etc/os-release")) or ""
+    distribution = next((line.split("=", 1)[1].strip().strip('"') for line in os_release.splitlines()
+                         if line.startswith("PRETTY_NAME=")), None)
+    governor = read(Path("/sys/devices/system/cpu/cpu0/cpufreq/scaling_governor"))
+    return {
+        "cpu": {**cpu_info(read(Path("/proc/cpuinfo"))), "logical_cpus": os.cpu_count()},
+        "batch_cpu_budget": budget(),
+        "memory_bytes": memory_bytes(sysconf),
+        "os": {"system": platform.system(), "release": platform.release(), "distribution": distribution,
+               "wsl": "microsoft" in (read(Path("/proc/sys/kernel/osrelease")) or "").lower(),
+               "cpu_governor": governor.strip() if governor else None},
+        "tools": {name: tool_version(name, which, run) for name in TOOLS},
+        "environment": {name: os.environ.get(name) for name in MACHINE_ENV},
+        "git": git_state(which, run),
+    }
 
 
 def file_identity(path: Path) -> dict:
@@ -199,6 +312,8 @@ def render(report) -> str:
                                                    for name, ok in native["classes"].items()))
         elif report["expect"] != "native":
             lines.append("  (not imported; --expect native imports it and checks the compiled classes)")
+    if "machine" in report:
+        lines.extend(render_machine(report["machine"]))
     for name, ok in report["checks"].items():
         lines.append(f"[{'PASS' if ok else 'FAIL'}] {name}")
     lines.extend(f"hint: {hint}" for hint in hints(report))
@@ -207,12 +322,39 @@ def render(report) -> str:
     return "\n".join(lines)
 
 
+def render_machine(machine) -> list[str]:
+    cpu, system = machine["cpu"], machine["os"]
+    def yes(value):
+        return "unknown" if value is None else ("yes" if value else "no")
+    memory = machine["memory_bytes"]
+    unset = [name for name, value in machine["environment"].items() if value is None]
+    env = ", ".join(f"{name}={value}" for name, value in machine["environment"].items() if value is not None)
+    git = machine["git"]
+    return [
+        f"Machine:       {cpu['model'] or 'unknown CPU'} ({cpu['physical_cores'] or '?'} cores, "
+        f"{cpu['logical_cpus'] or '?'} threads; AVX2 {yes(cpu['avx2'])}, AVX-512 {yes(cpu['avx512f'])})",
+        f"Memory:        {'unknown' if memory is None else f'{memory / 2**30:.1f} GiB'}",
+        f"OS:            {system['distribution'] or system['system']} ({system['system']} {system['release']}); "
+        f"WSL {yes(system['wsl'])}; CPU governor {system['cpu_governor'] or 'unknown'}",
+        f"Batch budget:  {machine['batch_cpu_budget']} workers for a bare --parallel",
+        "Tools:         " + " | ".join(f"{name}: {version}" for name, version in machine["tools"].items()),
+        f"Run variables: {env or 'none set'}" + (f" (unset: {', '.join(unset)})" if unset else ""),
+        f"Git:           {git['head'] or 'unknown'}"
+        + ("" if git["dirty"] is None else (" (uncommitted changes)" if git["dirty"] else " (clean)")),
+    ]
+
+
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     parser.add_argument("--expect", choices=EXPECTATIONS, help="fail unless the native extension state matches")
     parser.add_argument("--json", action="store_true", help="print the report as JSON")
+    parser.add_argument("--machine", action="store_true",
+                        help="also report CPU, memory, OS, toolchain versions, run variables and git state "
+                             "(a workstation receipt; never changes the result)")
     args = parser.parse_args(argv)
     report = evaluate(args.expect)
+    if args.machine:
+        report["machine"] = machine_report()
     print(json.dumps(report, indent=2) if args.json else render(report))
     return 0 if report["passed"] else 1
 

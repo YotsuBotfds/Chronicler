@@ -399,6 +399,7 @@
       "tests/test_needs_calibration.py",
       "tests/test_nomads.py",
       "tests/test_operator_submission_workflow.py",
+      "tests/test_oracle_chunk_scheduler.py",
       "tests/test_persecution.py",
       "tests/test_politics_bridge.py",
       "tests/test_politics_parity.py",

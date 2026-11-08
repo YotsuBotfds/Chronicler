@@ -12,6 +12,8 @@
 
 **Tech stack:** Python 3.13 and uv, Rust stable, Node 22, WSL2 Ubuntu 24.04.
 
+**Status:** PR 1 (ENV-1, ENV-8), PR 2 (ENV-2) and PR 3 (ENV-3) are implemented on branch `claude/relaxed-brown-4ozgeg`. PR 4 (ENV-4) is lower priority on Linux. Both machines run Linux.
+
 **Prerequisites:** none for PR 1 to PR 4. Measurements M1 to M3 need a workstation set up per the guide. Spec: `docs/superpowers/specs/2026-11-08-workstation-environments-design.md`.
 
 ## File map
@@ -44,7 +46,7 @@
 ## PR 2: Machine receipt (ENV-2)
 
 - [ ] Step 1: Preflight `scripts/check_python_env.py tests/test_check_python_env.py`.
-- [ ] Step 2: Add `--machine` and `--json PATH` to the argument parser. Add `machine_report() -> dict` with keys:
+- [x] (done) Step 2: Add `--machine` to the argument parser; it combines with the existing `--json`. Add `machine_report() -> dict` with keys:
 
   ```
   cpu_model, logical_cpus, batch_cpu_budget, memory_bytes, os, os_release, wsl,
@@ -52,9 +54,9 @@
   git:{head,dirty}
   ```
 
-  - Use `chronicler.cpu_budget.automatic_workers()` for `batch_cpu_budget`.
+  - Load `src/chronicler/cpu_budget.py` by path and call `automatic_workers()` for `batch_cpu_budget`.
   - Get each tool version with `subprocess.run([tool, "--version"], timeout=5, capture_output=True)`, after `shutil.which`, and report `"absent"` when the tool is missing.
-  - Read memory from `/proc/meminfo` `MemTotal`. On Windows, use `ctypes.windll.kernel32.GlobalMemoryStatusEx`; elsewhere, `None`.
+  - Read memory from `os.sysconf` (`SC_PAGE_SIZE` × `SC_PHYS_PAGES`); report `None` where it does not exist.
   - Set `wsl` when `"microsoft" in Path("/proc/sys/kernel/osrelease").read_text().lower()`.
   - Do not import `chronicler_agents` unless `--expect native` is also given.
 - [ ] Step 3: Tests in `tests/test_check_python_env.py`:

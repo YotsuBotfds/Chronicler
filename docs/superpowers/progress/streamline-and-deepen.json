@@ -156,7 +156,7 @@
     },
     {
       "id": "ENV-1",
-      "title": "Workstation setup guide (docs/workstations.md) and links",
+      "title": "Workstation setup guide (docs/workstations.md, Linux-first) and links",
       "phase": "R1",
       "class": "docs",
       "depends_on": [],
@@ -168,13 +168,13 @@
     },
     {
       "id": "ENV-2",
-      "title": "Machine receipt: check_python_env.py --machine --json",
+      "title": "Machine receipt: check_python_env.py --machine (with --json)",
       "phase": "R1",
       "class": "tooling",
       "depends_on": [],
       "risk": "low",
       "size": "~+150",
-      "status": "ready",
+      "status": "review",
       "spec": "docs/superpowers/specs/2026-11-08-workstation-environments-design.md",
       "plan": "docs/superpowers/plans/2026-11-08-workstation-environments.md"
     },
@@ -186,13 +186,13 @@
       "depends_on": [],
       "risk": "med",
       "size": "~+80",
-      "status": "ready",
+      "status": "review",
       "spec": "docs/superpowers/specs/2026-11-08-workstation-environments-design.md",
       "plan": "docs/superpowers/plans/2026-11-08-workstation-environments.md"
     },
     {
       "id": "ENV-4",
-      "title": "Parallel batches: spawn pool with PYTHONHASHSEED 0",
+      "title": "Parallel batches: spawn pool with PYTHONHASHSEED 0 (lower priority on Linux: fork inherits the seed)",
       "phase": "R1",
       "class": "fix",
       "depends_on": [],
@@ -204,7 +204,7 @@
     },
     {
       "id": "ENV-5",
-      "title": "Cross-machine identity matrix (9950X WSL2/Windows, 3950X, CI-like Linux)",
+      "title": "Cross-machine identity matrix (9950X, 3950X, CI-like Ubuntu)",
       "phase": "R1",
       "class": "measurement",
       "depends_on": [
@@ -1226,7 +1226,7 @@
     }
   ],
   "recorded_limits": [
-    "ENV-1 and ENV-8 are in review on branch claude/relaxed-brown-4ozgeg; no other task is started. ready = no unmet prerequisite; blocked = waits on the tasks in depends_on; proposed = owner decision or R7 brief.",
+    "ENV-1, ENV-2, ENV-3 and ENV-8 are in review on branch claude/relaxed-brown-4ozgeg; no other task is started. ready = no unmet prerequisite; blocked = waits on the tasks in depends_on; proposed = owner decision or R7 brief.",
     "Gates not run for this plan: oracle lane, native tests, viewer test/lint/build, turn_speed_identity, 200-seed gate.",
     "Sizes are estimates from the audit; specs refine them."
   ],

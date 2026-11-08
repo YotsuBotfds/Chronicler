@@ -4,6 +4,10 @@ The selection runs in chunks. Each chunk is its own pytest process under the
 offline guard, with its own guard receipt and the same time limit; the runner
 stops at the first failing chunk. When a chunk nears its limit, move files to
 another chunk or start a new one instead of raising the limit.
+
+``--jobs N`` (workstations; CI stays serial) runs up to N chunks at once. Chunks
+start in order, nothing new starts after a failure, and the receipt lists the
+chunks in order (``scripts/testing/chunk_scheduler.py``).
 """
 import argparse
 from datetime import datetime, timezone
@@ -13,6 +17,7 @@ import os
 from pathlib import Path
 import subprocess
 import sys
+import threading
 import time
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -70,6 +75,7 @@ CHUNKS = {
         "tests/test_native_build_lanes.py",
         "tests/test_native_wheel_receipt.py",
         "tests/test_check_python_env.py",
+        "tests/test_oracle_chunk_scheduler.py",
     ],
     "arc-event-types": [
         "tests/test_arc_event_types.py",
@@ -500,7 +506,13 @@ EXCLUDED = "Cross-process determinism/replay, POSIX persistence, native and broa
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument("--list", action="store_true", help="Print selected pytest node IDs without executing")
 parser.add_argument("--output-dir", type=Path, help="New evidence directory (default: ignored output/python-oracle/<UTC timestamp>)")
+parser.add_argument("--jobs", type=int, default=1,
+                    help="Run up to N chunks at once (default 1: serial, as CI runs it). Each chunk keeps its own "
+                         "guard and limit; after a failure no new chunk starts. Keep N at or below the physical "
+                         "cores so no chunk nears its limit (docs/workstations.md).")
 args = parser.parse_args()
+if args.jobs < 1:
+    parser.error("--jobs must be at least 1")
 if args.list:
     print("\n".join(TESTS))
     raise SystemExit(0)
@@ -538,33 +550,64 @@ report = {"at_utc": stamp, "commit": head, "python": sys.version,
           "source_sha256": sources, "excluded": EXCLUDED,
           "environment_policy": "Runtime-path allowlist; no inherited provider credentials; one-thread caps",
           "chunks": []}
+def new_chunk(name, nodes):
+    command = [sys.executable, "-B", "-m", "pytest", "-q", "-x", "--tb=short", *nodes,
+               "-p", "python_oracle_guard", "-p", "no:cacheprovider",
+               "--basetemp", str(out / "pytest" / name), "-k", DESELECT]
+    return {"name": name, "node_ids": len(nodes), "command": command}
+
+
+def run_chunk(chunk, show=None):
+    """Run one chunk, filling its receipt row. ``show`` prints its output (default: at once)."""
+    name = chunk["name"]
+    guard_report = out / f"guard-{name}.json"
+    show = show or (lambda text: print(text, end="", flush=True))
+    chunk_start = time.monotonic()
+    try:
+        result = subprocess.run(chunk["command"], cwd=ROOT, env=dict(base_env, CHRONICLER_OFFLINE_GUARD_REPORT=str(guard_report)),
+                                stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=CHUNK_LIMIT_SECONDS)
+        (out / f"pytest-{name}.txt").write_bytes(result.stdout)
+        show(result.stdout.decode("utf-8", errors="replace"))
+        guard = json.loads(guard_report.read_text(encoding="utf-8")) if guard_report.exists() else None
+        chunk.update(exit_code=result.returncode, guard=guard,
+                     passed=result.returncode == 0 and guard is not None and guard["state"] == "PASS")
+        if guard is None:
+            chunk["error"] = "guard receipt missing"
+    except subprocess.TimeoutExpired as error:
+        (out / f"pytest-{name}.txt").write_bytes(error.stdout or b"")
+        chunk.update(exit_code=1, passed=False, error=f"{CHUNK_LIMIT_SECONDS}-second chunk limit exceeded")
+    finally:
+        chunk["seconds"] = time.monotonic() - chunk_start
+    return chunk
+
+
 try:
-    for name, nodes in CHUNKS.items():
-        guard_report = out / f"guard-{name}.json"
-        command = [sys.executable, "-B", "-m", "pytest", "-q", "-x", "--tb=short", *nodes,
-                   "-p", "python_oracle_guard", "-p", "no:cacheprovider",
-                   "--basetemp", str(out / "pytest" / name), "-k", DESELECT]
-        chunk = {"name": name, "node_ids": len(nodes), "command": command}
-        report["chunks"].append(chunk)
-        print(f"== chunk {name}: {len(nodes)} node IDs, {CHUNK_LIMIT_SECONDS}-second limit", flush=True)
-        chunk_start = time.monotonic()
-        try:
-            result = subprocess.run(command, cwd=ROOT, env=dict(base_env, CHRONICLER_OFFLINE_GUARD_REPORT=str(guard_report)),
-                                    stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=CHUNK_LIMIT_SECONDS)
-            (out / f"pytest-{name}.txt").write_bytes(result.stdout)
-            print(result.stdout.decode("utf-8", errors="replace"), end="", flush=True)
-            guard = json.loads(guard_report.read_text(encoding="utf-8")) if guard_report.exists() else None
-            chunk.update(exit_code=result.returncode, guard=guard,
-                         passed=result.returncode == 0 and guard is not None and guard["state"] == "PASS")
-            if guard is None:
-                chunk["error"] = "guard receipt missing"
-        except subprocess.TimeoutExpired as error:
-            (out / f"pytest-{name}.txt").write_bytes(error.stdout or b"")
-            chunk.update(exit_code=1, passed=False, error=f"{CHUNK_LIMIT_SECONDS}-second chunk limit exceeded")
-        finally:
-            chunk["seconds"] = time.monotonic() - chunk_start
-        if not chunk["passed"]:
-            break
+    if args.jobs == 1:
+        for name, nodes in CHUNKS.items():
+            chunk = new_chunk(name, nodes)
+            report["chunks"].append(chunk)
+            print(f"== chunk {name}: {len(nodes)} node IDs, {CHUNK_LIMIT_SECONDS}-second limit", flush=True)
+            run_chunk(chunk)
+            if not chunk["passed"]:
+                break
+    else:
+        sys.path.insert(0, str(ROOT / "scripts/testing"))
+        from chunk_scheduler import run_in_order
+        report["jobs"] = args.jobs
+        printing = threading.Lock()
+
+        def run_parallel(item):
+            name, nodes = item
+            captured = []
+            chunk = run_chunk(new_chunk(name, nodes), show=captured.append)
+            with printing:  # one chunk's header and output together, in completion order
+                print(f"== chunk {name}: {len(nodes)} node IDs, {CHUNK_LIMIT_SECONDS}-second limit "
+                      f"({chunk['seconds']:.1f} s)", flush=True)
+                print("".join(captured), end="", flush=True)
+            return chunk
+
+        report["chunks"].extend(run_in_order(list(CHUNKS.items()), run_parallel,
+                                             lambda chunk: chunk["passed"], args.jobs))
     report["passed"] = len(report["chunks"]) == len(CHUNKS) and all(chunk["passed"] for chunk in report["chunks"])
 finally:
     report.setdefault("passed", False)

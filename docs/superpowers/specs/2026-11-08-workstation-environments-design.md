@@ -4,7 +4,8 @@
 > **Tasks:** ENV-1 to ENV-8
 > **Depends on:** nothing (ENV-5 and ENV-6 need a set-up machine)
 > **Feeds:** PIN-2 (where identity goldens are captured), COR-1 (hash-seed sweep), every correction or feature that needs a 200-seed before/after baseline, DEP-9
-> **Source:** owner goal: run Chronicler on a Ryzen 9 9950X or Ryzen 9 3950X workstation so that testing and expansion are easier. User guide: [docs/workstations.md](../../workstations.md)
+> **Source:** owner goal: run Chronicler on a Ryzen 9 9950X or Ryzen 9 3950X workstation so that testing and expansion are easier. Both run Linux (owner, 2026-11-08). User guide: [docs/workstations.md](../../workstations.md)
+> **Progress:** ENV-1, ENV-2, ENV-3 and ENV-8 are implemented on branch `claude/relaxed-brown-4ozgeg` (status review). ENV-4 is lower priority on Linux (see 3). ENV-5 to ENV-7 need the machines.
 
 ## 1. Goal and scope
 
@@ -51,35 +52,36 @@ Not changed: CI jobs, simulation defaults, outcomes on any platform where `PYTHO
 
 ## 3. Design
 
-- **ENV-1 Setup guide.** `docs/workstations.md` covers machines, layout (one Linux environment per machine, WSL2 on Windows), toolchain, install, environment variables, the first-run checklist, threads, native builds, identity, narration, sessions, and a receipt table. Link it from `docs/README.md` and DEVELOPMENT.md.
+- **ENV-1 Setup guide.** `docs/workstations.md` is Linux-first, with Windows/WSL2 as an appendix. It covers machines, layout, toolchain per distribution, install, environment variables, the first-run checklist, threads, native builds, identity, narration, sessions, and a receipt table. It is linked from `docs/README.md`, DEVELOPMENT.md and AGENTS.md.
 
-- **ENV-2 Machine receipt.** `scripts/check_python_env.py --machine [--json PATH]`, report-only, exit 0. It adds:
+- **ENV-2 Machine receipt (implemented).** `scripts/check_python_env.py --machine` combines with the existing `--json` (JSON to stdout). It is a report only and never changes the result. It adds:
   - CPU model (`/proc/cpuinfo` "model name"; on Windows, `platform.processor()` plus `PROCESSOR_IDENTIFIER`);
-  - logical CPUs and the batch CPU budget, by reusing `chronicler.cpu_budget.automatic_workers` (the function `batch.parallel_workers` uses);
-  - total memory (`/proc/meminfo`, or `GlobalMemoryStatusEx` via `ctypes` on Windows);
-  - OS release and a WSL flag (`microsoft` in `/proc/sys/kernel/osrelease`);
+  - logical and physical cores and AVX2/AVX-512 flags (from `/proc/cpuinfo`);
+  - the batch CPU budget, from `automatic_workers()` in `cpu_budget.py`, loaded by path so the check never imports the package;
+  - total memory (`os.sysconf`; `None` where it does not exist);
+  - OS release, distribution (`/etc/os-release`), a WSL flag and the CPU governor;
   - tool versions: `uv`, `rustc`, `cargo`, `node`, `npm` (each `--version` through `subprocess`, with a 5 s timeout; "absent" when not found);
-  - `PYTHONHASHSEED`, `RAYON_NUM_THREADS` and `RUSTFLAGS`;
+  - `PYTHONHASHSEED`, `RAYON_NUM_THREADS`, `RUSTFLAGS`, `CARGO_TARGET_DIR` and `CHRONICLER_NATIVE_VENV`;
   - git HEAD and dirty state.
 
   It never imports `chronicler_agents` unless `--expect native` is also given. Its JSON fills the guide's receipt table and can be attached to gate and benchmark outputs.
 
-- **ENV-3 Parallel oracle lane.** `run_python_oracle_checks.py --jobs N`. The default of 1 keeps today's serial behaviour, so CI is unchanged.
+- **ENV-3 Parallel oracle lane (implemented).** `run_python_oracle_checks.py --jobs N`. The default of 1 runs the unchanged serial loop, so CI is unchanged. N > 1 uses `scripts/testing/chunk_scheduler.run_in_order`. The receipt gains `"jobs"` only when N > 1. The tests in `tests/test_oracle_chunk_scheduler.py` are registered in shard 1 and the `build-provenance` chunk, and the module count is now 461.
   - With N > 1, a thread pool launches up to N chunk subprocesses. Each is already its own guarded pytest process with its own 110 s limit, and the limit stays.
   - The receipt keeps chunk order.
   - On the first failure, no new chunks start, running chunks finish, and every failure is reported. The exit code keeps its meaning.
   - The guide recommends N ≤ 16 (physical cores) so that contention does not push a chunk near its cap over the 110 s limit.
 
-- **ENV-4 Hash-seed-safe parallel batches.** In `run_batch`, the pool is created with `multiprocessing.get_context("spawn")`. If the parent's environment has no `PYTHONHASHSEED`, `"0"` is set in `os.environ` before the pool starts, so every worker on every platform uses hash seed 0.
+- **ENV-4 Hash-seed-safe parallel batches (lower priority on Linux).** On Linux, forked workers inherit the parent's hash secret. One invocation is therefore self-consistent, but two invocations without `PYTHONHASHSEED` can differ. The guide sets `PYTHONHASHSEED=0`, and COR-1 removes the cause. The full fix, needed for spawn platforms: in `run_batch`, the pool is created with `multiprocessing.get_context("spawn")`. If the parent's environment has no `PYTHONHASHSEED`, `"0"` is set in `os.environ` before the pool starts, so every worker on every platform uses hash seed 0.
   - Today, forked Linux workers inherit the parent's random hash secret and spawned Windows workers each draw their own. Hash-order-dependent code (`war_requisition.py:183`, the goods-economy sums in `economy.py`) can therefore differ from run to run and from worker to worker.
   - The manifest's existing `environment_identity()` then records the value actually used. The plan verifies the call order.
   - Sequential runs are unchanged. After COR-1 removes the order-sensitive sites, the difference disappears entirely.
   - Spawn adds the import cost per worker (about 1.8 s, scout 28), which is negligible for batch runs.
 
 - **ENV-5 Identity matrix.**
-  - Run `PYTHONHASHSEED=0 … turn_speed_identity.py run` on each environment: 9950X WSL2, 9950X Windows native, 3950X, and one CI-like Ubuntu container.
+  - Run `PYTHONHASHSEED=0 … turn_speed_identity.py run` on the 9950X, the 3950X and one CI-like Ubuntu 24.04 container.
   - `compare` every pair and record the results in the guide.
-  - Decision rule: environments that match exactly share goldens. If Windows differs from Linux, Linux or WSL2 is canonical for PIN-2 goldens and gate evidence, and Windows is supported but not canonical.
+  - Decision rule: machines that match exactly share goldens. If Zen 5 and Zen 2, or a workstation and CI, differ, then the CI-like container is canonical for PIN-2 goldens, and each workstation keeps its own local baselines.
 
 - **ENV-6 Local gate reproduction.**
   - Check out `c3d752fa` and set up the native venv as CI does (a wheel or `maturin develop --release --locked`).
@@ -140,7 +142,6 @@ None is enforced. `batch_manifest.py` is enforced, so ENV-4 must not edit it; it
 ## 8. Risks, open questions, rollback
 
 - **Open questions:**
-  - What OS does the 3950X run? (The guide covers both.)
   - Will the owner admit workstation gate runs as evidence?
   - What is WSL2's memory ceiling on the 9950X?
 - **Risks:**

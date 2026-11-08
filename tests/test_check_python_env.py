@@ -222,3 +222,83 @@ def test_setup_scripts_build_into_the_target_venv_and_check_it():
     assert '"%TARGET_VENV%\\Scripts\\python.exe" scripts\\check_python_env.py --expect native' in windows
     # Cloud setup warns and continues: its checks run through step().
     assert 'step "check .venv (no native)" .venv/bin/python scripts/check_python_env.py --expect no-native' in cloud
+
+
+CPUINFO = """processor\t: 0
+model name\t: AMD Ryzen 9 9950X 16-Core Processor
+physical id\t: 0
+core id\t: 0
+flags\t\t: fpu sse2 avx2 avx512f
+
+processor\t: 1
+model name\t: AMD Ryzen 9 9950X 16-Core Processor
+physical id\t: 0
+core id\t: 0
+flags\t\t: fpu sse2 avx2 avx512f
+
+processor\t: 2
+physical id\t: 0
+core id\t: 1
+
+processor\t: 3
+physical id\t: 0
+core id\t: 1
+"""
+
+
+def test_cpu_info_counts_physical_cores_and_vector_flags(tool):
+    info = tool.cpu_info(CPUINFO)
+    assert info == {"model": "AMD Ryzen 9 9950X 16-Core Processor", "physical_cores": 2,
+                    "avx2": True, "avx512f": True}
+    zen2 = tool.cpu_info(CPUINFO.replace(" avx512f", ""))
+    assert zen2["avx2"] is True and zen2["avx512f"] is False
+    assert tool.cpu_info(None)["physical_cores"] is None and tool.cpu_info("")["avx2"] is None
+
+
+def no_child_process(*args, **kwargs):
+    raise AssertionError("the machine report started a child process")
+
+
+def test_machine_report_without_tools_starts_no_child_process(tool, monkeypatch):
+    files = {"/proc/cpuinfo": CPUINFO, "/etc/os-release": 'NAME="Ubuntu"\nPRETTY_NAME="Ubuntu 24.04.1 LTS"\n',
+             "/proc/sys/kernel/osrelease": "6.8.0-48-generic\n",
+             "/sys/devices/system/cpu/cpu0/cpufreq/scaling_governor": "performance\n"}
+    monkeypatch.setenv("PYTHONHASHSEED", "0")
+    monkeypatch.delenv("RAYON_NUM_THREADS", raising=False)
+    sizes = {"SC_PAGE_SIZE": 4096, "SC_PHYS_PAGES": 1024}
+    machine = tool.machine_report(read=lambda path: files.get(path.as_posix()), which=lambda name: None,
+                                  run=no_child_process, sysconf=sizes.__getitem__, budget=lambda: 31)
+    assert machine["cpu"]["physical_cores"] == 2 and machine["cpu"]["avx512f"] is True
+    assert machine["batch_cpu_budget"] == 31 and machine["memory_bytes"] == 4096 * 1024
+    assert machine["os"]["distribution"] == "Ubuntu 24.04.1 LTS" and machine["os"]["wsl"] is False
+    assert machine["os"]["cpu_governor"] == "performance"
+    assert machine["tools"] == {name: "absent" for name in tool.TOOLS}
+    assert machine["git"] == {"head": None, "dirty": None}
+    assert machine["environment"]["PYTHONHASHSEED"] == "0" and machine["environment"]["RAYON_NUM_THREADS"] is None
+    wsl = tool.machine_report(read=lambda path: "5.15.153.1-microsoft-standard-WSL2" if "osrelease" in path.name else None,
+                              which=lambda name: None, run=no_child_process, sysconf=None, budget=lambda: 1)
+    assert wsl["os"]["wsl"] is True and wsl["memory_bytes"] is None
+
+
+def test_tool_version_reports_the_first_line_or_the_failure(tool):
+    def run(command, **kwargs):
+        assert command == ["/usr/bin/rustc", "--version"] and kwargs["timeout"] == 5
+        return SimpleNamespace(stdout="rustc 1.85.0 (4d91de4e4 2025-02-17)\nmore\n", stderr="", returncode=0)
+    assert tool.tool_version("rustc", which=lambda name: f"/usr/bin/{name}", run=run) == "rustc 1.85.0 (4d91de4e4 2025-02-17)"
+    def fails(command, **kwargs):
+        raise tool.subprocess.TimeoutExpired(command, 5)
+    assert tool.tool_version("node", which=lambda name: "/usr/bin/node", run=fails) == "error: TimeoutExpired"
+    assert tool.tool_version("uv", which=lambda name: None, run=no_child_process) == "absent"
+
+
+def test_machine_section_is_rendered_and_never_changes_the_result(tool, monkeypatch, capsys):
+    machine = tool.machine_report(read=lambda path: CPUINFO if path.name == "cpuinfo" else None,
+                                  which=lambda name: None, run=no_child_process, sysconf=None, budget=lambda: 31)
+    report = {"passed": True, "checks": {}}
+    monkeypatch.setattr(tool, "evaluate", lambda expect: dict(report))
+    monkeypatch.setattr(tool, "machine_report", lambda: machine)
+    assert tool.main(["--machine", "--json"]) == 0
+    assert '"batch_cpu_budget": 31' in capsys.readouterr().out
+    lines = tool.render_machine(machine)
+    assert lines[0].startswith("Machine:       AMD Ryzen 9 9950X") and "AVX-512 yes" in lines[0]
+    assert any(line.startswith("Batch budget:  31 workers") for line in lines)

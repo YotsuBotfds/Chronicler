@@ -1,10 +1,10 @@
 # Streamline and deepen — roadmap (2026-11)
 
-> **Status:** Proposed. ENV-1 and ENV-8 are in review; no other task has started.
+> **Status:** Proposed. ENV-1, ENV-2, ENV-3 and ENV-8 are in review; no other task has started.
 > **Date:** 2026-11-08
 > **Source:** [repository scout and streamlining plan](../audits/2026-11-08-streamlining-scout.md) and its [32 area reports](../audits/2026-11-08-scout/)
 > **Board:** [`progress/streamline-and-deepen.json`](../progress/streamline-and-deepen.json). Statuses: `ready` (no unmet prerequisite), `blocked` (waits on `depends_on`), `proposed` (owner decision or R7 brief), `review`.
-> **Machines:** the 9950X and 3950X workstations ([setup guide](../../workstations.md)).
+> **Machines:** the 9950X and 3950X Linux workstations ([setup guide](../../workstations.md)).
 > **Specs and plans:** `docs/superpowers/specs/2026-11-08-*-design.md` and `docs/superpowers/plans/2026-11-08-*.md` (index below)
 
 ## Owner instruction
@@ -89,7 +89,7 @@ flowchart LR
 ## Suggested execution order
 
 0. **First, set up a workstation (ENV-1–ENV-6).**
-   - Follow [docs/workstations.md](../../workstations.md) on the 9950X (WSL2) or the 3950X.
+   - Follow [docs/workstations.md](../../workstations.md) on the 9950X or the 3950X (both Linux).
    - Record the machine receipt and the identity matrix.
    - Reproduce CI's full gate locally.
    - The workstation then runs every later lane and gate in minutes. ENV-2–ENV-4 are small tooling PRs that need no decision.
@@ -134,11 +134,11 @@ _One status source, clean ignore rules, CI and setup hardened, dead scripts arch
 
 | ID | Task | Class | Depends on | Risk | Size | Spec | Plan |
 |---|---|---|---|---|---|---|---|
-| ENV-1 | Workstation setup guide (docs/workstations.md) and links | docs | — | low | +250 doc lines | [spec](../specs/2026-11-08-workstation-environments-design.md) | [plan](../plans/2026-11-08-workstation-environments.md) |
-| ENV-2 | Machine receipt: check_python_env.py --machine --json | tooling | — | low | ~+150 | [spec](../specs/2026-11-08-workstation-environments-design.md) | [plan](../plans/2026-11-08-workstation-environments.md) |
+| ENV-1 | Workstation setup guide (docs/workstations.md, Linux-first) and links | docs | — | low | +250 doc lines | [spec](../specs/2026-11-08-workstation-environments-design.md) | [plan](../plans/2026-11-08-workstation-environments.md) |
+| ENV-2 | Machine receipt: check_python_env.py --machine (with --json) | tooling | — | low | ~+150 | [spec](../specs/2026-11-08-workstation-environments-design.md) | [plan](../plans/2026-11-08-workstation-environments.md) |
 | ENV-3 | Parallel oracle lane: run_python_oracle_checks.py --jobs N (default serial) | tooling | — | med | ~+80 | [spec](../specs/2026-11-08-workstation-environments-design.md) | [plan](../plans/2026-11-08-workstation-environments.md) |
-| ENV-4 | Parallel batches: spawn pool with PYTHONHASHSEED 0 | fix | — | low | ~+15 | [spec](../specs/2026-11-08-workstation-environments-design.md) | [plan](../plans/2026-11-08-workstation-environments.md) |
-| ENV-5 | Cross-machine identity matrix (9950X WSL2/Windows, 3950X, CI-like Linux) | measurement | ENV-1 | low | record | [spec](../specs/2026-11-08-workstation-environments-design.md) | [plan](../plans/2026-11-08-workstation-environments.md) |
+| ENV-4 | Parallel batches: spawn pool with PYTHONHASHSEED 0 (lower priority on Linux: fork inherits the seed) | fix | — | low | ~+15 | [spec](../specs/2026-11-08-workstation-environments-design.md) | [plan](../plans/2026-11-08-workstation-environments.md) |
+| ENV-5 | Cross-machine identity matrix (9950X, 3950X, CI-like Ubuntu) | measurement | ENV-1 | low | record | [spec](../specs/2026-11-08-workstation-environments-design.md) | [plan](../plans/2026-11-08-workstation-environments.md) |
 | ENV-6 | Local full validation gate vs CI run 42491150017 at c3d752fa | measurement | ENV-1 | med | record | [spec](../specs/2026-11-08-workstation-environments-design.md) | [plan](../plans/2026-11-08-workstation-environments.md) |
 | ENV-7 | Native build tuning (jemalloc on Linux, x86-64-v3) behind identity compare | perf | ENV-5 | low | record | [spec](../specs/2026-11-08-workstation-environments-design.md) | [plan](../plans/2026-11-08-workstation-environments.md) |
 | ENV-8 | Agent-session notes for workstations (AGENTS.md, guide) | docs | — | low | small | [spec](../specs/2026-11-08-workstation-environments-design.md) | [plan](../plans/2026-11-08-workstation-environments.md) |
