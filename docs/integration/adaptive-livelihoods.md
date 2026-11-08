@@ -1,3 +1,26 @@
+# Corrected controls in rules3
+
+Corrected A6 is explicitly selected with `--adaptive-livelihoods-rules 3`.
+The existing new-run default remains2; saved rules1/2 retain historical behavior. The
+persisted default for missing old JSON/pickle fields remains2. Rules3 keeps
+rules2 personal work, learning, information and trade policies, but its
+`record_only` and `shuffled` controls cannot erase or redirect D3 war/home
+inputs. Shuffle applies only to personal migration penalties, then unmodified
+D3 contributions join them under the existing ±0.30 cap. D3 movement still
+requires the enabled A6 dispatcher; this is independence from personal modes
+and channels, not from the dispatcher feature itself.
+
+`--adaptive-livelihoods-decision-channels` requires rules3: `all`,
+`no_migration_experience`, `no_information` (migration-destination knowledge),
+`no_work` (work/training choices), or `no_trade` (packet/failure trade filters).
+These are saved marginal deletion controls, not additive causal effects.
+Experience and would-decline observations remain recorded. Actual merged
+native inputs are `frame.rows`; `a6_rows` and `d3_rows` expose the contributing
+inputs before summation/capping, not individually caused outcomes.
+`migration_rows_would` records personal penalties before controls, and native
+receipts describe only combined realized gates/moves. Historical rules2
+record-only/shuffle behavior remains available without rewriting old evidence.
+
 # Adaptive personal work and training choices (A6 rules 2)
 
 `--adaptive-livelihoods` remains opt-in. Rules 1 records experience and uses

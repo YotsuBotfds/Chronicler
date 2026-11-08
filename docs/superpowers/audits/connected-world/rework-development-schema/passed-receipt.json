@@ -1,0 +1,17 @@
+{
+  "status": "PASS",
+  "source": "09403c15070ddab4977ae8b2e65c336238468447",
+  "identity": "d84b30df34059d4298a62ddd6d051455783533b325dba762e37d2fbaf6343f04",
+  "native": "native /workspace/cwr-native/lib/python3.13/site-packages/chronicler_agents/chronicler_agents.cpython-313-x86_64-linux-gnu.so b1d3ea5ac858681960b2cb880c534164905501f6ab4f6f3c94f7c9b5f66196cd",
+  "horizon": 8,
+  "expected_rows": 13,
+  "rows": 13,
+  "failed": [],
+  "wall_seconds": 19.855682500998228,
+  "cpu_user_seconds": 19.284733000000003,
+  "cpu_system_seconds": 0.953557,
+  "self_peak_rss_kib": 141564,
+  "child_peak_rss_kib": 176632,
+  "official_budget_authority": false,
+  "held_seeds_spent": 0
+}

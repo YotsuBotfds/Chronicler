@@ -1,0 +1,23 @@
+{
+  "root": "/workspace/cwr-viewer",
+  "moves": {},
+  "not_covered": [
+    "paths built at runtime (Path segments joined with '/', f-strings, globs, rglob, os.walk)",
+    "source read through inspect.getsource, ast.parse of an imported module, or __file__ arithmetic",
+    "whole-tree digests recomputed at run time (native wheel receipts, benchmark source identities)",
+    "TypeScript and Rust module graphs beyond literal import specifiers and `mod` lines; tsc -b and cargo check them",
+    "multi-line imports outside parentheses, aliases re-exported under another name, star imports",
+    "behavioral pins: golden outputs, snapshot bytes, RNG streams and checkpoint identity",
+    "private archives, other branches, external repositories and published receipts"
+  ],
+  "reports": [
+    {
+      "path": "viewer/src/components/systems/systems.css",
+      "exists": true,
+      "sha256": "67776108ae376beca53609167bd35ea92e29640e4591593ed1988699ee405336",
+      "role": "file",
+      "findings": [],
+      "verdict": "no known pins or references (coverage incomplete; run the lanes)"
+    }
+  ]
+}

@@ -1,0 +1,2046 @@
+{
+  "bundle": "/workspace/evidence/cwr-evaluation/pilot-8792be88-v1/runs/AD-p19/chronicle_bundle.json",
+  "bundle_sha256": "b9d42be3b1d2417165ec9e889d1d7543cefca63fd2dc7037eb7b7831cce5a8c6",
+  "rows": [
+    {
+      "snapshot": 1,
+      "diag": {
+        "window_turns": 20,
+        "coverage_complete": false,
+        "window_complete": false,
+        "complete": false
+      },
+      "arrivals": 0,
+      "unknown": 0,
+      "moves": 0,
+      "PHcomplete": 0,
+      "PHpositive": 0,
+      "A6rows": 0,
+      "D3total": 0,
+      "A6total": 0
+    },
+    {
+      "snapshot": 2,
+      "diag": {
+        "window_turns": 20,
+        "coverage_complete": false,
+        "window_complete": false,
+        "complete": false
+      },
+      "arrivals": 4,
+      "unknown": 4,
+      "moves": 4,
+      "PHcomplete": 0,
+      "PHpositive": 0,
+      "A6rows": 138,
+      "D3total": 88,
+      "A6total": 50
+    },
+    {
+      "snapshot": 3,
+      "diag": {
+        "window_turns": 20,
+        "coverage_complete": true,
+        "window_complete": false,
+        "complete": false
+      },
+      "arrivals": 8,
+      "unknown": 8,
+      "moves": 4,
+      "PHcomplete": 0,
+      "PHpositive": 0,
+      "A6rows": 244,
+      "D3total": 154,
+      "A6total": 92
+    },
+    {
+      "snapshot": 4,
+      "diag": {
+        "window_turns": 20,
+        "coverage_complete": true,
+        "window_complete": false,
+        "complete": false
+      },
+      "arrivals": 11,
+      "unknown": 11,
+      "moves": 5,
+      "PHcomplete": 0,
+      "PHpositive": 0,
+      "A6rows": 194,
+      "D3total": 80,
+      "A6total": 117
+    },
+    {
+      "snapshot": 5,
+      "diag": {
+        "window_turns": 20,
+        "coverage_complete": true,
+        "window_complete": false,
+        "complete": false
+      },
+      "arrivals": 16,
+      "unknown": 16,
+      "moves": 5,
+      "PHcomplete": 0,
+      "PHpositive": 0,
+      "A6rows": 220,
+      "D3total": 72,
+      "A6total": 153
+    },
+    {
+      "snapshot": 6,
+      "diag": {
+        "window_turns": 20,
+        "coverage_complete": true,
+        "window_complete": false,
+        "complete": false
+      },
+      "arrivals": 25,
+      "unknown": 25,
+      "moves": 8,
+      "PHcomplete": 0,
+      "PHpositive": 0,
+      "A6rows": 256,
+      "D3total": 144,
+      "A6total": 190
+    },
+    {
+      "snapshot": 7,
+      "diag": {
+        "window_turns": 20,
+        "coverage_complete": true,
+        "window_complete": false,
+        "complete": false
+      },
+      "arrivals": 39,
+      "unknown": 39,
+      "moves": 15,
+      "PHcomplete": 0,
+      "PHpositive": 0,
+      "A6rows": 256,
+      "D3total": 140,
+      "A6total": 231
+    },
+    {
+      "snapshot": 8,
+      "diag": {
+        "window_turns": 20,
+        "coverage_complete": true,
+        "window_complete": false,
+        "complete": false
+      },
+      "arrivals": 50,
+      "unknown": 50,
+      "moves": 12,
+      "PHcomplete": 0,
+      "PHpositive": 0,
+      "A6rows": 256,
+      "D3total": 106,
+      "A6total": 271
+    },
+    {
+      "snapshot": 9,
+      "diag": {
+        "window_turns": 20,
+        "coverage_complete": true,
+        "window_complete": false,
+        "complete": false
+      },
+      "arrivals": 65,
+      "unknown": 65,
+      "moves": 16,
+      "PHcomplete": 0,
+      "PHpositive": 0,
+      "A6rows": 256,
+      "D3total": 110,
+      "A6total": 293
+    },
+    {
+      "snapshot": 10,
+      "diag": {
+        "window_turns": 20,
+        "coverage_complete": true,
+        "window_complete": false,
+        "complete": false
+      },
+      "arrivals": 80,
+      "unknown": 80,
+      "moves": 21,
+      "PHcomplete": 0,
+      "PHpositive": 0,
+      "A6rows": 256,
+      "D3total": 94,
+      "A6total": 321
+    },
+    {
+      "snapshot": 11,
+      "diag": {
+        "window_turns": 20,
+        "coverage_complete": true,
+        "window_complete": false,
+        "complete": false
+      },
+      "arrivals": 92,
+      "unknown": 92,
+      "moves": 14,
+      "PHcomplete": 0,
+      "PHpositive": 0,
+      "A6rows": 256,
+      "D3total": 64,
+      "A6total": 299
+    },
+    {
+      "snapshot": 12,
+      "diag": {
+        "window_turns": 20,
+        "coverage_complete": true,
+        "window_complete": false,
+        "complete": false
+      },
+      "arrivals": 101,
+      "unknown": 101,
+      "moves": 13,
+      "PHcomplete": 0,
+      "PHpositive": 0,
+      "A6rows": 256,
+      "D3total": 66,
+      "A6total": 295
+    },
+    {
+      "snapshot": 13,
+      "diag": {
+        "window_turns": 20,
+        "coverage_complete": true,
+        "window_complete": false,
+        "complete": false
+      },
+      "arrivals": 113,
+      "unknown": 113,
+      "moves": 17,
+      "PHcomplete": 0,
+      "PHpositive": 0,
+      "A6rows": 256,
+      "D3total": 56,
+      "A6total": 302
+    },
+    {
+      "snapshot": 14,
+      "diag": {
+        "window_turns": 20,
+        "coverage_complete": true,
+        "window_complete": false,
+        "complete": false
+      },
+      "arrivals": 122,
+      "unknown": 122,
+      "moves": 18,
+      "PHcomplete": 0,
+      "PHpositive": 0,
+      "A6rows": 256,
+      "D3total": 8,
+      "A6total": 294
+    },
+    {
+      "snapshot": 15,
+      "diag": {
+        "window_turns": 20,
+        "coverage_complete": true,
+        "window_complete": false,
+        "complete": false
+      },
+      "arrivals": 136,
+      "unknown": 136,
+      "moves": 24,
+      "PHcomplete": 0,
+      "PHpositive": 0,
+      "A6rows": 256,
+      "D3total": 24,
+      "A6total": 287
+    },
+    {
+      "snapshot": 16,
+      "diag": {
+        "window_turns": 20,
+        "coverage_complete": true,
+        "window_complete": false,
+        "complete": false
+      },
+      "arrivals": 147,
+      "unknown": 147,
+      "moves": 22,
+      "PHcomplete": 0,
+      "PHpositive": 0,
+      "A6rows": 256,
+      "D3total": 0,
+      "A6total": 285
+    },
+    {
+      "snapshot": 17,
+      "diag": {
+        "window_turns": 20,
+        "coverage_complete": true,
+        "window_complete": false,
+        "complete": false
+      },
+      "arrivals": 153,
+      "unknown": 153,
+      "moves": 16,
+      "PHcomplete": 0,
+      "PHpositive": 0,
+      "A6rows": 256,
+      "D3total": 14,
+      "A6total": 275
+    },
+    {
+      "snapshot": 18,
+      "diag": {
+        "window_turns": 20,
+        "coverage_complete": true,
+        "window_complete": false,
+        "complete": false
+      },
+      "arrivals": 171,
+      "unknown": 171,
+      "moves": 26,
+      "PHcomplete": 0,
+      "PHpositive": 0,
+      "A6rows": 256,
+      "D3total": 15,
+      "A6total": 282
+    },
+    {
+      "snapshot": 19,
+      "diag": {
+        "window_turns": 20,
+        "coverage_complete": true,
+        "window_complete": false,
+        "complete": false
+      },
+      "arrivals": 183,
+      "unknown": 183,
+      "moves": 19,
+      "PHcomplete": 0,
+      "PHpositive": 0,
+      "A6rows": 256,
+      "D3total": 14,
+      "A6total": 278
+    },
+    {
+      "snapshot": 20,
+      "diag": {
+        "window_turns": 20,
+        "coverage_complete": true,
+        "window_complete": false,
+        "complete": false
+      },
+      "arrivals": 200,
+      "unknown": 200,
+      "moves": 24,
+      "PHcomplete": 0,
+      "PHpositive": 0,
+      "A6rows": 256,
+      "D3total": 14,
+      "A6total": 286
+    },
+    {
+      "snapshot": 21,
+      "diag": {
+        "window_turns": 20,
+        "coverage_complete": true,
+        "window_complete": false,
+        "complete": false
+      },
+      "arrivals": 220,
+      "unknown": 220,
+      "moves": 32,
+      "PHcomplete": 0,
+      "PHpositive": 0,
+      "A6rows": 256,
+      "D3total": 14,
+      "A6total": 282
+    },
+    {
+      "snapshot": 22,
+      "diag": {
+        "window_turns": 20,
+        "coverage_complete": true,
+        "window_complete": true,
+        "complete": true
+      },
+      "arrivals": 226,
+      "unknown": 226,
+      "moves": 31,
+      "PHcomplete": 0,
+      "PHpositive": 0,
+      "A6rows": 256,
+      "D3total": 72,
+      "A6total": 277
+    },
+    {
+      "snapshot": 23,
+      "diag": {
+        "window_turns": 20,
+        "coverage_complete": true,
+        "window_complete": true,
+        "complete": true
+      },
+      "arrivals": 242,
+      "unknown": 242,
+      "moves": 33,
+      "PHcomplete": 32,
+      "PHpositive": 23,
+      "A6rows": 256,
+      "D3total": 11,
+      "A6total": 287
+    },
+    {
+      "snapshot": 24,
+      "diag": {
+        "window_turns": 20,
+        "coverage_complete": true,
+        "window_complete": true,
+        "complete": true
+      },
+      "arrivals": 251,
+      "unknown": 251,
+      "moves": 20,
+      "PHcomplete": 32,
+      "PHpositive": 24,
+      "A6rows": 256,
+      "D3total": 11,
+      "A6total": 308
+    },
+    {
+      "snapshot": 25,
+      "diag": {
+        "window_turns": 20,
+        "coverage_complete": true,
+        "window_complete": true,
+        "complete": true
+      },
+      "arrivals": 256,
+      "unknown": 256,
+      "moves": 23,
+      "PHcomplete": 32,
+      "PHpositive": 24,
+      "A6rows": 256,
+      "D3total": 23,
+      "A6total": 323
+    },
+    {
+      "snapshot": 26,
+      "diag": {
+        "window_turns": 20,
+        "coverage_complete": true,
+        "window_complete": true,
+        "complete": true
+      },
+      "arrivals": 267,
+      "unknown": 267,
+      "moves": 30,
+      "PHcomplete": 32,
+      "PHpositive": 24,
+      "A6rows": 256,
+      "D3total": 305,
+      "A6total": 331
+    },
+    {
+      "snapshot": 27,
+      "diag": {
+        "window_turns": 20,
+        "coverage_complete": true,
+        "window_complete": true,
+        "complete": true
+      },
+      "arrivals": 266,
+      "unknown": 266,
+      "moves": 12,
+      "PHcomplete": 32,
+      "PHpositive": 25,
+      "A6rows": 256,
+      "D3total": 86,
+      "A6total": 345
+    },
+    {
+      "snapshot": 28,
+      "diag": {
+        "window_turns": 20,
+        "coverage_complete": true,
+        "window_complete": true,
+        "complete": true
+      },
+      "arrivals": 266,
+      "unknown": 266,
+      "moves": 19,
+      "PHcomplete": 32,
+      "PHpositive": 26,
+      "A6rows": 256,
+      "D3total": 15,
+      "A6total": 348
+    },
+    {
+      "snapshot": 29,
+      "diag": {
+        "window_turns": 20,
+        "coverage_complete": true,
+        "window_complete": true,
+        "complete": true
+      },
+      "arrivals": 275,
+      "unknown": 275,
+      "moves": 33,
+      "PHcomplete": 32,
+      "PHpositive": 26,
+      "A6rows": 256,
+      "D3total": 16,
+      "A6total": 359
+    },
+    {
+      "snapshot": 30,
+      "diag": {
+        "window_turns": 20,
+        "coverage_complete": true,
+        "window_complete": true,
+        "complete": true
+      },
+      "arrivals": 280,
+      "unknown": 280,
+      "moves": 21,
+      "PHcomplete": 32,
+      "PHpositive": 25,
+      "A6rows": 256,
+      "D3total": 17,
+      "A6total": 366
+    },
+    {
+      "snapshot": 31,
+      "diag": {
+        "window_turns": 20,
+        "coverage_complete": true,
+        "window_complete": true,
+        "complete": true
+      },
+      "arrivals": 290,
+      "unknown": 290,
+      "moves": 30,
+      "PHcomplete": 32,
+      "PHpositive": 25,
+      "A6rows": 256,
+      "D3total": 17,
+      "A6total": 370
+    },
+    {
+      "snapshot": 32,
+      "diag": {
+        "window_turns": 20,
+        "coverage_complete": true,
+        "window_complete": true,
+        "complete": true
+      },
+      "arrivals": 297,
+      "unknown": 297,
+      "moves": 23,
+      "PHcomplete": 32,
+      "PHpositive": 27,
+      "A6rows": 256,
+      "D3total": 16,
+      "A6total": 377
+    },
+    {
+      "snapshot": 33,
+      "diag": {
+        "window_turns": 20,
+        "coverage_complete": true,
+        "window_complete": true,
+        "complete": true
+      },
+      "arrivals": 311,
+      "unknown": 308,
+      "moves": 47,
+      "PHcomplete": 32,
+      "PHpositive": 27,
+      "A6rows": 256,
+      "D3total": 17,
+      "A6total": 385
+    },
+    {
+      "snapshot": 34,
+      "diag": {
+        "window_turns": 20,
+        "coverage_complete": true,
+        "window_complete": true,
+        "complete": true
+      },
+      "arrivals": 337,
+      "unknown": 334,
+      "moves": 48,
+      "PHcomplete": 32,
+      "PHpositive": 26,
+      "A6rows": 256,
+      "D3total": 317,
+      "A6total": 376
+    },
+    {
+      "snapshot": 35,
+      "diag": {
+        "window_turns": 20,
+        "coverage_complete": true,
+        "window_complete": true,
+        "complete": true
+      },
+      "arrivals": 340,
+      "unknown": 337,
+      "moves": 32,
+      "PHcomplete": 32,
+      "PHpositive": 27,
+      "A6rows": 256,
+      "D3total": 17,
+      "A6total": 384
+    },
+    {
+      "snapshot": 36,
+      "diag": {
+        "window_turns": 20,
+        "coverage_complete": true,
+        "window_complete": true,
+        "complete": true
+      },
+      "arrivals": 355,
+      "unknown": 352,
+      "moves": 39,
+      "PHcomplete": 32,
+      "PHpositive": 27,
+      "A6rows": 256,
+      "D3total": 9,
+      "A6total": 401
+    },
+    {
+      "snapshot": 37,
+      "diag": {
+        "window_turns": 20,
+        "coverage_complete": true,
+        "window_complete": true,
+        "complete": true
+      },
+      "arrivals": 361,
+      "unknown": 358,
+      "moves": 21,
+      "PHcomplete": 32,
+      "PHpositive": 27,
+      "A6rows": 256,
+      "D3total": 8,
+      "A6total": 415
+    },
+    {
+      "snapshot": 38,
+      "diag": {
+        "window_turns": 20,
+        "coverage_complete": true,
+        "window_complete": true,
+        "complete": true
+      },
+      "arrivals": 379,
+      "unknown": 376,
+      "moves": 38,
+      "PHcomplete": 32,
+      "PHpositive": 27,
+      "A6rows": 256,
+      "D3total": 8,
+      "A6total": 436
+    },
+    {
+      "snapshot": 39,
+      "diag": {
+        "window_turns": 20,
+        "coverage_complete": true,
+        "window_complete": true,
+        "complete": true
+      },
+      "arrivals": 381,
+      "unknown": 378,
+      "moves": 36,
+      "PHcomplete": 32,
+      "PHpositive": 27,
+      "A6rows": 256,
+      "D3total": 10,
+      "A6total": 454
+    },
+    {
+      "snapshot": 40,
+      "diag": {
+        "window_turns": 20,
+        "coverage_complete": true,
+        "window_complete": true,
+        "complete": true
+      },
+      "arrivals": 382,
+      "unknown": 379,
+      "moves": 29,
+      "PHcomplete": 32,
+      "PHpositive": 27,
+      "A6rows": 256,
+      "D3total": 10,
+      "A6total": 480
+    },
+    {
+      "snapshot": 41,
+      "diag": {
+        "window_turns": 20,
+        "coverage_complete": true,
+        "window_complete": true,
+        "complete": true
+      },
+      "arrivals": 380,
+      "unknown": 377,
+      "moves": 42,
+      "PHcomplete": 32,
+      "PHpositive": 27,
+      "A6rows": 256,
+      "D3total": 11,
+      "A6total": 500
+    },
+    {
+      "snapshot": 42,
+      "diag": {
+        "window_turns": 20,
+        "coverage_complete": true,
+        "window_complete": true,
+        "complete": true
+      },
+      "arrivals": 379,
+      "unknown": 376,
+      "moves": 28,
+      "PHcomplete": 32,
+      "PHpositive": 26,
+      "A6rows": 256,
+      "D3total": 12,
+      "A6total": 509
+    },
+    {
+      "snapshot": 43,
+      "diag": {
+        "window_turns": 20,
+        "coverage_complete": true,
+        "window_complete": true,
+        "complete": true
+      },
+      "arrivals": 376,
+      "unknown": 373,
+      "moves": 24,
+      "PHcomplete": 32,
+      "PHpositive": 27,
+      "A6rows": 256,
+      "D3total": 16,
+      "A6total": 510
+    },
+    {
+      "snapshot": 44,
+      "diag": {
+        "window_turns": 20,
+        "coverage_complete": true,
+        "window_complete": true,
+        "complete": true
+      },
+      "arrivals": 378,
+      "unknown": 373,
+      "moves": 39,
+      "PHcomplete": 32,
+      "PHpositive": 27,
+      "A6rows": 256,
+      "D3total": 15,
+      "A6total": 517
+    },
+    {
+      "snapshot": 45,
+      "diag": {
+        "window_turns": 20,
+        "coverage_complete": true,
+        "window_complete": true,
+        "complete": true
+      },
+      "arrivals": 380,
+      "unknown": 375,
+      "moves": 22,
+      "PHcomplete": 32,
+      "PHpositive": 28,
+      "A6rows": 256,
+      "D3total": 15,
+      "A6total": 515
+    },
+    {
+      "snapshot": 46,
+      "diag": {
+        "window_turns": 20,
+        "coverage_complete": true,
+        "window_complete": true,
+        "complete": true
+      },
+      "arrivals": 385,
+      "unknown": 377,
+      "moves": 47,
+      "PHcomplete": 32,
+      "PHpositive": 28,
+      "A6rows": 256,
+      "D3total": 5,
+      "A6total": 512
+    },
+    {
+      "snapshot": 47,
+      "diag": {
+        "window_turns": 20,
+        "coverage_complete": true,
+        "window_complete": true,
+        "complete": true
+      },
+      "arrivals": 378,
+      "unknown": 372,
+      "moves": 24,
+      "PHcomplete": 32,
+      "PHpositive": 28,
+      "A6rows": 256,
+      "D3total": 3,
+      "A6total": 540
+    },
+    {
+      "snapshot": 48,
+      "diag": {
+        "window_turns": 20,
+        "coverage_complete": true,
+        "window_complete": true,
+        "complete": true
+      },
+      "arrivals": 383,
+      "unknown": 377,
+      "moves": 34,
+      "PHcomplete": 32,
+      "PHpositive": 29,
+      "A6rows": 256,
+      "D3total": 3,
+      "A6total": 541
+    },
+    {
+      "snapshot": 49,
+      "diag": {
+        "window_turns": 20,
+        "coverage_complete": true,
+        "window_complete": true,
+        "complete": true
+      },
+      "arrivals": 390,
+      "unknown": 384,
+      "moves": 45,
+      "PHcomplete": 32,
+      "PHpositive": 28,
+      "A6rows": 256,
+      "D3total": 3,
+      "A6total": 553
+    },
+    {
+      "snapshot": 50,
+      "diag": {
+        "window_turns": 20,
+        "coverage_complete": true,
+        "window_complete": true,
+        "complete": true
+      },
+      "arrivals": 397,
+      "unknown": 391,
+      "moves": 45,
+      "PHcomplete": 32,
+      "PHpositive": 28,
+      "A6rows": 256,
+      "D3total": 3,
+      "A6total": 571
+    },
+    {
+      "snapshot": 51,
+      "diag": {
+        "window_turns": 20,
+        "coverage_complete": true,
+        "window_complete": true,
+        "complete": true
+      },
+      "arrivals": 403,
+      "unknown": 399,
+      "moves": 38,
+      "PHcomplete": 32,
+      "PHpositive": 28,
+      "A6rows": 256,
+      "D3total": 3,
+      "A6total": 591
+    },
+    {
+      "snapshot": 52,
+      "diag": {
+        "window_turns": 20,
+        "coverage_complete": true,
+        "window_complete": true,
+        "complete": true
+      },
+      "arrivals": 401,
+      "unknown": 397,
+      "moves": 20,
+      "PHcomplete": 32,
+      "PHpositive": 28,
+      "A6rows": 256,
+      "D3total": 3,
+      "A6total": 622
+    },
+    {
+      "snapshot": 53,
+      "diag": {
+        "window_turns": 20,
+        "coverage_complete": true,
+        "window_complete": true,
+        "complete": true
+      },
+      "arrivals": 400,
+      "unknown": 396,
+      "moves": 51,
+      "PHcomplete": 32,
+      "PHpositive": 28,
+      "A6rows": 256,
+      "D3total": 6,
+      "A6total": 622
+    },
+    {
+      "snapshot": 54,
+      "diag": {
+        "window_turns": 20,
+        "coverage_complete": true,
+        "window_complete": true,
+        "complete": true
+      },
+      "arrivals": 398,
+      "unknown": 394,
+      "moves": 20,
+      "PHcomplete": 32,
+      "PHpositive": 28,
+      "A6rows": 256,
+      "D3total": 5,
+      "A6total": 650
+    },
+    {
+      "snapshot": 55,
+      "diag": {
+        "window_turns": 20,
+        "coverage_complete": true,
+        "window_complete": true,
+        "complete": true
+      },
+      "arrivals": 395,
+      "unknown": 392,
+      "moves": 30,
+      "PHcomplete": 32,
+      "PHpositive": 29,
+      "A6rows": 256,
+      "D3total": 3,
+      "A6total": 660
+    },
+    {
+      "snapshot": 56,
+      "diag": {
+        "window_turns": 20,
+        "coverage_complete": true,
+        "window_complete": true,
+        "complete": true
+      },
+      "arrivals": 386,
+      "unknown": 383,
+      "moves": 33,
+      "PHcomplete": 32,
+      "PHpositive": 29,
+      "A6rows": 256,
+      "D3total": 3,
+      "A6total": 657
+    },
+    {
+      "snapshot": 57,
+      "diag": {
+        "window_turns": 20,
+        "coverage_complete": true,
+        "window_complete": true,
+        "complete": true
+      },
+      "arrivals": 397,
+      "unknown": 394,
+      "moves": 40,
+      "PHcomplete": 32,
+      "PHpositive": 29,
+      "A6rows": 256,
+      "D3total": 3,
+      "A6total": 661
+    },
+    {
+      "snapshot": 58,
+      "diag": {
+        "window_turns": 20,
+        "coverage_complete": true,
+        "window_complete": true,
+        "complete": true
+      },
+      "arrivals": 399,
+      "unknown": 396,
+      "moves": 46,
+      "PHcomplete": 32,
+      "PHpositive": 29,
+      "A6rows": 256,
+      "D3total": 4,
+      "A6total": 653
+    },
+    {
+      "snapshot": 59,
+      "diag": {
+        "window_turns": 20,
+        "coverage_complete": true,
+        "window_complete": true,
+        "complete": true
+      },
+      "arrivals": 400,
+      "unknown": 397,
+      "moves": 42,
+      "PHcomplete": 32,
+      "PHpositive": 29,
+      "A6rows": 256,
+      "D3total": 4,
+      "A6total": 657
+    },
+    {
+      "snapshot": 60,
+      "diag": {
+        "window_turns": 20,
+        "coverage_complete": true,
+        "window_complete": true,
+        "complete": true
+      },
+      "arrivals": 405,
+      "unknown": 402,
+      "moves": 35,
+      "PHcomplete": 32,
+      "PHpositive": 29,
+      "A6rows": 256,
+      "D3total": 4,
+      "A6total": 690
+    },
+    {
+      "snapshot": 61,
+      "diag": {
+        "window_turns": 20,
+        "coverage_complete": true,
+        "window_complete": true,
+        "complete": true
+      },
+      "arrivals": 412,
+      "unknown": 409,
+      "moves": 50,
+      "PHcomplete": 32,
+      "PHpositive": 29,
+      "A6rows": 256,
+      "D3total": 4,
+      "A6total": 705
+    },
+    {
+      "snapshot": 62,
+      "diag": {
+        "window_turns": 20,
+        "coverage_complete": true,
+        "window_complete": true,
+        "complete": true
+      },
+      "arrivals": 424,
+      "unknown": 421,
+      "moves": 47,
+      "PHcomplete": 32,
+      "PHpositive": 30,
+      "A6rows": 256,
+      "D3total": 0,
+      "A6total": 747
+    },
+    {
+      "snapshot": 63,
+      "diag": {
+        "window_turns": 20,
+        "coverage_complete": true,
+        "window_complete": true,
+        "complete": true
+      },
+      "arrivals": 429,
+      "unknown": 426,
+      "moves": 46,
+      "PHcomplete": 32,
+      "PHpositive": 30,
+      "A6rows": 256,
+      "D3total": 0,
+      "A6total": 768
+    },
+    {
+      "snapshot": 64,
+      "diag": {
+        "window_turns": 20,
+        "coverage_complete": true,
+        "window_complete": true,
+        "complete": true
+      },
+      "arrivals": 427,
+      "unknown": 427,
+      "moves": 41,
+      "PHcomplete": 32,
+      "PHpositive": 30,
+      "A6rows": 256,
+      "D3total": 0,
+      "A6total": 787
+    },
+    {
+      "snapshot": 65,
+      "diag": {
+        "window_turns": 20,
+        "coverage_complete": true,
+        "window_complete": true,
+        "complete": true
+      },
+      "arrivals": 437,
+      "unknown": 437,
+      "moves": 36,
+      "PHcomplete": 32,
+      "PHpositive": 30,
+      "A6rows": 256,
+      "D3total": 0,
+      "A6total": 820
+    },
+    {
+      "snapshot": 66,
+      "diag": {
+        "window_turns": 20,
+        "coverage_complete": true,
+        "window_complete": true,
+        "complete": true
+      },
+      "arrivals": 441,
+      "unknown": 441,
+      "moves": 39,
+      "PHcomplete": 32,
+      "PHpositive": 29,
+      "A6rows": 256,
+      "D3total": 0,
+      "A6total": 808
+    },
+    {
+      "snapshot": 67,
+      "diag": {
+        "window_turns": 20,
+        "coverage_complete": true,
+        "window_complete": true,
+        "complete": true
+      },
+      "arrivals": 469,
+      "unknown": 469,
+      "moves": 70,
+      "PHcomplete": 32,
+      "PHpositive": 30,
+      "A6rows": 256,
+      "D3total": 0,
+      "A6total": 844
+    },
+    {
+      "snapshot": 68,
+      "diag": {
+        "window_turns": 20,
+        "coverage_complete": true,
+        "window_complete": true,
+        "complete": true
+      },
+      "arrivals": 482,
+      "unknown": 482,
+      "moves": 58,
+      "PHcomplete": 32,
+      "PHpositive": 30,
+      "A6rows": 256,
+      "D3total": 0,
+      "A6total": 867
+    },
+    {
+      "snapshot": 69,
+      "diag": {
+        "window_turns": 20,
+        "coverage_complete": true,
+        "window_complete": true,
+        "complete": true
+      },
+      "arrivals": 480,
+      "unknown": 480,
+      "moves": 49,
+      "PHcomplete": 32,
+      "PHpositive": 30,
+      "A6rows": 256,
+      "D3total": 0,
+      "A6total": 867
+    },
+    {
+      "snapshot": 70,
+      "diag": {
+        "window_turns": 20,
+        "coverage_complete": true,
+        "window_complete": true,
+        "complete": true
+      },
+      "arrivals": 466,
+      "unknown": 466,
+      "moves": 37,
+      "PHcomplete": 32,
+      "PHpositive": 30,
+      "A6rows": 256,
+      "D3total": 0,
+      "A6total": 861
+    },
+    {
+      "snapshot": 71,
+      "diag": {
+        "window_turns": 20,
+        "coverage_complete": true,
+        "window_complete": true,
+        "complete": true
+      },
+      "arrivals": 452,
+      "unknown": 452,
+      "moves": 25,
+      "PHcomplete": 32,
+      "PHpositive": 30,
+      "A6rows": 256,
+      "D3total": 0,
+      "A6total": 853
+    },
+    {
+      "snapshot": 72,
+      "diag": {
+        "window_turns": 20,
+        "coverage_complete": true,
+        "window_complete": true,
+        "complete": true
+      },
+      "arrivals": 461,
+      "unknown": 461,
+      "moves": 50,
+      "PHcomplete": 32,
+      "PHpositive": 30,
+      "A6rows": 256,
+      "D3total": 0,
+      "A6total": 853
+    },
+    {
+      "snapshot": 73,
+      "diag": {
+        "window_turns": 20,
+        "coverage_complete": true,
+        "window_complete": true,
+        "complete": true
+      },
+      "arrivals": 439,
+      "unknown": 439,
+      "moves": 28,
+      "PHcomplete": 32,
+      "PHpositive": 31,
+      "A6rows": 256,
+      "D3total": 0,
+      "A6total": 838
+    },
+    {
+      "snapshot": 74,
+      "diag": {
+        "window_turns": 20,
+        "coverage_complete": true,
+        "window_complete": true,
+        "complete": true
+      },
+      "arrivals": 444,
+      "unknown": 444,
+      "moves": 49,
+      "PHcomplete": 32,
+      "PHpositive": 30,
+      "A6rows": 256,
+      "D3total": 0,
+      "A6total": 848
+    },
+    {
+      "snapshot": 75,
+      "diag": {
+        "window_turns": 20,
+        "coverage_complete": true,
+        "window_complete": true,
+        "complete": true
+      },
+      "arrivals": 442,
+      "unknown": 440,
+      "moves": 34,
+      "PHcomplete": 32,
+      "PHpositive": 30,
+      "A6rows": 256,
+      "D3total": 0,
+      "A6total": 843
+    },
+    {
+      "snapshot": 76,
+      "diag": {
+        "window_turns": 20,
+        "coverage_complete": true,
+        "window_complete": true,
+        "complete": true
+      },
+      "arrivals": 446,
+      "unknown": 444,
+      "moves": 29,
+      "PHcomplete": 32,
+      "PHpositive": 30,
+      "A6rows": 256,
+      "D3total": 0,
+      "A6total": 822
+    },
+    {
+      "snapshot": 77,
+      "diag": {
+        "window_turns": 20,
+        "coverage_complete": true,
+        "window_complete": true,
+        "complete": true
+      },
+      "arrivals": 435,
+      "unknown": 433,
+      "moves": 33,
+      "PHcomplete": 32,
+      "PHpositive": 30,
+      "A6rows": 256,
+      "D3total": 0,
+      "A6total": 807
+    },
+    {
+      "snapshot": 78,
+      "diag": {
+        "window_turns": 20,
+        "coverage_complete": true,
+        "window_complete": true,
+        "complete": true
+      },
+      "arrivals": 425,
+      "unknown": 423,
+      "moves": 29,
+      "PHcomplete": 32,
+      "PHpositive": 30,
+      "A6rows": 256,
+      "D3total": 0,
+      "A6total": 793
+    },
+    {
+      "snapshot": 79,
+      "diag": {
+        "window_turns": 20,
+        "coverage_complete": true,
+        "window_complete": true,
+        "complete": true
+      },
+      "arrivals": 421,
+      "unknown": 419,
+      "moves": 49,
+      "PHcomplete": 32,
+      "PHpositive": 30,
+      "A6rows": 256,
+      "D3total": 0,
+      "A6total": 778
+    },
+    {
+      "snapshot": 80,
+      "diag": {
+        "window_turns": 20,
+        "coverage_complete": true,
+        "window_complete": true,
+        "complete": true
+      },
+      "arrivals": 419,
+      "unknown": 416,
+      "moves": 40,
+      "PHcomplete": 32,
+      "PHpositive": 30,
+      "A6rows": 256,
+      "D3total": 0,
+      "A6total": 776
+    },
+    {
+      "snapshot": 81,
+      "diag": {
+        "window_turns": 20,
+        "coverage_complete": true,
+        "window_complete": true,
+        "complete": true
+      },
+      "arrivals": 423,
+      "unknown": 416,
+      "moves": 43,
+      "PHcomplete": 32,
+      "PHpositive": 30,
+      "A6rows": 256,
+      "D3total": 0,
+      "A6total": 775
+    },
+    {
+      "snapshot": 82,
+      "diag": {
+        "window_turns": 20,
+        "coverage_complete": true,
+        "window_complete": true,
+        "complete": true
+      },
+      "arrivals": 434,
+      "unknown": 424,
+      "moves": 38,
+      "PHcomplete": 32,
+      "PHpositive": 29,
+      "A6rows": 256,
+      "D3total": 0,
+      "A6total": 749
+    },
+    {
+      "snapshot": 83,
+      "diag": {
+        "window_turns": 20,
+        "coverage_complete": true,
+        "window_complete": true,
+        "complete": true
+      },
+      "arrivals": 437,
+      "unknown": 424,
+      "moves": 47,
+      "PHcomplete": 32,
+      "PHpositive": 29,
+      "A6rows": 256,
+      "D3total": 0,
+      "A6total": 722
+    },
+    {
+      "snapshot": 84,
+      "diag": {
+        "window_turns": 20,
+        "coverage_complete": true,
+        "window_complete": true,
+        "complete": true
+      },
+      "arrivals": 442,
+      "unknown": 429,
+      "moves": 52,
+      "PHcomplete": 32,
+      "PHpositive": 28,
+      "A6rows": 256,
+      "D3total": 0,
+      "A6total": 717
+    },
+    {
+      "snapshot": 85,
+      "diag": {
+        "window_turns": 20,
+        "coverage_complete": true,
+        "window_complete": true,
+        "complete": true
+      },
+      "arrivals": 459,
+      "unknown": 446,
+      "moves": 61,
+      "PHcomplete": 32,
+      "PHpositive": 26,
+      "A6rows": 256,
+      "D3total": 0,
+      "A6total": 721
+    },
+    {
+      "snapshot": 86,
+      "diag": {
+        "window_turns": 20,
+        "coverage_complete": true,
+        "window_complete": true,
+        "complete": true
+      },
+      "arrivals": 458,
+      "unknown": 445,
+      "moves": 33,
+      "PHcomplete": 32,
+      "PHpositive": 26,
+      "A6rows": 256,
+      "D3total": 0,
+      "A6total": 711
+    },
+    {
+      "snapshot": 87,
+      "diag": {
+        "window_turns": 20,
+        "coverage_complete": true,
+        "window_complete": true,
+        "complete": true
+      },
+      "arrivals": 458,
+      "unknown": 442,
+      "moves": 39,
+      "PHcomplete": 32,
+      "PHpositive": 26,
+      "A6rows": 256,
+      "D3total": 0,
+      "A6total": 697
+    },
+    {
+      "snapshot": 88,
+      "diag": {
+        "window_turns": 20,
+        "coverage_complete": true,
+        "window_complete": true,
+        "complete": true
+      },
+      "arrivals": 451,
+      "unknown": 434,
+      "moves": 45,
+      "PHcomplete": 32,
+      "PHpositive": 26,
+      "A6rows": 256,
+      "D3total": 0,
+      "A6total": 696
+    },
+    {
+      "snapshot": 89,
+      "diag": {
+        "window_turns": 20,
+        "coverage_complete": true,
+        "window_complete": true,
+        "complete": true
+      },
+      "arrivals": 439,
+      "unknown": 420,
+      "moves": 28,
+      "PHcomplete": 32,
+      "PHpositive": 27,
+      "A6rows": 256,
+      "D3total": 0,
+      "A6total": 691
+    },
+    {
+      "snapshot": 90,
+      "diag": {
+        "window_turns": 20,
+        "coverage_complete": true,
+        "window_complete": true,
+        "complete": true
+      },
+      "arrivals": 464,
+      "unknown": 445,
+      "moves": 79,
+      "PHcomplete": 32,
+      "PHpositive": 27,
+      "A6rows": 256,
+      "D3total": 0,
+      "A6total": 677
+    },
+    {
+      "snapshot": 91,
+      "diag": {
+        "window_turns": 20,
+        "coverage_complete": true,
+        "window_complete": true,
+        "complete": true
+      },
+      "arrivals": 482,
+      "unknown": 464,
+      "moves": 57,
+      "PHcomplete": 32,
+      "PHpositive": 25,
+      "A6rows": 256,
+      "D3total": 0,
+      "A6total": 690
+    },
+    {
+      "snapshot": 92,
+      "diag": {
+        "window_turns": 20,
+        "coverage_complete": true,
+        "window_complete": true,
+        "complete": true
+      },
+      "arrivals": 486,
+      "unknown": 468,
+      "moves": 43,
+      "PHcomplete": 32,
+      "PHpositive": 28,
+      "A6rows": 256,
+      "D3total": 0,
+      "A6total": 692
+    },
+    {
+      "snapshot": 93,
+      "diag": {
+        "window_turns": 20,
+        "coverage_complete": true,
+        "window_complete": true,
+        "complete": true
+      },
+      "arrivals": 484,
+      "unknown": 467,
+      "moves": 43,
+      "PHcomplete": 32,
+      "PHpositive": 29,
+      "A6rows": 256,
+      "D3total": 0,
+      "A6total": 686
+    },
+    {
+      "snapshot": 94,
+      "diag": {
+        "window_turns": 20,
+        "coverage_complete": true,
+        "window_complete": true,
+        "complete": true
+      },
+      "arrivals": 489,
+      "unknown": 474,
+      "moves": 38,
+      "PHcomplete": 32,
+      "PHpositive": 29,
+      "A6rows": 256,
+      "D3total": 0,
+      "A6total": 667
+    },
+    {
+      "snapshot": 95,
+      "diag": {
+        "window_turns": 20,
+        "coverage_complete": true,
+        "window_complete": true,
+        "complete": true
+      },
+      "arrivals": 486,
+      "unknown": 471,
+      "moves": 33,
+      "PHcomplete": 32,
+      "PHpositive": 29,
+      "A6rows": 256,
+      "D3total": 0,
+      "A6total": 658
+    },
+    {
+      "snapshot": 96,
+      "diag": {
+        "window_turns": 20,
+        "coverage_complete": true,
+        "window_complete": true,
+        "complete": true
+      },
+      "arrivals": 493,
+      "unknown": 475,
+      "moves": 57,
+      "PHcomplete": 32,
+      "PHpositive": 29,
+      "A6rows": 256,
+      "D3total": 0,
+      "A6total": 667
+    },
+    {
+      "snapshot": 97,
+      "diag": {
+        "window_turns": 20,
+        "coverage_complete": true,
+        "window_complete": true,
+        "complete": true
+      },
+      "arrivals": 489,
+      "unknown": 472,
+      "moves": 40,
+      "PHcomplete": 32,
+      "PHpositive": 29,
+      "A6rows": 256,
+      "D3total": 0,
+      "A6total": 687
+    },
+    {
+      "snapshot": 98,
+      "diag": {
+        "window_turns": 20,
+        "coverage_complete": true,
+        "window_complete": true,
+        "complete": true
+      },
+      "arrivals": 491,
+      "unknown": 477,
+      "moves": 38,
+      "PHcomplete": 32,
+      "PHpositive": 29,
+      "A6rows": 256,
+      "D3total": 0,
+      "A6total": 694
+    },
+    {
+      "snapshot": 99,
+      "diag": {
+        "window_turns": 20,
+        "coverage_complete": true,
+        "window_complete": true,
+        "complete": true
+      },
+      "arrivals": 501,
+      "unknown": 489,
+      "moves": 56,
+      "PHcomplete": 32,
+      "PHpositive": 29,
+      "A6rows": 256,
+      "D3total": 0,
+      "A6total": 707
+    },
+    {
+      "snapshot": 100,
+      "diag": {
+        "window_turns": 20,
+        "coverage_complete": true,
+        "window_complete": true,
+        "complete": true
+      },
+      "arrivals": 501,
+      "unknown": 489,
+      "moves": 49,
+      "PHcomplete": 32,
+      "PHpositive": 29,
+      "A6rows": 256,
+      "D3total": 115,
+      "A6total": 716
+    },
+    {
+      "snapshot": 101,
+      "diag": {
+        "window_turns": 20,
+        "coverage_complete": true,
+        "window_complete": true,
+        "complete": true
+      },
+      "arrivals": 492,
+      "unknown": 482,
+      "moves": 37,
+      "PHcomplete": 32,
+      "PHpositive": 28,
+      "A6rows": 256,
+      "D3total": 135,
+      "A6total": 741
+    },
+    {
+      "snapshot": 102,
+      "diag": {
+        "window_turns": 20,
+        "coverage_complete": true,
+        "window_complete": true,
+        "complete": true
+      },
+      "arrivals": 486,
+      "unknown": 482,
+      "moves": 44,
+      "PHcomplete": 32,
+      "PHpositive": 28,
+      "A6rows": 256,
+      "D3total": 0,
+      "A6total": 741
+    },
+    {
+      "snapshot": 103,
+      "diag": {
+        "window_turns": 20,
+        "coverage_complete": true,
+        "window_complete": true,
+        "complete": true
+      },
+      "arrivals": 483,
+      "unknown": 479,
+      "moves": 54,
+      "PHcomplete": 32,
+      "PHpositive": 28,
+      "A6rows": 256,
+      "D3total": 105,
+      "A6total": 762
+    },
+    {
+      "snapshot": 104,
+      "diag": {
+        "window_turns": 20,
+        "coverage_complete": true,
+        "window_complete": true,
+        "complete": true
+      },
+      "arrivals": 464,
+      "unknown": 460,
+      "moves": 35,
+      "PHcomplete": 32,
+      "PHpositive": 28,
+      "A6rows": 256,
+      "D3total": 95,
+      "A6total": 775
+    },
+    {
+      "snapshot": 105,
+      "diag": {
+        "window_turns": 20,
+        "coverage_complete": true,
+        "window_complete": true,
+        "complete": true
+      },
+      "arrivals": 464,
+      "unknown": 460,
+      "moves": 46,
+      "PHcomplete": 32,
+      "PHpositive": 28,
+      "A6rows": 256,
+      "D3total": 0,
+      "A6total": 798
+    },
+    {
+      "snapshot": 106,
+      "diag": {
+        "window_turns": 20,
+        "coverage_complete": true,
+        "window_complete": true,
+        "complete": true
+      },
+      "arrivals": 473,
+      "unknown": 469,
+      "moves": 47,
+      "PHcomplete": 32,
+      "PHpositive": 28,
+      "A6rows": 256,
+      "D3total": 0,
+      "A6total": 793
+    },
+    {
+      "snapshot": 107,
+      "diag": {
+        "window_turns": 20,
+        "coverage_complete": true,
+        "window_complete": true,
+        "complete": true
+      },
+      "arrivals": 474,
+      "unknown": 471,
+      "moves": 51,
+      "PHcomplete": 32,
+      "PHpositive": 29,
+      "A6rows": 256,
+      "D3total": 0,
+      "A6total": 790
+    },
+    {
+      "snapshot": 108,
+      "diag": {
+        "window_turns": 20,
+        "coverage_complete": true,
+        "window_complete": true,
+        "complete": true
+      },
+      "arrivals": 461,
+      "unknown": 459,
+      "moves": 36,
+      "PHcomplete": 32,
+      "PHpositive": 29,
+      "A6rows": 256,
+      "D3total": 6,
+      "A6total": 786
+    },
+    {
+      "snapshot": 109,
+      "diag": {
+        "window_turns": 20,
+        "coverage_complete": true,
+        "window_complete": true,
+        "complete": true
+      },
+      "arrivals": 457,
+      "unknown": 453,
+      "moves": 49,
+      "PHcomplete": 32,
+      "PHpositive": 29,
+      "A6rows": 256,
+      "D3total": 6,
+      "A6total": 782
+    },
+    {
+      "snapshot": 110,
+      "diag": {
+        "window_turns": 20,
+        "coverage_complete": true,
+        "window_complete": true,
+        "complete": true
+      },
+      "arrivals": 448,
+      "unknown": 444,
+      "moves": 43,
+      "PHcomplete": 32,
+      "PHpositive": 29,
+      "A6rows": 256,
+      "D3total": 6,
+      "A6total": 772
+    },
+    {
+      "snapshot": 111,
+      "diag": {
+        "window_turns": 20,
+        "coverage_complete": true,
+        "window_complete": true,
+        "complete": true
+      },
+      "arrivals": 452,
+      "unknown": 449,
+      "moves": 45,
+      "PHcomplete": 32,
+      "PHpositive": 29,
+      "A6rows": 256,
+      "D3total": 5,
+      "A6total": 781
+    },
+    {
+      "snapshot": 112,
+      "diag": {
+        "window_turns": 20,
+        "coverage_complete": true,
+        "window_complete": true,
+        "complete": true
+      },
+      "arrivals": 446,
+      "unknown": 443,
+      "moves": 31,
+      "PHcomplete": 32,
+      "PHpositive": 29,
+      "A6rows": 256,
+      "D3total": 228,
+      "A6total": 794
+    },
+    {
+      "snapshot": 113,
+      "diag": {
+        "window_turns": 20,
+        "coverage_complete": true,
+        "window_complete": true,
+        "complete": true
+      },
+      "arrivals": 447,
+      "unknown": 442,
+      "moves": 39,
+      "PHcomplete": 32,
+      "PHpositive": 29,
+      "A6rows": 256,
+      "D3total": 6,
+      "A6total": 808
+    },
+    {
+      "snapshot": 114,
+      "diag": {
+        "window_turns": 20,
+        "coverage_complete": true,
+        "window_complete": true,
+        "complete": true
+      },
+      "arrivals": 446,
+      "unknown": 441,
+      "moves": 39,
+      "PHcomplete": 32,
+      "PHpositive": 29,
+      "A6rows": 256,
+      "D3total": 19,
+      "A6total": 798
+    },
+    {
+      "snapshot": 115,
+      "diag": {
+        "window_turns": 20,
+        "coverage_complete": true,
+        "window_complete": true,
+        "complete": true
+      },
+      "arrivals": 449,
+      "unknown": 441,
+      "moves": 41,
+      "PHcomplete": 32,
+      "PHpositive": 29,
+      "A6rows": 256,
+      "D3total": 18,
+      "A6total": 817
+    },
+    {
+      "snapshot": 116,
+      "diag": {
+        "window_turns": 20,
+        "coverage_complete": true,
+        "window_complete": true,
+        "complete": true
+      },
+      "arrivals": 460,
+      "unknown": 453,
+      "moves": 52,
+      "PHcomplete": 32,
+      "PHpositive": 29,
+      "A6rows": 256,
+      "D3total": 19,
+      "A6total": 823
+    },
+    {
+      "snapshot": 117,
+      "diag": {
+        "window_turns": 20,
+        "coverage_complete": true,
+        "window_complete": true,
+        "complete": true
+      },
+      "arrivals": 458,
+      "unknown": 451,
+      "moves": 38,
+      "PHcomplete": 32,
+      "PHpositive": 28,
+      "A6rows": 256,
+      "D3total": 16,
+      "A6total": 815
+    },
+    {
+      "snapshot": 118,
+      "diag": {
+        "window_turns": 20,
+        "coverage_complete": true,
+        "window_complete": true,
+        "complete": true
+      },
+      "arrivals": 465,
+      "unknown": 458,
+      "moves": 51,
+      "PHcomplete": 32,
+      "PHpositive": 28,
+      "A6rows": 256,
+      "D3total": 15,
+      "A6total": 788
+    },
+    {
+      "snapshot": 119,
+      "diag": {
+        "window_turns": 20,
+        "coverage_complete": true,
+        "window_complete": true,
+        "complete": true
+      },
+      "arrivals": 468,
+      "unknown": 463,
+      "moves": 66,
+      "PHcomplete": 32,
+      "PHpositive": 27,
+      "A6rows": 256,
+      "D3total": 16,
+      "A6total": 786
+    },
+    {
+      "snapshot": 120,
+      "diag": {
+        "window_turns": 20,
+        "coverage_complete": true,
+        "window_complete": true,
+        "complete": true
+      },
+      "arrivals": 464,
+      "unknown": 459,
+      "moves": 39,
+      "PHcomplete": 32,
+      "PHpositive": 27,
+      "A6rows": 256,
+      "D3total": 14,
+      "A6total": 788
+    }
+  ]
+}

@@ -1,0 +1,19 @@
+{
+  "status": "Corrected evidence arithmetic only; prior receipt invalid solely for same-turn comparison count.",
+  "original_source_commit": "246bc419725dae0510f3514645e8df6dc2a040e6",
+  "invalid_receipt": "complete120-arrival-clocks-invalid-counter.json",
+  "invalid_receipt_sha256": "b1cdeb311aa8860c8900486f9cbf141c798a8bba1eaa0ec365b602dbf83d990c",
+  "invalid_count": 2392,
+  "corrected_receipt": "complete120-arrival-clocks.json",
+  "corrected_receipt_sha256": "8a47a91484c3c9df669cc4484a2919a649708e6eaf237baf402f937f6c2cf109",
+  "corrected_count": 2163,
+  "corrected_first119_snapshots": 2142,
+  "corrected_snapshot120": 21,
+  "net_overcount_corrected": 229,
+  "reason": "Complete sparse-empty current regions were treated as unknown null rather than known zero.",
+  "all3840_prior_frame_assertions_still_pass": true,
+  "all372_browser_assertions_unchanged": true,
+  "comparison_arithmetic_checked_against_next_saved_ph_rows": 3808,
+  "rerun": "Read-only saved JSON arithmetic only. No model/UI source change or simulation/browser/performance rerun.",
+  "regression": "Restoring the old same-turn empty fallback fails the independent next-PH assertion before writing an output receipt."
+}

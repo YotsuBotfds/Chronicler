@@ -111,3 +111,34 @@ it("separates a reused numeric person id across an explicitly non-exact continua
  expect(newer.some(r=>r.turn>=25&&r.package==="recovery_crews"&&r.state==="recorded")).toBe(true);
  expect(newer.filter(r=>r.turn<25).every(r=>r.state==="unknown")).toBe(true);
 });
+
+it("cites only actually recorded recent-arrival fields at their prior source date",()=>{
+ const record={schema_version:1,source_turn:4,enabled:true,mode:"active",policy:"evidence",report_delay:0,
+  report_turn:4,environment_turn:4,supply_turn:4,supplies:[],decisions:[],totals:{},crowding:"density_only",
+  environment:[{region:0,source_turn:3,residence_observed:true,sanitation_observed:true,displaced_share:.5,
+   water_service:0,crowding_factor:1,flux_factor:1,crowding_basis:"density_only",crowding_source_turn:4,recent_arrival_share:null,arrival_diagnostics_complete:false}]};
+ const bundle={world_state:{regions:[{name:"A"}],civilizations:[]},history:[{turn:5,livelihoods:{schema_version:1,public_health:record}}]} as unknown as Bundle;
+ const rows=entityHistory(indexEntityHistory(bundle),{kind:"region",id:0});
+ const recent=rows.find(r=>r.source?.endsWith("/recent_arrival_share"))!;
+ expect(recent.state).toBe("unknown");expect(recent.sourceTurn).toBe(3);
+ expect(recent.text).toContain("unknown, not zero");
+ expect(rows.find(r=>r.source?.endsWith("/displaced_share"))?.text).toContain("motive-classified spell share");
+ const older=structuredClone(bundle) as unknown as {history:{livelihoods:{public_health:Record<string,unknown>}}[]};
+ const raw=older.history[0].livelihoods.public_health;
+ delete raw.crowding;
+ const environment=raw.environment as Record<string,unknown>[];
+ Object.assign(environment[0],{crowding_factor:1.125});
+ for(const key of ["recent_arrival_share","arrival_diagnostics_complete","crowding_basis","crowding_source_turn"])delete environment[0][key];
+ expect(entityHistory(indexEntityHistory(older as unknown as Bundle),{kind:"region",id:0}).some(r=>r.source?.endsWith("/recent_arrival_share"))).toBe(false);
+});
+
+it("dates a configured neutral density multiplier now even before any X1 observation",()=>{
+ const record={schema_version:1,source_turn:0,enabled:true,mode:"active",policy:"evidence",report_delay:0,
+  report_turn:0,environment_turn:0,supply_turn:0,supplies:[],decisions:[],totals:{},crowding:"density_only",
+  environment:[{region:0,source_turn:-1,residence_observed:false,sanitation_observed:false,displaced_share:0,
+   water_service:0,crowding_factor:1,flux_factor:1,crowding_basis:"density_only",crowding_source_turn:0,
+   recent_arrival_share:null,arrival_diagnostics_complete:null}]};
+ const bundle={world_state:{regions:[{name:"A"}],civilizations:[]},history:[{turn:1,livelihoods:{schema_version:1,public_health:record}}]} as unknown as Bundle;
+ const row=entityHistory(indexEntityHistory(bundle),{kind:"region",id:0}).find(r=>r.source?.endsWith("/crowding_factor"))!;
+ expect(row.state).toBe("recorded");expect(row.sourceTurn).toBe(0);expect(row.text).toContain("Current configured extra susceptibility multiplier: 1");
+});

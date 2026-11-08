@@ -1,5 +1,10 @@
 # Connected World A–E final coverage matrix
 
+This is the historical #96 matrix. Read the
+[current rework coverage](connected-world-rework-coverage.md) and
+[rework report](connected-world-rework-report.md) for corrected contracts,
+later verification and current scope disposition.
+
 This reconciles the adopted [program and amendment](../roadmaps/connected-world-program.md),
 including follow-ons beyond first slices. The [initial recovery inventory](connected-world-coverage.md)
 retains the original clean-checkout/absent-D4 facts. No inaccessible unpublished

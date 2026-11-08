@@ -1,6 +1,34 @@
-# Connected World rework active — 2026-11-07
+# Connected World rework — current recovery checkpoint
 
-Fetched main2726bf449d0e4d581a72034000ee0861a58ee439, nine-job Tests42397121718 green. Original worktrees preserved, no open PRs at start. [Current rework ledger](superpowers/progress/connected-world-rework.md) and board supersede the historical completion/next tasks below. Attribution-to-C2 exposure coupling reproduced; D3 movement scores also incorrectly depend on A6 record/shuffle controls. Lead owns shared schemas/native/bridge/X1/registry. Parallel isolated lanes verify historical causal evidence, profile actual runtime/storage, optimize measured viewer costs and review contracts. Next: implement corrected versioned physical exposure/control contracts and adversarial lifecycle tests, then fresh preregistered bounded comparisons and same-scale performance before/after. Defaults stay off; restricted qualification/default promotion unrun.
+Implementation and bounded evaluation are complete; final reviewed integration
+is pending. Read the [current ledger](superpowers/progress/connected-world-rework.md),
+[machine board](superpowers/progress/connected-world.json),
+[closed-results report](superpowers/progress/connected-world-rework-report.md)
+and [current coverage](superpowers/progress/connected-world-rework-coverage.md).
+They supersede historical next-task/completion entries below.
+
+Verified main is `125a6906` (#98), all nine Tests green in `42417310582`.
+Draft #99 carries the rework; code/evidence head `27074bba` passed all nine
+jobs in `42424371808`. Production runtime `8792be88` and frozen held source
+`b45c1e99` have identical production source/native/scripts. Legacy feature and
+version defaults remain unchanged; corrected use is explicit rules 3 / density_only.
+
+CWR1 **closed 144/144**, zero failures, 0.92911 budget-counted core-hours below two.
+Independent all-world arithmetic and 24 retained raw first-world cases pass.
+All twelve seeds 4101–4106/4201–4206 are recorded used once after closure;
+**do not restart or rerun them as fresh**. Metrics/source/control identities,
+raw-report heading erratum, nulls/harms/access limits and registry receipts are
+retained. The data remain adverse on average; no tuning targeted favorable signs.
+
+Next: final evidence/report delta review, green Tests on final reviewed #99
+head, authorized merge and exact main CI, then reviewed final integration
+ledger and its checks/main verification. Default identity against both
+references, performance admission, 14 enabled resumes and real browser checks
+are complete. Restricted qualification/default promotion, paid narration,
+deployments and credential/sharing changes remain unauthorized. Container
+lifetime or automatic recovery is not promised.
+
+## Historical checkpoints (not current tasks)
 
 # 2026-11-07 — A–E adopted scope integrated and evaluated; main CI verified
 
@@ -2257,3 +2285,14 @@ recovery through an environment with working Library downloads, and scoped work
 on the remaining product/native gates. Existing dirty
 source and held experiments remain recoverable; no force-push, deletion, default
 flag activation or merge was performed.
+
+Rework integration checkpoint: #98 merged at `125a69066ea158a973ac5207f393e4eeb330aee8` after exact reviewed-head Tests `42415795157` passed all nine jobs. Main CI must be verified before another feature merge. Backend corrections, full causal evaluation, runtime residual diagnosis and final gates continue on `codex/cw-rework`; the rework board remains active.
+
+Active rework checkpoint2026-11-07T22:41:33Z: CWR1fresh held cohort HAS STARTED
+on published`codex/cwr-held-runtime`=`b45c1e99` (runtime-equivalent8792be88).
+Read the current rework board/startledger before any seed action. All12seeds
+are potentiallyspent evenwhile registry saysreserved; standardmark-run is
+reservedforclosure. Continue existingoutput/identity, never launchfresh; no
+automaticrestart/containerretention promise. Main125a6906 and codehead4502fdc1
+passedallnineCIjobs. Remaining:144-row evaluation, templateexactresume, independent
+resultsreview, finalheadCI/merge/mainverification.

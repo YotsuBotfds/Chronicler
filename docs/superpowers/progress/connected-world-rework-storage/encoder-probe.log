@@ -1,0 +1,6 @@
+{"repeat": 0, "implementation": "old", "cpu_s": 8.921817939, "wall_s": 9.02576235000015, "encoded_bytes": 71441011, "sha256": "005c61edba377da9d990bd231bb01a8c3fee9e286516327245a4d18f04786917", "max_rss_kib": 1217828}
+{"repeat": 0, "implementation": "candidate", "cpu_s": 8.983534788, "wall_s": 9.09009888500077, "encoded_bytes": 71441011, "sha256": "005c61edba377da9d990bd231bb01a8c3fee9e286516327245a4d18f04786917", "max_rss_kib": 1217828}
+{"repeat": 1, "implementation": "candidate", "cpu_s": 8.884201715999996, "wall_s": 8.995434495001973, "encoded_bytes": 71441011, "sha256": "005c61edba377da9d990bd231bb01a8c3fee9e286516327245a4d18f04786917", "max_rss_kib": 1217828}
+{"repeat": 1, "implementation": "old", "cpu_s": 9.090886435999998, "wall_s": 9.203892184999859, "encoded_bytes": 71441011, "sha256": "005c61edba377da9d990bd231bb01a8c3fee9e286516327245a4d18f04786917", "max_rss_kib": 1217828}
+{"repeat": 2, "implementation": "old", "cpu_s": 8.897890827000005, "wall_s": 9.005127103999257, "encoded_bytes": 71441011, "sha256": "005c61edba377da9d990bd231bb01a8c3fee9e286516327245a4d18f04786917", "max_rss_kib": 1217828}
+{"repeat": 2, "implementation": "candidate", "cpu_s": 8.814562143000003, "wall_s": 8.947499329999118, "encoded_bytes": 71441011, "sha256": "005c61edba377da9d990bd231bb01a8c3fee9e286516327245a4d18f04786917", "max_rss_kib": 1217828}

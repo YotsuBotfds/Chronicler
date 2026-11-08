@@ -1,0 +1,24 @@
+{
+  "worktree_commit": "2726bf449d0e4d581a72034000ee0861a58ee439",
+  "native_reference": "9e0017017245870affa0401714d14cddccf98ff7",
+  "native_inputs": 56,
+  "native_input_sha256": "38b21020673a028ce6bcd76e19fb3e0c01eed5893b89f1ce6ff6eda6cf8925a2",
+  "native_mismatches": [],
+  "freeze": "5ec73003837b5149091593ffa411d33dd32e9491",
+  "runtime": "eaa4a5d3e1cb5c958b5e32719601c28986c9f6ac",
+  "freeze_runtime_diff": [
+    "docs/superpowers/progress/connected-world-evidence/CW6/final-pilot/README.md",
+    "docs/superpowers/progress/connected-world-evidence/CW6/final-pilot/metrics.jsonl",
+    "docs/superpowers/progress/connected-world-evidence/CW6/final-pilot/receipt.json",
+    "docs/superpowers/progress/connected-world-evidence/CW6/final-pilot/report.md",
+    "docs/superpowers/progress/connected-world-evidence/CW6/final-pilot/source.txt",
+    "docs/superpowers/progress/connected-world-screens-cw6-integrated.md"
+  ],
+  "hashes": {
+    "scripts/screen_runner.py": "5ded5f3548bb6403b1df25e9d31e5c5ce638631aa5fd1b4fabdcfb8510b5cadb",
+    "scripts/cw_integrated_screen.py": "45827afb49817bdba4ce272a5ceecd8f57ad2c9cd9a455cfed2f630365a2ddd9",
+    "docs/superpowers/progress/connected-world-evidence/CW6/held/preregistration-frozen.md": "f8924582ad5292d27e185fe4eea69241c130b71b25e5471aa05128783640941d",
+    "docs/superpowers/progress/connected-world-evidence/CW6/held/metrics.jsonl": "b8365bf868b7cfdfa88740304a669429be2bff52d1000c9f0cd7b039eb0fba45",
+    "docs/superpowers/progress/connected-world-evidence/CW6/held/report.md": "c6be63fb3e73288c48f3a1c7955777996ed4845cc2266781762394c7b91ef50b"
+  }
+}

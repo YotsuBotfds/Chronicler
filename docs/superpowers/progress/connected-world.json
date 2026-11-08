@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "board_version": 27,
+  "board_version": 28,
   "title": "Connected-world program (A livelihoods and trade, B watersheds and infrastructure, C public health, D institutions and war, E stories and evidence) operational board",
   "plan": "docs/superpowers/roadmaps/connected-world-program.md",
   "owner_instruction": "2026-11-06 (after #82): own the A-E program end to end with parallel workers, integrating and evaluating each slice and continuing across slice boundaries; merges of this program authorized after independent review, green premerge Tests on the reviewed head and verified main CI; new systems opt-in and off by default; no default promotion; full 200-seed and procedural qualification gates restricted; bounded held screens (procedural included) authorized; no purchases, paid credits, paid narration APIs, deployments, credential or sharing changes. Amendment (same day): tiers sequence work and are not stopping points; failures block the affected merge, not the program; pin 8abc1acb as the original reference; default-path changes behind a switch or rules version.",
@@ -9,11 +9,14 @@
     "original_native_sha256": "101a4cd5b928b14f43539f925fa565036b94e38d91b9698071c80fa3656e0df3",
     "native_build": "maturin develop --release --locked into ~/.venvs/chronicler-native, 3m14s on 4 cores; identical to the checkpoint-2/3 extension",
     "main_native_sha256": "59f536b8f4a6c2bc82c51eeaec55f3aff6b0a1c5c8f1a324049ad15b42c51617 (reviewed isolated release artifact for integrated source; CI builds its own current-source wheel)",
-    "preceding_integrated_main": "f76436ae37c735b2b856caf98033122798ac88d2 (#95; tree equals11467a46)"
+    "preceding_integrated_main": "125a69066ea158a973ac5207f393e4eeb330aee8 (#98); exact main Tests42417310582 all nine verified success",
+    "historical_pre_rework_integrated_main": "f76436ae37c735b2b856caf98033122798ac88d2 (#95; tree equals11467a46)",
+    "rework_candidate_runtime": "8792be88dd36ba4d7c22e480de6a19dd64ea1300 (not yet merged; same production bytes as frozen held b45c1e99)",
+    "rework_candidate_native_sha256": "b1d3ea5ac858681960b2cb880c534164905501f6ab4f6f3c94f7c9b5f66196cd"
   },
   "durable_location": {
     "branch": "main (merged slices) plus the lane and integration branches listed in lanes",
-    "base": "dde9e2f971eca864e90ecdb40cb3af8d1596a5e9 (#96); exact main Tests42393043134 all nine verified success"
+    "base": "125a69066ea158a973ac5207f393e4eeb330aee8 (#98); exact main Tests42417310582 all nine verified success"
   },
   "status_values": [
     "proposed",
@@ -639,7 +642,7 @@
     },
     {
       "pr": 96,
-      "slice": "Complete remaining adopted A–E implementation, integrated evaluation and linked histories",
+      "slice": "Complete remaining adopted A\u2013E implementation, integrated evaluation and linked histories",
       "merge_commit": "dde9e2f971eca864e90ecdb40cb3af8d1596a5e9",
       "merge_tree": "4e06aaa8989e51f9dc67f260497451f5d2ea0be6",
       "reviewed_head": "c32c2bbd742f96401171761ddff44f9ccfb96e67",
@@ -650,7 +653,7 @@
       "verification": "Independent actual source/native/inverse/evidence/test-contract reviews; all nine premerge Tests success; tree equals reviewed head; all nine exact main Tests success."
     }
   ],
-  "next": "Active correctness/causal/performance rework: see rework ledger. Original completion remains dated history; no promotion or restricted qualification.",
+  "next": "Finalize the complete CWR1 results and limitations, independent whole-PR/result delta review, green Tests on the final reviewed head, authorized PR merge and exact main CI; then record completed integration through a reviewed documentation PR.",
   "baseline": {
     "oracle_lane": "PASS, 63 chunks, 295.5 s, slowest 32.4 s of 110 s",
     "native_check": "check_python_env --expect native PASS (101a4cd5)",
@@ -676,7 +679,7 @@
     "return_home": "D3 stores first personally known priorOwnRowhome/source and allwitnessedwarinstances; X1unknownmove rehoming neveroverwritesmemory. Latepriorreadrefusal keepsunknown, neverreadsT.",
     "a4_wares": "Unimplemented unadopted A4-W auditproposal; adoptedroadmap5.7 coversfood+timber. No ownedwarescrossborderclaim. Separate futurecontract, nottechnicalportdependency.",
     "performance": "Accept substantial measured FULLCPU/RSS/artifactoverhead asoptinexperimental cost, with actualcounts/ratios/latency; never defaultpromotion orperformancequalification. Proposed25%/2x/500MiB flags remainvisible.",
-    "per_pathogen_care": "Open coefficient choice resolved: retain adopted common0.3×coverage CFR reduction against distinct pathogen base CFRs, under one combined floor; not pathogen-calibrated, may overstate plague/pestilence care. Existing per-pathogen deaths/infectious-person-turn splits are checked outcome observations, not measured causal attenuation. Native endemic authority unchanged.",
+    "per_pathogen_care": "Open coefficient choice resolved: retain adopted common0.3\u00d7coverage CFR reduction against distinct pathogen base CFRs, under one combined floor; not pathogen-calibrated, may overstate plague/pestilence care. Existing per-pathogen deaths/infectious-person-turn splits are checked outcome observations, not measured causal attenuation. Native endemic authority unchanged.",
     "constructed_stories": "Natural saved story worlds and a positive explicitly constructed visibility demonstration are retained. Construction metadata/from/edits and actual desktop/phone banner verified. No full alternative simulation or broader constructed per-slice suite is claimed; auditE Part9 is explicitly PROPOSAL, adopted verification is Part1."
   },
   "screens": {
@@ -754,14 +757,14 @@
     "CW6D1": {
       "status": "complete bounded held screen",
       "frozen": "808726b8",
-      "cohort": "3701–3706 template /3801–3806 procedural",
+      "cohort": "3701\u20133706 template /3801\u20133806 procedural",
       "held": "60/60 completed, 0.296coreh below0.75cap",
-      "results": "Relief0/6template2/6procedural: primary summary suppressed; leagues0/6template6/6procedural: mean purse diff−0.164888,5positive1negative; descriptive only",
+      "results": "Relief0/6template2/6procedural: primary summary suppressed; leagues0/6template6/6procedural: mean purse diff\u22120.164888,5positive1negative; descriptive only",
       "page": "docs/superpowers/progress/connected-world-screens-cw6d1/README.md"
     },
     "CW6": {
       "status": "complete60/60 strictPASS; independent raw/arithmetic approval; all131outcomes eachrun",
-      "cohort": "781–786template/881–886procedural;120T pre-heldamendment recorded",
+      "cohort": "781\u2013786template/881\u2013886procedural;120T pre-heldamendment recorded",
       "failure": "Priorccc pilot7paymentprotocol failures/3success; preserved; fixed legal unary purposes506498df. No held touched.",
       "runtime": "eaa4a5d3e1cb5c958b5e32719601c28986c9f6ac",
       "pilot": "10/10strictPASS312.2s; marginprojection.7805coreh<1cap; original200T rejectedforbudgetbeforeanyheld",
@@ -772,7 +775,7 @@
     },
     "CW-health": {
       "status": "complete36/36 strictPASS; independent final evidence approved",
-      "cohort": "3901–3906 template /4001–4006 procedural; consumed, complete36/36",
+      "cohort": "3901\u20133906 template /4001\u20134006 procedural; consumed, complete36/36",
       "failure": "First pilot simulation succeeded but strict extractor mismatched actual ordered quarantine channels and missing deceased-worker income row; preserved unknown, not zero.",
       "frozen": "8d38f8b49e2db7635ee9ba074edde1d422fbc030",
       "held": "200T,820s(.22778coreh) below.75cap; fullfresh12worldcohort; noqualification",
@@ -822,7 +825,7 @@
     "offline": "75 chunks,7964pass69skip; maximum34.3816s under unchanged110; post-consumption registry156pass; exact-head CI required",
     "identity": "final830d against original8abc and preceding11467/f764:9cases399files0diff each",
     "resume": "80 integrated exact branches (22active,58canonical) pass plus4health; compared rawArrow and declared artifacts",
-    "profile": "14runs,52strictreads,actualpeak53138; CPU1.81–6.90x,bundle2.13–3.94x,RSS+60–1010MiB; acceptedoptin materialcost",
+    "profile": "14runs,52strictreads,actualpeak53138; CPU1.81\u20136.90x,bundle2.13\u20133.94x,RSS+60\u20131010MiB; acceptedoptin materialcost",
     "browser": "30 natural history +34 explicitly constructed visibility +38 branches +82 health desktop/phone checks; no model or natural-bundle changes; initial natural history4.8s",
     "examples": "1200strictobservations,21/24categories,3honestnulls,0audit/schemaerrors",
     "review": "independent source/native/inverse/profile/identity/heldarithmetic/browser/testcontracts retained",
@@ -842,12 +845,157 @@
     "final_documentation_policy": "The completion-ledger PR changes documentation only; its exact-head premerge and final main Tests are verified separately. The authoritative later ledger result is the GitHub Tests push run for current main HEAD, linked in the completion PR."
   },
   "rework": {
-    "status": "active",
+    "status": "held_complete_final_review_and_integration_pending",
     "instruction": "Correctness, causal evaluation and practical performance; no favorable-result target; preserve default-off/restricted gates",
     "base": "2726bf449d0e4d581a72034000ee0861a58ee439",
     "base_main_run": 42397121718,
     "ledger": "docs/superpowers/progress/connected-world-rework.md",
     "branch": "codex/cw-rework",
-    "next": "Correct motive-to-exposure coupling and independent D3 control ownership with historical version compatibility; adversarial native/integration tests; profile before optimize; fresh preregistered mechanism screen after timing pilot."
+    "next": "Finalize the complete CWR1 results and limitations, independent whole-PR/result delta review, green Tests on the final reviewed head, authorized PR merge and exact main CI; then record completed integration through a reviewed documentation PR.",
+    "correctness": "Explicit rules 3 / density_only independently reviewed and tested; legacy feature and version defaults unchanged. Physical-arrival, downstream real epidemic, native adversarial and control tests pass. Historical CW6 adverse findings remain reproduced; fresh results await held closure.",
+    "native": {
+      "sha256": "b1d3ea5ac858681960b2cb880c534164905501f6ab4f6f3c94f7c9b5f66196cd",
+      "input_sha256": "f55df55d453ac37694410246c4a9728c56f3f6148f679fde8efc21ffd8775acf",
+      "clean_build_seconds": 110
+    },
+    "viewer_pr": {
+      "pr": 98,
+      "reviewed_head": "093952ebad3d7b45d4d913e2b5f8f3b1bd4e13ed",
+      "premerge_tests": 42415795157,
+      "premerge_all_nine": "passed",
+      "merge": "125a69066ea158a973ac5207f393e4eeb330aee8",
+      "main_ci": "passed all nine jobs",
+      "main_tests": 42417310582
+    },
+    "held": {
+      "status": "Completed 144/144 strict-valid; zero failures; independently audited; cohort recorded run once.",
+      "source": "b45c1e99572d4d6a60fb01fbd75cb7688aa54e93",
+      "started": "2026-11-07T22:41:33Z",
+      "identity": "98c7bb2accb18b04e68f0585780ba58f85f03ece77c987d82ff67ceb7d9370a8",
+      "output": "/workspace/evidence/cwr-evaluation/held-cwr1-b45c1e99-v1",
+      "source_ref": "origin/codex/cwr-held-runtime",
+      "ledger": "/workspace/cwr-held-runtime/output/held-runs/ledger.jsonl",
+      "start_record": "docs/superpowers/progress/connected-world-rework/held/start.json",
+      "registry": "cwr1-held-t/p recorded run, complete144, one standard lead mark-run; content/seed hash unchanged.",
+      "simulation_seconds": 2934.7,
+      "extraction_seconds": 410.1,
+      "budget_corehours": 0.9291111111111111,
+      "cap_corehours": 2.0,
+      "measured_descendant_cpu_seconds": 3352.514769,
+      "registry_record": "docs/superpowers/progress/connected-world-rework/held/registry-record.json",
+      "metrics_sha256": "6c56e3ffa725848c69aecf6f2edfcdf81adb18e5c5f038562e2c9d3c73ace9e0",
+      "report_sha256": "e5d64f1658265a64ed100d158d650d29eed1f0247d77ea980599c3a145eaf2c3",
+      "independent_arithmetic": "PASS all144rows; six rendered primary rows checked",
+      "raw_readback": "PASS24 retainedfirstworldcases/2880snapshots;2096 complete merges,784 capped-unverified;81.560CPU<120"
+    },
+    "development_schema": {
+      "source": "09403c15070ddab4977ae8b2e65c336238468447",
+      "cases": 13,
+      "turns": 8,
+      "passed": 13,
+      "cpu_seconds": 20.24,
+      "held": false,
+      "budget_pilot": false,
+      "extractor_tests": 48,
+      "retained_failure": "8de RNR free-pool assumption; corrected without changing native model"
+    },
+    "performance": {
+      "corrected_before": "09403c15070ddab4977ae8b2e65c336238468447",
+      "final": "1e047e7b6585d2cf13bb990f03f292c1067979c5",
+      "runtime": "8792be88dd36ba4d7c22e480de6a19dd64ea1300",
+      "admission": "10/10 case pairs passed; 760 non-bundle outputs byte-equal; timestamp-only typed bundle equality; 36 private checkpoint pairs and 72 same-source reads equal.",
+      "full_workload_cpu_seconds": {
+        "before": 318.281962,
+        "after": 265.894009
+      },
+      "largest_case_cpu_seconds": {
+        "before": 105.444,
+        "after": 69.552
+      },
+      "limitations": "Single observations; small/null/adverse differences retained. FULL/OFF CPU remains 1.82\u20134.31x and raw bundles 2.37\u20134.12x. No qualification claim.",
+      "evidence": "docs/superpowers/progress/connected-world-rework/performance/README.md"
+    },
+    "draft_pr": {
+      "pr": 99,
+      "initial_head": "89e80e8c53b00e167850d8ec3af85676fcb35e89",
+      "initial_tests": 42417373801,
+      "status": "Open draft; complete code and prior evidence heads passed all nine Tests. Final held evidence, whole-PR review and final-head checks remain required.",
+      "initial_tests_status": "no-Rust/offline failed sole historical registry projection; test-only reviewed fix preserves all3hashes and live CWR identity. Fresh-head gates required."
+    },
+    "verification_checkpoint": {
+      "offline": {
+        "source": "539965409ec0d28358b30b5133049fbd446d580a",
+        "chunks": 76,
+        "passed": 8119,
+        "skipped": 69,
+        "max_chunk_seconds": 31.99,
+        "limit": 110,
+        "note": "Before final TT exact arithmetic; newTT70focused pass; final CI stillrequired"
+      },
+      "default_identity": {
+        "source": "8792be88dd36ba4d7c22e480de6a19dd64ea1300",
+        "cases": 9,
+        "files": 399,
+        "differences": 0,
+        "references": [
+          "8abc1acb",
+          "preceding main 125a6906 (verified retained source-equivalent 830d0dc2)"
+        ],
+        "note": "Final runtime rerun completed; actual source, import and compiled native identities retained; only metadata.generated_at normalized."
+      },
+      "final_runtime": "8792be88dd36ba4d7c22e480de6a19dd64ea1300",
+      "final_profile": "1e047e7b6585d2cf13bb990f03f292c1067979c5 (same src/Rust/scripts bytes)",
+      "next": "Finalize the complete CWR1 results and limitations, independent whole-PR/result delta review, green Tests on the final reviewed head, authorized PR merge and exact main CI; then record completed integration through a reviewed documentation PR.",
+      "enabled_resume": {
+        "source": "8792be88dd36ba4d7c22e480de6a19dd64ea1300",
+        "branches": 14,
+        "checkpoint_neutrality_comparisons": 2,
+        "file_comparisons": 202,
+        "differences": 0,
+        "raw_arrow_outputs": 18,
+        "procedural_seconds": 387.029,
+        "procedural_cap_seconds": 600,
+        "template_seconds": 174.531,
+        "template_cap_seconds": 350,
+        "evidence": "docs/superpowers/progress/connected-world-rework-resume/README.md",
+        "note": "Independent artifact/source/native audit passed. Missing activations and unavailable checkpoint-zero boundaries remain explicit."
+      },
+      "browser": {
+        "real_assertions": 372,
+        "prior_ph_rows": 3840,
+        "valid_same_turn_difference_count": 2163,
+        "adjacent_cross_checks": 3808,
+        "superseded_invalid_count": 2392,
+        "evidence": "docs/superpowers/progress/connected-world-rework-viewer-compatibility/complete-window-120.md"
+      }
+    },
+    "pilot": {
+      "status": "passed24/24",
+      "runtime": "8792be88dd36ba4d7c22e480de6a19dd64ea1300",
+      "simulation_seconds": 484.7,
+      "extraction_seconds": 68.5,
+      "projected_held_margin_corehours": 1.383,
+      "cap_corehours": 2.0,
+      "metrics_sha256": "05e9e8d8fe3796604329a9d24eb8b94223f2391f462658d0f5d82cd7ba2e8d1e",
+      "independent_arithmetic": "passed"
+    },
+    "protocol": {
+      "status": "FROZEN",
+      "sha256": "51b8a336969f48b4beb6f5b3e543062eda71822b98513b337ceb2d010e6efe7a",
+      "cohort": "template4101\u20134106/procedural4201\u20134206",
+      "turns": 120,
+      "arms": 12,
+      "held_started": true
+    },
+    "code_ci": {
+      "head": "27074bba8adc7701a220c5baabf9a753029b91ee",
+      "run": 42424371808,
+      "all_nine": "passed; final held evidence and reviewed head require separate exact-head checks"
+    },
+    "preclosure_review": {
+      "head": "2fc370565c97ca622be036465fc4b65c0425efcc",
+      "status": "No implementation, contract or accumulated-evidence blockers; final held-result/delta review still required.",
+      "receipt": "docs/superpowers/audits/connected-world/rework-pr99-preclosure-independent-review-2026-11-07.json"
+    }
   }
 }

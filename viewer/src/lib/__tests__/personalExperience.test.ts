@@ -66,3 +66,46 @@ it("accepts signed combined A6 and D3 evacuation/return score inputs within the 
   expect(adaptiveAt(s as unknown as TurnSnapshot,2)).toBeNull();
  }
 });
+
+it("separates rules3 installed scores, personal controls and independent D3 inputs",()=>{
+ const make=()=>{
+  const s=experienceSnapshot() as unknown as {livelihoods:{adaptive_livelihoods:Record<string,unknown>}};
+  const a=s.livelihoods.adaptive_livelihoods;
+  const f=a.frame as Record<string,unknown>;
+  Object.assign(a,{rules:"3",mode:"record_only",decision_channels:"all"});
+  Object.assign(f,{decision_channels:"all",rows:[[7,1,.2]],rows_total:1,rows_installed:1,
+   a6_rows:[],a6_rows_total:0,d3_rows:[[7,1,.2]],d3_rows_total:1,
+   migration_rows_would:[[7,1,-.2]],migration_rows_would_total:1,information_gate_installed:false});
+  return s as unknown as TurnSnapshot;
+ };
+ expect(adaptiveAt(make(),2)?.frame?.d3_rows).toEqual([[7,1,.2]]);
+ for(const defect of ["missing","mode","control","sum","duplicate","nonfinite","count","gate","offers"]){
+  const s=make(),a=(s as unknown as {livelihoods:{adaptive_livelihoods:Record<string,unknown>}}).livelihoods.adaptive_livelihoods,f=a.frame as Record<string,unknown>;
+  if(defect==="missing")delete f.d3_rows;
+  if(defect==="mode")f.decision_channels="no_work";
+  if(defect==="control")Object.assign(f,{a6_rows:[[7,1,-.1]],a6_rows_total:1});
+  if(defect==="sum")f.rows=[[7,1,0]];
+  if(defect==="duplicate")Object.assign(f,{rows:[[7,1,.2],[7,1,.2]],rows_total:2,rows_installed:2});
+  if(defect==="nonfinite")f.migration_rows_would=[[7,1,NaN]];
+  if(defect==="count")f.d3_rows_total=2;
+  if(defect==="gate")f.information_gate_installed=true;
+  if(defect==="offers")f.offers=[{turn:3,id:7,kind:"workshop",would_decline:true,accepted:false}];
+  expect(adaptiveAt(s,2),defect).toBeNull();
+ }
+ const s=make(),a=(s as unknown as {livelihoods:{adaptive_livelihoods:Record<string,unknown>}}).livelihoods.adaptive_livelihoods,f=a.frame as Record<string,unknown>;
+ Object.assign(a,{mode:"adapt",decision_channels:"no_information"});
+ Object.assign(f,{decision_channels:"no_information",a6_rows:[[7,1,-.2]],a6_rows_total:1,rows:[],rows_total:0,rows_installed:0});
+ expect(adaptiveAt(s,2)).not.toBeNull(); // Components cancel; neither is missing evidence.
+ Object.assign(a,{decision_channels:"all"});Object.assign(f,{decision_channels:"all",information_gate_installed:true,
+  a6_rows:[],a6_rows_total:0,d3_rows:[[7,1,.2],[7,1,.15]],d3_rows_total:2,rows:[[7,1,.3]],rows_total:1,rows_installed:1});
+ expect(adaptiveAt(s,2)).not.toBeNull(); // Multiple D3 inputs combine under one cap.
+});
+
+it("does not relabel a legacy record-only score proposal as an installed input",()=>{
+ const b=bundle(),record=(b.history[0] as unknown as {livelihoods:{adaptive_livelihoods:Record<string,unknown>}}).livelihoods.adaptive_livelihoods;
+ record.mode="record_only";(record.frame as Record<string,unknown>).rows_installed=0;
+ const row=entityHistory(indexEntityHistory(b),{kind:"person",id:7}).find(r=>r.source?.includes("/frame/rows/"))!;
+ expect(row.text).toContain("Legacy prepared destination score proposal");
+ expect(row.text).toContain("does not establish actual application or a move");
+ expect(row.text).not.toContain("Installed destination score input");
+});

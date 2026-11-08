@@ -1,0 +1,96 @@
+{
+  "scope": "Independent final matrix CSV/summary/source/compact and bounded raw artifact review; no simulation or expanded history load",
+  "passed": true,
+  "issues": [],
+  "complete_turn_and_stage_cases": 20,
+  "actual_inventory_size_checks": 1752,
+  "raw_artifacts_rehashed": 1496,
+  "raw_rehashed_bytes": 121438204,
+  "full_encoded_JSON_pairs_timestamp_only_equal": 10,
+  "checkpoint_semantic_pairs_equal": 36,
+  "same_source_checkpoint_reads": 72,
+  "nonbundle_pairs_declared_byte_equal": 760,
+  "charged_child_cpu": {
+    "before": 523.3640530000001,
+    "final": 471.499854
+  },
+  "full_model_cpu_before_after": [
+    318.281962,
+    265.894009
+  ],
+  "full_cpu_change_percent": -16.45960477018803,
+  "comparison_sha256": "b43935eec7811f7937881d553fad0ffb6157f4038af00561a0c64fb1e3e1c059",
+  "summary_sha256": "7841506c96bbd135ae5d473487d2267c675463ad81334426442f341ae1c9c46c",
+  "raw_bundle_normalization": "Complete encoded JSON streaming hash; parse only actual metadata object and replace generated_at scalar with null; all other encoded bytes preserved",
+  "review_limit": "Large non-bundle/checkpoint byte content relies on reviewed producer comparator and bound SHA manifests; not every large file independently rehashed. All full encoded bundle pairs independently streamed without expanded-history allocation.",
+  "root_head_at_review": "528e62e29bf090d65c5e78b912a81473e82152f8",
+  "source_optimizations_reviewed": [
+    "7c1496c7",
+    "88be53d7",
+    "905f0c4f"
+  ],
+  "independent_focused_tests": "70 titled-trade/timber tests passed in0.68s, including600 boundary combinations",
+  "measured_source_before": "09403c15070ddab4977ae8b2e65c336238468447",
+  "measured_source_final": "1e047e7b6585d2cf13bb990f03f292c1067979c5",
+  "integrated_runtime_source": "8792be88dd36ba4d7c22e480de6a19dd64ea1300",
+  "source_file_sha256": {
+    "src/chronicler/timber_orders.py": "a71592cde32f4a211102d9c27a92f43b5d7bef12dfbbc6aeb0c8abd51a93f323",
+    "src/chronicler/titled_trade.py": "0a4a5b5622d8d95aac16bce6bb1f54c3408acad5e38fd5d89c1c5cc5d8e72d3c",
+    "tests/test_timber_orders.py": "d346dadf8aca930900ba71cf03ce4fca47d320a319ada8b0c30b3e6cd91d0143",
+    "tests/test_titled_trade.py": "75dc459e3668395c903596c8796550d44ec634a24d1491c192fc6eefdf65297f"
+  },
+  "residual_review": {
+    "packet": "c8512e7b",
+    "partial_completed_turns": 20,
+    "intended_turns": 30,
+    "partial_profile_cpu_seconds": 317.5680020640004,
+    "partial_process_cpu_seconds": 318.680164,
+    "fixed_ceiling_seconds": 450,
+    "partial_not_admission_or_timing_baseline": true,
+    "complete_scoped_turns": 30,
+    "dispatch_cpu_seconds": 63.334200162,
+    "model_cpu_seconds": 106.409303,
+    "dispatch_fraction": 0.5951942017889169,
+    "outer_and_recursive_wrapper_hashes_match": true,
+    "complete_scoped_nonbundle_pairs": 32,
+    "complete_scoped_checkpoint_pairs": 3,
+    "complete_scoped_transparency": "PASS; all outputs/native/private/world/history; timestamp-only decoded comparison"
+  },
+  "performance_limits": {
+    "single_serial_observations": true,
+    "final_FULL_OFF_CPU_range": [
+      1.8156353667514333,
+      4.314247658540667
+    ],
+    "final_FULL_OFF_bundle_range": [
+      2.3736958160470727,
+      4.118087092942753
+    ],
+    "raw_bundle_sizes_unchanged": true,
+    "RSS": "Small and mixed; no general gain. Execute-run peak distinct from later readback/extractor peak.",
+    "small_changes": "Inconclusive against OFF variation and single-run noise",
+    "all_operational_targets_pass": true,
+    "targets_not_qualification": true,
+    "partial_and_first_candidate_harms_preserved": true
+  },
+  "documentation_finding": "Template pilot paragraph again says117 outputs; actual111. Reported to owner for docs-only correction. Historical proc19 diagnostic117 and final760 count are distinct and correct.",
+  "resume_adapter_source_review": {
+    "reviewer": "/root/rework_review/archive_review",
+    "commit": "9ba931e3",
+    "actual_driver_sha256": "bb02ef4bac760bdc4068c443294a9b466169ca937b9ae9645debc88030bf0c2c",
+    "actual_plan_sha256": "9c32d679ad55d2365f2be62ac77bc9ec49af7489968fd24d96f2abdb0d00e4a5",
+    "source": "8792be88dd36ba4d7c22e480de6a19dd64ea1300",
+    "native_sha256": "b1d3ea5ac858681960b2cb880c534164905501f6ab4f6f3c94f7c9b5f66196cd",
+    "checkpoints": [
+      1,
+      2,
+      3,
+      18,
+      19,
+      67
+    ],
+    "source_approval": "Exact external driver equals tracked latestadapter and actual plan binds driver. Official pilot prefix + fullsourcefile hash, compiledsubmodule binding, strict flags and final end-to-end600s budget gate sound.16 pure negative checks pass.",
+    "actual_execution": "NOT YET VERIFIED by this review; source approval permits lead-scheduled execution after officialpilot."
+  },
+  "approval": "APPROVED source/performance evidence at these identities, subject to minor template-count prose correction. Causal pilot/held, actual enabled resume execution, whole PR reviewed-head and main CI remain separate gates; no qualification/default promotion."
+}

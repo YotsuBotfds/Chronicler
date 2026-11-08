@@ -1,0 +1,112 @@
+{
+  "source": "6e73827324551c685b1773396acca34860912ea6",
+  "status": "PASS",
+  "catalog_errors": [],
+  "maintained_A6_rules_default": "2",
+  "maintained_PH_crowding_default": "legacy_displacement",
+  "screen_horizon": 120,
+  "arms": {
+    "RD": {
+      "A6mode": "record_only",
+      "channels": "all",
+      "crowding": "density_only",
+      "D3mode": "active",
+      "retail": "retail",
+      "PHmode": "active"
+    },
+    "AD": {
+      "A6mode": "adapt",
+      "channels": "all",
+      "crowding": "density_only",
+      "D3mode": "active",
+      "retail": "retail",
+      "PHmode": "active"
+    },
+    "RL": {
+      "A6mode": "record_only",
+      "channels": "all",
+      "crowding": "legacy_displacement",
+      "D3mode": "active",
+      "retail": "retail",
+      "PHmode": "active"
+    },
+    "AL": {
+      "A6mode": "adapt",
+      "channels": "all",
+      "crowding": "legacy_displacement",
+      "D3mode": "active",
+      "retail": "retail",
+      "PHmode": "active"
+    },
+    "MX": {
+      "A6mode": "adapt",
+      "channels": "no_migration_experience",
+      "crowding": "density_only",
+      "D3mode": "active",
+      "retail": "retail",
+      "PHmode": "active"
+    },
+    "IX": {
+      "A6mode": "adapt",
+      "channels": "no_information",
+      "crowding": "density_only",
+      "D3mode": "active",
+      "retail": "retail",
+      "PHmode": "active"
+    },
+    "WX": {
+      "A6mode": "adapt",
+      "channels": "no_work",
+      "crowding": "density_only",
+      "D3mode": "active",
+      "retail": "retail",
+      "PHmode": "active"
+    },
+    "TX": {
+      "A6mode": "adapt",
+      "channels": "no_trade",
+      "crowding": "density_only",
+      "D3mode": "active",
+      "retail": "retail",
+      "PHmode": "active"
+    },
+    "RPC": {
+      "A6mode": "record_only",
+      "channels": "all",
+      "crowding": "density_only",
+      "D3mode": "active",
+      "retail": "retail",
+      "PHmode": "cost_only"
+    },
+    "APC": {
+      "A6mode": "adapt",
+      "channels": "all",
+      "crowding": "density_only",
+      "D3mode": "active",
+      "retail": "retail",
+      "PHmode": "cost_only"
+    },
+    "RNR": {
+      "A6mode": "record_only",
+      "channels": "all",
+      "crowding": "density_only",
+      "D3mode": "active",
+      "retail": "no_relief",
+      "PHmode": "active"
+    },
+    "ANR": {
+      "A6mode": "adapt",
+      "channels": "all",
+      "crowding": "density_only",
+      "D3mode": "active",
+      "retail": "no_relief",
+      "PHmode": "active"
+    }
+  },
+  "source_hashes": {
+    "scripts/cw_rework_screen.py": "f8409b1b76be49dbff968323f9eee2f65229e5c1280e0c349fe2e2a3927e4fef",
+    "src/chronicler/adaptive_livelihoods_state.py": "9b811a0d8e7569f07bbf067e536fad7e14fe4860f8dfc7e4e63aa6d46628a6ea",
+    "src/chronicler/public_health_state.py": "fbb14630466ae3f2add0c4a07ec1cde5c0c1e035471cf9bc92dec9f921f5f400"
+  },
+  "native_imported": false
+}

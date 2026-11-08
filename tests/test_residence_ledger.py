@@ -703,7 +703,8 @@ def test_the_aggregate_frame_names_no_person():
     step(world, sim)
     step(world, sim, moves=[(1, AVALON, BROOK, "battle_memory")])
     frame = RL.read_frame(world, consumer_turn=world.turn)
-    assert set(frame) == {"turn", "observed_from", "totals", "regions"}
+    assert set(frame) == {"turn", "observed_from", "totals", "regions", "arrival_diagnostics"}
+    assert set(frame["arrival_diagnostics"]) == {"window_turns", "coverage_complete", "window_complete", "complete"}
     assert set(frame["totals"]) == set(TOTAL_KEYS)
     assert all(set(r) == set(REGION_KEYS) for r in frame["regions"])
 
@@ -867,7 +868,19 @@ def test_the_report_summarizes_shares_and_closures():
         history.append({"turn": world.turn, **LV.livelihoods_snapshot_fields(world)})
     history.append({"turn": world.turn + 1, "livelihoods": {"schema_version": 1}})
     out = report.summarize(history)
-    assert out["turns"] == 5 and out["readings"] == {"recorded_zero": 3, "recorded": 2, "absent": 1}
+    assert out["turns"] == 5 and out["readings"] == {"recorded_zero": 1, "recorded": 4, "absent": 1}
+    # Positive recent residential stock is a recorded observation even without
+    # a new move. Historical bundles lacking this optional group retain their
+    # original reading-state interpretation, rather than inventing zero arrivals.
+    legacy = json.loads(json.dumps(history))
+    for snapshot in legacy:
+        frame = snapshot.get("livelihoods", {}).get("residence_ledger", {}).get("frame")
+        if frame is not None:
+            frame.pop("arrival_diagnostics")
+            for row in [frame["totals"], *frame["regions"]]:
+                row.pop("recent_residence_arrivals")
+                row.pop("recent_residence_arrivals_unknown_reason")
+    assert report.summarize(legacy)["readings"] == {"recorded_zero": 3, "recorded": 2, "absent": 1}
     assert out["opened"] == 1 and out["closed"]["returned"] == 1 and out["median_length"]["returned"] == 1
     # The last three quarters (turns 2-5) of 4 people: one displaced at turn 2.
     assert out["shares_last_three_quarters"]["open_spell"] == 0.0625

@@ -1,0 +1,29 @@
+{
+  "kind": "synthetic measurement-tool controls; no simulation/native runtime",
+  "passed": true,
+  "checks": [
+    "all ten fixed corrected/OFF cases and complete scales/horizons",
+    "kernel CPU budget rejects invalid limits and rounds up to whole seconds",
+    "generated timestamp alone is normalized",
+    "unknown to zero rejected",
+    "stable person identity change rejected",
+    "signed zero change rejected",
+    "different native artifact rejected",
+    "changed physical flags rejected",
+    "different actual population trajectory rejected",
+    "missing whole-turn observations rejected",
+    "truncated whole CSV rejected",
+    "reported artifact size must match actual bytes",
+    "untimed helper cost cannot be fabricated as zero",
+    "private X1 checkpoint state cannot change unseen",
+    "checkpoint artifact remains bound to its exact-read receipt"
+  ],
+  "count": 15,
+  "source_root": "/workspace/cwr-perf-before-v2",
+  "python": "3.13.16 (main, Oct  3 2026, 01:06:22) [Clang 22.1.3 ]",
+  "tools": {
+    "profile-rework.py": "6aa2a4471193cb911e31a5b38d5e8e7965eec38182abf7a8e9e487878c829fca",
+    "compare-profiles.py": "c1357e682fa5e921ee4ddc3e2b2bf840622dfafe0245dde2dfd9062a9b8cd3a7",
+    "verify-tools.py": "4821616a4557215acc0fbf7733e43cd613c1ffecb3aee24e0e7b25b86a409e87"
+  }
+}

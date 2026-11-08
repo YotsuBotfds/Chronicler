@@ -1,3 +1,31 @@
+# Physical arrival diagnostics and interpretation
+
+Motive-classified spells/home retain their historical X1 semantics below. An
+unknown reason is not proof that a move was voluntary or that physical
+displacement is absent. New optional `recent_residence_arrivals` and
+`recent_residence_arrivals_unknown_reason` stock counts depend only on observed
+residential changes and their dates, not spell classification. Each living ID
+counts once at final residence for `0 <= T−move_turn <20`; initial/first-seen
+rows without an observed change are excluded. Returns count as arrivals, not
+necessarily continued displacement. Ordinary travel keeps residence; an actual
+residential trip-unwind relocation starts a new observed clock.
+
+`arrival_diagnostics` declares the20-turn window and current/rolling coverage.
+The persisted `arrival_coverage_since` starts only after all living residences
+are observed, resets after refused/deferred rows, gaps and pool replacement,
+and must span20 consecutive fully covered writes before the share is known.
+Old checkpoints conservatively start this additional clock afresh. Missing old
+diagnostics are unknown, not zero. New frames with positive arrival stocks are
+recorded observations even without a new move that turn; old frames retain
+their original reading-state semantics. The existing `newborn_rows` counter
+is a post-epoch first-seen heuristic, not verified births after cap recovery;
+these physical diagnostics never use it.
+
+C2 reads this information only through its registered T−1 aggregate interface.
+The explicitly selected corrected public-health path retains existing physical density and
+apply no additional motive-derived susceptibility term. Recent residential
+arrivals are diagnostics, not a calibrated housing/contact measure.
+
 # Residence ledger (X1, `--residence-ledger`): the displacement contract
 
 Lane X1 of the connected-world program; the lead-owned displacement contract shared by C2

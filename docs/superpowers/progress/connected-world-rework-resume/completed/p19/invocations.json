@@ -1,0 +1,969 @@
+[
+  {
+    "command": [
+      "/workspace/cwr-native/bin/python",
+      "-m",
+      "chronicler.main",
+      "--agents",
+      "hybrid",
+      "--campaigns",
+      "--health-care",
+      "--grain-reserves",
+      "--grain-storage",
+      "--public-grain-shipments",
+      "--grain-convoys",
+      "--scholarship",
+      "--academy-services",
+      "--learning-cohorts",
+      "--workshops",
+      "--workshop-payroll",
+      "--workshop-economics",
+      "--workshop-economics-rules",
+      "2",
+      "--apprenticeship",
+      "--operating-wear",
+      "--veteran-reintegration",
+      "--timber-stock",
+      "--commons-rules",
+      "--clearing-protection",
+      "--timber-supply",
+      "--repair-projects",
+      "--recovery-crews",
+      "--local-budgets",
+      "--maintenance-obligation",
+      "--remittances",
+      "--relocation-costs",
+      "--food-allocation",
+      "--household-retail",
+      "--household-retail-rules",
+      "2",
+      "--household-retail-boundary",
+      "all",
+      "--titled-trade",
+      "--infrastructure-condition",
+      "--infrastructure-condition-mode",
+      "repair",
+      "--reform-services",
+      "--guild-leagues",
+      "--movement-branches",
+      "--movement-branches-mode",
+      "funded",
+      "--epidemic-care",
+      "--public-health",
+      "--quarantine-mode",
+      "closure",
+      "--quarantine-channels",
+      "trade,migration",
+      "--residence-ledger",
+      "--war-requisition",
+      "--war-consequences",
+      "--adaptive-livelihoods",
+      "--adaptive-livelihoods-rules",
+      "3",
+      "--attribution-records",
+      "--wealth-accounting",
+      "--wealth-accounting-mode",
+      "strict",
+      "--adaptive-livelihoods-mode",
+      "adapt",
+      "--war-consequences-mode",
+      "active",
+      "--war-requisition-mode",
+      "transfer",
+      "--harvest-cover",
+      "--harvest-cover-mode",
+      "loss",
+      "--timber-orders",
+      "--adaptive-livelihoods-decision-channels",
+      "all",
+      "--public-health-crowding",
+      "density_only",
+      "--public-health-mode",
+      "active",
+      "--household-retail-mode",
+      "retail",
+      "--seed",
+      "19",
+      "--worldgen",
+      "procedural",
+      "--regions",
+      "32",
+      "--civs",
+      "10",
+      "--watershed",
+      "--watershed-mode",
+      "flow",
+      "--turns",
+      "120",
+      "--simulate-only",
+      "--output",
+      "/workspace/evidence/cwr-resume/run-p19-8792-bb02-v2/cwr1_ad_procedural19/plain/chronicle.md",
+      "--state",
+      "/workspace/evidence/cwr-resume/run-p19-8792-bb02-v2/cwr1_ad_procedural19/plain/state.json"
+    ],
+    "cwd": "/workspace/evidence/cwr-resume/run-p19-8792-bb02-v2/cwr1_ad_procedural19",
+    "log": "/workspace/evidence/cwr-resume/run-p19-8792-bb02-v2/cwr1_ad_procedural19/plain.log",
+    "environment": {
+      "PYTHONPATH": "/workspace/cwr-final-runtime/src",
+      "PYTHONHASHSEED": "0",
+      "RAYON_NUM_THREADS": "1",
+      "OMP_NUM_THREADS": "1",
+      "OPENBLAS_NUM_THREADS": "1",
+      "MKL_NUM_THREADS": "1",
+      "NUMEXPR_NUM_THREADS": "1",
+      "CHRONICLER_QUIET": "1"
+    },
+    "exit": 0,
+    "seconds": 29.697877157999756,
+    "outputs": {
+      "agent_events.arrow": {
+        "bytes": 895386,
+        "sha256": "db300e20a60638aec2a2fd4b64779fb743eb90dfb7a18fd450a5465f375cb8bd"
+      },
+      "chronicle.md": {
+        "bytes": 1722,
+        "sha256": "c78fd94e274d1b024dc88830075e8682fcd0daa8e286545bf6f953b4749a0a42"
+      },
+      "chronicle_bundle.json": {
+        "bytes": 40297958,
+        "sha256": "354ddaadb7ae2a41198a4a4056387122a9cb2430c4e155a6d02fd3cdb5e1382c"
+      },
+      "memories_commonwealth_of_rawylion.json": {
+        "bytes": 163606,
+        "sha256": "81f2611fbc7bf5a40140bed704d6d0c133bcf24873f29241f8eb48432b9b2be7"
+      },
+      "memories_gruthiheimi_league.json": {
+        "bytes": 152530,
+        "sha256": "ebb1e14aa16e4942c6ee8ed1c84ae7938bee3eec44b0bf4edd79fa81c5348c5d"
+      },
+      "memories_kingdom_of_vebuheim.json": {
+        "bytes": 58411,
+        "sha256": "3b0dea9185af339eac52f64c71fbdbaa661c470829637bf066baf8106a359253"
+      },
+      "memories_lalioni_tribes.json": {
+        "bytes": 136537,
+        "sha256": "8572ab94048e64f9eef4ab43be30af348e7b348522474b50be326712c8a040ab"
+      },
+      "memories_meselenen_republic.json": {
+        "bytes": 102052,
+        "sha256": "0db5e41f0259ca8804247877f92424480de4fb2b71b97d701b524813fb59686c"
+      },
+      "memories_mutoyan_kingdom.json": {
+        "bytes": 100996,
+        "sha256": "408563006c80eb543c0d51c54823232e1ceead0dcbbb70c7de092223766c12df"
+      },
+      "memories_siverieli_tribes.json": {
+        "bytes": 163040,
+        "sha256": "cff61da3c899596581f8a30b823910dc066d7b7c6cd30dbfed3b04a9e6af70fa"
+      },
+      "memories_sobekhani_empire.json": {
+        "bytes": 124507,
+        "sha256": "d833693cc1b5b29d76b40d6d7b351737091ce2fe3f493199b735cb17ce72246f"
+      },
+      "memories_tamiguri_empire.json": {
+        "bytes": 111440,
+        "sha256": "602ecf751382c688ee201fbe4ddc8503de0a1f0d1a68e22eedf718a5ba27b287"
+      },
+      "memories_vilasi_tribes.json": {
+        "bytes": 133021,
+        "sha256": "ef295aaf41337cea4da393960be3b253cb75ec5ae96d79e67a462bee10cc8593"
+      },
+      "state.historiography.json": {
+        "bytes": 589061,
+        "sha256": "db20dafe858308fe8e52efb6efa5dae334a23fabea5129088429d742e25f7e38"
+      },
+      "state.json": {
+        "bytes": 6642227,
+        "sha256": "2ca677d6525edd865d072ce20f404845f182c270a6a96f529407cfd26c0ab8cf"
+      },
+      "state.languages.json": {
+        "bytes": 327043,
+        "sha256": "1b6ec40fb6b20113a39df92aa77dd6c7be119a3ea50f42d3928b11d87a71da79"
+      }
+    },
+    "checkpoints": {}
+  },
+  {
+    "command": [
+      "/workspace/cwr-native/bin/python",
+      "-m",
+      "chronicler.main",
+      "--agents",
+      "hybrid",
+      "--campaigns",
+      "--health-care",
+      "--grain-reserves",
+      "--grain-storage",
+      "--public-grain-shipments",
+      "--grain-convoys",
+      "--scholarship",
+      "--academy-services",
+      "--learning-cohorts",
+      "--workshops",
+      "--workshop-payroll",
+      "--workshop-economics",
+      "--workshop-economics-rules",
+      "2",
+      "--apprenticeship",
+      "--operating-wear",
+      "--veteran-reintegration",
+      "--timber-stock",
+      "--commons-rules",
+      "--clearing-protection",
+      "--timber-supply",
+      "--repair-projects",
+      "--recovery-crews",
+      "--local-budgets",
+      "--maintenance-obligation",
+      "--remittances",
+      "--relocation-costs",
+      "--food-allocation",
+      "--household-retail",
+      "--household-retail-rules",
+      "2",
+      "--household-retail-boundary",
+      "all",
+      "--titled-trade",
+      "--infrastructure-condition",
+      "--infrastructure-condition-mode",
+      "repair",
+      "--reform-services",
+      "--guild-leagues",
+      "--movement-branches",
+      "--movement-branches-mode",
+      "funded",
+      "--epidemic-care",
+      "--public-health",
+      "--quarantine-mode",
+      "closure",
+      "--quarantine-channels",
+      "trade,migration",
+      "--residence-ledger",
+      "--war-requisition",
+      "--war-consequences",
+      "--adaptive-livelihoods",
+      "--adaptive-livelihoods-rules",
+      "3",
+      "--attribution-records",
+      "--wealth-accounting",
+      "--wealth-accounting-mode",
+      "strict",
+      "--adaptive-livelihoods-mode",
+      "adapt",
+      "--war-consequences-mode",
+      "active",
+      "--war-requisition-mode",
+      "transfer",
+      "--harvest-cover",
+      "--harvest-cover-mode",
+      "loss",
+      "--timber-orders",
+      "--adaptive-livelihoods-decision-channels",
+      "all",
+      "--public-health-crowding",
+      "density_only",
+      "--public-health-mode",
+      "active",
+      "--household-retail-mode",
+      "retail",
+      "--seed",
+      "19",
+      "--worldgen",
+      "procedural",
+      "--regions",
+      "32",
+      "--civs",
+      "10",
+      "--watershed",
+      "--watershed-mode",
+      "flow",
+      "--turns",
+      "120",
+      "--simulate-only",
+      "--output",
+      "/workspace/evidence/cwr-resume/run-p19-8792-bb02-v2/cwr1_ad_procedural19/straight/chronicle.md",
+      "--state",
+      "/workspace/evidence/cwr-resume/run-p19-8792-bb02-v2/cwr1_ad_procedural19/straight/state.json",
+      "--checkpoint-every",
+      "1",
+      "--checkpoint",
+      "/workspace/evidence/cwr-resume/run-p19-8792-bb02-v2/cwr1_ad_procedural19/straight/ckpt/turn_{turn:04d}.ckpt"
+    ],
+    "cwd": "/workspace/evidence/cwr-resume/run-p19-8792-bb02-v2/cwr1_ad_procedural19",
+    "log": "/workspace/evidence/cwr-resume/run-p19-8792-bb02-v2/cwr1_ad_procedural19/straight.log",
+    "environment": {
+      "PYTHONPATH": "/workspace/cwr-final-runtime/src",
+      "PYTHONHASHSEED": "0",
+      "RAYON_NUM_THREADS": "1",
+      "OMP_NUM_THREADS": "1",
+      "OPENBLAS_NUM_THREADS": "1",
+      "MKL_NUM_THREADS": "1",
+      "NUMEXPR_NUM_THREADS": "1",
+      "CHRONICLER_QUIET": "1"
+    },
+    "exit": 0,
+    "seconds": 96.24702185600108,
+    "outputs": {
+      "agent_events.arrow": {
+        "bytes": 895386,
+        "sha256": "db300e20a60638aec2a2fd4b64779fb743eb90dfb7a18fd450a5465f375cb8bd"
+      },
+      "chronicle.md": {
+        "bytes": 1722,
+        "sha256": "c78fd94e274d1b024dc88830075e8682fcd0daa8e286545bf6f953b4749a0a42"
+      },
+      "chronicle_bundle.json": {
+        "bytes": 40297958,
+        "sha256": "36700ea243ce867a8c8deb0ed2235d98ec908fea4110602ea838fadeb9834fe6"
+      },
+      "memories_commonwealth_of_rawylion.json": {
+        "bytes": 163606,
+        "sha256": "81f2611fbc7bf5a40140bed704d6d0c133bcf24873f29241f8eb48432b9b2be7"
+      },
+      "memories_gruthiheimi_league.json": {
+        "bytes": 152530,
+        "sha256": "ebb1e14aa16e4942c6ee8ed1c84ae7938bee3eec44b0bf4edd79fa81c5348c5d"
+      },
+      "memories_kingdom_of_vebuheim.json": {
+        "bytes": 58411,
+        "sha256": "3b0dea9185af339eac52f64c71fbdbaa661c470829637bf066baf8106a359253"
+      },
+      "memories_lalioni_tribes.json": {
+        "bytes": 136537,
+        "sha256": "8572ab94048e64f9eef4ab43be30af348e7b348522474b50be326712c8a040ab"
+      },
+      "memories_meselenen_republic.json": {
+        "bytes": 102052,
+        "sha256": "0db5e41f0259ca8804247877f92424480de4fb2b71b97d701b524813fb59686c"
+      },
+      "memories_mutoyan_kingdom.json": {
+        "bytes": 100996,
+        "sha256": "408563006c80eb543c0d51c54823232e1ceead0dcbbb70c7de092223766c12df"
+      },
+      "memories_siverieli_tribes.json": {
+        "bytes": 163040,
+        "sha256": "cff61da3c899596581f8a30b823910dc066d7b7c6cd30dbfed3b04a9e6af70fa"
+      },
+      "memories_sobekhani_empire.json": {
+        "bytes": 124507,
+        "sha256": "d833693cc1b5b29d76b40d6d7b351737091ce2fe3f493199b735cb17ce72246f"
+      },
+      "memories_tamiguri_empire.json": {
+        "bytes": 111440,
+        "sha256": "602ecf751382c688ee201fbe4ddc8503de0a1f0d1a68e22eedf718a5ba27b287"
+      },
+      "memories_vilasi_tribes.json": {
+        "bytes": 133021,
+        "sha256": "ef295aaf41337cea4da393960be3b253cb75ec5ae96d79e67a462bee10cc8593"
+      },
+      "state.historiography.json": {
+        "bytes": 589061,
+        "sha256": "db20dafe858308fe8e52efb6efa5dae334a23fabea5129088429d742e25f7e38"
+      },
+      "state.json": {
+        "bytes": 6642227,
+        "sha256": "2ca677d6525edd865d072ce20f404845f182c270a6a96f529407cfd26c0ab8cf"
+      },
+      "state.languages.json": {
+        "bytes": 327043,
+        "sha256": "1b6ec40fb6b20113a39df92aa77dd6c7be119a3ea50f42d3928b11d87a71da79"
+      }
+    },
+    "checkpoints": {
+      "ckpt/turn_0001.ckpt": {
+        "bytes": 172226,
+        "sha256": "9ff6b2f27a93ea39a3b7527eff05260fffd7dcbb77080ae376fb326765e73a89"
+      },
+      "ckpt/turn_0002.ckpt": {
+        "bytes": 224195,
+        "sha256": "c1a1d4bfae634a55f39a762437717b299f3d0089467ad339a1c15ef235baadd5"
+      },
+      "ckpt/turn_0003.ckpt": {
+        "bytes": 272572,
+        "sha256": "eb2862be4302e0246651ded40edd7582c7828f73f3003c19ecb7770c17ee780b"
+      },
+      "ckpt/turn_0018.ckpt": {
+        "bytes": 1099192,
+        "sha256": "f172600c3f500cb336b33f464614bcf23b577ce71a1fc7625c457cc4029f7c75"
+      },
+      "ckpt/turn_0019.ckpt": {
+        "bytes": 1159509,
+        "sha256": "ed3e2521cc79c1f533d9bc4a8a2bfd9ad850d99b22d0c9b0df9680f37f3fe4a8"
+      },
+      "ckpt/turn_0067.ckpt": {
+        "bytes": 5517286,
+        "sha256": "b6d566c17f5542d75ea8f7ebb5ca6541ac7b6f8538c9d2f3f13b1df4afee0469"
+      }
+    }
+  },
+  {
+    "command": [
+      "/workspace/cwr-native/bin/python",
+      "-m",
+      "chronicler.main",
+      "--resume",
+      "/workspace/evidence/cwr-resume/run-p19-8792-bb02-v2/cwr1_ad_procedural19/straight/ckpt/turn_0001.ckpt",
+      "--simulate-only",
+      "--output",
+      "/workspace/evidence/cwr-resume/run-p19-8792-bb02-v2/cwr1_ad_procedural19/resume_0001/chronicle.md",
+      "--state",
+      "/workspace/evidence/cwr-resume/run-p19-8792-bb02-v2/cwr1_ad_procedural19/resume_0001/state.json"
+    ],
+    "cwd": "/workspace/evidence/cwr-resume/run-p19-8792-bb02-v2/cwr1_ad_procedural19",
+    "log": "/workspace/evidence/cwr-resume/run-p19-8792-bb02-v2/cwr1_ad_procedural19/resume_0001.log",
+    "environment": {
+      "PYTHONPATH": "/workspace/cwr-final-runtime/src",
+      "PYTHONHASHSEED": "0",
+      "RAYON_NUM_THREADS": "1",
+      "OMP_NUM_THREADS": "1",
+      "OPENBLAS_NUM_THREADS": "1",
+      "MKL_NUM_THREADS": "1",
+      "NUMEXPR_NUM_THREADS": "1",
+      "CHRONICLER_QUIET": "1"
+    },
+    "exit": 0,
+    "seconds": 30.559482857999683,
+    "outputs": {
+      "agent_events.arrow": {
+        "bytes": 895386,
+        "sha256": "db300e20a60638aec2a2fd4b64779fb743eb90dfb7a18fd450a5465f375cb8bd"
+      },
+      "chronicle.md": {
+        "bytes": 1722,
+        "sha256": "c78fd94e274d1b024dc88830075e8682fcd0daa8e286545bf6f953b4749a0a42"
+      },
+      "chronicle_bundle.json": {
+        "bytes": 40297958,
+        "sha256": "49dccbdcc53dddb96cb0254412dc39912151849acdeb7645057eaa0281f41fbf"
+      },
+      "memories_commonwealth_of_rawylion.json": {
+        "bytes": 163606,
+        "sha256": "81f2611fbc7bf5a40140bed704d6d0c133bcf24873f29241f8eb48432b9b2be7"
+      },
+      "memories_gruthiheimi_league.json": {
+        "bytes": 152530,
+        "sha256": "ebb1e14aa16e4942c6ee8ed1c84ae7938bee3eec44b0bf4edd79fa81c5348c5d"
+      },
+      "memories_kingdom_of_vebuheim.json": {
+        "bytes": 58411,
+        "sha256": "3b0dea9185af339eac52f64c71fbdbaa661c470829637bf066baf8106a359253"
+      },
+      "memories_lalioni_tribes.json": {
+        "bytes": 136537,
+        "sha256": "8572ab94048e64f9eef4ab43be30af348e7b348522474b50be326712c8a040ab"
+      },
+      "memories_meselenen_republic.json": {
+        "bytes": 102052,
+        "sha256": "0db5e41f0259ca8804247877f92424480de4fb2b71b97d701b524813fb59686c"
+      },
+      "memories_mutoyan_kingdom.json": {
+        "bytes": 100996,
+        "sha256": "408563006c80eb543c0d51c54823232e1ceead0dcbbb70c7de092223766c12df"
+      },
+      "memories_siverieli_tribes.json": {
+        "bytes": 163040,
+        "sha256": "cff61da3c899596581f8a30b823910dc066d7b7c6cd30dbfed3b04a9e6af70fa"
+      },
+      "memories_sobekhani_empire.json": {
+        "bytes": 124507,
+        "sha256": "d833693cc1b5b29d76b40d6d7b351737091ce2fe3f493199b735cb17ce72246f"
+      },
+      "memories_tamiguri_empire.json": {
+        "bytes": 111440,
+        "sha256": "602ecf751382c688ee201fbe4ddc8503de0a1f0d1a68e22eedf718a5ba27b287"
+      },
+      "memories_vilasi_tribes.json": {
+        "bytes": 133021,
+        "sha256": "ef295aaf41337cea4da393960be3b253cb75ec5ae96d79e67a462bee10cc8593"
+      },
+      "state.historiography.json": {
+        "bytes": 589061,
+        "sha256": "db20dafe858308fe8e52efb6efa5dae334a23fabea5129088429d742e25f7e38"
+      },
+      "state.json": {
+        "bytes": 6642227,
+        "sha256": "2ca677d6525edd865d072ce20f404845f182c270a6a96f529407cfd26c0ab8cf"
+      },
+      "state.languages.json": {
+        "bytes": 327043,
+        "sha256": "1b6ec40fb6b20113a39df92aa77dd6c7be119a3ea50f42d3928b11d87a71da79"
+      }
+    },
+    "checkpoints": {}
+  },
+  {
+    "command": [
+      "/workspace/cwr-native/bin/python",
+      "-m",
+      "chronicler.main",
+      "--resume",
+      "/workspace/evidence/cwr-resume/run-p19-8792-bb02-v2/cwr1_ad_procedural19/straight/ckpt/turn_0002.ckpt",
+      "--simulate-only",
+      "--output",
+      "/workspace/evidence/cwr-resume/run-p19-8792-bb02-v2/cwr1_ad_procedural19/resume_0002/chronicle.md",
+      "--state",
+      "/workspace/evidence/cwr-resume/run-p19-8792-bb02-v2/cwr1_ad_procedural19/resume_0002/state.json"
+    ],
+    "cwd": "/workspace/evidence/cwr-resume/run-p19-8792-bb02-v2/cwr1_ad_procedural19",
+    "log": "/workspace/evidence/cwr-resume/run-p19-8792-bb02-v2/cwr1_ad_procedural19/resume_0002.log",
+    "environment": {
+      "PYTHONPATH": "/workspace/cwr-final-runtime/src",
+      "PYTHONHASHSEED": "0",
+      "RAYON_NUM_THREADS": "1",
+      "OMP_NUM_THREADS": "1",
+      "OPENBLAS_NUM_THREADS": "1",
+      "MKL_NUM_THREADS": "1",
+      "NUMEXPR_NUM_THREADS": "1",
+      "CHRONICLER_QUIET": "1"
+    },
+    "exit": 0,
+    "seconds": 30.951556697000342,
+    "outputs": {
+      "agent_events.arrow": {
+        "bytes": 895386,
+        "sha256": "db300e20a60638aec2a2fd4b64779fb743eb90dfb7a18fd450a5465f375cb8bd"
+      },
+      "chronicle.md": {
+        "bytes": 1722,
+        "sha256": "c78fd94e274d1b024dc88830075e8682fcd0daa8e286545bf6f953b4749a0a42"
+      },
+      "chronicle_bundle.json": {
+        "bytes": 40297958,
+        "sha256": "f05d569b8b8a8fe7ef4be439d3dcf4d03897794e832c2888f9242aba6a2be971"
+      },
+      "memories_commonwealth_of_rawylion.json": {
+        "bytes": 163606,
+        "sha256": "81f2611fbc7bf5a40140bed704d6d0c133bcf24873f29241f8eb48432b9b2be7"
+      },
+      "memories_gruthiheimi_league.json": {
+        "bytes": 152530,
+        "sha256": "ebb1e14aa16e4942c6ee8ed1c84ae7938bee3eec44b0bf4edd79fa81c5348c5d"
+      },
+      "memories_kingdom_of_vebuheim.json": {
+        "bytes": 58411,
+        "sha256": "3b0dea9185af339eac52f64c71fbdbaa661c470829637bf066baf8106a359253"
+      },
+      "memories_lalioni_tribes.json": {
+        "bytes": 136537,
+        "sha256": "8572ab94048e64f9eef4ab43be30af348e7b348522474b50be326712c8a040ab"
+      },
+      "memories_meselenen_republic.json": {
+        "bytes": 102052,
+        "sha256": "0db5e41f0259ca8804247877f92424480de4fb2b71b97d701b524813fb59686c"
+      },
+      "memories_mutoyan_kingdom.json": {
+        "bytes": 100996,
+        "sha256": "408563006c80eb543c0d51c54823232e1ceead0dcbbb70c7de092223766c12df"
+      },
+      "memories_siverieli_tribes.json": {
+        "bytes": 163040,
+        "sha256": "cff61da3c899596581f8a30b823910dc066d7b7c6cd30dbfed3b04a9e6af70fa"
+      },
+      "memories_sobekhani_empire.json": {
+        "bytes": 124507,
+        "sha256": "d833693cc1b5b29d76b40d6d7b351737091ce2fe3f493199b735cb17ce72246f"
+      },
+      "memories_tamiguri_empire.json": {
+        "bytes": 111440,
+        "sha256": "602ecf751382c688ee201fbe4ddc8503de0a1f0d1a68e22eedf718a5ba27b287"
+      },
+      "memories_vilasi_tribes.json": {
+        "bytes": 133021,
+        "sha256": "ef295aaf41337cea4da393960be3b253cb75ec5ae96d79e67a462bee10cc8593"
+      },
+      "state.historiography.json": {
+        "bytes": 589061,
+        "sha256": "db20dafe858308fe8e52efb6efa5dae334a23fabea5129088429d742e25f7e38"
+      },
+      "state.json": {
+        "bytes": 6642227,
+        "sha256": "2ca677d6525edd865d072ce20f404845f182c270a6a96f529407cfd26c0ab8cf"
+      },
+      "state.languages.json": {
+        "bytes": 327043,
+        "sha256": "1b6ec40fb6b20113a39df92aa77dd6c7be119a3ea50f42d3928b11d87a71da79"
+      }
+    },
+    "checkpoints": {}
+  },
+  {
+    "command": [
+      "/workspace/cwr-native/bin/python",
+      "-m",
+      "chronicler.main",
+      "--resume",
+      "/workspace/evidence/cwr-resume/run-p19-8792-bb02-v2/cwr1_ad_procedural19/straight/ckpt/turn_0003.ckpt",
+      "--simulate-only",
+      "--output",
+      "/workspace/evidence/cwr-resume/run-p19-8792-bb02-v2/cwr1_ad_procedural19/resume_0003/chronicle.md",
+      "--state",
+      "/workspace/evidence/cwr-resume/run-p19-8792-bb02-v2/cwr1_ad_procedural19/resume_0003/state.json"
+    ],
+    "cwd": "/workspace/evidence/cwr-resume/run-p19-8792-bb02-v2/cwr1_ad_procedural19",
+    "log": "/workspace/evidence/cwr-resume/run-p19-8792-bb02-v2/cwr1_ad_procedural19/resume_0003.log",
+    "environment": {
+      "PYTHONPATH": "/workspace/cwr-final-runtime/src",
+      "PYTHONHASHSEED": "0",
+      "RAYON_NUM_THREADS": "1",
+      "OMP_NUM_THREADS": "1",
+      "OPENBLAS_NUM_THREADS": "1",
+      "MKL_NUM_THREADS": "1",
+      "NUMEXPR_NUM_THREADS": "1",
+      "CHRONICLER_QUIET": "1"
+    },
+    "exit": 0,
+    "seconds": 29.86896639800034,
+    "outputs": {
+      "agent_events.arrow": {
+        "bytes": 895386,
+        "sha256": "db300e20a60638aec2a2fd4b64779fb743eb90dfb7a18fd450a5465f375cb8bd"
+      },
+      "chronicle.md": {
+        "bytes": 1722,
+        "sha256": "c78fd94e274d1b024dc88830075e8682fcd0daa8e286545bf6f953b4749a0a42"
+      },
+      "chronicle_bundle.json": {
+        "bytes": 40297958,
+        "sha256": "55dba0157fb2dcf112799cfd5b45d021af5624cde789c4948e10661abf7b1097"
+      },
+      "memories_commonwealth_of_rawylion.json": {
+        "bytes": 163606,
+        "sha256": "81f2611fbc7bf5a40140bed704d6d0c133bcf24873f29241f8eb48432b9b2be7"
+      },
+      "memories_gruthiheimi_league.json": {
+        "bytes": 152530,
+        "sha256": "ebb1e14aa16e4942c6ee8ed1c84ae7938bee3eec44b0bf4edd79fa81c5348c5d"
+      },
+      "memories_kingdom_of_vebuheim.json": {
+        "bytes": 58411,
+        "sha256": "3b0dea9185af339eac52f64c71fbdbaa661c470829637bf066baf8106a359253"
+      },
+      "memories_lalioni_tribes.json": {
+        "bytes": 136537,
+        "sha256": "8572ab94048e64f9eef4ab43be30af348e7b348522474b50be326712c8a040ab"
+      },
+      "memories_meselenen_republic.json": {
+        "bytes": 102052,
+        "sha256": "0db5e41f0259ca8804247877f92424480de4fb2b71b97d701b524813fb59686c"
+      },
+      "memories_mutoyan_kingdom.json": {
+        "bytes": 100996,
+        "sha256": "408563006c80eb543c0d51c54823232e1ceead0dcbbb70c7de092223766c12df"
+      },
+      "memories_siverieli_tribes.json": {
+        "bytes": 163040,
+        "sha256": "cff61da3c899596581f8a30b823910dc066d7b7c6cd30dbfed3b04a9e6af70fa"
+      },
+      "memories_sobekhani_empire.json": {
+        "bytes": 124507,
+        "sha256": "d833693cc1b5b29d76b40d6d7b351737091ce2fe3f493199b735cb17ce72246f"
+      },
+      "memories_tamiguri_empire.json": {
+        "bytes": 111440,
+        "sha256": "602ecf751382c688ee201fbe4ddc8503de0a1f0d1a68e22eedf718a5ba27b287"
+      },
+      "memories_vilasi_tribes.json": {
+        "bytes": 133021,
+        "sha256": "ef295aaf41337cea4da393960be3b253cb75ec5ae96d79e67a462bee10cc8593"
+      },
+      "state.historiography.json": {
+        "bytes": 589061,
+        "sha256": "db20dafe858308fe8e52efb6efa5dae334a23fabea5129088429d742e25f7e38"
+      },
+      "state.json": {
+        "bytes": 6642227,
+        "sha256": "2ca677d6525edd865d072ce20f404845f182c270a6a96f529407cfd26c0ab8cf"
+      },
+      "state.languages.json": {
+        "bytes": 327043,
+        "sha256": "1b6ec40fb6b20113a39df92aa77dd6c7be119a3ea50f42d3928b11d87a71da79"
+      }
+    },
+    "checkpoints": {}
+  },
+  {
+    "command": [
+      "/workspace/cwr-native/bin/python",
+      "-m",
+      "chronicler.main",
+      "--resume",
+      "/workspace/evidence/cwr-resume/run-p19-8792-bb02-v2/cwr1_ad_procedural19/straight/ckpt/turn_0018.ckpt",
+      "--simulate-only",
+      "--output",
+      "/workspace/evidence/cwr-resume/run-p19-8792-bb02-v2/cwr1_ad_procedural19/resume_0018/chronicle.md",
+      "--state",
+      "/workspace/evidence/cwr-resume/run-p19-8792-bb02-v2/cwr1_ad_procedural19/resume_0018/state.json"
+    ],
+    "cwd": "/workspace/evidence/cwr-resume/run-p19-8792-bb02-v2/cwr1_ad_procedural19",
+    "log": "/workspace/evidence/cwr-resume/run-p19-8792-bb02-v2/cwr1_ad_procedural19/resume_0018.log",
+    "environment": {
+      "PYTHONPATH": "/workspace/cwr-final-runtime/src",
+      "PYTHONHASHSEED": "0",
+      "RAYON_NUM_THREADS": "1",
+      "OMP_NUM_THREADS": "1",
+      "OPENBLAS_NUM_THREADS": "1",
+      "MKL_NUM_THREADS": "1",
+      "NUMEXPR_NUM_THREADS": "1",
+      "CHRONICLER_QUIET": "1"
+    },
+    "exit": 0,
+    "seconds": 29.209011126000405,
+    "outputs": {
+      "agent_events.arrow": {
+        "bytes": 895386,
+        "sha256": "db300e20a60638aec2a2fd4b64779fb743eb90dfb7a18fd450a5465f375cb8bd"
+      },
+      "chronicle.md": {
+        "bytes": 1722,
+        "sha256": "c78fd94e274d1b024dc88830075e8682fcd0daa8e286545bf6f953b4749a0a42"
+      },
+      "chronicle_bundle.json": {
+        "bytes": 40297958,
+        "sha256": "6fdb4c6b1552e30194bfa6cd1a8daa4e1eaff18262d8096ab2ab69d928ca8d4b"
+      },
+      "memories_commonwealth_of_rawylion.json": {
+        "bytes": 163606,
+        "sha256": "81f2611fbc7bf5a40140bed704d6d0c133bcf24873f29241f8eb48432b9b2be7"
+      },
+      "memories_gruthiheimi_league.json": {
+        "bytes": 152530,
+        "sha256": "ebb1e14aa16e4942c6ee8ed1c84ae7938bee3eec44b0bf4edd79fa81c5348c5d"
+      },
+      "memories_kingdom_of_vebuheim.json": {
+        "bytes": 58411,
+        "sha256": "3b0dea9185af339eac52f64c71fbdbaa661c470829637bf066baf8106a359253"
+      },
+      "memories_lalioni_tribes.json": {
+        "bytes": 136537,
+        "sha256": "8572ab94048e64f9eef4ab43be30af348e7b348522474b50be326712c8a040ab"
+      },
+      "memories_meselenen_republic.json": {
+        "bytes": 102052,
+        "sha256": "0db5e41f0259ca8804247877f92424480de4fb2b71b97d701b524813fb59686c"
+      },
+      "memories_mutoyan_kingdom.json": {
+        "bytes": 100996,
+        "sha256": "408563006c80eb543c0d51c54823232e1ceead0dcbbb70c7de092223766c12df"
+      },
+      "memories_siverieli_tribes.json": {
+        "bytes": 163040,
+        "sha256": "cff61da3c899596581f8a30b823910dc066d7b7c6cd30dbfed3b04a9e6af70fa"
+      },
+      "memories_sobekhani_empire.json": {
+        "bytes": 124507,
+        "sha256": "d833693cc1b5b29d76b40d6d7b351737091ce2fe3f493199b735cb17ce72246f"
+      },
+      "memories_tamiguri_empire.json": {
+        "bytes": 111440,
+        "sha256": "602ecf751382c688ee201fbe4ddc8503de0a1f0d1a68e22eedf718a5ba27b287"
+      },
+      "memories_vilasi_tribes.json": {
+        "bytes": 133021,
+        "sha256": "ef295aaf41337cea4da393960be3b253cb75ec5ae96d79e67a462bee10cc8593"
+      },
+      "state.historiography.json": {
+        "bytes": 589061,
+        "sha256": "db20dafe858308fe8e52efb6efa5dae334a23fabea5129088429d742e25f7e38"
+      },
+      "state.json": {
+        "bytes": 6642227,
+        "sha256": "2ca677d6525edd865d072ce20f404845f182c270a6a96f529407cfd26c0ab8cf"
+      },
+      "state.languages.json": {
+        "bytes": 327043,
+        "sha256": "1b6ec40fb6b20113a39df92aa77dd6c7be119a3ea50f42d3928b11d87a71da79"
+      }
+    },
+    "checkpoints": {}
+  },
+  {
+    "command": [
+      "/workspace/cwr-native/bin/python",
+      "-m",
+      "chronicler.main",
+      "--resume",
+      "/workspace/evidence/cwr-resume/run-p19-8792-bb02-v2/cwr1_ad_procedural19/straight/ckpt/turn_0019.ckpt",
+      "--simulate-only",
+      "--output",
+      "/workspace/evidence/cwr-resume/run-p19-8792-bb02-v2/cwr1_ad_procedural19/resume_0019/chronicle.md",
+      "--state",
+      "/workspace/evidence/cwr-resume/run-p19-8792-bb02-v2/cwr1_ad_procedural19/resume_0019/state.json"
+    ],
+    "cwd": "/workspace/evidence/cwr-resume/run-p19-8792-bb02-v2/cwr1_ad_procedural19",
+    "log": "/workspace/evidence/cwr-resume/run-p19-8792-bb02-v2/cwr1_ad_procedural19/resume_0019.log",
+    "environment": {
+      "PYTHONPATH": "/workspace/cwr-final-runtime/src",
+      "PYTHONHASHSEED": "0",
+      "RAYON_NUM_THREADS": "1",
+      "OMP_NUM_THREADS": "1",
+      "OPENBLAS_NUM_THREADS": "1",
+      "MKL_NUM_THREADS": "1",
+      "NUMEXPR_NUM_THREADS": "1",
+      "CHRONICLER_QUIET": "1"
+    },
+    "exit": 0,
+    "seconds": 29.75718545500058,
+    "outputs": {
+      "agent_events.arrow": {
+        "bytes": 895386,
+        "sha256": "db300e20a60638aec2a2fd4b64779fb743eb90dfb7a18fd450a5465f375cb8bd"
+      },
+      "chronicle.md": {
+        "bytes": 1722,
+        "sha256": "c78fd94e274d1b024dc88830075e8682fcd0daa8e286545bf6f953b4749a0a42"
+      },
+      "chronicle_bundle.json": {
+        "bytes": 40297958,
+        "sha256": "f99561455fd245c68ea93666fb3044e63f3444d52b646716177f7e84491251ab"
+      },
+      "memories_commonwealth_of_rawylion.json": {
+        "bytes": 163606,
+        "sha256": "81f2611fbc7bf5a40140bed704d6d0c133bcf24873f29241f8eb48432b9b2be7"
+      },
+      "memories_gruthiheimi_league.json": {
+        "bytes": 152530,
+        "sha256": "ebb1e14aa16e4942c6ee8ed1c84ae7938bee3eec44b0bf4edd79fa81c5348c5d"
+      },
+      "memories_kingdom_of_vebuheim.json": {
+        "bytes": 58411,
+        "sha256": "3b0dea9185af339eac52f64c71fbdbaa661c470829637bf066baf8106a359253"
+      },
+      "memories_lalioni_tribes.json": {
+        "bytes": 136537,
+        "sha256": "8572ab94048e64f9eef4ab43be30af348e7b348522474b50be326712c8a040ab"
+      },
+      "memories_meselenen_republic.json": {
+        "bytes": 102052,
+        "sha256": "0db5e41f0259ca8804247877f92424480de4fb2b71b97d701b524813fb59686c"
+      },
+      "memories_mutoyan_kingdom.json": {
+        "bytes": 100996,
+        "sha256": "408563006c80eb543c0d51c54823232e1ceead0dcbbb70c7de092223766c12df"
+      },
+      "memories_siverieli_tribes.json": {
+        "bytes": 163040,
+        "sha256": "cff61da3c899596581f8a30b823910dc066d7b7c6cd30dbfed3b04a9e6af70fa"
+      },
+      "memories_sobekhani_empire.json": {
+        "bytes": 124507,
+        "sha256": "d833693cc1b5b29d76b40d6d7b351737091ce2fe3f493199b735cb17ce72246f"
+      },
+      "memories_tamiguri_empire.json": {
+        "bytes": 111440,
+        "sha256": "602ecf751382c688ee201fbe4ddc8503de0a1f0d1a68e22eedf718a5ba27b287"
+      },
+      "memories_vilasi_tribes.json": {
+        "bytes": 133021,
+        "sha256": "ef295aaf41337cea4da393960be3b253cb75ec5ae96d79e67a462bee10cc8593"
+      },
+      "state.historiography.json": {
+        "bytes": 589061,
+        "sha256": "db20dafe858308fe8e52efb6efa5dae334a23fabea5129088429d742e25f7e38"
+      },
+      "state.json": {
+        "bytes": 6642227,
+        "sha256": "2ca677d6525edd865d072ce20f404845f182c270a6a96f529407cfd26c0ab8cf"
+      },
+      "state.languages.json": {
+        "bytes": 327043,
+        "sha256": "1b6ec40fb6b20113a39df92aa77dd6c7be119a3ea50f42d3928b11d87a71da79"
+      }
+    },
+    "checkpoints": {}
+  },
+  {
+    "command": [
+      "/workspace/cwr-native/bin/python",
+      "-m",
+      "chronicler.main",
+      "--resume",
+      "/workspace/evidence/cwr-resume/run-p19-8792-bb02-v2/cwr1_ad_procedural19/straight/ckpt/turn_0067.ckpt",
+      "--simulate-only",
+      "--output",
+      "/workspace/evidence/cwr-resume/run-p19-8792-bb02-v2/cwr1_ad_procedural19/resume_0067/chronicle.md",
+      "--state",
+      "/workspace/evidence/cwr-resume/run-p19-8792-bb02-v2/cwr1_ad_procedural19/resume_0067/state.json"
+    ],
+    "cwd": "/workspace/evidence/cwr-resume/run-p19-8792-bb02-v2/cwr1_ad_procedural19",
+    "log": "/workspace/evidence/cwr-resume/run-p19-8792-bb02-v2/cwr1_ad_procedural19/resume_0067.log",
+    "environment": {
+      "PYTHONPATH": "/workspace/cwr-final-runtime/src",
+      "PYTHONHASHSEED": "0",
+      "RAYON_NUM_THREADS": "1",
+      "OMP_NUM_THREADS": "1",
+      "OPENBLAS_NUM_THREADS": "1",
+      "MKL_NUM_THREADS": "1",
+      "NUMEXPR_NUM_THREADS": "1",
+      "CHRONICLER_QUIET": "1"
+    },
+    "exit": 0,
+    "seconds": 20.77594233000127,
+    "outputs": {
+      "agent_events.arrow": {
+        "bytes": 895386,
+        "sha256": "db300e20a60638aec2a2fd4b64779fb743eb90dfb7a18fd450a5465f375cb8bd"
+      },
+      "chronicle.md": {
+        "bytes": 1722,
+        "sha256": "c78fd94e274d1b024dc88830075e8682fcd0daa8e286545bf6f953b4749a0a42"
+      },
+      "chronicle_bundle.json": {
+        "bytes": 40297958,
+        "sha256": "6ef2ec8b599708ba48b3746d49522a1989de6ff729da4df1614c9a435e43ef3f"
+      },
+      "memories_commonwealth_of_rawylion.json": {
+        "bytes": 163606,
+        "sha256": "81f2611fbc7bf5a40140bed704d6d0c133bcf24873f29241f8eb48432b9b2be7"
+      },
+      "memories_gruthiheimi_league.json": {
+        "bytes": 152530,
+        "sha256": "ebb1e14aa16e4942c6ee8ed1c84ae7938bee3eec44b0bf4edd79fa81c5348c5d"
+      },
+      "memories_kingdom_of_vebuheim.json": {
+        "bytes": 58411,
+        "sha256": "3b0dea9185af339eac52f64c71fbdbaa661c470829637bf066baf8106a359253"
+      },
+      "memories_lalioni_tribes.json": {
+        "bytes": 136537,
+        "sha256": "8572ab94048e64f9eef4ab43be30af348e7b348522474b50be326712c8a040ab"
+      },
+      "memories_meselenen_republic.json": {
+        "bytes": 102052,
+        "sha256": "0db5e41f0259ca8804247877f92424480de4fb2b71b97d701b524813fb59686c"
+      },
+      "memories_mutoyan_kingdom.json": {
+        "bytes": 100996,
+        "sha256": "408563006c80eb543c0d51c54823232e1ceead0dcbbb70c7de092223766c12df"
+      },
+      "memories_siverieli_tribes.json": {
+        "bytes": 163040,
+        "sha256": "cff61da3c899596581f8a30b823910dc066d7b7c6cd30dbfed3b04a9e6af70fa"
+      },
+      "memories_sobekhani_empire.json": {
+        "bytes": 124507,
+        "sha256": "d833693cc1b5b29d76b40d6d7b351737091ce2fe3f493199b735cb17ce72246f"
+      },
+      "memories_tamiguri_empire.json": {
+        "bytes": 111440,
+        "sha256": "602ecf751382c688ee201fbe4ddc8503de0a1f0d1a68e22eedf718a5ba27b287"
+      },
+      "memories_vilasi_tribes.json": {
+        "bytes": 133021,
+        "sha256": "ef295aaf41337cea4da393960be3b253cb75ec5ae96d79e67a462bee10cc8593"
+      },
+      "state.historiography.json": {
+        "bytes": 589061,
+        "sha256": "db20dafe858308fe8e52efb6efa5dae334a23fabea5129088429d742e25f7e38"
+      },
+      "state.json": {
+        "bytes": 6642227,
+        "sha256": "2ca677d6525edd865d072ce20f404845f182c270a6a96f529407cfd26c0ab8cf"
+      },
+      "state.languages.json": {
+        "bytes": 327043,
+        "sha256": "1b6ec40fb6b20113a39df92aa77dd6c7be119a3ea50f42d3928b11d87a71da79"
+      }
+    },
+    "checkpoints": {}
+  }
+]

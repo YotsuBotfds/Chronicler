@@ -48,6 +48,7 @@ const buildAssets = (directory, prefix="") => Object.fromEntries(readdirSync(dir
 const report = { generated: new Date().toISOString(), ...options, constructed: expected.constructed, build_files_sha256:buildAssets(options.build),
   journey_script_sha256:createHash("sha256").update(readFileSync(fileURLToPath(import.meta.url))).digest("hex"),
   bundle_sha256: createHash("sha256").update(readFileSync(options.bundle)).digest("hex"),
+  bundle_bytes: statSync(options.bundle).size,
   build_index_sha256: createHash("sha256").update(readFileSync(path.join(options.build,"index.html"))).digest("hex"),
   evidence: "Provided saved bundle; construction metadata retained explicitly; expectations decoded by Python bundle_codec. Browser journeys are bounded UI checks, not qualification.", viewports: {} };
 let failures = 0;
@@ -88,6 +89,9 @@ try {
       await page.getByLabel("Open saved world file").setInputFiles(options.bundle);
       await page.waitForFunction((count) => document.querySelectorAll('.phase75-region-node').length === count && !!document.querySelector('.phase75-playhead-label') && !document.querySelector('.saved-world-loading'), expected.regions.length, {timeout:120000});
       result.timings_ms.saved_bundle_load=Math.round(performance.now()-loadStarted);
+      result.decode_phases=await page.evaluate(()=>performance.getEntriesByName("chronicler:bundle-decoded").at(-1)?.detail??null);
+      const identityText=await page.locator(".saved-world-details").textContent();
+      check(result,`${name}: uploaded artifact identity names original bytes`,identityText?.includes(path.basename(options.bundle))&&identityText.includes(report.bundle_sha256)&&identityText.includes(report.bundle_bytes.toLocaleString("en-US")),identityText??"missing details");
       const constructed=expected.constructed&&typeof expected.constructed.from==="string"&&/^[a-f0-9]{64}$/i.test(expected.constructed.from)&&Array.isArray(expected.constructed.edits)&&expected.constructed.edits.length>0;
       check(result,`${name}: explicit construction metadata controls the demonstration notice`,await page.getByRole("note",{name:"Constructed demonstration",exact:true}).count()===(constructed?1:0));
       const panel=options.journey === "public_health" ? "Epidemics" : "Livelihoods";
@@ -156,7 +160,15 @@ try {
           if(supply){const rows=await section.locator("tbody tr").evaluateAll(rs=>rs.map(r=>[...r.querySelectorAll("td")].map(c=>c.textContent)));const cells=[expected.regions[supply.region],supply.source===null?"unobserved":expected.regions[supply.source],(supply.food_milli/1000).toFixed(3),(supply.charged_milli/1000).toFixed(3),(supply.internal_milli/1000).toFixed(3),supply.reason];check(result,`${name} snapshot${snapshot.turn}: actual patient supply custody and internal versus cash cost`,rows.some(row=>JSON.stringify(row)===JSON.stringify(cells)),JSON.stringify(cells));}
           else check(result,`${name} snapshot${snapshot.turn}: absent supplies are explicit`,text.includes(record.supply_turn===null?"Supply settlement not observed":"No patient supplies requested"));
           const environment=record.environment.find(e=>e.displaced_share>0||e.water_service>0);
-          if(environment)check(result,`${name} snapshot${snapshot.turn}: prior environment source date and observed labels`,text.includes(`${expected.regions[environment.region]}: ${environment.residence_observed?`${(100*environment.displaced_share).toFixed(1)}% displaced`:"residence unobserved"}; ${environment.sanitation_observed?`water service ${(100*environment.water_service).toFixed(0)}%, flux susceptibility ×${environment.flux_factor.toFixed(2)}`:"water service unobserved"} (source turn ${environment.source_turn})`),JSON.stringify(environment));
+          if(environment){
+            const basis=environment.crowding_basis??record.crowding??"legacy_displacement";
+            const crowdingSource=environment.crowding_source_turn??environment.source_turn;
+            const recent=environment.arrival_diagnostics_complete===true&&environment.recent_arrival_share!==null
+              ? `recent residence arrivals ${(100*environment.recent_arrival_share).toFixed(1)}% (complete window and coverage)`
+              : `recent residence arrival share unknown${environment.arrival_diagnostics_complete===false?" (incomplete window or coverage)":" (not recorded)"}`;
+            check(result,`${name} snapshot${snapshot.turn}: prior residence, explicit multiplier clock and observed labels`,text.includes(`${expected.regions[environment.region]}: ${environment.residence_observed?`${(100*environment.displaced_share).toFixed(1)}% in motive-classified spells`:"residence unobserved"}; ${environment.sanitation_observed?`water service ${(100*environment.water_service).toFixed(0)}%, flux susceptibility ×${environment.flux_factor.toFixed(2)}`:"water service unobserved"}; extra susceptibility ×${environment.crowding_factor.toFixed(2)} (${basis}); ${recent} (residence/water source turn ${environment.source_turn}; multiplier source turn ${crowdingSource})`),JSON.stringify(environment));
+          }
+          check(result,`${name} snapshot${snapshot.turn}: crowding basis does not claim motive labels measure physical pressure`,text.includes((record.crowding??"legacy_displacement")==="density_only"?"Motive-classified ledger spells add no susceptibility multiplier":"it is not a measurement of physical crowding"));
           const decision=record.decisions.find(d=>d.close)??record.decisions[0];
           if(decision)check(result,`${name} snapshot${snapshot.turn}: actual delivered report identities and observed prior fatality`,text.includes(`${expected.civs[decision.civ]} → ${expected.civs[decision.target]}: ${decision.close?"close":"remain open"}; expected loss ${decision.expected_loss_units.toFixed(3)} against cost ${decision.cost_units.toFixed(3)}; ${decision.fatality_observed?"prior own fatality observed":"own fatality unobserved"}; reports ${decision.report_ids.join(", ")}`),JSON.stringify(decision));
           else check(result,`${name} snapshot${snapshot.turn}: undelivered advice is explicit`,text.includes(record.report_turn===null?"Reports not observed":"No delivered foreign outbreak advice"));

@@ -1,0 +1,651 @@
+{
+  "generated": "2026-11-07T21:29:15.700Z",
+  "config": {
+    "build": "/workspace/cwr-viewer/viewer/dist",
+    "plain": {
+      "file": "/workspace/evidence/cw6/pilot-final/runs/FULL-p19/chronicle_bundle.json",
+      "sha256": "f6cb5562a4aaec888b6f2a03b4c4b01bd1e8d49737aec22673034eba30ce0ee2"
+    },
+    "archive": {
+      "file": "/workspace/evidence/cwr-viewer/chronicle_bundle.json.gz",
+      "sha256": "0caf4aa01962c83052e41895bd8b5945f54630a334770eacb85896f4b3fdc790"
+    },
+    "worker_modes": [
+      "default",
+      "disabled"
+    ],
+    "repeats": 3,
+    "elapsed_ceiling_seconds": 300,
+    "budgets": {
+      "load_median": "archive <= 1.5 * paired plain + 500ms, each viewport/mode",
+      "cold_warm_median": "archive <= 1.2 * paired plain + 200ms; same unchanged index",
+      "scope": "bounded120TChromiumviewports,notrealhandset,nosimulationCPUorRSSclaim"
+    },
+    "pilot": {
+      "elapsed_seconds": 27.472086893,
+      "samples": 4,
+      "projected_24_seconds": 164.832521358,
+      "with_1_5_buffer": 247.248782037
+    }
+  },
+  "build_assets": {
+    "assets/AreaChart-DDQa9jyr.js": "eca9407f91595a949d4e216fcfcada8c1e4f265a3c23a21e8c3c004caaa33065",
+    "assets/BatchAnalytics-BBQ2VFTN.js": "a794ba99c04fc0273744f87eb3159746ca8bf644df9c53a01ff9cda974588042",
+    "assets/BatchCompare-CS4vW-yu.css": "35c60ba060a011a452342ccde389ab3c89960ed3492610c41cd3314b261beb80",
+    "assets/BatchCompare-DnC1W2Pp.js": "65d47c1c7ecd8f364ca3652e3e4e0443fbf50ac396f20fb039a81c6e40d5afbf",
+    "assets/BatchPanel-CKgz-r58.js": "44b1210c3c104e567d515543576b6008c5d7ac68e5458fef4384e3cf36bafd09",
+    "assets/bundleDecode.worker-BGR_W8B6.js": "2d19a8295a409b436b20808408ade7a0e02131c9ce3df6c02ac8f9a712ade86d",
+    "assets/CartesianChart-DhBNa9BX.js": "514899a347c69160f4fa1fb7c0ced5b579bfb4021fc8943ba916a1aeeb2b597d",
+    "assets/ChronicleSources-BokH5KZ1.js": "95ee2a67b55aec548eb668904e491eb994604759953a54feac22248b958b9202",
+    "assets/ChronicleSources-BTNieffh.css": "15891ddf7a9dfaf14b79d99777c0a03c8c7f962f0a63b26867d32bc0606ad285",
+    "assets/faiths-Cw5iQFVm.js": "8e7a0d2b48f577e8c58303f8797c0c3fbd3f4b175a0e6d705a34bd78892a0367",
+    "assets/index-CQnzAFm-.css": "d1ac1e8fb3f497a788f6520aaaba403fe54684caf2df04bca495ece62172ebd5",
+    "assets/index-i2eZ8D9V.js": "03a2ba7a4940f4ddc42ecb966059e3a54193911062fe1f3207ae62c9eaa4356c",
+    "assets/InterventionPanel-BaVtBPcV.css": "af2700d69880d25ce71113aea0882c1f9cfea110e9a356935df372fb6d70628f",
+    "assets/InterventionPanel-DRs4b98w.js": "5e1f0468097c145d9aff90e2b802d23573bc4aace745dd611dab5757ba34e089",
+    "assets/LanguagesPanel-CLOQAddr.js": "f608fe78137b22d4d8255e36ac2318aeb2860972a782b8fabc6893f0da503ffb",
+    "assets/learningServices-DNMQNWeB.js": "3c28ac55c7c38487c246e5133417bc7e4ecfba16d70b340b337651f20f3bc1c0",
+    "assets/LineChart-Cj_A-g8S.js": "3c286bcfc2f46d92202c06c6b489ea54d9fd683a63ec176bd18b0c9459c15362",
+    "assets/RegionHistoryInspector-BGEW2wUl.js": "4515d5b531ec074176e2dbaa9b2de976a0321b58b5030b4b326d9e4212493379",
+    "assets/RegionHistoryInspector-C0OEWtd0.css": "0c2304e349c6101f77a2f6e69d795c9ecf157c981e29cf7b766e81bef9058a39",
+    "assets/SystemsPanel-DxNUUiXG.js": "201d282d2fd236bc870fbf7ef6aee92c526e568e3744117174ffd0c1951eb89a",
+    "assets/watershed-DvJh8fZd.js": "6d51b5b3637d2ecd494bff7dc1c4664bf0b04e5aba1aa584559edd2eb0ceaa20",
+    "favicon.svg": "61bc9a161de58248288e6905425d7180f0624c2865007b97d763fdac12043a66",
+    "icons.svg": "b45fa506195cfcdef406ba9f0c77b36ddc1a7c224040926ec70abc2fdea7b93a",
+    "index.html": "4ed743e3738c8f48d2107721459c453e42ea620088fa17fba2db3e1025b11a64"
+  },
+  "script_sha256": "0eeda663206d38ecd0fa97dc18d8a57e816ed272c6b31b4c75906384439b3444",
+  "measurements": [
+    {
+      "mode": "default",
+      "repeat": 0,
+      "variant": "plain",
+      "viewport": "desktop",
+      "input_sha256": "f6cb5562a4aaec888b6f2a03b4c4b01bd1e8d49737aec22673034eba30ce0ee2",
+      "input_bytes": 37962968,
+      "timings_ms": {
+        "load": 2113.1120470000005,
+        "cold_history": 1515.433916,
+        "warm_history": 1126.2285219999994
+      },
+      "messages": [],
+      "decode_phases": {
+        "startedAt": 1794086965552.9001,
+        "read": 46.600000001490116,
+        "decode": 1154.3999999985099,
+        "receive": 417.19999999552965,
+        "longestReceive": 108.10000000149012,
+        "parts": 20
+      },
+      "original_identity_visible": true,
+      "entities": 3279,
+      "entities_sha256": "b7fc4c1951f2c56b4c2abfe9e05a8f65325c54641c7c1893d7ce262547162927",
+      "selected": "person:13",
+      "rows": 24,
+      "displayed_history_sha256": "c2c697e9667eb88d9ef991095ae5c214e895fd8145cf1dd5d350a9e0dca73858"
+    },
+    {
+      "mode": "default",
+      "repeat": 0,
+      "variant": "plain",
+      "viewport": "phone",
+      "input_sha256": "f6cb5562a4aaec888b6f2a03b4c4b01bd1e8d49737aec22673034eba30ce0ee2",
+      "input_bytes": 37962968,
+      "timings_ms": {
+        "load": 1758.3938799999996,
+        "cold_history": 1113.172789999997,
+        "warm_history": 942.4427030000006
+      },
+      "messages": [],
+      "decode_phases": {
+        "startedAt": 1794086972283,
+        "read": 35.30000000074506,
+        "decode": 984.3999999985099,
+        "receive": 367.80000000074506,
+        "longestReceive": 109.10000000149012,
+        "parts": 20
+      },
+      "original_identity_visible": true,
+      "entities": 3279,
+      "entities_sha256": "b7fc4c1951f2c56b4c2abfe9e05a8f65325c54641c7c1893d7ce262547162927",
+      "selected": "person:13",
+      "rows": 24,
+      "displayed_history_sha256": "c2c697e9667eb88d9ef991095ae5c214e895fd8145cf1dd5d350a9e0dca73858"
+    },
+    {
+      "mode": "default",
+      "repeat": 0,
+      "variant": "archive",
+      "viewport": "desktop",
+      "input_sha256": "0caf4aa01962c83052e41895bd8b5945f54630a334770eacb85896f4b3fdc790",
+      "input_bytes": 9460726,
+      "timings_ms": {
+        "load": 1996.0795700000017,
+        "cold_history": 1157.959863,
+        "warm_history": 1096.1111889999993
+      },
+      "messages": [],
+      "decode_phases": {
+        "startedAt": 1794086977909.1,
+        "read": 23.699999999254942,
+        "decode": 1120.9000000022352,
+        "receive": 381.70000000298023,
+        "longestReceive": 106.40000000223517,
+        "parts": 20
+      },
+      "original_identity_visible": true,
+      "entities": 3279,
+      "entities_sha256": "b7fc4c1951f2c56b4c2abfe9e05a8f65325c54641c7c1893d7ce262547162927",
+      "selected": "person:13",
+      "rows": 24,
+      "displayed_history_sha256": "c2c697e9667eb88d9ef991095ae5c214e895fd8145cf1dd5d350a9e0dca73858"
+    },
+    {
+      "mode": "default",
+      "repeat": 0,
+      "variant": "archive",
+      "viewport": "phone",
+      "input_sha256": "0caf4aa01962c83052e41895bd8b5945f54630a334770eacb85896f4b3fdc790",
+      "input_bytes": 9460726,
+      "timings_ms": {
+        "load": 1876.2473809999974,
+        "cold_history": 996.0633400000006,
+        "warm_history": 977.5124639999995
+      },
+      "messages": [],
+      "decode_phases": {
+        "startedAt": 1794086984014.5999,
+        "read": 16.099999997764826,
+        "decode": 1142.6000000014901,
+        "receive": 373.9000000022352,
+        "longestReceive": 120.80000000074506,
+        "parts": 20
+      },
+      "original_identity_visible": true,
+      "entities": 3279,
+      "entities_sha256": "b7fc4c1951f2c56b4c2abfe9e05a8f65325c54641c7c1893d7ce262547162927",
+      "selected": "person:13",
+      "rows": 24,
+      "displayed_history_sha256": "c2c697e9667eb88d9ef991095ae5c214e895fd8145cf1dd5d350a9e0dca73858"
+    },
+    {
+      "mode": "default",
+      "repeat": 1,
+      "variant": "archive",
+      "viewport": "desktop",
+      "input_sha256": "0caf4aa01962c83052e41895bd8b5945f54630a334770eacb85896f4b3fdc790",
+      "input_bytes": 9460726,
+      "timings_ms": {
+        "load": 2017.1585650000052,
+        "cold_history": 1187.2421560000003,
+        "warm_history": 1192.0564769999983
+      },
+      "messages": [],
+      "decode_phases": {
+        "startedAt": 1794086989594.5,
+        "read": 11.199999999254942,
+        "decode": 1113.699999999255,
+        "receive": 350.8999999985099,
+        "longestReceive": 102.59999999776483,
+        "parts": 20
+      },
+      "original_identity_visible": true,
+      "entities": 3279,
+      "entities_sha256": "b7fc4c1951f2c56b4c2abfe9e05a8f65325c54641c7c1893d7ce262547162927",
+      "selected": "person:13",
+      "rows": 24,
+      "displayed_history_sha256": "c2c697e9667eb88d9ef991095ae5c214e895fd8145cf1dd5d350a9e0dca73858"
+    },
+    {
+      "mode": "default",
+      "repeat": 1,
+      "variant": "archive",
+      "viewport": "phone",
+      "input_sha256": "0caf4aa01962c83052e41895bd8b5945f54630a334770eacb85896f4b3fdc790",
+      "input_bytes": 9460726,
+      "timings_ms": {
+        "load": 1995.569491999995,
+        "cold_history": 1094.6565520000004,
+        "warm_history": 993.6628320000018
+      },
+      "messages": [],
+      "decode_phases": {
+        "startedAt": 1794086995590.2,
+        "read": 32.400000002235174,
+        "decode": 1221.2999999970198,
+        "receive": 361.9999999962747,
+        "longestReceive": 106.60000000149012,
+        "parts": 20
+      },
+      "original_identity_visible": true,
+      "entities": 3279,
+      "entities_sha256": "b7fc4c1951f2c56b4c2abfe9e05a8f65325c54641c7c1893d7ce262547162927",
+      "selected": "person:13",
+      "rows": 24,
+      "displayed_history_sha256": "c2c697e9667eb88d9ef991095ae5c214e895fd8145cf1dd5d350a9e0dca73858"
+    },
+    {
+      "mode": "default",
+      "repeat": 1,
+      "variant": "plain",
+      "viewport": "desktop",
+      "input_sha256": "f6cb5562a4aaec888b6f2a03b4c4b01bd1e8d49737aec22673034eba30ce0ee2",
+      "input_bytes": 37962968,
+      "timings_ms": {
+        "load": 1856.9729430000007,
+        "cold_history": 1198.834321000002,
+        "warm_history": 982.6775469999993
+      },
+      "messages": [],
+      "decode_phases": {
+        "startedAt": 1794087001454.9001,
+        "read": 112.19999999925494,
+        "decode": 993.1999999992549,
+        "receive": 356.6000000052154,
+        "longestReceive": 105.19999999925494,
+        "parts": 20
+      },
+      "original_identity_visible": true,
+      "entities": 3279,
+      "entities_sha256": "b7fc4c1951f2c56b4c2abfe9e05a8f65325c54641c7c1893d7ce262547162927",
+      "selected": "person:13",
+      "rows": 24,
+      "displayed_history_sha256": "c2c697e9667eb88d9ef991095ae5c214e895fd8145cf1dd5d350a9e0dca73858"
+    },
+    {
+      "mode": "default",
+      "repeat": 1,
+      "variant": "plain",
+      "viewport": "phone",
+      "input_sha256": "f6cb5562a4aaec888b6f2a03b4c4b01bd1e8d49737aec22673034eba30ce0ee2",
+      "input_bytes": 37962968,
+      "timings_ms": {
+        "load": 1790.967128999997,
+        "cold_history": 1184.0183869999964,
+        "warm_history": 1021.6857919999966
+      },
+      "messages": [],
+      "decode_phases": {
+        "startedAt": 1794087007509.2,
+        "read": 71.69999999925494,
+        "decode": 973.8999999985099,
+        "receive": 403.30000000447035,
+        "longestReceive": 120.40000000223517,
+        "parts": 20
+      },
+      "original_identity_visible": true,
+      "entities": 3279,
+      "entities_sha256": "b7fc4c1951f2c56b4c2abfe9e05a8f65325c54641c7c1893d7ce262547162927",
+      "selected": "person:13",
+      "rows": 24,
+      "displayed_history_sha256": "c2c697e9667eb88d9ef991095ae5c214e895fd8145cf1dd5d350a9e0dca73858"
+    },
+    {
+      "mode": "default",
+      "repeat": 2,
+      "variant": "plain",
+      "viewport": "desktop",
+      "input_sha256": "f6cb5562a4aaec888b6f2a03b4c4b01bd1e8d49737aec22673034eba30ce0ee2",
+      "input_bytes": 37962968,
+      "timings_ms": {
+        "load": 1896.5750400000034,
+        "cold_history": 1324.5671120000043,
+        "warm_history": 1183.9015999999974
+      },
+      "messages": [],
+      "decode_phases": {
+        "startedAt": 1794087013449.5,
+        "read": 38.69999999925494,
+        "decode": 1015.5999999977648,
+        "receive": 360.0999999977648,
+        "longestReceive": 107.19999999925494,
+        "parts": 20
+      },
+      "original_identity_visible": true,
+      "entities": 3279,
+      "entities_sha256": "b7fc4c1951f2c56b4c2abfe9e05a8f65325c54641c7c1893d7ce262547162927",
+      "selected": "person:13",
+      "rows": 24,
+      "displayed_history_sha256": "c2c697e9667eb88d9ef991095ae5c214e895fd8145cf1dd5d350a9e0dca73858"
+    },
+    {
+      "mode": "default",
+      "repeat": 2,
+      "variant": "plain",
+      "viewport": "phone",
+      "input_sha256": "f6cb5562a4aaec888b6f2a03b4c4b01bd1e8d49737aec22673034eba30ce0ee2",
+      "input_bytes": 37962968,
+      "timings_ms": {
+        "load": 1779.7076540000053,
+        "cold_history": 1212.0387390000105,
+        "warm_history": 962.2477979999967
+      },
+      "messages": [],
+      "decode_phases": {
+        "startedAt": 1794087019774.3,
+        "read": 51.5,
+        "decode": 991,
+        "receive": 353.80000000447035,
+        "longestReceive": 109.39999999850988,
+        "parts": 20
+      },
+      "original_identity_visible": true,
+      "entities": 3279,
+      "entities_sha256": "b7fc4c1951f2c56b4c2abfe9e05a8f65325c54641c7c1893d7ce262547162927",
+      "selected": "person:13",
+      "rows": 24,
+      "displayed_history_sha256": "c2c697e9667eb88d9ef991095ae5c214e895fd8145cf1dd5d350a9e0dca73858"
+    },
+    {
+      "mode": "default",
+      "repeat": 2,
+      "variant": "archive",
+      "viewport": "desktop",
+      "input_sha256": "0caf4aa01962c83052e41895bd8b5945f54630a334770eacb85896f4b3fdc790",
+      "input_bytes": 9460726,
+      "timings_ms": {
+        "load": 1972.1048440000013,
+        "cold_history": 1332.6266560000076,
+        "warm_history": 1070.326872000005
+      },
+      "messages": [],
+      "decode_phases": {
+        "startedAt": 1794087025523.7,
+        "read": 49.899999998509884,
+        "decode": 1156,
+        "receive": 377.0000000037253,
+        "longestReceive": 109.69999999925494,
+        "parts": 20
+      },
+      "original_identity_visible": true,
+      "entities": 3279,
+      "entities_sha256": "b7fc4c1951f2c56b4c2abfe9e05a8f65325c54641c7c1893d7ce262547162927",
+      "selected": "person:13",
+      "rows": 24,
+      "displayed_history_sha256": "c2c697e9667eb88d9ef991095ae5c214e895fd8145cf1dd5d350a9e0dca73858"
+    },
+    {
+      "mode": "default",
+      "repeat": 2,
+      "variant": "archive",
+      "viewport": "phone",
+      "input_sha256": "0caf4aa01962c83052e41895bd8b5945f54630a334770eacb85896f4b3fdc790",
+      "input_bytes": 9460726,
+      "timings_ms": {
+        "load": 1810.3730700000015,
+        "cold_history": 1111.9627210000035,
+        "warm_history": 957.7077600000048
+      },
+      "messages": [],
+      "decode_phases": {
+        "startedAt": 1794087032054.1,
+        "read": 13,
+        "decode": 1041.3999999985099,
+        "receive": 345.69999999925494,
+        "longestReceive": 104.39999999850988,
+        "parts": 20
+      },
+      "original_identity_visible": true,
+      "entities": 3279,
+      "entities_sha256": "b7fc4c1951f2c56b4c2abfe9e05a8f65325c54641c7c1893d7ce262547162927",
+      "selected": "person:13",
+      "rows": 24,
+      "displayed_history_sha256": "c2c697e9667eb88d9ef991095ae5c214e895fd8145cf1dd5d350a9e0dca73858"
+    },
+    {
+      "mode": "disabled",
+      "repeat": 0,
+      "variant": "plain",
+      "viewport": "desktop",
+      "input_sha256": "f6cb5562a4aaec888b6f2a03b4c4b01bd1e8d49737aec22673034eba30ce0ee2",
+      "input_bytes": 37962968,
+      "timings_ms": {
+        "load": 1458.1684549999918,
+        "cold_history": 1264.849979999999,
+        "warm_history": 1012.0058390000049
+      },
+      "messages": [],
+      "decode_phases": null,
+      "original_identity_visible": true,
+      "entities": 3279,
+      "entities_sha256": "b7fc4c1951f2c56b4c2abfe9e05a8f65325c54641c7c1893d7ce262547162927",
+      "selected": "person:13",
+      "rows": 24,
+      "displayed_history_sha256": "c2c697e9667eb88d9ef991095ae5c214e895fd8145cf1dd5d350a9e0dca73858"
+    },
+    {
+      "mode": "disabled",
+      "repeat": 0,
+      "variant": "plain",
+      "viewport": "phone",
+      "input_sha256": "f6cb5562a4aaec888b6f2a03b4c4b01bd1e8d49737aec22673034eba30ce0ee2",
+      "input_bytes": 37962968,
+      "timings_ms": {
+        "load": 1396.0210260000022,
+        "cold_history": 1262.9323940000031,
+        "warm_history": 972.9844650000014
+      },
+      "messages": [],
+      "decode_phases": null,
+      "original_identity_visible": true,
+      "entities": 3279,
+      "entities_sha256": "b7fc4c1951f2c56b4c2abfe9e05a8f65325c54641c7c1893d7ce262547162927",
+      "selected": "person:13",
+      "rows": 24,
+      "displayed_history_sha256": "c2c697e9667eb88d9ef991095ae5c214e895fd8145cf1dd5d350a9e0dca73858"
+    },
+    {
+      "mode": "disabled",
+      "repeat": 0,
+      "variant": "archive",
+      "viewport": "desktop",
+      "input_sha256": "0caf4aa01962c83052e41895bd8b5945f54630a334770eacb85896f4b3fdc790",
+      "input_bytes": 9460726,
+      "timings_ms": {
+        "load": 1632.287547999993,
+        "cold_history": 1259.7625439999974,
+        "warm_history": 1020.4335330000031
+      },
+      "messages": [],
+      "decode_phases": null,
+      "original_identity_visible": true,
+      "entities": 3279,
+      "entities_sha256": "b7fc4c1951f2c56b4c2abfe9e05a8f65325c54641c7c1893d7ce262547162927",
+      "selected": "person:13",
+      "rows": 24,
+      "displayed_history_sha256": "c2c697e9667eb88d9ef991095ae5c214e895fd8145cf1dd5d350a9e0dca73858"
+    },
+    {
+      "mode": "disabled",
+      "repeat": 0,
+      "variant": "archive",
+      "viewport": "phone",
+      "input_sha256": "0caf4aa01962c83052e41895bd8b5945f54630a334770eacb85896f4b3fdc790",
+      "input_bytes": 9460726,
+      "timings_ms": {
+        "load": 1486.243353999991,
+        "cold_history": 1168.3705530000007,
+        "warm_history": 1078.5595020000037
+      },
+      "messages": [],
+      "decode_phases": null,
+      "original_identity_visible": true,
+      "entities": 3279,
+      "entities_sha256": "b7fc4c1951f2c56b4c2abfe9e05a8f65325c54641c7c1893d7ce262547162927",
+      "selected": "person:13",
+      "rows": 24,
+      "displayed_history_sha256": "c2c697e9667eb88d9ef991095ae5c214e895fd8145cf1dd5d350a9e0dca73858"
+    },
+    {
+      "mode": "disabled",
+      "repeat": 1,
+      "variant": "archive",
+      "viewport": "desktop",
+      "input_sha256": "0caf4aa01962c83052e41895bd8b5945f54630a334770eacb85896f4b3fdc790",
+      "input_bytes": 9460726,
+      "timings_ms": {
+        "load": 1619.4825370000035,
+        "cold_history": 1340.5305369999987,
+        "warm_history": 1382.508554
+      },
+      "messages": [],
+      "decode_phases": null,
+      "original_identity_visible": true,
+      "entities": 3279,
+      "entities_sha256": "b7fc4c1951f2c56b4c2abfe9e05a8f65325c54641c7c1893d7ce262547162927",
+      "selected": "person:13",
+      "rows": 24,
+      "displayed_history_sha256": "c2c697e9667eb88d9ef991095ae5c214e895fd8145cf1dd5d350a9e0dca73858"
+    },
+    {
+      "mode": "disabled",
+      "repeat": 1,
+      "variant": "archive",
+      "viewport": "phone",
+      "input_sha256": "0caf4aa01962c83052e41895bd8b5945f54630a334770eacb85896f4b3fdc790",
+      "input_bytes": 9460726,
+      "timings_ms": {
+        "load": 1626.7749239999976,
+        "cold_history": 1135.2063280000002,
+        "warm_history": 1066.2037310000014
+      },
+      "messages": [],
+      "decode_phases": null,
+      "original_identity_visible": true,
+      "entities": 3279,
+      "entities_sha256": "b7fc4c1951f2c56b4c2abfe9e05a8f65325c54641c7c1893d7ce262547162927",
+      "selected": "person:13",
+      "rows": 24,
+      "displayed_history_sha256": "c2c697e9667eb88d9ef991095ae5c214e895fd8145cf1dd5d350a9e0dca73858"
+    },
+    {
+      "mode": "disabled",
+      "repeat": 1,
+      "variant": "plain",
+      "viewport": "desktop",
+      "input_sha256": "f6cb5562a4aaec888b6f2a03b4c4b01bd1e8d49737aec22673034eba30ce0ee2",
+      "input_bytes": 37962968,
+      "timings_ms": {
+        "load": 1708.3519540000125,
+        "cold_history": 1428.0062369999941,
+        "warm_history": 1182.6761250000127
+      },
+      "messages": [],
+      "decode_phases": null,
+      "original_identity_visible": true,
+      "entities": 3279,
+      "entities_sha256": "b7fc4c1951f2c56b4c2abfe9e05a8f65325c54641c7c1893d7ce262547162927",
+      "selected": "person:13",
+      "rows": 24,
+      "displayed_history_sha256": "c2c697e9667eb88d9ef991095ae5c214e895fd8145cf1dd5d350a9e0dca73858"
+    },
+    {
+      "mode": "disabled",
+      "repeat": 1,
+      "variant": "plain",
+      "viewport": "phone",
+      "input_sha256": "f6cb5562a4aaec888b6f2a03b4c4b01bd1e8d49737aec22673034eba30ce0ee2",
+      "input_bytes": 37962968,
+      "timings_ms": {
+        "load": 1456.7173429999966,
+        "cold_history": 1301.6207219999924,
+        "warm_history": 1125.148927999995
+      },
+      "messages": [],
+      "decode_phases": null,
+      "original_identity_visible": true,
+      "entities": 3279,
+      "entities_sha256": "b7fc4c1951f2c56b4c2abfe9e05a8f65325c54641c7c1893d7ce262547162927",
+      "selected": "person:13",
+      "rows": 24,
+      "displayed_history_sha256": "c2c697e9667eb88d9ef991095ae5c214e895fd8145cf1dd5d350a9e0dca73858"
+    },
+    {
+      "mode": "disabled",
+      "repeat": 2,
+      "variant": "plain",
+      "viewport": "desktop",
+      "input_sha256": "f6cb5562a4aaec888b6f2a03b4c4b01bd1e8d49737aec22673034eba30ce0ee2",
+      "input_bytes": 37962968,
+      "timings_ms": {
+        "load": 1512.1664509999973,
+        "cold_history": 1432.68243299998,
+        "warm_history": 1019.1992289999907
+      },
+      "messages": [],
+      "decode_phases": null,
+      "original_identity_visible": true,
+      "entities": 3279,
+      "entities_sha256": "b7fc4c1951f2c56b4c2abfe9e05a8f65325c54641c7c1893d7ce262547162927",
+      "selected": "person:13",
+      "rows": 24,
+      "displayed_history_sha256": "c2c697e9667eb88d9ef991095ae5c214e895fd8145cf1dd5d350a9e0dca73858"
+    },
+    {
+      "mode": "disabled",
+      "repeat": 2,
+      "variant": "plain",
+      "viewport": "phone",
+      "input_sha256": "f6cb5562a4aaec888b6f2a03b4c4b01bd1e8d49737aec22673034eba30ce0ee2",
+      "input_bytes": 37962968,
+      "timings_ms": {
+        "load": 1426.4523950000003,
+        "cold_history": 1248.5737410000002,
+        "warm_history": 966.1912709999888
+      },
+      "messages": [],
+      "decode_phases": null,
+      "original_identity_visible": true,
+      "entities": 3279,
+      "entities_sha256": "b7fc4c1951f2c56b4c2abfe9e05a8f65325c54641c7c1893d7ce262547162927",
+      "selected": "person:13",
+      "rows": 24,
+      "displayed_history_sha256": "c2c697e9667eb88d9ef991095ae5c214e895fd8145cf1dd5d350a9e0dca73858"
+    },
+    {
+      "mode": "disabled",
+      "repeat": 2,
+      "variant": "archive",
+      "viewport": "desktop",
+      "input_sha256": "0caf4aa01962c83052e41895bd8b5945f54630a334770eacb85896f4b3fdc790",
+      "input_bytes": 9460726,
+      "timings_ms": {
+        "load": 1659.9563109999872,
+        "cold_history": 1305.002416000003,
+        "warm_history": 1089.353289999999
+      },
+      "messages": [],
+      "decode_phases": null,
+      "original_identity_visible": true,
+      "entities": 3279,
+      "entities_sha256": "b7fc4c1951f2c56b4c2abfe9e05a8f65325c54641c7c1893d7ce262547162927",
+      "selected": "person:13",
+      "rows": 24,
+      "displayed_history_sha256": "c2c697e9667eb88d9ef991095ae5c214e895fd8145cf1dd5d350a9e0dca73858"
+    },
+    {
+      "mode": "disabled",
+      "repeat": 2,
+      "variant": "archive",
+      "viewport": "phone",
+      "input_sha256": "0caf4aa01962c83052e41895bd8b5945f54630a334770eacb85896f4b3fdc790",
+      "input_bytes": 9460726,
+      "timings_ms": {
+        "load": 1465.254826999997,
+        "cold_history": 1119.5041740000015,
+        "warm_history": 1099.2188850000093
+      },
+      "messages": [],
+      "decode_phases": null,
+      "original_identity_visible": true,
+      "entities": 3279,
+      "entities_sha256": "b7fc4c1951f2c56b4c2abfe9e05a8f65325c54641c7c1893d7ce262547162927",
+      "selected": "person:13",
+      "rows": 24,
+      "displayed_history_sha256": "c2c697e9667eb88d9ef991095ae5c214e895fd8145cf1dd5d350a9e0dca73858"
+    }
+  ],
+  "elapsed_seconds": 141.51360097199998,
+  "note": "Fresh Chromium context for every cold load; warm is same-page tab reopen. Same build and expanded bytes, desktop/phone viewports, no CPU throttling. File/load timings include inflation; worker decode detail includes inflation and JSON expansion. Main-thread fallback is measured separately. No simulation, no data reduction, no RSS claim.",
+  "equal_visible_histories": true
+}

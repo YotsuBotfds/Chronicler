@@ -1046,7 +1046,7 @@ MIGRATION_DRIVER_NAMES: tuple[str, ...] = (
 #: land, seeking work, joining kin, moving to a city, going to study.
 VOLUNTARY_MIGRATION_DRIVERS: frozenset[str] = frozenset({"frontier", "wage", "chain", "urban",
                                                          "learning"})
-#: ``AgentEventRecord.migration_driver`` of events that are not migrations
+#: No known migration attribution, including adaptive migrations and non-migrations
 #: (and of every event read from an extension or file without the column).
 NO_MIGRATION_DRIVER = 255
 

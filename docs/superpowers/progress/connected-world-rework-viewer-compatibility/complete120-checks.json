@@ -1,0 +1,50 @@
+{
+  "ui_source": "71accf9449965ac77936e69f0391ef9a43b5bbcd",
+  "viewer_source_changes": false,
+  "scope": "Actual saved 120-turn AD-p19 pilot; functional checks only",
+  "bundle_sha256": "b9d42be3b1d2417165ec9e889d1d7543cefca63fd2dc7037eb7b7831cce5a8c6",
+  "all_snapshot_strict_readers": {
+    "snapshots": 120,
+    "observations": 197271,
+    "all_pointers_resolve": true,
+    "strict_valid": true,
+    "full_external_receipt_sha256": "d664841f436b0c0f1c5f5224a0aa94c0dfb0a7be44e6ab9bd8cb973d9d0128f4",
+    "committed_receipt": "Identical JSON values, minified only"
+  },
+  "arrival_clock_readback": {
+    "regional_observations": 3840,
+    "different_from_same_turn": 2163,
+    "all_prior_frame_shares_match": true,
+    "comparison_values_checked_against_next_saved_ph": 3808,
+    "superseded_counter": 2392,
+    "counter_correction": "Complete sparse-empty current regions must use zero, matching prior-frame arithmetic and next saved PH output."
+  },
+  "browser": {
+    "selected_turns": [
+      1,
+      22,
+      23,
+      120
+    ],
+    "checks": 372,
+    "failed": 0,
+    "build_assets_match_reviewed_layout_after": true,
+    "script_matches_receipt": true,
+    "initial_harness_failure": {
+      "checks": 366,
+      "failed": 6,
+      "cause": "Assumed installed input row visible on first24historyrows; one earlier-page expansion reveals exact current pointer",
+      "ui_fix_needed": false
+    }
+  },
+  "setup_error": {
+    "command": "Initial exploratory Python candidate readback",
+    "error": "Missing whitespace in or0 caused SyntaxError before reading the saved bundle",
+    "resolution": "Corrected syntax, reran saved-record readback; no seeds or model runs spent"
+  },
+  "not_rerun": [
+    "Full viewer suite/lint/build: frozen UI unchanged; original receipts retained.",
+    "Legacy v6/gzip: actual journeys and full190555row identity proof retained.",
+    "Native/simulation tests, performance profiles and restricted qualification: no new runs in this docs-only follow-up."
+  ]
+}

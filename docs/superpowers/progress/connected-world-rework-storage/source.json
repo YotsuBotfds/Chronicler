@@ -1,0 +1,29 @@
+{
+  "implementation_commit": "4634a69da177c4bfa0caf62ad380a9fe39d43639",
+  "baseline_commit": "2726bf449d0e4d581a72034000ee0861a58ee439",
+  "preflight": "bundle_codec source has no enforced pins; existing test_bundle_codec remains in its historical shard/oracle chunk",
+  "files": {
+    "src/chronicler/bundle_codec.py": "4960fc650bb6f8cb0a0573ffbc51c12bf655b9e14154891d6a4afd7600d7148d",
+    "scripts/cw_bundle_archive.py": "a1cf40611bb0b584ffb3dd2d8995aead879e06854b61f69d3824b58a9041c79d",
+    "tests/test_bundle_codec.py": "957054bc7cb79294857db9361ef1ff755a1700d2da7aac0e385d74cae2db1c21"
+  },
+  "native_builds": 0,
+  "paid_calls": 0,
+  "defaults_changed": false,
+  "evaluation_simulations": 0,
+  "standard_test_simulation_fixtures": "Existing enrolled codec tests include a short Python-only run under test factories; no new screen/evaluation/model replay.",
+  "encoder_and_decoder_functions_unchanged": [
+    "same",
+    "_check_keys",
+    "_literal",
+    "_key",
+    "_diff",
+    "_diff_dict",
+    "_diff_list",
+    "encode_history",
+    "encode_bundle",
+    "dumps_bundle",
+    "decode_bundle",
+    "decode_history"
+  ]
+}

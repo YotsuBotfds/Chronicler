@@ -1,0 +1,76 @@
+FF                                                                       [100%]
+=================================== FAILURES ===================================
+_______ test_no_dispatch_builds_no_unused_population_projection[needs0] ________
+
+lane = (namespace(civilizations=[namespace(name='C0', treasury=50), namespace(name='C1', treasury=50)], turn=2, agent_mode='h... flows_turn=None, flows=[], flows_dropped=0, totals=[])), <test_timber_orders.CarrierSim object at 0x7f1e2f871550>, {})
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f1e2f856b10>
+needs = []
+
+    @pytest.mark.parametrize("needs", [[], [(1, 1, 2.0)]])
+    def test_no_dispatch_builds_no_unused_population_projection(lane, monkeypatch, needs):
+        from chronicler import adaptive_livelihoods as A, local_budgets as LB
+        world, state, sim, _ = lane
+        visits = []
+
+        class CountedPeople(dict):
+            def items(self):
+                visits.append(len(self))
+                return super().items()
+
+        sim.wealth = {aid: 10.0 for aid in range(100)}
+        people = CountedPeople({aid: (0, TT.MERCHANT, 30, 10.0) for aid in sim.wealth})
+        monkeypatch.setattr(TT, "_people", lambda _: people)
+        monkeypatch.setattr(A, "trade_destinations", lambda *_: None)
+        monkeypatch.setattr(T, "_needs", lambda _: needs)
+        monkeypatch.setattr(LB, "envelope", lambda *_args, **_kwargs: 0)
+        T.phase10_before_reserves(world, None, None, NS(_sim=sim))
+        assert not state.orders and not state.book.settled
+        assert sim.wealth == {aid: 10.0 for aid in range(100)}
+        assert [c.treasury for c in world.civilizations] == [50, 50]
+        assert world.regions[0].stockpile.goods["timber"] == 10.0
+>       assert visits == []
+E       assert [100] == []
+E
+E         Left contains one more item: 100
+E         Use -v to get more diff
+
+tests/test_timber_orders.py:394: AssertionError
+_______ test_no_dispatch_builds_no_unused_population_projection[needs1] ________
+
+lane = (namespace(civilizations=[namespace(name='C0', treasury=50), namespace(name='C1', treasury=50)], turn=2, agent_mode='h... flows_turn=None, flows=[], flows_dropped=0, totals=[])), <test_timber_orders.CarrierSim object at 0x7f1e30061590>, {})
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f1e2f8568b0>
+needs = [(1, 1, 2.0)]
+
+    @pytest.mark.parametrize("needs", [[], [(1, 1, 2.0)]])
+    def test_no_dispatch_builds_no_unused_population_projection(lane, monkeypatch, needs):
+        from chronicler import adaptive_livelihoods as A, local_budgets as LB
+        world, state, sim, _ = lane
+        visits = []
+
+        class CountedPeople(dict):
+            def items(self):
+                visits.append(len(self))
+                return super().items()
+
+        sim.wealth = {aid: 10.0 for aid in range(100)}
+        people = CountedPeople({aid: (0, TT.MERCHANT, 30, 10.0) for aid in sim.wealth})
+        monkeypatch.setattr(TT, "_people", lambda _: people)
+        monkeypatch.setattr(A, "trade_destinations", lambda *_: None)
+        monkeypatch.setattr(T, "_needs", lambda _: needs)
+        monkeypatch.setattr(LB, "envelope", lambda *_args, **_kwargs: 0)
+        T.phase10_before_reserves(world, None, None, NS(_sim=sim))
+        assert not state.orders and not state.book.settled
+        assert sim.wealth == {aid: 10.0 for aid in range(100)}
+        assert [c.treasury for c in world.civilizations] == [50, 50]
+        assert world.regions[0].stockpile.goods["timber"] == 10.0
+>       assert visits == []
+E       assert [100] == []
+E
+E         Left contains one more item: 100
+E         Use -v to get more diff
+
+tests/test_timber_orders.py:394: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_timber_orders.py::test_no_dispatch_builds_no_unused_population_projection[needs0]
+FAILED tests/test_timber_orders.py::test_no_dispatch_builds_no_unused_population_projection[needs1]
+2 failed in 0.28s

@@ -64,8 +64,27 @@ waterworks or sanitation buildings. Its full service reduces within-region flux
 susceptibility by 20%; no other pathogen, endemic severity, injury episode or
 death path changes. Missing or stale service is neutral. The epidemic tick reads
 X1 aggregates through `read_frame(consumer_turn=T)` only: the frame dated T−1.
-The displaced share adds at most 25% susceptibility, keeping the existing density
-term. Unobserved residence is labelled, never inferred from narration's share.
+Corrected runs explicitly use `--public-health-crowding density_only`; the
+existing new-run default remains `legacy_displacement` without promotion. The existing
+population/capacity density and city factors remain authoritative, and the extra
+multiplier is1. Motive-classified X1 spells do not measure housing/contact
+conditions. `legacy_displacement` explicitly reproduces the old additional
+`1 + .25 × classified displaced share` term for historical controls. Old JSON
+and exact checkpoints missing the new field retain that legacy choice; saved
+choices cannot silently change. Both modes keep the same supplies, wages,
+reports, care and sanitation authorities. No motive is inferred to fill an
+unknown field, and no new housing mechanism is invented.
+
+X1 separately exposes observed recent residential arrivals across a20-write
+calendar window, independent of reason. Each living stable ID contributes at
+most once at final residence; onward/return moves and actual trip-unwind
+relocations update the clock, ordinary trips do not. This is not forced
+displacement or measured crowding. Refused/deferred rows, observation gaps and
+pool resets restart the full-coverage clock. The PH arrival share is null until
+20 consecutive fully covered writes; partial counts are not a population ratio.
+Old frames without the optional diagnostics remain unknown. The configured
+neutral multiplier is dated to its current application tick; prior X1 and
+sanitation inputs retain their own T−1 dates.
 
 C4 issues reports from reported regional outbreak rows. Own reports arrive after
 one turn; neighboring ledger recipients after two, plus

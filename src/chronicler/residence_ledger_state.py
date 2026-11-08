@@ -104,6 +104,13 @@ MAX_EVENTS = 512
 #: At most this many person rows (living observed people) are kept.
 MAX_ROWS = 262_144
 
+# Factual observed residential changes, independent of the attributed motive.
+# Calendar window, not evidence that somebody has obtained adequate housing.
+ARRIVAL_WINDOW_TURNS = 20
+ARRIVAL_COUNT_KEYS = ("recent_residence_arrivals", "recent_residence_arrivals_unknown_reason")
+REGION_KEYS += ARRIVAL_COUNT_KEYS
+TOTAL_KEYS += ARRIVAL_COUNT_KEYS
+
 
 def _is_none(value) -> bool:
     return value is None
@@ -172,6 +179,10 @@ class ResidenceLedgerState(BaseModel):
     watch_from: int | None = None
     #: The last observed turn.
     last_turn: int | None = None
+    #: First of the current consecutive fully covered writes. A recovered row
+    #: cap/traveller gap cannot establish a complete prior arrival window.
+    #: Old checkpoints conservatively start this new observation clock afresh.
+    arrival_coverage_since: int | None = None
     #: The completed turn's frame (aggregates) and spell events. None: not observed.
     #: The frame and events are in every snapshot record, so JSON output leaves
     #: them out (review nit); exact checkpoints keep them.

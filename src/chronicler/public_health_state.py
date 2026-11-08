@@ -41,6 +41,9 @@ class PublicHealthState(BaseModel):
     mode: Literal["active", "cost_only"] = "active"
     policy: Literal["evidence", "shuffled"] = "evidence"
     report_delay: int = Field(default=0, ge=0, le=20)
+    # Persisted default is historical: old JSON and exact pickles must retain
+    # their model. density_only is an explicit corrected opt-in, no promotion.
+    crowding: Literal["legacy_displacement", "density_only"] = "legacy_displacement"
     next_report: int = 0
     reports: list[OutbreakReport] = Field(default_factory=list)
     report_turn: int | None = None

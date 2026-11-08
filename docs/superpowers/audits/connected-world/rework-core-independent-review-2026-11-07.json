@@ -1,0 +1,48 @@
+{
+  "review": "independent X1/A6/C2 source review; scoped approval, not final gate execution",
+  "root_head_at_review": "8f0ce665a9f85e06fa8f660992c5deb9420744be",
+  "root_had_uncommitted_refinements": true,
+  "reviewed_source_sha256": {
+    "src/chronicler/adaptive_livelihoods.py": "3790964097853ad1d265cb6264a1c44a5cf4ec936c7d675873ad76f0ce9a7dc3",
+    "src/chronicler/adaptive_livelihoods_state.py": "9b811a0d8e7569f07bbf067e536fad7e14fe4860f8dfc7e4e63aa6d46628a6ea",
+    "src/chronicler/public_health.py": "5b36b721fd7995e2fb47f2179da7526176fe5af255a7a590efebbe7cff76d8f5",
+    "src/chronicler/public_health_state.py": "fbb14630466ae3f2add0c4a07ec1cde5c0c1e035471cf9bc92dec9f921f5f400",
+    "src/chronicler/residence_ledger.py": "67a94f7ee3b55d1ada94bc8411c59007796029790f7d445968eff0380f2352b2",
+    "src/chronicler/residence_ledger_state.py": "66090bc4bda977654e596f0ade0785504af6953e23f8d88d092be2d1f5468092",
+    "src/chronicler/models.py": "64eb25174ca7e815d752dae96f39403a9d1d1668646d2e5e4cf468fc47db38b6",
+    "src/chronicler/livelihoods.py": "5cc4f95492f79038163c900d99bfb3e49a2c47bcf5eccf3596844b9b9cd27ff3",
+    "src/chronicler/batch_manifest.py": "5d3a498e673ecffd49b8e564dafdddf0ff95f2c06b50b83131270a62b5644e2d",
+    "src/chronicler/feature_catalog.py": "944584811cbb79979cb70d72305c596bd4c968d0a144c805db912c03f9b9a980",
+    "src/chronicler/narration_provenance.py": "68699256742255f761f1c6d50aa304c0736f914d71b0210b58cadd6ac6e3e4e8",
+    "chronicler-agents/src/tick.rs": "1aac475fe953ed77775c67e9f415116ca691511adf096003e939f4d7d6690856",
+    "chronicler-agents/src/tick/residence_exposure_tests.rs": "7facc023928fbf55693f4001c926c5e9c69ef81e26aba6a90ca4b4c01f8324b9",
+    "tests/test_adaptive_controls.py": "9f05174ee917e6a421c03b4b3ac0723f90622f1797d634d73341dc422f43f093",
+    "tests/test_residence_exposure.py": "6fbc0607bb523c200097d9d3e11aa1a3396a9539e659250b855e10c42ac25a17",
+    "tests/test_residence_exposure_native.py": "87e4117b57948afc7085605aab5683e3e14a38f661242d4daccaf6377c938d12",
+    "tests/test_connected_record_provenance.py": "a2b795ab465fb0517971245edc6c5bad7487021a327a9fec41cf7b87d5ff09e5",
+    "tests/fixtures/livelihoods_cwr1_source_inverse.json": "a0d196a905eaea87c2c504b05c5f7c310d437c22a65325692f73f174c15267d7",
+    "scripts/testing/livelihoods_sprint_witness.py": "0c52846579095257d403b9139ede416f8c8035f9007b562683e96b7bd5781a7a"
+  },
+  "reviewer_focused_test_selection": [
+    "tests/test_adaptive_controls.py",
+    "tests/test_residence_exposure.py",
+    "tests/test_connected_record_provenance.py"
+  ],
+  "reviewer_focused_result": "104passed0failed in0.64s; CPython3.13.16 no-native environment",
+  "inverse": {
+    "parent": "2726bf449d0e4d581a72034000ee0861a58ee439",
+    "files": 4,
+    "hunks": 6,
+    "exact_bidirectional_verified": true,
+    "historical_fixtures_unchanged": true
+  },
+  "standard_rust_log": "/workspace/evidence/cwr-rust-full.log",
+  "standard_rust": {
+    "suites": 40,
+    "passed": 1339,
+    "failed": 0,
+    "ignored": 2
+  },
+  "native_execution": "Separate integration owner receipts; not independently rerun by this reviewer",
+  "approval": "no identified semantic blocker at reviewed hashes; no source edits by reviewer; freeze/pilot/held/resume/identity/CI remain separate gates"
+}

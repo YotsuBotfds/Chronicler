@@ -1,0 +1,71 @@
+{
+  "status": "RECORDED_ONCE_AFTER_CLOSURE",
+  "registry_sha256_before": "e23ecc83fcf94770749b28672d1caca59f3070e4add0dc36f4a07fd1dbf5394c",
+  "registry_sha256_after": "8f85ed56fa13672145b049809b0e2ffb3f3b7889c44eb3e59b9e20801221eebb",
+  "registry_content_sha256_unchanged": "62ce5aa81170da9efa52c56340ef8719f78eae9dfe612459f798195efb3cc446",
+  "entries": [
+    {
+      "id": "cwr1-held-t",
+      "source": "docs/superpowers/progress/connected-world-rework-prereg-draft.md; connected-world-rework-seed-reservation.json live ref audit, 2026-11-07",
+      "use": "CWR1 corrected causal mechanisms bounded screen; reservation does not spend held seeds",
+      "stratum": "template",
+      "world": "template 8x4",
+      "seeds": [
+        [
+          4101,
+          4106
+        ]
+      ],
+      "turns": [
+        120
+      ],
+      "status": "run",
+      "program": "connected-world-rework",
+      "cohort": "held",
+      "screen": "CWR1",
+      "held_run": {
+        "out": "/workspace/evidence/cwr-evaluation/held-cwr1-b45c1e99-v1",
+        "identity": "98c7bb2accb18b04e68f0585780ba58f85f03ece77c987d82ff67ceb7d9370a8",
+        "started": "2026-11-07T22:41:33Z",
+        "rows": 144,
+        "complete": true,
+        "recorded": "2026-11-07T23:40:21Z"
+      }
+    },
+    {
+      "id": "cwr1-held-p",
+      "source": "docs/superpowers/progress/connected-world-rework-prereg-draft.md; connected-world-rework-seed-reservation.json live ref audit, 2026-11-07",
+      "use": "CWR1 corrected causal mechanisms bounded screen; reservation does not spend held seeds",
+      "stratum": "procedural",
+      "world": "procedural 32x10",
+      "seeds": [
+        [
+          4201,
+          4206
+        ]
+      ],
+      "turns": [
+        120
+      ],
+      "status": "run",
+      "program": "connected-world-rework",
+      "cohort": "held",
+      "screen": "CWR1",
+      "held_run": {
+        "out": "/workspace/evidence/cwr-evaluation/held-cwr1-b45c1e99-v1",
+        "identity": "98c7bb2accb18b04e68f0585780ba58f85f03ece77c987d82ff67ceb7d9370a8",
+        "started": "2026-11-07T22:41:33Z",
+        "rows": 144,
+        "complete": true,
+        "recorded": "2026-11-07T23:40:21Z"
+      }
+    }
+  ],
+  "rows": 144,
+  "independent_arithmetic_status": "PASS",
+  "source": "b45c1e99572d4d6a60fb01fbd75cb7688aa54e93",
+  "metrics_sha256": "6c56e3ffa725848c69aecf6f2edfcdf81adb18e5c5f038562e2c9d3c73ace9e0",
+  "report_sha256": "e5d64f1658265a64ed100d158d650d29eed1f0247d77ea980599c3a145eaf2c3",
+  "command": "PYTHONPATH=/workspace/cwr-held-runtime/src /workspace/cwr-native/bin/python /workspace/cwr-held-runtime/scripts/cw_rework_screen.py mark-run /workspace/evidence/cwr-evaluation/held-cwr1-b45c1e99-v1 --screen CWR1 --registry /workspace/Chronicler/scripts/seed_registry.json",
+  "note": "One standard mark-run; no source/seed/control/protocol changes. Historical CW3 failure preserved."
+}

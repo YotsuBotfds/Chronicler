@@ -1,0 +1,1113 @@
+{
+  "generated": "2026-11-07T21:27:09.823Z",
+  "runtime": "/workspace/evidence/cwr-viewer/locales/en_US-after.json.runtime.mjs",
+  "runtime_sha256": "4d286453adea50030764a673b215b4e1c750674b1471e720bf628cb3593e2ce8",
+  "bundle": "/workspace/evidence/cw6/pilot-final/runs/FULL-p19/chronicle_bundle.json",
+  "bundle_sha256": "f6cb5562a4aaec888b6f2a03b4c4b01bd1e8d49737aec22673034eba30ce0ee2",
+  "elapsed_ms": 770.1218059999999,
+  "index_sha256": "ff4554e9f262cc6804e1c8a04c478ede21c3bb5aa19fb95b120d363e83b21e0d",
+  "self": [
+    {
+      "frame": {
+        "functionName": "post",
+        "scriptId": "88",
+        "url": "node:inspector",
+        "lineNumber": 114,
+        "columnNumber": 6
+      },
+      "sampled_ms": 190.084
+    },
+    {
+      "frame": {
+        "functionName": "(garbage collector)",
+        "scriptId": "0",
+        "url": "",
+        "lineNumber": -1,
+        "columnNumber": -1
+      },
+      "sampled_ms": 179.044
+    },
+    {
+      "frame": {
+        "functionName": "add",
+        "scriptId": "156",
+        "url": "file:///workspace/evidence/cwr-viewer/locales/en_US-after.json.runtime.mjs",
+        "lineNumber": 2585,
+        "columnNumber": 18
+      },
+      "sampled_ms": 117.715
+    },
+    {
+      "frame": {
+        "functionName": "",
+        "scriptId": "156",
+        "url": "file:///workspace/evidence/cwr-viewer/locales/en_US-after.json.runtime.mjs",
+        "lineNumber": 2982,
+        "columnNumber": 60
+      },
+      "sampled_ms": 84.217
+    },
+    {
+      "frame": {
+        "functionName": "",
+        "scriptId": "156",
+        "url": "file:///workspace/evidence/cwr-viewer/locales/en_US-after.json.runtime.mjs",
+        "lineNumber": 2560,
+        "columnNumber": 32
+      },
+      "sampled_ms": 40.527
+    },
+    {
+      "frame": {
+        "functionName": "num2",
+        "scriptId": "156",
+        "url": "file:///workspace/evidence/cwr-viewer/locales/en_US-after.json.runtime.mjs",
+        "lineNumber": 2528,
+        "columnNumber": 11
+      },
+      "sampled_ms": 38.478
+    },
+    {
+      "frame": {
+        "functionName": "",
+        "scriptId": "156",
+        "url": "file:///workspace/evidence/cwr-viewer/locales/en_US-after.json.runtime.mjs",
+        "lineNumber": 2757,
+        "columnNumber": 25
+      },
+      "sampled_ms": 25.697
+    },
+    {
+      "frame": {
+        "functionName": "provisioningProblem",
+        "scriptId": "156",
+        "url": "file:///workspace/evidence/cwr-viewer/locales/en_US-after.json.runtime.mjs",
+        "lineNumber": 637,
+        "columnNumber": 28
+      },
+      "sampled_ms": 16.983
+    },
+    {
+      "frame": {
+        "functionName": "regionProblem",
+        "scriptId": "156",
+        "url": "file:///workspace/evidence/cwr-viewer/locales/en_US-after.json.runtime.mjs",
+        "lineNumber": 695,
+        "columnNumber": 22
+      },
+      "sampled_ms": 15.433
+    },
+    {
+      "frame": {
+        "functionName": "readHouseholdRetail",
+        "scriptId": "156",
+        "url": "file:///workspace/evidence/cwr-viewer/locales/en_US-after.json.runtime.mjs",
+        "lineNumber": 744,
+        "columnNumber": 28
+      },
+      "sampled_ms": 11.095
+    },
+    {
+      "frame": {
+        "functionName": "",
+        "scriptId": "156",
+        "url": "file:///workspace/evidence/cwr-viewer/locales/en_US-after.json.runtime.mjs",
+        "lineNumber": 2790,
+        "columnNumber": 38
+      },
+      "sampled_ms": 10.427
+    },
+    {
+      "frame": {
+        "functionName": "coins",
+        "scriptId": "156",
+        "url": "file:///workspace/evidence/cwr-viewer/locales/en_US-after.json.runtime.mjs",
+        "lineNumber": 2527,
+        "columnNumber": 12
+      },
+      "sampled_ms": 9.979
+    },
+    {
+      "frame": {
+        "functionName": "",
+        "scriptId": "156",
+        "url": "file:///workspace/evidence/cwr-viewer/locales/en_US-after.json.runtime.mjs",
+        "lineNumber": 2853,
+        "columnNumber": 71
+      },
+      "sampled_ms": 6.584
+    },
+    {
+      "frame": {
+        "functionName": "",
+        "scriptId": "156",
+        "url": "file:///workspace/evidence/cwr-viewer/locales/en_US-after.json.runtime.mjs",
+        "lineNumber": 2789,
+        "columnNumber": 23
+      },
+      "sampled_ms": 6.54
+    },
+    {
+      "frame": {
+        "functionName": "indexEntityHistory",
+        "scriptId": "156",
+        "url": "file:///workspace/evidence/cwr-viewer/locales/en_US-after.json.runtime.mjs",
+        "lineNumber": 2530,
+        "columnNumber": 27
+      },
+      "sampled_ms": 6.518
+    },
+    {
+      "frame": {
+        "functionName": "",
+        "scriptId": "156",
+        "url": "file:///workspace/evidence/cwr-viewer/locales/en_US-after.json.runtime.mjs",
+        "lineNumber": 1026,
+        "columnNumber": 41
+      },
+      "sampled_ms": 6.501
+    },
+    {
+      "frame": {
+        "functionName": "adaptiveAt",
+        "scriptId": "156",
+        "url": "file:///workspace/evidence/cwr-viewer/locales/en_US-after.json.runtime.mjs",
+        "lineNumber": 1458,
+        "columnNumber": 19
+      },
+      "sampled_ms": 6.5
+    },
+    {
+      "frame": {
+        "functionName": "readWatershed",
+        "scriptId": "156",
+        "url": "file:///workspace/evidence/cwr-viewer/locales/en_US-after.json.runtime.mjs",
+        "lineNumber": 2143,
+        "columnNumber": 22
+      },
+      "sampled_ms": 6.308
+    },
+    {
+      "frame": {
+        "functionName": "publicHealthAt",
+        "scriptId": "156",
+        "url": "file:///workspace/evidence/cwr-viewer/locales/en_US-after.json.runtime.mjs",
+        "lineNumber": 1506,
+        "columnNumber": 23
+      },
+      "sampled_ms": 6.174
+    },
+    {
+      "frame": {
+        "functionName": "",
+        "scriptId": "156",
+        "url": "file:///workspace/evidence/cwr-viewer/locales/en_US-after.json.runtime.mjs",
+        "lineNumber": 2839,
+        "columnNumber": 30
+      },
+      "sampled_ms": 5.592
+    },
+    {
+      "frame": {
+        "functionName": "assetProblem",
+        "scriptId": "156",
+        "url": "file:///workspace/evidence/cwr-viewer/locales/en_US-after.json.runtime.mjs",
+        "lineNumber": 1567,
+        "columnNumber": 21
+      },
+      "sampled_ms": 5.322
+    },
+    {
+      "frame": {
+        "functionName": "",
+        "scriptId": "156",
+        "url": "file:///workspace/evidence/cwr-viewer/locales/en_US-after.json.runtime.mjs",
+        "lineNumber": 2786,
+        "columnNumber": 23
+      },
+      "sampled_ms": 5.119
+    },
+    {
+      "frame": {
+        "functionName": "",
+        "scriptId": "156",
+        "url": "file:///workspace/evidence/cwr-viewer/locales/en_US-after.json.runtime.mjs",
+        "lineNumber": 638,
+        "columnNumber": 34
+      },
+      "sampled_ms": 4.922
+    },
+    {
+      "frame": {
+        "functionName": "repairProjectsAt",
+        "scriptId": "156",
+        "url": "file:///workspace/evidence/cwr-viewer/locales/en_US-after.json.runtime.mjs",
+        "lineNumber": 877,
+        "columnNumber": 25
+      },
+      "sampled_ms": 4.755
+    },
+    {
+      "frame": {
+        "functionName": "entityKey",
+        "scriptId": "156",
+        "url": "file:///workspace/evidence/cwr-viewer/locales/en_US-after.json.runtime.mjs",
+        "lineNumber": 2523,
+        "columnNumber": 16
+      },
+      "sampled_ms": 4.552
+    },
+    {
+      "frame": {
+        "functionName": "",
+        "scriptId": "156",
+        "url": "file:///workspace/evidence/cwr-viewer/locales/en_US-after.json.runtime.mjs",
+        "lineNumber": 718,
+        "columnNumber": 53
+      },
+      "sampled_ms": 4.504
+    },
+    {
+      "frame": {
+        "functionName": "workProblem",
+        "scriptId": "156",
+        "url": "file:///workspace/evidence/cwr-viewer/locales/en_US-after.json.runtime.mjs",
+        "lineNumber": 1580,
+        "columnNumber": 20
+      },
+      "sampled_ms": 4.447
+    },
+    {
+      "frame": {
+        "functionName": "warRequisitionAt",
+        "scriptId": "156",
+        "url": "file:///workspace/evidence/cwr-viewer/locales/en_US-after.json.runtime.mjs",
+        "lineNumber": 1152,
+        "columnNumber": 25
+      },
+      "sampled_ms": 4.427
+    },
+    {
+      "frame": {
+        "functionName": "epidemicCareAt",
+        "scriptId": "156",
+        "url": "file:///workspace/evidence/cwr-viewer/locales/en_US-after.json.runtime.mjs",
+        "lineNumber": 1927,
+        "columnNumber": 23
+      },
+      "sampled_ms": 4.323
+    },
+    {
+      "frame": {
+        "functionName": "",
+        "scriptId": "156",
+        "url": "file:///workspace/evidence/cwr-viewer/locales/en_US-after.json.runtime.mjs",
+        "lineNumber": 1476,
+        "columnNumber": 202
+      },
+      "sampled_ms": 4.226
+    },
+    {
+      "frame": {
+        "functionName": "validShipment",
+        "scriptId": "156",
+        "url": "file:///workspace/evidence/cwr-viewer/locales/en_US-after.json.runtime.mjs",
+        "lineNumber": 1079,
+        "columnNumber": 22
+      },
+      "sampled_ms": 3.767
+    },
+    {
+      "frame": {
+        "functionName": "",
+        "scriptId": "156",
+        "url": "file:///workspace/evidence/cwr-viewer/locales/en_US-after.json.runtime.mjs",
+        "lineNumber": 2064,
+        "columnNumber": 23
+      },
+      "sampled_ms": 3.552
+    },
+    {
+      "frame": {
+        "functionName": "",
+        "scriptId": "156",
+        "url": "file:///workspace/evidence/cwr-viewer/locales/en_US-after.json.runtime.mjs",
+        "lineNumber": 2874,
+        "columnNumber": 26
+      },
+      "sampled_ms": 3.475
+    },
+    {
+      "frame": {
+        "functionName": "",
+        "scriptId": "156",
+        "url": "file:///workspace/evidence/cwr-viewer/locales/en_US-after.json.runtime.mjs",
+        "lineNumber": 712,
+        "columnNumber": 52
+      },
+      "sampled_ms": 3.339
+    },
+    {
+      "frame": {
+        "functionName": "movementBranchesAt",
+        "scriptId": "156",
+        "url": "file:///workspace/evidence/cwr-viewer/locales/en_US-after.json.runtime.mjs",
+        "lineNumber": 1881,
+        "columnNumber": 27
+      },
+      "sampled_ms": 3.322
+    },
+    {
+      "frame": {
+        "functionName": "",
+        "scriptId": "156",
+        "url": "file:///workspace/evidence/cwr-viewer/locales/en_US-after.json.runtime.mjs",
+        "lineNumber": 1107,
+        "columnNumber": 393
+      },
+      "sampled_ms": 3.3
+    },
+    {
+      "frame": {
+        "functionName": "receiptProblem3",
+        "scriptId": "156",
+        "url": "file:///workspace/evidence/cwr-viewer/locales/en_US-after.json.runtime.mjs",
+        "lineNumber": 1592,
+        "columnNumber": 24
+      },
+      "sampled_ms": 3.274
+    },
+    {
+      "frame": {
+        "functionName": "",
+        "scriptId": "156",
+        "url": "file:///workspace/evidence/cwr-viewer/locales/en_US-after.json.runtime.mjs",
+        "lineNumber": 640,
+        "columnNumber": 19
+      },
+      "sampled_ms": 3.27
+    },
+    {
+      "frame": {
+        "functionName": "validFirm",
+        "scriptId": "156",
+        "url": "file:///workspace/evidence/cwr-viewer/locales/en_US-after.json.runtime.mjs",
+        "lineNumber": 2454,
+        "columnNumber": 18
+      },
+      "sampled_ms": 3.264
+    },
+    {
+      "frame": {
+        "functionName": "readInfrastructure",
+        "scriptId": "156",
+        "url": "file:///workspace/evidence/cwr-viewer/locales/en_US-after.json.runtime.mjs",
+        "lineNumber": 1631,
+        "columnNumber": 27
+      },
+      "sampled_ms": 3.252
+    },
+    {
+      "frame": {
+        "functionName": "validFrame",
+        "scriptId": "156",
+        "url": "file:///workspace/evidence/cwr-viewer/locales/en_US-after.json.runtime.mjs",
+        "lineNumber": 1033,
+        "columnNumber": 19
+      },
+      "sampled_ms": 2.99
+    },
+    {
+      "frame": {
+        "functionName": "readRecoveryCrews",
+        "scriptId": "156",
+        "url": "file:///workspace/evidence/cwr-viewer/locales/en_US-after.json.runtime.mjs",
+        "lineNumber": 278,
+        "columnNumber": 26
+      },
+      "sampled_ms": 2.975
+    },
+    {
+      "frame": {
+        "functionName": "",
+        "scriptId": "156",
+        "url": "file:///workspace/evidence/cwr-viewer/locales/en_US-after.json.runtime.mjs",
+        "lineNumber": 2788,
+        "columnNumber": 77
+      },
+      "sampled_ms": 2.527
+    },
+    {
+      "frame": {
+        "functionName": "expeditionProblem",
+        "scriptId": "156",
+        "url": "file:///workspace/evidence/cwr-viewer/locales/en_US-after.json.runtime.mjs",
+        "lineNumber": 352,
+        "columnNumber": 26
+      },
+      "sampled_ms": 2.359
+    },
+    {
+      "frame": {
+        "functionName": "event",
+        "scriptId": "156",
+        "url": "file:///workspace/evidence/cwr-viewer/locales/en_US-after.json.runtime.mjs",
+        "lineNumber": 1484,
+        "columnNumber": 16
+      },
+      "sampled_ms": 2.29
+    },
+    {
+      "frame": {
+        "functionName": "",
+        "scriptId": "156",
+        "url": "file:///workspace/evidence/cwr-viewer/locales/en_US-after.json.runtime.mjs",
+        "lineNumber": 2677,
+        "columnNumber": 34
+      },
+      "sampled_ms": 2.28
+    },
+    {
+      "frame": {
+        "functionName": "",
+        "scriptId": "156",
+        "url": "file:///workspace/evidence/cwr-viewer/locales/en_US-after.json.runtime.mjs",
+        "lineNumber": 882,
+        "columnNumber": 270
+      },
+      "sampled_ms": 2.215
+    },
+    {
+      "frame": {
+        "functionName": "validReceipt",
+        "scriptId": "156",
+        "url": "file:///workspace/evidence/cwr-viewer/locales/en_US-after.json.runtime.mjs",
+        "lineNumber": 858,
+        "columnNumber": 21
+      },
+      "sampled_ms": 2.189
+    },
+    {
+      "frame": {
+        "functionName": "ref",
+        "scriptId": "156",
+        "url": "file:///workspace/evidence/cwr-viewer/locales/en_US-after.json.runtime.mjs",
+        "lineNumber": 2525,
+        "columnNumber": 10
+      },
+      "sampled_ms": 2.184
+    },
+    {
+      "frame": {
+        "functionName": "",
+        "scriptId": "156",
+        "url": "file:///workspace/evidence/cwr-viewer/locales/en_US-after.json.runtime.mjs",
+        "lineNumber": 2810,
+        "columnNumber": 40
+      },
+      "sampled_ms": 2.183
+    },
+    {
+      "frame": {
+        "functionName": "",
+        "scriptId": "156",
+        "url": "file:///workspace/evidence/cwr-viewer/locales/en_US-after.json.runtime.mjs",
+        "lineNumber": 1037,
+        "columnNumber": 52
+      },
+      "sampled_ms": 2.176
+    },
+    {
+      "frame": {
+        "functionName": "",
+        "scriptId": "156",
+        "url": "file:///workspace/evidence/cwr-viewer/locales/en_US-after.json.runtime.mjs",
+        "lineNumber": 2605,
+        "columnNumber": 35
+      },
+      "sampled_ms": 2.164
+    },
+    {
+      "frame": {
+        "functionName": "",
+        "scriptId": "156",
+        "url": "file:///workspace/evidence/cwr-viewer/locales/en_US-after.json.runtime.mjs",
+        "lineNumber": 2730,
+        "columnNumber": 74
+      },
+      "sampled_ms": 2.163
+    },
+    {
+      "frame": {
+        "functionName": "titledTradeAt",
+        "scriptId": "156",
+        "url": "file:///workspace/evidence/cwr-viewer/locales/en_US-after.json.runtime.mjs",
+        "lineNumber": 1099,
+        "columnNumber": 22
+      },
+      "sampled_ms": 2.16
+    },
+    {
+      "frame": {
+        "functionName": "",
+        "scriptId": "156",
+        "url": "file:///workspace/evidence/cwr-viewer/locales/en_US-after.json.runtime.mjs",
+        "lineNumber": 2692,
+        "columnNumber": 77
+      },
+      "sampled_ms": 2.159
+    },
+    {
+      "frame": {
+        "functionName": "",
+        "scriptId": "156",
+        "url": "file:///workspace/evidence/cwr-viewer/locales/en_US-after.json.runtime.mjs",
+        "lineNumber": 2672,
+        "columnNumber": 32
+      },
+      "sampled_ms": 2.158
+    },
+    {
+      "frame": {
+        "functionName": "",
+        "scriptId": "156",
+        "url": "file:///workspace/evidence/cwr-viewer/locales/en_US-after.json.runtime.mjs",
+        "lineNumber": 1511,
+        "columnNumber": 25
+      },
+      "sampled_ms": 1.837
+    },
+    {
+      "frame": {
+        "functionName": "",
+        "scriptId": "156",
+        "url": "file:///workspace/evidence/cwr-viewer/locales/en_US-after.json.runtime.mjs",
+        "lineNumber": 844,
+        "columnNumber": 24
+      },
+      "sampled_ms": 1.76
+    },
+    {
+      "frame": {
+        "functionName": "dated",
+        "scriptId": "156",
+        "url": "file:///workspace/evidence/cwr-viewer/locales/en_US-after.json.runtime.mjs",
+        "lineNumber": 1468,
+        "columnNumber": 16
+      },
+      "sampled_ms": 1.628
+    },
+    {
+      "frame": {
+        "functionName": "",
+        "scriptId": "156",
+        "url": "file:///workspace/evidence/cwr-viewer/locales/en_US-after.json.runtime.mjs",
+        "lineNumber": 2929,
+        "columnNumber": 29
+      },
+      "sampled_ms": 1.6
+    },
+    {
+      "frame": {
+        "functionName": "readTimberSupply",
+        "scriptId": "156",
+        "url": "file:///workspace/evidence/cwr-viewer/locales/en_US-after.json.runtime.mjs",
+        "lineNumber": 429,
+        "columnNumber": 25
+      },
+      "sampled_ms": 1.571
+    },
+    {
+      "frame": {
+        "functionName": "",
+        "scriptId": "156",
+        "url": "file:///workspace/evidence/cwr-viewer/locales/en_US-after.json.runtime.mjs",
+        "lineNumber": 898,
+        "columnNumber": 52
+      },
+      "sampled_ms": 1.336
+    },
+    {
+      "frame": {
+        "functionName": "",
+        "scriptId": "156",
+        "url": "file:///workspace/evidence/cwr-viewer/locales/en_US-after.json.runtime.mjs",
+        "lineNumber": 2645,
+        "columnNumber": 21
+      },
+      "sampled_ms": 1.233
+    },
+    {
+      "frame": {
+        "functionName": "validProject",
+        "scriptId": "156",
+        "url": "file:///workspace/evidence/cwr-viewer/locales/en_US-after.json.runtime.mjs",
+        "lineNumber": 846,
+        "columnNumber": 21
+      },
+      "sampled_ms": 1.204
+    },
+    {
+      "frame": {
+        "functionName": "unit2",
+        "scriptId": "156",
+        "url": "file:///workspace/evidence/cwr-viewer/locales/en_US-after.json.runtime.mjs",
+        "lineNumber": 842,
+        "columnNumber": 12
+      },
+      "sampled_ms": 1.155
+    },
+    {
+      "frame": {
+        "functionName": "",
+        "scriptId": "156",
+        "url": "file:///workspace/evidence/cwr-viewer/locales/en_US-after.json.runtime.mjs",
+        "lineNumber": 2804,
+        "columnNumber": 25
+      },
+      "sampled_ms": 1.134
+    },
+    {
+      "frame": {
+        "functionName": "unit3",
+        "scriptId": "156",
+        "url": "file:///workspace/evidence/cwr-viewer/locales/en_US-after.json.runtime.mjs",
+        "lineNumber": 1554,
+        "columnNumber": 12
+      },
+      "sampled_ms": 1.113
+    },
+    {
+      "frame": {
+        "functionName": "object6",
+        "scriptId": "156",
+        "url": "file:///workspace/evidence/cwr-viewer/locales/en_US-after.json.runtime.mjs",
+        "lineNumber": 1074,
+        "columnNumber": 14
+      },
+      "sampled_ms": 1.111
+    },
+    {
+      "frame": {
+        "functionName": "object",
+        "scriptId": "156",
+        "url": "file:///workspace/evidence/cwr-viewer/locales/en_US-after.json.runtime.mjs",
+        "lineNumber": 211,
+        "columnNumber": 13
+      },
+      "sampled_ms": 1.107
+    },
+    {
+      "frame": {
+        "functionName": "object4",
+        "scriptId": "156",
+        "url": "file:///workspace/evidence/cwr-viewer/locales/en_US-after.json.runtime.mjs",
+        "lineNumber": 837,
+        "columnNumber": 14
+      },
+      "sampled_ms": 1.1
+    },
+    {
+      "frame": {
+        "functionName": "",
+        "scriptId": "156",
+        "url": "file:///workspace/evidence/cwr-viewer/locales/en_US-after.json.runtime.mjs",
+        "lineNumber": 847,
+        "columnNumber": 635
+      },
+      "sampled_ms": 1.099
+    },
+    {
+      "frame": {
+        "functionName": "",
+        "scriptId": "156",
+        "url": "file:///workspace/evidence/cwr-viewer/locales/en_US-after.json.runtime.mjs",
+        "lineNumber": 1036,
+        "columnNumber": 39
+      },
+      "sampled_ms": 1.096
+    },
+    {
+      "frame": {
+        "functionName": "",
+        "scriptId": "156",
+        "url": "file:///workspace/evidence/cwr-viewer/locales/en_US-after.json.runtime.mjs",
+        "lineNumber": 1937,
+        "columnNumber": 28
+      },
+      "sampled_ms": 1.094
+    },
+    {
+      "frame": {
+        "functionName": "receipt",
+        "scriptId": "156",
+        "url": "file:///workspace/evidence/cwr-viewer/locales/en_US-after.json.runtime.mjs",
+        "lineNumber": 1918,
+        "columnNumber": 16
+      },
+      "sampled_ms": 1.093
+    },
+    {
+      "frame": {
+        "functionName": "",
+        "scriptId": "156",
+        "url": "file:///workspace/evidence/cwr-viewer/locales/en_US-after.json.runtime.mjs",
+        "lineNumber": 2640,
+        "columnNumber": 79
+      },
+      "sampled_ms": 1.093
+    },
+    {
+      "frame": {
+        "functionName": "ids2",
+        "scriptId": "156",
+        "url": "file:///workspace/evidence/cwr-viewer/locales/en_US-after.json.runtime.mjs",
+        "lineNumber": 843,
+        "columnNumber": 11
+      },
+      "sampled_ms": 1.093
+    },
+    {
+      "frame": {
+        "functionName": "validReceipt3",
+        "scriptId": "156",
+        "url": "file:///workspace/evidence/cwr-viewer/locales/en_US-after.json.runtime.mjs",
+        "lineNumber": 2388,
+        "columnNumber": 22
+      },
+      "sampled_ms": 1.092
+    },
+    {
+      "frame": {
+        "functionName": "object22",
+        "scriptId": "156",
+        "url": "file:///workspace/evidence/cwr-viewer/locales/en_US-after.json.runtime.mjs",
+        "lineNumber": 2442,
+        "columnNumber": 15
+      },
+      "sampled_ms": 1.092
+    },
+    {
+      "frame": {
+        "functionName": "object8",
+        "scriptId": "156",
+        "url": "file:///workspace/evidence/cwr-viewer/locales/en_US-after.json.runtime.mjs",
+        "lineNumber": 1149,
+        "columnNumber": 14
+      },
+      "sampled_ms": 1.091
+    },
+    {
+      "frame": {
+        "functionName": "",
+        "scriptId": "156",
+        "url": "file:///workspace/evidence/cwr-viewer/locales/en_US-after.json.runtime.mjs",
+        "lineNumber": 2858,
+        "columnNumber": 34
+      },
+      "sampled_ms": 1.09
+    },
+    {
+      "frame": {
+        "functionName": "",
+        "scriptId": "156",
+        "url": "file:///workspace/evidence/cwr-viewer/locales/en_US-after.json.runtime.mjs",
+        "lineNumber": 2031,
+        "columnNumber": 9
+      },
+      "sampled_ms": 1.089
+    },
+    {
+      "frame": {
+        "functionName": "",
+        "scriptId": "156",
+        "url": "file:///workspace/evidence/cwr-viewer/locales/en_US-after.json.runtime.mjs",
+        "lineNumber": 2514,
+        "columnNumber": 77
+      },
+      "sampled_ms": 1.089
+    },
+    {
+      "frame": {
+        "functionName": "object18",
+        "scriptId": "156",
+        "url": "file:///workspace/evidence/cwr-viewer/locales/en_US-after.json.runtime.mjs",
+        "lineNumber": 1873,
+        "columnNumber": 15
+      },
+      "sampled_ms": 1.087
+    },
+    {
+      "frame": {
+        "functionName": "",
+        "scriptId": "156",
+        "url": "file:///workspace/evidence/cwr-viewer/locales/en_US-after.json.runtime.mjs",
+        "lineNumber": 2763,
+        "columnNumber": 25
+      },
+      "sampled_ms": 1.086
+    },
+    {
+      "frame": {
+        "functionName": "close",
+        "scriptId": "156",
+        "url": "file:///workspace/evidence/cwr-viewer/locales/en_US-after.json.runtime.mjs",
+        "lineNumber": 341,
+        "columnNumber": 12
+      },
+      "sampled_ms": 1.084
+    },
+    {
+      "frame": {
+        "functionName": "",
+        "scriptId": "156",
+        "url": "file:///workspace/evidence/cwr-viewer/locales/en_US-after.json.runtime.mjs",
+        "lineNumber": 1040,
+        "columnNumber": 36
+      },
+      "sampled_ms": 1.083
+    },
+    {
+      "frame": {
+        "functionName": "storeProblem",
+        "scriptId": "156",
+        "url": "file:///workspace/evidence/cwr-viewer/locales/en_US-after.json.runtime.mjs",
+        "lineNumber": 410,
+        "columnNumber": 21
+      },
+      "sampled_ms": 1.083
+    },
+    {
+      "frame": {
+        "functionName": "",
+        "scriptId": "156",
+        "url": "file:///workspace/evidence/cwr-viewer/locales/en_US-after.json.runtime.mjs",
+        "lineNumber": 1514,
+        "columnNumber": 374
+      },
+      "sampled_ms": 1.083
+    },
+    {
+      "frame": {
+        "functionName": "near",
+        "scriptId": "156",
+        "url": "file:///workspace/evidence/cwr-viewer/locales/en_US-after.json.runtime.mjs",
+        "lineNumber": 632,
+        "columnNumber": 11
+      },
+      "sampled_ms": 1.082
+    },
+    {
+      "frame": {
+        "functionName": "",
+        "scriptId": "156",
+        "url": "file:///workspace/evidence/cwr-viewer/locales/en_US-after.json.runtime.mjs",
+        "lineNumber": 636,
+        "columnNumber": 28
+      },
+      "sampled_ms": 1.081
+    },
+    {
+      "frame": {
+        "functionName": "",
+        "scriptId": "156",
+        "url": "file:///workspace/evidence/cwr-viewer/locales/en_US-after.json.runtime.mjs",
+        "lineNumber": 715,
+        "columnNumber": 46
+      },
+      "sampled_ms": 1.081
+    },
+    {
+      "frame": {
+        "functionName": "",
+        "scriptId": "156",
+        "url": "file:///workspace/evidence/cwr-viewer/locales/en_US-after.json.runtime.mjs",
+        "lineNumber": 2655,
+        "columnNumber": 61
+      },
+      "sampled_ms": 1.079
+    },
+    {
+      "frame": {
+        "functionName": "one",
+        "scriptId": "156",
+        "url": "file:///workspace/evidence/cwr-viewer/locales/en_US-after.json.runtime.mjs",
+        "lineNumber": 1556,
+        "columnNumber": 10
+      },
+      "sampled_ms": 1.079
+    },
+    {
+      "frame": {
+        "functionName": "validRegion",
+        "scriptId": "156",
+        "url": "file:///workspace/evidence/cwr-viewer/locales/en_US-after.json.runtime.mjs",
+        "lineNumber": 1025,
+        "columnNumber": 20
+      },
+      "sampled_ms": 1.075
+    },
+    {
+      "frame": {
+        "functionName": "object13",
+        "scriptId": "156",
+        "url": "file:///workspace/evidence/cwr-viewer/locales/en_US-after.json.runtime.mjs",
+        "lineNumber": 1448,
+        "columnNumber": 15
+      },
+      "sampled_ms": 1.074
+    },
+    {
+      "frame": {
+        "functionName": "count6",
+        "scriptId": "156",
+        "url": "file:///workspace/evidence/cwr-viewer/locales/en_US-after.json.runtime.mjs",
+        "lineNumber": 1076,
+        "columnNumber": 13
+      },
+      "sampled_ms": 1.073
+    },
+    {
+      "frame": {
+        "functionName": "",
+        "scriptId": "156",
+        "url": "file:///workspace/evidence/cwr-viewer/locales/en_US-after.json.runtime.mjs",
+        "lineNumber": 702,
+        "columnNumber": 40
+      },
+      "sampled_ms": 1.04
+    },
+    {
+      "frame": {
+        "functionName": "object3",
+        "scriptId": "156",
+        "url": "file:///workspace/evidence/cwr-viewer/locales/en_US-after.json.runtime.mjs",
+        "lineNumber": 628,
+        "columnNumber": 14
+      },
+      "sampled_ms": 1.029
+    },
+    {
+      "frame": {
+        "functionName": "",
+        "scriptId": "156",
+        "url": "file:///workspace/evidence/cwr-viewer/locales/en_US-after.json.runtime.mjs",
+        "lineNumber": 884,
+        "columnNumber": 38
+      },
+      "sampled_ms": 1.029
+    },
+    {
+      "frame": {
+        "functionName": "logProblem",
+        "scriptId": "156",
+        "url": "file:///workspace/evidence/cwr-viewer/locales/en_US-after.json.runtime.mjs",
+        "lineNumber": 740,
+        "columnNumber": 19
+      },
+      "sampled_ms": 0.64
+    },
+    {
+      "frame": {
+        "functionName": "count2",
+        "scriptId": "156",
+        "url": "file:///workspace/evidence/cwr-viewer/locales/en_US-after.json.runtime.mjs",
+        "lineNumber": 337,
+        "columnNumber": 13
+      },
+      "sampled_ms": 0.538
+    },
+    {
+      "frame": {
+        "functionName": "nonnegative2",
+        "scriptId": "156",
+        "url": "file:///workspace/evidence/cwr-viewer/locales/en_US-after.json.runtime.mjs",
+        "lineNumber": 1501,
+        "columnNumber": 19
+      },
+      "sampled_ms": 0.242
+    },
+    {
+      "frame": {
+        "functionName": "count3",
+        "scriptId": "156",
+        "url": "file:///workspace/evidence/cwr-viewer/locales/en_US-after.json.runtime.mjs",
+        "lineNumber": 630,
+        "columnNumber": 13
+      },
+      "sampled_ms": 0.171
+    },
+    {
+      "frame": {
+        "functionName": "flow",
+        "scriptId": "156",
+        "url": "file:///workspace/evidence/cwr-viewer/locales/en_US-after.json.runtime.mjs",
+        "lineNumber": 634,
+        "columnNumber": 11
+      },
+      "sampled_ms": 0.095
+    },
+    {
+      "frame": {
+        "functionName": "",
+        "scriptId": "156",
+        "url": "file:///workspace/evidence/cwr-viewer/locales/en_US-after.json.runtime.mjs",
+        "lineNumber": 791,
+        "columnNumber": 48
+      },
+      "sampled_ms": 0.068
+    },
+    {
+      "frame": {
+        "functionName": "",
+        "scriptId": "156",
+        "url": "file:///workspace/evidence/cwr-viewer/locales/en_US-after.json.runtime.mjs",
+        "lineNumber": 2620,
+        "columnNumber": 69
+      },
+      "sampled_ms": 0.061
+    },
+    {
+      "frame": {
+        "functionName": "sum2",
+        "scriptId": "156",
+        "url": "file:///workspace/evidence/cwr-viewer/locales/en_US-after.json.runtime.mjs",
+        "lineNumber": 1077,
+        "columnNumber": 11
+      },
+      "sampled_ms": 0.034
+    },
+    {
+      "frame": {
+        "functionName": "",
+        "scriptId": "156",
+        "url": "file:///workspace/evidence/cwr-viewer/locales/en_US-after.json.runtime.mjs",
+        "lineNumber": 707,
+        "columnNumber": 30
+      },
+      "sampled_ms": 0.024
+    },
+    {
+      "frame": {
+        "functionName": "(program)",
+        "scriptId": "0",
+        "url": "",
+        "lineNumber": -1,
+        "columnNumber": -1
+      },
+      "sampled_ms": 0.019
+    },
+    {
+      "frame": {
+        "functionName": "commons",
+        "scriptId": "156",
+        "url": "file:///workspace/evidence/cwr-viewer/locales/en_US-after.json.runtime.mjs",
+        "lineNumber": 635,
+        "columnNumber": 14
+      },
+      "sampled_ms": 0.014
+    }
+  ],
+  "profile_samples": 631,
+  "note": "One diagnostic sampled CPU profile; excludes decoding and UI, no performance acceptance claim. Original pure formatter runtime and unchanged raw bundle."
+}

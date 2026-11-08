@@ -1,0 +1,22 @@
+{
+  "kind": "preceding integrated main baseline source-equivalence proof; new candidate identity run still required",
+  "baseline_output_source": "830d0dc2ecc7caad12217f88e47d6ffeb21309c1",
+  "preceding_integrated_main": "125a69066ea158a973ac5207f393e4eeb330aee8",
+  "intermediate_main": "2726bf449d0e4d581a72034000ee0861a58ee439",
+  "unchanged_paths": [
+    "src/",
+    "chronicler-agents/",
+    "scripts/turn_speed_identity.py",
+    "scripts/cities_identity.py"
+  ],
+  "git_changed_paths": [],
+  "actual_baseline_source": "/workspace/cw-final-identity-830",
+  "tracked_src_files": 287,
+  "tracked_src_sha256": "86a8d91a1c3594b89714bbf757141278393cf172ccc7011c488bcf6359603344",
+  "actual_vs_git_mismatches": [],
+  "retained_output": "/workspace/evidence/final-program/identity/final-830d0dc2/out",
+  "retained_original_output": "/workspace/evidence/identities/reference/out",
+  "native_artifact": "59f536b8f4a6c2bc82c51eeaec55f3aff6b0a1c5c8f1a324049ad15b42c51617",
+  "existing_receipt": "docs/superpowers/progress/connected-world-program-identity/receipt.json",
+  "method": "Same declared nine-case byte comparisons; bundles decoded and raw with only metadata.generated_at normalized. Do not substitute default-off proof for enabled effects."
+}

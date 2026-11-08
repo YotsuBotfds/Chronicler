@@ -1,0 +1,223 @@
+{
+  "pass": true,
+  "rejected_declarations": [
+    "wrong_seed",
+    "old_rules",
+    "wrong_control",
+    "legacy_crowding",
+    "future_source",
+    "duplicate_turn",
+    "short_horizon"
+  ],
+  "rejected_source_guards": [
+    "wrong_source",
+    "dirty_source",
+    "wrong_native",
+    "package_initializer_instead_of_extension"
+  ],
+  "rejected_budgets": [
+    "nan",
+    "infinity",
+    "zero",
+    "negative",
+    "boolean"
+  ],
+  "selection": {
+    "selection_rule": "first real D3 before/after boundaries, then maximum uncovered observed-state coverage; ties earliest; cap12",
+    "ks": [
+      1,
+      6,
+      7,
+      29,
+      30,
+      40,
+      79,
+      80
+    ],
+    "first_d3_events": {
+      "wounded": {
+        "completed_turn": 1,
+        "event": {
+          "kind": "wounded"
+        }
+      },
+      "released": {
+        "completed_turn": 7,
+        "event": {
+          "kind": "released"
+        }
+      },
+      "evacuated": {
+        "completed_turn": 30,
+        "event": {
+          "kind": "evacuated"
+        }
+      },
+      "returned": {
+        "completed_turn": 80,
+        "event": {
+          "kind": "returned"
+        }
+      }
+    },
+    "missing_d3_events": [],
+    "active_categories": {
+      "active_food_cargo": [
+        40
+      ],
+      "actual_requisition_or_seizure": [
+        40
+      ],
+      "actual_restitution": [
+        40
+      ],
+      "after_d3_evacuated": [
+        30
+      ],
+      "after_d3_released": [
+        7
+      ],
+      "after_d3_returned": [
+        80
+      ],
+      "after_d3_wounded": [
+        1
+      ],
+      "applied_migration": [
+        40
+      ],
+      "army_meal_or_requisition": [
+        40
+      ],
+      "before_d3_evacuated": [
+        29
+      ],
+      "before_d3_released": [
+        6
+      ],
+      "before_d3_returned": [
+        79
+      ],
+      "complete_arrival_window": [
+        40
+      ],
+      "dated_health_report_or_guard": [
+        40
+      ],
+      "health_coverage": [
+        40
+      ],
+      "individual_health_episode": [
+        40
+      ],
+      "money_transaction": [
+        40
+      ],
+      "moving_timber_escrow": [
+        40
+      ],
+      "paid_infrastructure_work": [
+        40
+      ],
+      "personal_a6_memory": [
+        40
+      ],
+      "recent_arrival": [
+        40
+      ]
+    },
+    "first_category_examples": {
+      "applied_migration": {
+        "completed_turn": 40,
+        "snapshot_source_turn": 39
+      },
+      "recent_arrival": {
+        "completed_turn": 40,
+        "snapshot_source_turn": 39
+      },
+      "complete_arrival_window": {
+        "completed_turn": 40,
+        "snapshot_source_turn": 39
+      },
+      "army_meal_or_requisition": {
+        "completed_turn": 40,
+        "snapshot_source_turn": 39
+      },
+      "actual_requisition_or_seizure": {
+        "completed_turn": 40,
+        "snapshot_source_turn": 39
+      },
+      "moving_timber_escrow": {
+        "completed_turn": 40,
+        "snapshot_source_turn": 39
+      },
+      "paid_infrastructure_work": {
+        "completed_turn": 40,
+        "snapshot_source_turn": 39
+      },
+      "health_coverage": {
+        "completed_turn": 40,
+        "snapshot_source_turn": 39
+      },
+      "individual_health_episode": {
+        "completed_turn": 40,
+        "snapshot_source_turn": 39
+      },
+      "dated_health_report_or_guard": {
+        "completed_turn": 40,
+        "snapshot_source_turn": 39
+      },
+      "personal_a6_memory": {
+        "completed_turn": 40,
+        "snapshot_source_turn": 39
+      },
+      "money_transaction": {
+        "completed_turn": 40,
+        "snapshot_source_turn": 39
+      },
+      "active_food_cargo": {
+        "completed_turn": 40,
+        "snapshot_source_turn": 39
+      },
+      "actual_restitution": {
+        "completed_turn": 40,
+        "snapshot_source_turn": 39
+      }
+    },
+    "covered_categories": [
+      "active_food_cargo",
+      "actual_requisition_or_seizure",
+      "actual_restitution",
+      "after_d3_evacuated",
+      "after_d3_released",
+      "after_d3_returned",
+      "after_d3_wounded",
+      "applied_migration",
+      "army_meal_or_requisition",
+      "before_d3_evacuated",
+      "before_d3_released",
+      "before_d3_returned",
+      "complete_arrival_window",
+      "dated_health_report_or_guard",
+      "health_coverage",
+      "individual_health_episode",
+      "money_transaction",
+      "moving_timber_escrow",
+      "paid_infrastructure_work",
+      "personal_a6_memory",
+      "recent_arrival"
+    ],
+    "missing_categories": [],
+    "unselected_active_categories": [],
+    "unavailable_boundaries": [
+      {
+        "category": "before_d3_wounded",
+        "checkpoint": 0,
+        "reason": "checkpoint must be between 1 and horizon-1"
+      }
+    ]
+  },
+  "runtime_imported": false,
+  "simulation": false,
+  "scope": "adapter declaration/selection negatives only; not full CWR1 scientific extractor or native resume evidence"
+}

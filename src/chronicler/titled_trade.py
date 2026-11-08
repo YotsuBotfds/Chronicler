@@ -719,6 +719,7 @@ def _dispatch(world, state, t: _Turn, sim, edges, economy_result, acc) -> None:
     pilots = sorted(reg.region for reg in retail.regions)
     pilot_set = set(pilots)
     ration_milli = Fraction(_ration(world)) * MILLI
+    ration_num, ration_den = ration_milli.numerator, ration_milli.denominator
     tally = {}
     for ship in state.shipments:                        # cargo already on the road counts against its market
         tally[ship.dest] = tally.get(ship.dest, 0.0) + ship.total() / MILLI
@@ -732,6 +733,9 @@ def _dispatch(world, state, t: _Turn, sim, edges, economy_result, acc) -> None:
         if not carriers:
             continue
         price_o = price_milli(world, economy_result, o)
+        # Exact Fraction floor division, without allocating a Fraction for
+        # every carrier/owner pair.  Rooms, claims and wallets stay live.
+        price_den = ration_den * price_o
         reachable = _bfs(edges, o)
         for aid in carriers:
             if len(state.shipments) >= MAX_SHIPMENTS:
@@ -742,7 +746,7 @@ def _dispatch(world, state, t: _Turn, sim, edges, economy_result, acc) -> None:
                 if owner == aid or owner not in people or claim <= OWNER_KEEP:
                     continue
                 room = max(0, math.floor((MAX_WEALTH - people[owner][3]) * MILLI))
-                most = int(room * ration_milli // price_o)    # what its ceiling lets it be paid for
+                most = room * ration_num // price_den       # what its ceiling lets it be paid for
                 surplus = min(claim - OWNER_KEEP, most)
                 if surplus > 0:
                     offer[owner] = surplus
@@ -753,7 +757,7 @@ def _dispatch(world, state, t: _Turn, sim, edges, economy_result, acc) -> None:
                 t.plans["no_offer"] = t.plans.get("no_offer", 0) + 1
                 continue
             cash = math.floor(people[aid][3] * MILLI) - RESERVE_RATIONS * price_o - len(offer)
-            q_cash = int(max(0, cash) * ration_milli // price_o)
+            q_cash = max(0, cash) * ration_num // price_den
             if q_cash < MIN_CARGO:
                 _bump(state, "plans_no_cash")
                 t.plans["no_cash"] = t.plans.get("no_cash", 0) + 1

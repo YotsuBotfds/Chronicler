@@ -1,0 +1,4 @@
+source_turn,scope,stage,calls,timed,cpu_seconds,wall_seconds
+,outside_turn,bundle_assembly,1,True,0.5354099120000004,0.5381314530022792
+,outside_turn,bundle_write,1,True,1.351551431999999,1.3520702829991933
+,outside_turn,history_encoding,1,True,1.1515353200000007,1.1520144200003415

@@ -1,0 +1,467 @@
+"""Evidence-only CWR1 AD exact resume adapter. Importing never simulates.
+
+Plan validates an existing final-source pilot. Run creates fresh checkpoints
+under that same immutable source; it never opens an old-source pickle itself.
+Resource scheduling is owned by the lead and must precede a run invocation.
+"""
+from __future__ import annotations
+
+import argparse
+from collections import defaultdict
+import hashlib
+import importlib
+from importlib.machinery import EXTENSION_SUFFIXES
+import json
+import math
+import os
+from pathlib import Path
+import shutil
+import subprocess
+import sys
+import tempfile
+import time
+
+HORIZON = 120
+MAX_POINTS = 12
+D3_KINDS = ("wounded", "released", "evacuated", "returned")
+LIFECYCLES = ("applied_migration", "recent_arrival", "complete_arrival_window",
+              "army_meal_or_requisition", "actual_requisition_or_seizure", "moving_timber_escrow", "paid_infrastructure_work",
+              "health_coverage", "individual_health_episode", "dated_health_report_or_guard", "personal_a6_memory",
+              "money_transaction", "active_food_cargo", "actual_restitution")
+
+
+def sha(path):
+    digest = hashlib.sha256()
+    with Path(path).open("rb") as stream:
+        while chunk := stream.read(1024 * 1024):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def save_new(path, value):
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("x") as stream:
+        json.dump(value, stream, indent=2)
+        stream.write("\n")
+
+
+def git(root, *args):
+    return subprocess.check_output(["git", "-C", str(root), *args], text=True).strip()
+
+
+def positive(value):
+    return isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value) and value > 0
+
+
+def declared_world(bundle, stratum, seed):
+    if (stratum, seed) not in (("template", 5), ("procedural", 19)):
+        raise ValueError("only registered development pilots template5/procedural19 are allowed")
+    metadata, world = bundle.get("metadata") or {}, bundle.get("world_state") or {}
+    if type(metadata.get("seed")) is not int or metadata["seed"] != seed or world.get("seed") != seed:
+        raise ValueError("pilot metadata/world seed differs")
+    if len(world.get("regions") or []) != (8 if stratum == "template" else 32):
+        raise ValueError("pilot region count differs")
+    if (world.get("geography") is not None) != (stratum == "procedural"):
+        raise ValueError("pilot geography differs")
+    history = bundle.get("history")
+    if not isinstance(history, list) or len(history) != HORIZON or metadata.get("total_turns") != HORIZON:
+        raise ValueError("pilot requires the complete 120-turn horizon")
+    if [snap.get("turn") for snap in history] != list(range(1, HORIZON + 1)):
+        raise ValueError("pilot completed turns are missing, duplicated or out of order")
+    for snap in history:
+        lv, source = snap.get("livelihoods") or {}, snap["turn"] - 1
+        a6, ph = lv.get("adaptive_livelihoods") or {}, lv.get("public_health") or {}
+        if (a6.get("rules"), a6.get("mode"), a6.get("decision_channels"), a6.get("source_turn")) != ("3", "adapt", "all", source):
+            raise ValueError("pilot is not dated CWR1 AD rules3/all")
+        if (ph.get("crowding"), ph.get("mode"), ph.get("source_turn")) != ("density_only", "active", source):
+            raise ValueError("pilot is not dated active density_only public health")
+
+
+def select_points(bundle):
+    """Deterministic observed-state set cover, D3 first-event boundaries first.
+
+    No activation is forced. At most twelve completed-turn checkpoints survive;
+    absent/unselected states and unavailable checkpoint zero remain explicit.
+    """
+    horizon = len(bundle.get("history") or [])
+    active = defaultdict(list)
+    first_d3 = {}
+    examples = {}
+    for snap in bundle.get("history") or []:
+        k, lv = snap["turn"], snap.get("livelihoods") or {}
+        d4 = (lv.get("war_requisition") or {}).get("frame") or {}
+        d3 = (lv.get("war_consequences") or {}).get("frame") or {}
+        for event in d3.get("events") or []:
+            kind = event.get("kind")
+            if kind in D3_KINDS and kind not in first_d3:
+                first_d3[kind] = {"completed_turn": k, "event": event}
+        x1 = (lv.get("residence_ledger") or {}).get("frame") or {}
+        xt = x1.get("totals") or {}
+        orders = (lv.get("timber_orders") or {}).get("orders") or []
+        infra = lv.get("infrastructure_condition") or {}
+        ph, care = lv.get("public_health") or {}, lv.get("epidemic_care") or {}
+        a6 = (lv.get("adaptive_livelihoods") or {}).get("frame") or {}
+        wealth = (lv.get("wealth_accounting") or {}).get("frame") or {}
+        cargo = lv.get("titled_trade") or {}
+        conditions = {
+            "applied_migration": any(isinstance(row, list) and len(row) == 3 and positive(row[2]) for row in snap.get("migration") or []),
+            "recent_arrival": positive(xt.get("recent_residence_arrivals")),
+            "complete_arrival_window": (x1.get("arrival_diagnostics") or {}).get("complete") is True and positive(xt.get("recent_residence_arrivals")),
+            "army_meal_or_requisition": any((e.get("kind") == "consumption" and positive(e.get("demanded_rations"))) or (e.get("kind") in ("requisition", "cargo_seizure") and positive(e.get("removed_milli"))) for e in d4.get("events") or []),
+            "actual_requisition_or_seizure": any(e.get("kind") in ("requisition", "cargo_seizure") and positive(e.get("removed_milli")) for e in d4.get("events") or []),
+            "moving_timber_escrow": any(o.get("status") == "moving" and positive(o.get("cargo_milli")) and positive(o.get("cash")) for o in orders),
+            "paid_infrastructure_work": any(positive(r.get("delivered")) and any(positive(m.get("worked")) and positive(m.get("wages_milli")) for m in r.get("members") or []) for r in infra.get("receipts") or []),
+            "health_coverage": any(positive(r.get("coverage")) for r in (care.get("tick") or {}).get("applied") or []),
+            "individual_health_episode": positive((snap.get("health_care") or {}).get("episodes")),
+            "dated_health_report_or_guard": any(r.get("delivery", -1) > k - 1 for r in ph.get("reports") or []) or any(positive(m.get("wage_paid_milli")) for r in ph.get("guards") or [] for m in r.get("members") or []),
+            "personal_a6_memory": any(a6.get(key) for key in ("work", "refusals", "quick_departures", "trade")) or positive(a6.get("a6_rows_total")),
+            "money_transaction": any(positive(r.get("in_milli")) or positive(r.get("out_milli")) for r in wealth.get("typed") or []),
+            "active_food_cargo": any(s.get("status") == "moving" and positive(sum(s.get("cargo") or [])) for s in cargo.get("shipments") or []),
+            "actual_restitution": any(r.get("channel") == "restitution" and positive(r.get("in_milli")) for r in wealth.get("typed") or []),
+        }
+        for kind, yes in conditions.items():
+            if yes:
+                active[kind].append(k)
+                examples.setdefault(kind, {"completed_turn": k, "snapshot_source_turn": k - 1})
+    required = set()
+    unavailable = []
+    for kind, event in first_d3.items():
+        k = event["completed_turn"]
+        for label, point in (("before", k - 1), ("after", k)):
+            key = f"{label}_d3_{kind}"
+            if 0 < point < horizon:
+                active[key] = [point]
+                required.add(point)
+            else:
+                unavailable.append({"category": key, "checkpoint": point, "reason": "checkpoint must be between 1 and horizon-1"})
+    if len(required) > MAX_POINTS:
+        raise ValueError("D3 boundary priority alone exceeds checkpoint cap")
+    selected = set(required)
+    def covered(points):
+        return {kind for kind, turns in active.items() if points.intersection(turns)}
+    choices = {k for turns in active.values() for k in turns if 0 < k < horizon}
+    while len(selected) < MAX_POINTS:
+        unseen = set(active) - covered(selected)
+        ranked = sorted(((-sum(k in active[kind] for kind in unseen), k) for k in choices - selected))
+        if not ranked or ranked[0][0] == 0:
+            break
+        selected.add(ranked[0][1])
+    reached = covered(selected)
+    return {"selection_rule": "first real D3 before/after boundaries, then maximum uncovered observed-state coverage; ties earliest; cap12",
+            "ks": sorted(selected), "first_d3_events": first_d3,
+            "missing_d3_events": [kind for kind in D3_KINDS if kind not in first_d3],
+            "active_categories": dict(sorted(active.items())), "first_category_examples": examples,
+            "covered_categories": sorted(reached), "missing_categories": [kind for kind in LIFECYCLES if kind not in active],
+            "unselected_active_categories": sorted(set(active) - reached), "unavailable_boundaries": unavailable}
+
+
+def load_runtime(root):
+    root = Path(root).resolve()
+    os.chdir(root)
+    os.environ["PYTHONPATH"] = str(root / "src")
+    sys.path[:0] = [str(root / "src"), str(root / "scripts")]
+    modules = [importlib.import_module(name) for name in ("cw_rework_screen", "checkpoint_identity", "cities_identity", "chronicler", "chronicler_agents.chronicler_agents")]
+    screen, checkpoint, comparator, chronicler, native = modules
+    for module in modules[:-1]:
+        if not Path(module.__file__).resolve().is_relative_to(root):
+            raise ValueError(f"imported wrong source: {module.__name__}: {module.__file__}")
+    return screen, checkpoint, comparator, native
+
+
+def native_artifact(native):
+    path = Path(native.__file__).resolve()
+    if not any(str(path).endswith(suffix) for suffix in EXTENSION_SUFFIXES):
+        raise ValueError("native identity must name the compiled extension, not its Python package initializer")
+    return path
+
+
+def validate_budget(seconds):
+    if isinstance(seconds, bool) or not isinstance(seconds, (int, float)) or not math.isfinite(seconds) or seconds <= 0:
+        raise ValueError("a finite positive predeclared wall budget is required")
+
+
+def freeze_identity(root, expected_source, expected_native, screen, native):
+    root = Path(root).resolve()
+    if git(root, "rev-parse", "HEAD") != expected_source:
+        raise ValueError("runtime source commit differs from freeze")
+    if git(root, "status", "--porcelain", "--untracked-files=no"):
+        raise ValueError("runtime tracked worktree is dirty")
+    native_path = native_artifact(native)
+    if sha(native_path) != expected_native:
+        raise ValueError("runtime native artifact differs from freeze")
+    names = git(root, "ls-files", "src/chronicler", "scripts", "chronicler-agents/src", "chronicler-agents/Cargo.toml", "chronicler-agents/Cargo.lock", "chronicler-agents/build.rs", "pyproject.toml", "uv.lock").splitlines()
+    files = {name: sha(root / name) for name in names if (root / name).is_file()}
+    return {"source": expected_source, "source_root": str(root), "native_path": str(native_path),
+            "native_sha256": expected_native, "interpreter": sys.executable, "python": sys.version,
+            "source_identity": screen.SR.source_identity(screen.SCREEN), "tracked_input_sha256": files}
+
+
+def exact_cli(screen, stratum, seed):
+    cli = list(screen.BASE)
+    i = cli.index("--turns")
+    del cli[i:i + 2]
+    cli.remove("--simulate-only")
+    cli += list(screen.ARMS["AD"][0]) + ["--seed", str(seed)]
+    if stratum == "procedural":
+        cli += list(screen.SCREEN.procedural)
+    return cli
+
+
+def make_plan(args):
+    screen, _, _, native = load_runtime(args.source_root)
+    frozen = freeze_identity(args.source_root, args.expected_source, args.expected_native_sha256, screen, native)
+    pilot_source = Path(args.pilot_source).resolve()
+    pilot_source_text = pilot_source.read_text()
+    if screen.SR.recorded_run(pilot_source_text) != ("CWR1", "pilot"):
+        raise ValueError("source record does not declare the CWR1 pilot cohort")
+    if screen.SR.identity_key(screen.SR.identity_of(pilot_source_text)) != screen.SR.identity_key(frozen["source_identity"]):
+        raise ValueError("recorded pilot source/extension/extractor identity differs from freeze")
+    path = Path(args.bundle).resolve()
+    bundle = screen.load_bundle_file(path)
+    declared_world(bundle, args.stratum, args.seed)
+    metrics, problems = screen.extract(bundle, screen.ARMS["AD"][0], expected_turns=HORIZON)
+    if problems:
+        raise ValueError("invalid strict CWR1 AD pilot: " + "; ".join(problems))
+    sidecar = path.parent / "agent_events.arrow"
+    if not sidecar.is_file() or not metrics.get("event_sidecar", {}).get("present"):
+        raise ValueError("pilot untruncated Arrow sidecar is absent")
+    selection = select_points(bundle)
+    if not selection["ks"]:
+        raise ValueError("no active resumable checkpoints observed")
+    if frozen != freeze_identity(args.source_root, args.expected_source, args.expected_native_sha256, screen, native):
+        raise ValueError("source changed while planning")
+    return {"schema_version": 1, "adapter": "CWR1 AD rules3/all/density_only; not the CW6 FULL public planner",
+            "source_freeze": frozen, "stratum": args.stratum, "seed": args.seed, "turns": HORIZON,
+            "bundle": str(path), "bundle_sha256": sha(path), "pilot_source": str(pilot_source), "pilot_source_sha256": sha(pilot_source),
+            "event_sidecar": metrics["event_sidecar"], "arrow_sha256": sha(sidecar),
+            "cli": exact_cli(screen, args.stratum, args.seed), "selection": selection,
+            "driver_sha256": sha(__file__), "comparator": "checkpoint_identity.run_case / cities_identity.compare",
+            "semantics": {"jobs": 1, "native_threads": 1, "resume_hash_seed": "0", "normalize": "only metadata.generated_at in decoded bundle",
+                          "excluded": ["run_manifest.json", "*.log", "checkpoint files", "precheckpoint per-turn JSON absent from resumed outputs"],
+                          "arrow": "raw bytes, never normalized", "pickle": "only same-run checkpoints made by frozen source; adapter never unpickles"}}
+
+
+def inventory(directory):
+    return {str(path.relative_to(directory)): {"bytes": path.stat().st_size, "sha256": sha(path)}
+            for path in sorted(Path(directory).rglob("*")) if path.is_file() and "ckpt" not in path.relative_to(directory).parts}
+
+
+def run_plan(args):
+    plan = json.loads(Path(args.plan).read_text())
+    if plan.get("schema_version") != 1 or plan.get("driver_sha256") != sha(__file__):
+        raise ValueError("invalid plan or changed evidence adapter")
+    validate_budget(args.max_wall_seconds)
+    screen, checkpoint, comparator, native = load_runtime(args.source_root)
+    expected = plan["source_freeze"]
+    def guard():
+        if freeze_identity(args.source_root, expected["source"], expected["native_sha256"], screen, native) != expected:
+            raise ValueError("source/extension/interpreter/extractor identity changed")
+        for path, digest in ((plan["bundle"], plan["bundle_sha256"]), (plan["pilot_source"], plan["pilot_source_sha256"]),
+                             (str(Path(plan["bundle"]).parent / "agent_events.arrow"), plan["arrow_sha256"])):
+            if sha(path) != digest:
+                raise ValueError("pilot input bytes changed")
+    guard()
+    bundle = screen.load_bundle_file(plan["bundle"])
+    declared_world(bundle, plan["stratum"], plan["seed"])
+    _, problems = screen.extract(bundle, screen.ARMS["AD"][0], expected_turns=HORIZON)
+    if problems or plan["selection"] != select_points(bundle) or plan["cli"] != exact_cli(screen, plan["stratum"], plan["seed"]):
+        raise ValueError("pilot/plan strict schema, observed transitions or exact CLI differs")
+    output = Path(args.output).resolve()
+    if output.exists():
+        raise ValueError("resume output exists; preserve it and choose a new path")
+    output.parent.mkdir(parents=True, exist_ok=True)
+    if shutil.disk_usage(output.parent).free < 3 * 1024**3:
+        raise ValueError("resume requires at least 3GiB available disk")
+    output.mkdir()
+    save_new(output / "plan.json", plan)
+    invocations = []
+    started = time.monotonic()
+    original_run = checkpoint._run
+    def tracked_run(cmd, log, env):
+        env = {**env, **{key: "1" for key in ("OMP_NUM_THREADS", "OPENBLAS_NUM_THREADS", "MKL_NUM_THREADS", "NUMEXPR_NUM_THREADS")}}
+        guard()
+        remaining = args.max_wall_seconds - (time.monotonic() - started)
+        if remaining <= 0:
+            raise TimeoutError("declared resume wall budget exhausted before next subprocess")
+        begin = time.monotonic()
+        record = {"command": cmd, "cwd": str(log.parent), "log": str(log), "environment": {k: env.get(k) for k in
+                  ("PYTHONPATH", "PYTHONHASHSEED", "RAYON_NUM_THREADS", "OMP_NUM_THREADS", "OPENBLAS_NUM_THREADS", "MKL_NUM_THREADS", "NUMEXPR_NUM_THREADS", "CHRONICLER_QUIET")}}
+        with Path(log).open("x") as stream:
+            try:
+                proc = subprocess.run(cmd, env=env, cwd=log.parent, stdout=stream, stderr=subprocess.STDOUT, timeout=remaining)
+                code = proc.returncode
+            except subprocess.TimeoutExpired:
+                record["timeout"] = True
+                code = 124
+        record.update(exit=code, seconds=time.monotonic() - begin)
+        if "--output" in cmd:
+            directory = Path(cmd[cmd.index("--output") + 1]).parent
+            record["outputs"] = inventory(directory)
+            record["checkpoints"] = {str(path.relative_to(directory)): {"bytes": path.stat().st_size, "sha256": sha(path)}
+                                     for path in sorted((directory / "ckpt").glob("*.ckpt"))
+                                     if int(path.stem.split("_")[1]) in plan["selection"]["ks"]}
+        invocations.append(record)
+        (output / "invocations.json").write_text(json.dumps(invocations, indent=2) + "\n")
+        guard()
+        return code, record["seconds"]
+    checkpoint._run = tracked_run
+    name = f"cwr1_ad_{plan['stratum']}{plan['seed']}"
+    checkpoint.CASES[name] = (plan["cli"], HORIZON, 0, "spread")
+    try:
+        report = checkpoint.run_case(output, name, ks=plan["selection"]["ks"], jobs=1, extra=[], keep=False, resume_hash_seed="0")
+        straight_bundle = output / name / "straight" / "chronicle_bundle.json"
+        same_pilot = comparator._content(straight_bundle, False) == comparator._content(Path(plan["bundle"]), False)
+        arrow_rows = [r["outputs"].get("agent_events.arrow") for r in invocations if "outputs" in r]
+        raw_arrow_equal = bool(arrow_rows) and all(r and r["sha256"] == plan["arrow_sha256"] for r in arrow_rows)
+        report.update(selection=plan["selection"], pilot_trajectory_reproduced=same_pilot,
+                      raw_arrow_sha256_matches_pilot=raw_arrow_equal, invocations=len(invocations),
+                      max_wall_seconds=args.max_wall_seconds, wall_seconds=time.monotonic() - started,
+                      budget_scope="execution after strict plan revalidation, including subprocesses/output inventories/comparisons",
+                      source_freeze=expected, driver_sha256=sha(__file__), semantics=plan["semantics"])
+        guard()
+        report["wall_seconds"] = time.monotonic() - started
+        report["budget_pass"] = report["wall_seconds"] <= args.max_wall_seconds
+        report["pass"] = bool(report.get("pass") and same_pilot and raw_arrow_equal and report["budget_pass"]
+                              and len(report.get("results", {})) == len(plan["selection"]["ks"]))
+        save_new(output / "report.json", report)
+        return report
+    except BaseException as error:
+        save_new(output / "failure.json", {"type": type(error).__name__, "message": str(error),
+                                          "wall_seconds": time.monotonic() - started, "invocations": len(invocations)})
+        raise
+    finally:
+        checkpoint._run = original_run
+
+
+def self_check():
+    # Pure constructed records only: no runtime/native import or simulation.
+    history = [{"turn": k, "livelihoods": {"adaptive_livelihoods": {"rules": "3", "mode": "adapt", "decision_channels": "all", "source_turn": k - 1},
+                 "public_health": {"crowding": "density_only", "mode": "active", "source_turn": k - 1}}} for k in range(1, HORIZON + 1)]
+    bundle = {"metadata": {"seed": 5, "total_turns": HORIZON}, "world_state": {"seed": 5, "regions": [{}] * 8}, "history": history}
+    declared_world(bundle, "template", 5)
+    rejected = []
+    for label, mutate in (("wrong_seed", lambda b: b["metadata"].update(seed=19)),
+                          ("old_rules", lambda b: b["history"][0]["livelihoods"]["adaptive_livelihoods"].update(rules="2")),
+                          ("wrong_control", lambda b: b["history"][0]["livelihoods"]["adaptive_livelihoods"].update(mode="record_only")),
+                          ("legacy_crowding", lambda b: b["history"][0]["livelihoods"]["public_health"].update(crowding="legacy_displacement")),
+                          ("future_source", lambda b: b["history"][0]["livelihoods"]["public_health"].update(source_turn=1)),
+                          ("duplicate_turn", lambda b: b["history"][1].update(turn=1)),
+                          ("short_horizon", lambda b: b["history"].pop())):
+        altered = json.loads(json.dumps(bundle))
+        mutate(altered)
+        try:
+            declared_world(altered, "template", 5)
+        except ValueError:
+            rejected.append(label)
+        else:
+            raise AssertionError("negative declaration accepted: " + label)
+    for kind, k in zip(D3_KINDS, (1, 7, 30, 80), strict=True):
+        history[k - 1]["livelihoods"]["war_consequences"] = {"frame": {"events": [{"kind": kind}]}}
+    history[39]["livelihoods"]["residence_ledger"] = {"frame": {"totals": {"recent_residence_arrivals": 2}, "arrival_diagnostics": {"complete": True}}}
+    # Positive category fixtures use the actual saved field names inspected in
+    # the package writers/readers; this is not evidence of natural activation.
+    point = history[39]
+    lv = point["livelihoods"]
+    point["migration"] = [[0, 1, 1]]
+    point["health_care"] = {"episodes": 1}
+    lv["war_requisition"] = {"frame": {"events": [{"kind": "consumption", "demanded_rations": 1}, {"kind": "requisition", "removed_milli": 1}]}}
+    lv["timber_orders"] = {"orders": [{"status": "moving", "cargo_milli": 10, "cash": 10}]}
+    lv["infrastructure_condition"] = {"receipts": [{"delivered": 1, "members": [{"worked": 1, "wages_milli": 1}]}]}
+    lv["epidemic_care"] = {"tick": {"applied": [{"coverage": .5}]}}
+    lv["public_health"]["reports"] = [{"delivery": 41}]
+    lv["adaptive_livelihoods"]["frame"] = {"work": ["constructed observation"]}
+    lv["wealth_accounting"] = {"frame": {"typed": [{"channel": "restitution", "in_milli": 1, "out_milli": 0}]}}
+    lv["titled_trade"] = {"shipments": [{"status": "moving", "cargo": [1]}]}
+    chosen = select_points(bundle)
+    assert len(chosen["ks"]) <= MAX_POINTS and 0 not in chosen["ks"] and HORIZON not in chosen["ks"]
+    assert {1, 6, 7, 29, 30, 79, 80, 40} <= set(chosen["ks"])
+    assert chosen["missing_d3_events"] == [] and chosen["unavailable_boundaries"][0]["checkpoint"] == 0
+    assert not chosen["missing_categories"] and set(LIFECYCLES) <= set(chosen["covered_categories"])
+    no_cash = json.loads(json.dumps(bundle))
+    no_cash["history"][39]["livelihoods"]["timber_orders"]["orders"][0]["cash"] = 0
+    assert "moving_timber_escrow" in select_points(no_cash)["missing_categories"]
+    assert not any(positive(x) for x in (None, False, 0, -1, float("nan"), float("inf")))
+    # Exercise source/native/dirty refusals without importing any model module.
+    from types import SimpleNamespace
+    actual_git = globals()["git"]
+    expected_source = "a" * 40
+    screen = SimpleNamespace(SCREEN=None, SR=SimpleNamespace(source_identity=lambda _: ["constructed guard fixture"]))
+    guard_rejections = []
+    with tempfile.TemporaryDirectory(prefix="cwr-resume-guard-") as fixture_dir:
+        fixture = Path(fixture_dir)
+        compiled = fixture / ("constructed" + EXTENSION_SUFFIXES[0])
+        compiled.write_bytes(b"constructed hash fixture, never imported")
+        initializer = fixture / "__init__.py"
+        initializer.write_text("# constructed package initializer, never imported\n")
+        native = SimpleNamespace(__file__=str(compiled))
+        expected_native = sha(compiled)
+        try:
+            for label in ("wrong_source", "dirty_source", "wrong_native"):
+                def fake_git(root, *args):
+                    if args[:2] == ("rev-parse", "HEAD"):
+                        return "b" * 40 if label == "wrong_source" else expected_source
+                    if args[0] == "status":
+                        return " M src/chronicler/fixture.py" if label == "dirty_source" else ""
+                    return ""
+                globals()["git"] = fake_git
+                try:
+                    freeze_identity(fixture, expected_source,
+                                    "0" * 64 if label == "wrong_native" else expected_native, screen, native)
+                except ValueError:
+                    guard_rejections.append(label)
+                else:
+                    raise AssertionError("source guard negative accepted: " + label)
+            # Even its correct hash cannot bless __init__.py as native code.
+            try:
+                freeze_identity(fixture, expected_source, sha(initializer), screen,
+                                SimpleNamespace(__file__=str(initializer)))
+            except ValueError as error:
+                assert "compiled extension" in str(error)
+                guard_rejections.append("package_initializer_instead_of_extension")
+            else:
+                raise AssertionError("package initializer accepted as compiled extension")
+            assert native_artifact(native) == compiled
+            assert freeze_identity(fixture, expected_source, expected_native, screen, native)["native_sha256"] == expected_native
+        finally:
+            globals()["git"] = actual_git
+    budget_rejections = []
+    for label, value in (("nan", float("nan")), ("infinity", float("inf")), ("zero", 0), ("negative", -1), ("boolean", True)):
+        try:
+            validate_budget(value)
+        except ValueError:
+            budget_rejections.append(label)
+        else:
+            raise AssertionError("invalid budget accepted: " + label)
+    validate_budget(120)
+    return {"pass": True, "rejected_declarations": rejected, "rejected_source_guards": guard_rejections, "rejected_budgets": budget_rejections, "selection": chosen,
+            "runtime_imported": any(name in sys.modules for name in ("chronicler", "chronicler_agents", "cw_rework_screen")),
+            "simulation": False, "scope": "adapter declaration/selection negatives only; not full CWR1 scientific extractor or native resume evidence"}
+
+
+def main(argv=None):
+    parser = argparse.ArgumentParser(description=__doc__)
+    commands = parser.add_subparsers(dest="command", required=True)
+    plan = commands.add_parser("plan")
+    for flag in ("source-root", "expected-source", "expected-native-sha256", "pilot-source", "bundle", "output"):
+        plan.add_argument("--" + flag, required=True)
+    plan.add_argument("--stratum", choices=("template", "procedural"), required=True)
+    plan.add_argument("--seed", type=int, required=True)
+    run = commands.add_parser("run")
+    for flag in ("source-root", "plan", "output"):
+        run.add_argument("--" + flag, required=True)
+    run.add_argument("--max-wall-seconds", type=float, required=True)
+    check = commands.add_parser("self-check")
+    check.add_argument("--output", required=True)
+    args = parser.parse_args(argv)
+    if args.command == "plan":
+        save_new(args.output, make_plan(args))
+        return 0
+    if args.command == "self-check":
+        save_new(args.output, self_check())
+        return 0
+    return 0 if run_plan(args).get("pass") else 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

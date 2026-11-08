@@ -283,14 +283,24 @@ def _price(world, state, region):
 
 _UNREAD = object()
 
-def dispatch(world, state, t, sim, origin, dest, holder, path, quantity, price, budget, acc=None, *, known_markets=_UNREAD):
+def dispatch(world, state, t, sim, origin, dest, holder, path, quantity, price, budget, acc=None, *, known_markets=_UNREAD,
+             _planning_people=None):
     """Validated atomic dispatch: exact stock, merchant purchase and real escrow."""
     from chronicler import repair_projects as RP
     from chronicler import timber_supply as TS
     seller, payer = _controller(world, origin), _controller(world, dest)
     if seller < 0 or payer < 0 or seller == payer or quantity <= 0 or len(path) < 2 or path[0] != origin or path[-1] != dest or any(o.holder == holder for o in state.orders):
         return None
-    person = TT._people(sim.get_snapshot()).get(holder)
+    # During this single planner call only wealth can change in the native
+    # pool: earlier arrivals may credit a carrier and dispatch may debit one.
+    # Physical eligibility (id, region, occupation, age) is invariant.  Most
+    # candidates are refused by their own market knowledge, so do not rebuild
+    # every living person's five columns for each such refusal.  The public
+    # standalone path keeps its fresh eligibility read, and every accepted
+    # planned candidate refreshes the full person/wallet below, before any
+    # quantity, quote, stock or money calculation.  The cache contains no wallet.
+    person = (TT._people(sim.get_snapshot()).get(holder) if _planning_people is None
+              else _planning_people.get(holder))
     if person is None or person[0] != origin or person[1] != TT.MERCHANT or person[2] < TT.ADULT_AGE or holder in TT._enlisted(world) or holder in TT._trips(sim):
         return None
     if len(state.orders) >= MAX_ORDERS:
@@ -304,6 +314,10 @@ def dispatch(world, state, t, sim, origin, dest, holder, path, quantity, price, 
         known_markets = trade_destinations(world, sim, [holder])
     if not accepts_trade_destination(world, holder, dest, known_markets):
         return None
+    if _planning_people is not None:
+        person = TT._people(sim.get_snapshot()).get(holder)
+        if person is None or person[0] != origin or person[1] != TT.MERCHANT or person[2] < TT.ADULT_AGE:
+            return None
     commitments = RP._commitments(world, sim)
     works_wants = getattr(TS, "_works_wants", lambda _: [])
     local_works = math.fsum(want for region, want, _wids in works_wants(world) if region == origin)
@@ -393,6 +407,12 @@ def phase10_before_reserves(world, acc, economy_result, agent_bridge):
         busy |= {int(r[0]) for r in sim.work_reservations(world.turn)}
     from chronicler.adaptive_livelihoods import trade_destinations
     known_markets = trade_destinations(world, sim, people)
+    # These facts do not change while this synchronous planning loop runs.
+    # Keep them local: a later turn, closure, controller or price change must
+    # rebuild them.  Wallets, treasuries, stock, orders and bookings are never
+    # memoized; dispatch and the payment seam still read their live values.
+    planning_people = None
+    paths_by_origin, prices_by_origin = {}, {}
     for dest, payer, gap in _needs(world):
         allowance = max(0, (envelope(world, payer, SERVICE, region=dest) or 0) - t.spent.get(payer, 0))
         if not allowance:
@@ -401,12 +421,21 @@ def phase10_before_reserves(world, acc, economy_result, agent_bridge):
         for holder, (origin, occ, age, _wealth) in people.items():
             if holder in busy or occ != TT.MERCHANT or age < TT.ADULT_AGE or origin == dest:
                 continue
-            path = TT._bfs(edges, origin).get(dest)
-            price = _price(world, state, origin)
+            if origin not in paths_by_origin:
+                paths_by_origin[origin] = TT._bfs(edges, origin)
+                prices_by_origin[origin] = _price(world, state, origin)
+            path = paths_by_origin[origin].get(dest)
+            price = prices_by_origin[origin]
             if path is not None and price is not None:
                 candidates.append((len(path), origin, holder, path, price))
         for _hops, origin, holder, path, price in sorted(candidates):
-            order = dispatch(world, state, t, sim, origin, dest, holder, path, math.floor(gap * MILLI), price, allowance, acc, known_markets=known_markets)
+            if planning_people is None:
+                # No-demand/no-envelope phases need no extra population map.
+                # The initial physical facts are still valid at first dispatch;
+                # wallets and accepted-candidate eligibility remain live below.
+                planning_people = {aid: person[:3] for aid, person in people.items()}
+            order = dispatch(world, state, t, sim, origin, dest, holder, path, math.floor(gap * MILLI), price, allowance, acc,
+                             known_markets=known_markets, _planning_people=planning_people)
             if order is not None:
                 busy.add(holder)
                 break

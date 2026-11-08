@@ -1644,11 +1644,12 @@
       "key": "adaptive_livelihoods_rules",
       "flag": "--adaptive-livelihoods-rules",
       "label": "Adaptive livelihoods rules",
-      "help": "Saved option; choices ('2', '1')",
+      "help": "2 (unchanged default), 1: historical rules; explicit 3: independent war inputs and personal decision controls.",
       "kind": "choice",
       "choices": [
         "2",
-        "1"
+        "1",
+        "3"
       ],
       "default": null,
       "parent": "adaptive_livelihoods",
@@ -1662,10 +1663,41 @@
       "experimental": true
     },
     {
+      "key": "adaptive_livelihoods_decision_channels",
+      "flag": "--adaptive-livelihoods-decision-channels",
+      "label": "Adaptive livelihoods decision channels",
+      "help": "Rules3 personal controls: all (default), no_migration_experience, no_information (migration knowledge), no_work, no_trade. War inputs stay independent.",
+      "kind": "choice",
+      "choices": [
+        "all",
+        "no_migration_experience",
+        "no_information",
+        "no_work",
+        "no_trade"
+      ],
+      "default": null,
+      "parent": "adaptive_livelihoods",
+      "requires": [
+        {
+          "feature": "adaptive_livelihoods",
+          "reason": "requires --adaptive-livelihoods"
+        },
+        {
+          "choice": "adaptive_livelihoods_rules",
+          "values": [
+            "3"
+          ],
+          "reason": "requires --adaptive-livelihoods-rules 3"
+        }
+      ],
+      "group": "Livelihoods",
+      "experimental": true
+    },
+    {
       "key": "public_health",
       "flag": "--public-health",
       "label": "Public health",
-      "help": "Supplied epidemic care, maintained-water sanitation, displacement crowding and dated public-health advice (default off).",
+      "help": "Supplied epidemic care, maintained-water sanitation, physical density and dated public-health advice (default off).",
       "kind": "bool",
       "choices": null,
       "default": null,
@@ -1771,6 +1803,27 @@
         "18",
         "19",
         "20"
+      ],
+      "default": null,
+      "parent": "public_health",
+      "requires": [
+        {
+          "feature": "public_health",
+          "reason": "requires --public-health"
+        }
+      ],
+      "group": "Livelihoods",
+      "experimental": true
+    },
+    {
+      "key": "public_health_crowding",
+      "flag": "--public-health-crowding",
+      "label": "Public health crowding",
+      "help": "legacy_displacement (unchanged default): historical classified X1 multiplier; explicit density_only: existing physical density only, no motive multiplier.",
+      "kind": "choice",
+      "choices": [
+        "legacy_displacement",
+        "density_only"
       ],
       "default": null,
       "parent": "public_health",

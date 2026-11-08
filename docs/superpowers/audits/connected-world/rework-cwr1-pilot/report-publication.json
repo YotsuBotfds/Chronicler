@@ -1,0 +1,15 @@
+{
+  "status": "PASS",
+  "published_at_utc": "2026-11-07T22:30:59.260836+00:00",
+  "source": "/workspace/evidence/cwr-evaluation/pilot-8792be88-v1/report.log",
+  "published_copy": "/workspace/evidence/cwr-evaluation/pilot-8792be88-v1/report.md",
+  "source_sha256": "a43804e38697f493c87ad56b3bd594d594c9e9119e42397a0a96de2a1b48d08d",
+  "published_sha256": "a43804e38697f493c87ad56b3bd594d594c9e9119e42397a0a96de2a1b48d08d",
+  "exact_byte_copy": true,
+  "original_launcher_receipt": "/workspace/evidence/cwr-evaluation/pilot-8792be88-v1/receipt.json",
+  "original_launcher_receipt_sha256": "7f5fe6f3369fa1d5dcfb0e550e7c6dca5b390e7732318c4c03a61d6d6e962e50",
+  "original_report_sha256_field": null,
+  "reason": "generic report command writes Markdown to stdout; approved launcher retained stdout as report.log",
+  "simulation_rerun": false,
+  "source_control_outcome_or_budget_change": false
+}

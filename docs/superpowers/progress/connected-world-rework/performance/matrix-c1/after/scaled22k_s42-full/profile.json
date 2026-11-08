@@ -1,0 +1,797 @@
+{
+  "case": {
+    "name": "scaled22k_s42-full",
+    "world": "scaled22k_s42",
+    "arm": "full",
+    "seed": 42,
+    "turns": 30,
+    "regions": 12,
+    "civs": 4,
+    "target": 18800,
+    "checkpoints": [
+      10,
+      20,
+      29
+    ],
+    "cli": [
+      "--turns",
+      "120",
+      "--agents",
+      "hybrid",
+      "--simulate-only",
+      "--campaigns",
+      "--health-care",
+      "--grain-reserves",
+      "--grain-storage",
+      "--public-grain-shipments",
+      "--grain-convoys",
+      "--scholarship",
+      "--academy-services",
+      "--learning-cohorts",
+      "--workshops",
+      "--workshop-payroll",
+      "--workshop-economics",
+      "--workshop-economics-rules",
+      "2",
+      "--apprenticeship",
+      "--operating-wear",
+      "--veteran-reintegration",
+      "--timber-stock",
+      "--commons-rules",
+      "--clearing-protection",
+      "--timber-supply",
+      "--repair-projects",
+      "--recovery-crews",
+      "--local-budgets",
+      "--maintenance-obligation",
+      "--remittances",
+      "--relocation-costs",
+      "--food-allocation",
+      "--household-retail",
+      "--household-retail-rules",
+      "2",
+      "--household-retail-boundary",
+      "all",
+      "--titled-trade",
+      "--infrastructure-condition",
+      "--infrastructure-condition-mode",
+      "repair",
+      "--reform-services",
+      "--guild-leagues",
+      "--movement-branches",
+      "--movement-branches-mode",
+      "funded",
+      "--epidemic-care",
+      "--public-health",
+      "--quarantine-mode",
+      "closure",
+      "--quarantine-channels",
+      "trade,migration",
+      "--residence-ledger",
+      "--war-requisition",
+      "--war-consequences",
+      "--adaptive-livelihoods",
+      "--adaptive-livelihoods-rules",
+      "3",
+      "--attribution-records",
+      "--wealth-accounting",
+      "--wealth-accounting-mode",
+      "strict",
+      "--adaptive-livelihoods-mode",
+      "adapt",
+      "--war-consequences-mode",
+      "active",
+      "--war-requisition-mode",
+      "transfer",
+      "--harvest-cover",
+      "--harvest-cover-mode",
+      "loss",
+      "--timber-orders",
+      "--adaptive-livelihoods-decision-channels",
+      "all",
+      "--public-health-crowding",
+      "density_only",
+      "--public-health-mode",
+      "active",
+      "--household-retail-mode",
+      "retail",
+      "--seed",
+      "42",
+      "--regions",
+      "12",
+      "--civs",
+      "4",
+      "--turns",
+      "30",
+      "--validation-sidecar",
+      "--checkpoint-turns",
+      "10,20,29"
+    ]
+  },
+  "identity": {
+    "python_source": "/workspace/cwr-perf-after-v2/src/chronicler/__init__.py",
+    "interpreter": "/workspace/cwr-native/bin/python",
+    "python_version": "3.13.5 (main, Aug 10 2026, 12:06:59) [GCC 14.2.0]",
+    "extension": "/workspace/cwr-native/lib/python3.13/site-packages/chronicler_agents/chronicler_agents.cpython-313-x86_64-linux-gnu.so",
+    "native_sha256": "b1d3ea5ac858681960b2cb880c534164905501f6ab4f6f3c94f7c9b5f66196cd",
+    "agent_schema": [
+      1,
+      "dcf0c34097c88451"
+    ],
+    "environment": {
+      "RAYON_NUM_THREADS": "1",
+      "PYTHONHASHSEED": "0",
+      "OMP_NUM_THREADS": "1",
+      "OPENBLAS_NUM_THREADS": "1"
+    }
+  },
+  "source_snapshot": {
+    "commit": "a1fcb482f4d971e1c20e99075f2e256f9838a359",
+    "files": 348,
+    "sha256": "37590d816871f6b563d3e5833830f56a37418d5b63a2810a4fdf1cbf6f91b423",
+    "base_sha256": "baf6513cdb3ceaffd7b50980951b81e4f5e8916f757dd3979579c4548548b004",
+    "validation_sha256": {
+      "scripts/cw_rework_screen.py": "f8409b1b76be49dbff968323f9eee2f65229e5c1280e0c349fe2e2a3927e4fef",
+      "scripts/cw_health_screen.py": "cfa5d1116ee49716017bf5119c8e26dc704ea6d98f645c48da875b2e537a7e32",
+      "scripts/screen_runner.py": "5ded5f3548bb6403b1df25e9d31e5c5ce638631aa5fd1b4fabdcfb8510b5cadb"
+    }
+  },
+  "base_population": 176,
+  "scaled_population": 18801,
+  "native_initial_agents": 18801,
+  "run_wall_seconds": 101.8620958270003,
+  "run_cpu_seconds": 101.81304499999999,
+  "run_peak_rss_kib": 668840,
+  "process_peak_rss_with_read_kib": 692120,
+  "turns": [
+    {
+      "source_turn": 0,
+      "wall_seconds": 0.9003497679987049,
+      "cpu_seconds": 0.899101,
+      "native_agents": 18999
+    },
+    {
+      "source_turn": 1,
+      "wall_seconds": 1.6516540809971048,
+      "cpu_seconds": 1.6506839999999996,
+      "native_agents": 19144
+    },
+    {
+      "source_turn": 2,
+      "wall_seconds": 1.7796182130005036,
+      "cpu_seconds": 1.7792930000000005,
+      "native_agents": 19210
+    },
+    {
+      "source_turn": 3,
+      "wall_seconds": 1.6046356709994143,
+      "cpu_seconds": 1.6043719999999997,
+      "native_agents": 19459
+    },
+    {
+      "source_turn": 4,
+      "wall_seconds": 1.2092424549991847,
+      "cpu_seconds": 1.209072,
+      "native_agents": 19767
+    },
+    {
+      "source_turn": 5,
+      "wall_seconds": 0.7746013579999271,
+      "cpu_seconds": 0.7743229999999999,
+      "native_agents": 20109
+    },
+    {
+      "source_turn": 6,
+      "wall_seconds": 1.3951226949975535,
+      "cpu_seconds": 1.394550999999998,
+      "native_agents": 20470
+    },
+    {
+      "source_turn": 7,
+      "wall_seconds": 1.7285297569978866,
+      "cpu_seconds": 1.7282990000000016,
+      "native_agents": 20863
+    },
+    {
+      "source_turn": 8,
+      "wall_seconds": 0.8642647490014497,
+      "cpu_seconds": 0.8640720000000002,
+      "native_agents": 21306
+    },
+    {
+      "source_turn": 9,
+      "wall_seconds": 1.3668971480001346,
+      "cpu_seconds": 1.3666910000000012,
+      "native_agents": 21689
+    },
+    {
+      "source_turn": 10,
+      "wall_seconds": 4.779005847001827,
+      "cpu_seconds": 4.778682999999997,
+      "native_agents": 22132
+    },
+    {
+      "source_turn": 11,
+      "wall_seconds": 4.020365814001707,
+      "cpu_seconds": 4.019229000000003,
+      "native_agents": 22527
+    },
+    {
+      "source_turn": 12,
+      "wall_seconds": 2.4113908669969533,
+      "cpu_seconds": 2.4111610000000034,
+      "native_agents": 22639
+    },
+    {
+      "source_turn": 13,
+      "wall_seconds": 4.359004409998306,
+      "cpu_seconds": 4.3587089999999975,
+      "native_agents": 22691
+    },
+    {
+      "source_turn": 14,
+      "wall_seconds": 5.275481089000095,
+      "cpu_seconds": 5.274025999999999,
+      "native_agents": 22930
+    },
+    {
+      "source_turn": 15,
+      "wall_seconds": 4.924411219999456,
+      "cpu_seconds": 4.924023999999996,
+      "native_agents": 23163
+    },
+    {
+      "source_turn": 16,
+      "wall_seconds": 5.4874886280013015,
+      "cpu_seconds": 5.4870870000000025,
+      "native_agents": 23367
+    },
+    {
+      "source_turn": 17,
+      "wall_seconds": 5.418672149997292,
+      "cpu_seconds": 5.418242999999997,
+      "native_agents": 23574
+    },
+    {
+      "source_turn": 18,
+      "wall_seconds": 3.7976580770009605,
+      "cpu_seconds": 3.7967140000000015,
+      "native_agents": 23761
+    },
+    {
+      "source_turn": 19,
+      "wall_seconds": 4.344259120000061,
+      "cpu_seconds": 4.332139999999995,
+      "native_agents": 23917
+    },
+    {
+      "source_turn": 20,
+      "wall_seconds": 5.821915109998372,
+      "cpu_seconds": 5.820606999999988,
+      "native_agents": 24008
+    },
+    {
+      "source_turn": 21,
+      "wall_seconds": 3.8755051990010543,
+      "cpu_seconds": 3.875183000000007,
+      "native_agents": 24096
+    },
+    {
+      "source_turn": 22,
+      "wall_seconds": 3.9356164160017215,
+      "cpu_seconds": 3.9353399999999965,
+      "native_agents": 24130
+    },
+    {
+      "source_turn": 23,
+      "wall_seconds": 4.429067827000836,
+      "cpu_seconds": 4.428761999999992,
+      "native_agents": 24194
+    },
+    {
+      "source_turn": 24,
+      "wall_seconds": 2.587158473001182,
+      "cpu_seconds": 2.5869269999999887,
+      "native_agents": 24219
+    },
+    {
+      "source_turn": 25,
+      "wall_seconds": 2.0536527909971483,
+      "cpu_seconds": 2.0526239999999945,
+      "native_agents": 24185
+    },
+    {
+      "source_turn": 26,
+      "wall_seconds": 3.6646252640020975,
+      "cpu_seconds": 3.664390999999995,
+      "native_agents": 24154
+    },
+    {
+      "source_turn": 27,
+      "wall_seconds": 3.5510478899996087,
+      "cpu_seconds": 3.5506910000000005,
+      "native_agents": 24271
+    },
+    {
+      "source_turn": 28,
+      "wall_seconds": 3.702240532002179,
+      "cpu_seconds": 3.7019089999999863,
+      "native_agents": 24465
+    },
+    {
+      "source_turn": 29,
+      "wall_seconds": 3.7494633059977787,
+      "cpu_seconds": 3.7475159999999903,
+      "native_agents": 24575
+    }
+  ],
+  "simulation_turn_wall": {
+    "median": 3.6834328980021382,
+    "min": 0.7746013579999271,
+    "max": 5.821915109998372,
+    "sum": 95.4629459249918
+  },
+  "simulation_turn_cpu": {
+    "median": 3.6831499999999906,
+    "min": 0.7743229999999999,
+    "max": 5.820606999999988,
+    "sum": 95.43442399999994
+  },
+  "callback_interval_wall": {
+    "median": 3.808779682000022,
+    "min": 0.7812994929990964,
+    "max": 6.4345313670019095,
+    "sum": 93.4275524980003
+  },
+  "callback_interval_cpu": {
+    "median": 3.8078280000000007,
+    "min": 0.781016000000001,
+    "max": 6.429161000000008,
+    "sum": 93.391201
+  },
+  "callback_interval_note": "drops first3 turns; includes preceding post-callback checkpoint/memory work",
+  "native_peak_agents": 24575,
+  "checkpoints": [
+    {
+      "turn": 10,
+      "path": "/workspace/evidence/cwr-profile/c1-five-scale-after/scaled22k_s42-full/checkpoint_turn_10.ckpt",
+      "bytes": 2791218,
+      "raw_bytes": 15681185,
+      "sections": {
+        "python": 1365894,
+        "native.agent.0": 1419528
+      },
+      "write_seconds": 0.2637730130009004,
+      "write_stages": {
+        "native": 0.005700551999325398,
+        "pickle": 0.13758315300219692,
+        "compress": 0.0846223699991242,
+        "header": 0.03381271500256844,
+        "write": 0.0020542229976854287
+      },
+      "read_seconds": 0.1652210140018724,
+      "read_stages": {
+        "read": 0.0008012870021048002,
+        "native": 0.01774941400071839,
+        "python": 0.1466703129990492
+      },
+      "identity": {
+        "environment": {
+          "affinity_cpu_count": 5,
+          "hash_seed": "0",
+          "implementation": "CPython",
+          "machine": "x86_64",
+          "packages": {
+            "arro3-core": "0.9.1",
+            "chronicler-agents": "0.1.0",
+            "numpy": "2.5.4",
+            "pyarrow": "26.0.0",
+            "pydantic": "2.12.5",
+            "scipy": "1.18.1"
+          },
+          "python": "3.13.5",
+          "thread_env": {
+            "BLIS_NUM_THREADS": null,
+            "GOTO_NUM_THREADS": null,
+            "MKL_NUM_THREADS": null,
+            "NUMEXPR_NUM_THREADS": null,
+            "OMP_NUM_THREADS": "1",
+            "OPENBLAS_NUM_THREADS": "1",
+            "OPENBLAS_THREAD_TIMEOUT": "16",
+            "PYTHONHASHSEED": "0",
+            "PYTHON_CPU_COUNT": null,
+            "RAYON_NUM_THREADS": "1",
+            "VECLIB_MAXIMUM_THREADS": null
+          }
+        },
+        "native": {
+          "bytes": 14535264,
+          "sha256": "b1d3ea5ac858681960b2cb880c534164905501f6ab4f6f3c94f7c9b5f66196cd",
+          "state_layouts": {
+            "agent": "v1:dcf0c34097c88451",
+            "ecology": "v1:4ab7f8c199b5e5f8",
+            "politics": "v1:b1a710f3450f5015"
+          },
+          "status": "found"
+        },
+        "source": {
+          "git_sha": "a1fcb482f4d971e1c20e99075f2e256f9838a359",
+          "package_digest": "3875b1c36dca261b26c6185525dbda2a45249e441da5189100be540f56079518"
+        }
+      }
+    },
+    {
+      "turn": 20,
+      "path": "/workspace/evidence/cwr-profile/c1-five-scale-after/scaled22k_s42-full/checkpoint_turn_20.ckpt",
+      "bytes": 5445330,
+      "raw_bytes": 24707019,
+      "sections": {
+        "python": 3339292,
+        "native.agent.0": 2100241
+      },
+      "write_seconds": 0.5496476359985536,
+      "write_stages": {
+        "native": 0.009078577000764199,
+        "pickle": 0.36946062299830373,
+        "compress": 0.1658382919995347,
+        "header": 0.0015345909996540286,
+        "write": 0.0037355530002969317
+      },
+      "read_seconds": 0.5697281060020032,
+      "read_stages": {
+        "read": 0.0017582180007593706,
+        "native": 0.022989286000665743,
+        "python": 0.5449806020005781
+      },
+      "identity": {
+        "environment": {
+          "affinity_cpu_count": 5,
+          "hash_seed": "0",
+          "implementation": "CPython",
+          "machine": "x86_64",
+          "packages": {
+            "arro3-core": "0.9.1",
+            "chronicler-agents": "0.1.0",
+            "numpy": "2.5.4",
+            "pyarrow": "26.0.0",
+            "pydantic": "2.12.5",
+            "scipy": "1.18.1"
+          },
+          "python": "3.13.5",
+          "thread_env": {
+            "BLIS_NUM_THREADS": null,
+            "GOTO_NUM_THREADS": null,
+            "MKL_NUM_THREADS": null,
+            "NUMEXPR_NUM_THREADS": null,
+            "OMP_NUM_THREADS": "1",
+            "OPENBLAS_NUM_THREADS": "1",
+            "OPENBLAS_THREAD_TIMEOUT": "16",
+            "PYTHONHASHSEED": "0",
+            "PYTHON_CPU_COUNT": null,
+            "RAYON_NUM_THREADS": "1",
+            "VECLIB_MAXIMUM_THREADS": null
+          }
+        },
+        "native": {
+          "bytes": 14535264,
+          "sha256": "b1d3ea5ac858681960b2cb880c534164905501f6ab4f6f3c94f7c9b5f66196cd",
+          "state_layouts": {
+            "agent": "v1:dcf0c34097c88451",
+            "ecology": "v1:4ab7f8c199b5e5f8",
+            "politics": "v1:b1a710f3450f5015"
+          },
+          "status": "found"
+        },
+        "source": {
+          "git_sha": "a1fcb482f4d971e1c20e99075f2e256f9838a359",
+          "package_digest": "3875b1c36dca261b26c6185525dbda2a45249e441da5189100be540f56079518"
+        }
+      }
+    },
+    {
+      "turn": 29,
+      "path": "/workspace/evidence/cwr-profile/c1-five-scale-after/scaled22k_s42-full/checkpoint_turn_29.ckpt",
+      "bytes": 8124773,
+      "raw_bytes": 34667707,
+      "sections": {
+        "python": 5706723,
+        "native.agent.0": 2412253
+      },
+      "write_seconds": 1.0501322359996266,
+      "write_stages": {
+        "native": 0.009046916999068344,
+        "pickle": 0.776358890998381,
+        "compress": 0.25604215700150235,
+        "header": 0.004437573999894084,
+        "write": 0.004246697000780841
+      },
+      "read_seconds": 0.6207060929991712,
+      "read_stages": {
+        "read": 0.0021001839995733462,
+        "native": 0.025329660998977488,
+        "python": 0.5932762480006204
+      },
+      "identity": {
+        "environment": {
+          "affinity_cpu_count": 5,
+          "hash_seed": "0",
+          "implementation": "CPython",
+          "machine": "x86_64",
+          "packages": {
+            "arro3-core": "0.9.1",
+            "chronicler-agents": "0.1.0",
+            "numpy": "2.5.4",
+            "pyarrow": "26.0.0",
+            "pydantic": "2.12.5",
+            "scipy": "1.18.1"
+          },
+          "python": "3.13.5",
+          "thread_env": {
+            "BLIS_NUM_THREADS": null,
+            "GOTO_NUM_THREADS": null,
+            "MKL_NUM_THREADS": null,
+            "NUMEXPR_NUM_THREADS": null,
+            "OMP_NUM_THREADS": "1",
+            "OPENBLAS_NUM_THREADS": "1",
+            "OPENBLAS_THREAD_TIMEOUT": "16",
+            "PYTHONHASHSEED": "0",
+            "PYTHON_CPU_COUNT": null,
+            "RAYON_NUM_THREADS": "1",
+            "VECLIB_MAXIMUM_THREADS": null
+          }
+        },
+        "native": {
+          "bytes": 14535264,
+          "sha256": "b1d3ea5ac858681960b2cb880c534164905501f6ab4f6f3c94f7c9b5f66196cd",
+          "state_layouts": {
+            "agent": "v1:dcf0c34097c88451",
+            "ecology": "v1:4ab7f8c199b5e5f8",
+            "politics": "v1:b1a710f3450f5015"
+          },
+          "status": "found"
+        },
+        "source": {
+          "git_sha": "a1fcb482f4d971e1c20e99075f2e256f9838a359",
+          "package_digest": "3875b1c36dca261b26c6185525dbda2a45249e441da5189100be540f56079518"
+        }
+      }
+    }
+  ],
+  "bundle_bytes": 12967115,
+  "state_bytes": 8663461,
+  "output_bytes": 81092406,
+  "simulation_output_bytes": 81088758,
+  "file_bytes": {
+    "plan.json": 3648,
+    "validation_summary.json": 7977,
+    "validation_relationships.arrow": 2111106,
+    "validation_reserve_ledger.arrow": 4674,
+    "validation_memory_signatures.arrow": 2660162,
+    "memories_selurian_republic.json": 35688,
+    "run.log": 0,
+    "chronicle.md": 348,
+    "state.languages.json": 79043,
+    "checkpoint_turn_20.ckpt": 5445330,
+    "checkpoint_turn_10.ckpt": 2791218,
+    "memories_thornwall_confederacy.json": 41333,
+    "state.json": 8663461,
+    "validation_resource_ledger.arrow": 16834,
+    "memories_kethani_empire.json": 25892,
+    "validation_community_summary.json": 6521,
+    "validation_needs.arrow": 10768314,
+    "agent_events.arrow": 3610602,
+    "memories_ashkari_nomads.json": 29669,
+    "state.historiography.json": 45644,
+    "checkpoint_turn_29.ckpt": 8124773,
+    "chronicle_bundle.json": 12967115,
+    "validation_summary/graph_turn_000.json": 290253,
+    "validation_summary/needs_turn_000.json": 3910524,
+    "validation_summary/graph_turn_010.json": 1114031,
+    "validation_summary/aggregate_turn_020.json": 2003,
+    "validation_summary/needs_turn_020.json": 4935602,
+    "validation_summary/community_turn_010.json": 1270,
+    "validation_summary/aggregate_turn_030.json": 2012,
+    "validation_summary/aggregate_turn_010.json": 2000,
+    "validation_summary/graph_turn_030.json": 2110723,
+    "validation_summary/community_turn_000.json": 147,
+    "validation_summary/needs_turn_030.json": 5020395,
+    "validation_summary/community_turn_030.json": 3124,
+    "validation_summary/needs_turn_010.json": 4512438,
+    "validation_summary/aggregate_turn_000.json": 1987,
+    "validation_summary/graph_turn_020.json": 1744553,
+    "validation_summary/community_turn_020.json": 1992
+  },
+  "sidecars": {
+    "agent_events.arrow": {
+      "bytes": 3610602,
+      "rows": 89670,
+      "columns": 11,
+      "sha256": "1b7377085b5252328263c5c2fdf40922b1049e90d375a1ba7f7b8238b2f5aee7"
+    },
+    "validation_memory_signatures.arrow": {
+      "bytes": 2660162,
+      "rows": 221588,
+      "columns": 5,
+      "sha256": "e53473ecf332e915a32196acaf8aa6dce1517a9f0966a04507f6883bef1ae87f"
+    },
+    "validation_needs.arrow": {
+      "bytes": 10768314,
+      "rows": 89714,
+      "columns": 15,
+      "sha256": "a9bbcd3a1649337388f08cfab03b4387ebeb6cf10c3d04332772e5092c69281d"
+    },
+    "validation_relationships.arrow": {
+      "bytes": 2111106,
+      "rows": 140668,
+      "columns": 5,
+      "sha256": "1c309cf29dc44b0f23ba5e29d014fa1d31da12d8cb7b5d191a51f8f7c1873604"
+    },
+    "validation_reserve_ledger.arrow": {
+      "bytes": 4674,
+      "rows": 11,
+      "columns": 20,
+      "sha256": "596d5fd706e0e73e04047b73ff764bde916e05278a5297453984ded1e58f0d5d"
+    },
+    "validation_resource_ledger.arrow": {
+      "bytes": 16834,
+      "rows": 570,
+      "columns": 27,
+      "sha256": "9e3f9dfe158920961c7c3c03e24466430fa357ccdff9c4d82f0721d33b02a804"
+    }
+  },
+  "tool_sha256": "1c21d7db60cfe9d9a3d60f4ed06fe2ff0117762aed51cdd26dee71b7d7d0d410",
+  "cw6_observations": {
+    "person_turns": 674014,
+    "balance_change": 42013.9984714943,
+    "deaths": 6960,
+    "income_gross": 117559.18263233619,
+    "income_applied": 81190.05103969853,
+    "wages_milli": 570801,
+    "withheld_native": 36369.1332300955,
+    "wealth_close": 51414.4984714943,
+    "d3_wounded": 105,
+    "d3_released": 970,
+    "d3_evacuated": 1974,
+    "d3_returned": 737,
+    "separation_person_pairs": 23987,
+    "injury_episode_turns": 2761,
+    "new_occupational_injuries": 1848,
+    "battle_deaths": 335,
+    "army_consumed": 3317,
+    "army_demand": 3712,
+    "army_hunger_ration_turns": 395,
+    "army_consumption_rows": 17,
+    "requisition_milli": 803641,
+    "army_supply_food_milli": 3941000,
+    "destroyed_food_milli": 426641,
+    "restitution_paid_milli": 439984,
+    "claims_unrecorded_milli": 0,
+    "claims_unpaid_final_milli": 0,
+    "service_asset_turns": 118.0,
+    "asset_turns": 118,
+    "infra_work": 0,
+    "infra_timber_used": 0,
+    "infra_paid_milli": 0,
+    "timber_delivered_milli": 0,
+    "timber_carrier_paid_milli": 0,
+    "timber_orders": 0,
+    "cover_loss": 0.0,
+    "all_migrations": 26222,
+    "x1_moves": 26222,
+    "x1_other_moves": 26120,
+    "x1_opened_spells": 97,
+    "x1_displaced_person_turns": 735,
+    "dropped_war_events": 2131,
+    "branch_funded_turns": 86,
+    "branch_payer_turns": 1316,
+    "branch_dues_milli": 13160,
+    "branch_new_identity_refusals": 0,
+    "unknown_migration_drivers": 26106,
+    "unknown_migration_share": 0.9955762336968957,
+    "event_sidecar": {
+      "present": true,
+      "migration": 26222,
+      "unknown": 26106,
+      "deaths": 6960,
+      "bytes": 3610602,
+      "sha256": "1b7377085b5252328263c5c2fdf40922b1049e90d375a1ba7f7b8238b2f5aee7",
+      "turn_min": 0,
+      "turn_max": 29
+    },
+    "balance_change_per_1000_pt": 62.33401453307246,
+    "deaths_per_1000_pt": 10.326195004851531,
+    "service_per_region_turn": 0.3277777777777778,
+    "army_consumed_fraction": 0.8935883620689655,
+    "turns": 30,
+    "regions": 12,
+    "world_epidemic_deaths": 1384,
+    "world_person_turns": 674014,
+    "world_infectious_pt": 7312.698312643999,
+    "arrivals_world": 9,
+    "care_covered_region_turns": 43,
+    "water_service_region_turns": 7,
+    "displaced_region_turns": 52,
+    "guard_staffed_pair_turns": 4,
+    "guard_paid_milli": 2000,
+    "guard_farm_time": 4.0,
+    "guard_income_withheld": 0.08459258219227195,
+    "care_paid_milli": 442598,
+    "care_farm_time": 885.1944434000179,
+    "care_income_withheld": 64.23676845188766,
+    "food_consumed_milli": 2149728,
+    "supplies_cash_milli": 63000,
+    "supplies_internal_milli": 1063000,
+    "l9_envelope_milli": 2733000,
+    "decisions": 83,
+    "advised_closures": 4,
+    "unfunded_guard_teams": 0,
+    "migrants_blocked": 0,
+    "flight_blocked": 0,
+    "hunger_blocked": 0,
+    "dearth_region_turns": 183,
+    "famine_region_turns": 134,
+    "care_cash_milli": 444000,
+    "supply_cash_milli": 63000,
+    "guard_cash_milli": 2000,
+    "health_cash_milli": 509000,
+    "care_carry_change_milli": 1402,
+    "guard_carry_change_milli": 0,
+    "care_income_unknown_person_turns": 17,
+    "guard_income_unknown_person_turns": 0,
+    "route_turns_removed": 0,
+    "forgone_income": 0,
+    "closed_pair_turns": 0,
+    "world_deaths_per_1000_pt": 2.0533698113095573,
+    "world_deaths_per_ipt": 0.1892598245994914,
+    "combined_migration_input_rows": 390115,
+    "a6_personal_rows": 345951,
+    "d3_input_rows": 56392,
+    "a6_would_rows": 345951,
+    "combined_native_choice_changes": 104736,
+    "native_migration_refusals": 38381,
+    "a6_work_observed": 1,
+    "a6_work_unknown": 1200,
+    "a6_offer_declines": 0,
+    "a6_would_decline_offers": 0,
+    "a6_information_turns": 30,
+    "dropped_a6_rows": 382691,
+    "dropped_work_rows": 64,
+    "merge_validated_turns": 1,
+    "merge_truncated_turns": 29,
+    "trade_unknown_destination": 33894,
+    "trade_personal_return_refusal": 36,
+    "recent_arrival_person_turns": 214475,
+    "recent_arrival_unknown_reason_person_turns": 213808,
+    "arrival_complete_region_turns": 108,
+    "arrival_incomplete_region_turns": 240,
+    "arrival_unknown_region_turns": 12,
+    "added_crowding_region_turns": 0,
+    "added_crowding_factor_sum": 0.0,
+    "native_food_produced": 320963.56822907925,
+    "native_food_consumed": 220236.4469962811,
+    "native_food_demand": 332264.0,
+    "public_relief_food": 0.0,
+    "retail_observed_region_turns": 246,
+    "retail_access_unknown_region_turns": 58,
+    "retail_deficit_observed": 53469.794472000016,
+    "retail_priced_out_deficit_observed": 392.030302,
+    "retail_offer_short_deficit_observed": 51006.74758800002,
+    "retail_free_rations_observed": 378396.5889749998,
+    "retail_rations_observed": 507938.688976,
+    "retail_free_pool_observed": 426295.240047,
+    "retail_priority_household_turns": 43658.0,
+    "retail_free_to_priority_observed": 83957.29068900003,
+    "retail_person_turns_observed": 647614.0,
+    "retail_paid_milli": 11916159,
+    "retail_income_replaced": 35816.434350999996,
+    "seed": 42,
+    "epidemic_deaths": 1384,
+    "epidemic_deaths_per_1000_pt": 2.0533698113095573,
+    "food_shortfall": 43922.35219484568,
+    "food_shortfall_per_1000_pt": 65.16534106835418,
+    "retail_access_deficit": null
+  },
+  "extraction_problems": [],
+  "cw6_metrics_row_bytes": 4358,
+  "measurement_bytes": 18511
+}

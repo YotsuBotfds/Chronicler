@@ -1,0 +1,181 @@
+{
+  "scope": "Read-only independent final viewer compatibility/phone/evidence and template runtime pilot review; full matrix and causal/resume execution pending",
+  "root_head_at_review": "237070da6d405b22c4172228bbafb36985e638f2",
+  "source_sha256": {
+    "viewer/src/lib/residenceLedger.ts": "3a80e88275f65c58e8b6f9cba015fb8771452e5dee9dba1d093571ac36d179fb",
+    "viewer/src/lib/publicHealth.ts": "fcafed034c41a46ae0795863c1f2df6c1bf3a6ce0f66dbc0885ea272b76f4968",
+    "viewer/src/lib/personalExperience.ts": "dcacf5607877e07af77557704b000423ec4d133c6405dda55669d5bcb3f01e02",
+    "viewer/src/lib/entityHistory.ts": "aed5e47312ffe52406bc41820bfedeedd5fe945847eef9e6d888e4f2ff5fa39c",
+    "viewer/src/components/systems/ResidenceLedger.tsx": "e55df7532e9ce1d0f5bb955a396360d295b1a3bd23d15398f53daa6c0e1eca07",
+    "viewer/src/components/systems/PublicHealth.tsx": "78215b4e3e54614e5fa5e33e13efc3660306964761dafedffd2b4215ebffd688",
+    "viewer/src/components/systems/PersonalExperience.tsx": "e3b59109239d8544a99e697d2ce46f22afe8337e7dfb294f902b30ffe16ace44",
+    "viewer/src/components/systems/systems.css": "d96ddb5c1acfde2544378988d914d711e4c80104e746a985ede23ff023dcf34c",
+    "viewer/src/lib/__tests__/residenceLedger.test.ts": "da109335f67a57b116841ae172c8348a98b4f008178feeb0213cda21c1c2382c",
+    "viewer/src/lib/__tests__/publicHealth.test.ts": "2352c30d5c9640f7c715a1502e06cc9624eebc52af93204d14248a6c13e5d665",
+    "viewer/src/lib/__tests__/personalExperience.test.ts": "e263cfb1fcfa352d45b2b75cb36db26c93d4b153863f221c0591caafc89c21ca",
+    "viewer/src/lib/__tests__/entityHistory.test.ts": "ad5a177f5a149018167a3805ebe35ba1cf605833c1716290c9e10cc4366e6c98",
+    "viewer/src/components/systems/__tests__/PublicHealth.test.tsx": "807c13ce85d3a10eb15b892114db6ce1feb48276bdd84487783f435d32edfaee",
+    "src/chronicler/timber_orders.py": "8d9d12fbb51abefd4eb3dfd6e66ac1ea8beb88e7b293aaf6dfe1cfa080986c54",
+    "tests/test_timber_orders.py": "79b06b550d93979cf861c2511afc61644321f137498adc41943966d9cedf2d24",
+    "tests/test_residence_exposure.py": "8036cb011c5e2db297ffe43077b93053a66a266fc44bb9478ac5fcde993211a3"
+  },
+  "viewer_packet_sha256": {
+    "README.md": "8fb9caa9c04e72536ff318ac8774bfa1213b4bdb38d63eb898152655ea151cd5",
+    "checks.json": "d203407630cc2e13cb3225db6c1a27a3db73422625367724db01f424e0408ca1",
+    "layout-before.json": "9a3595f987324448957fd4dc88ea6b788895042b23338644eb1a8c34006c39fd",
+    "layout-after.json": "641caa407f2e7f1c378e92513c37b2c6d16f258c9f629e9cf035b0a69d6a786f",
+    "phone-before.png": "7a3943bbea39498b30428ceaefe8a2b3557e877f89cd4c202eadd07208a7a4df",
+    "phone-after.png": "32755109b51969ae4cfc3e30f0dea829bf4c4936129c899c9f270a5e04d05fbd",
+    "corrected-decisions-browser.json": "142e134a0b1b8f326d6a041be381aa8733debdedb9f4cea54d68a00bf3eca2bb",
+    "corrected-health-browser.json": "e952462e6b158d3bdf1a4b620d971f1d96743ae2a31a3015b899836a90a42960",
+    "legacy-health-browser.json": "b9bcafc502dc542c68d3243a4ab3f412ce81f63f86023fc4a2b7ab7a9d73abe7",
+    "archive-browser.json": "eca5fa74478d0c9f85937b8cec8792616f07c1318f1716d4bff52a0a689ac991",
+    "corrected-records.json": "aa5759fd548101d4e7bda2a62b332ab484e1a1c74a4a3ad2f5d29fde279ba77e",
+    "legacy-records.json": "3bfd75c46a43f1f11817b0fe91c32571aee6a3784524fde5dbf90ff595eab2e2",
+    "archive-profile.json": "100a345550fae173ac13a6d52099a5d1b64e7581d9bddf8b3f080db92f1d86e6",
+    "archive-summary.json": "64bc5095ccc71a4dbe2f8a2492f596dffa38726bd71439350d5af55315dbca89",
+    "archive-pilot.json": "c2ca6436f8bfa9d22b86bb6904523ad43ae7784636d4b13c8908eb63f4b5186d",
+    "journey-corrected.mjs": "92442ea44faed461c479c1648f4f951101e998ea2de5020c1bd8c21d794f852d"
+  },
+  "viewer_commits": [
+    "78fac6f2028d932ab09a7fcac1f43b4b9b2b584a",
+    "160a8027",
+    "5e41223b2513b17cfb3350c437cc1a96111001a3",
+    "71accf9449965ac77936e69f0391ef9a43b5bbcd"
+  ],
+  "viewer_packet_commit": "2b27dcf5",
+  "viewer_source_result": "APPROVED. Optional arrival group strict sums; old missing values unknown; recent stock does not fabricate displacement; positive new arrival stock is not a recorded zero. R3 installed/own/D3/would inputs separate, R1/2 proposals do not establish installation. Factual T-1 versus current neutral config clock retained. Cost-only care/sanitation disabled while quarantine controls retained. One grid track fixes mobile prose clipping without dropping content.",
+  "viewer_evidence": {
+    "reviewer_reran_browser_or_full_suite": false,
+    "reported_suite": {
+      "files": 194,
+      "passed": 1786,
+      "conditional_skips": 2,
+      "source": "5e41223b"
+    },
+    "reported_followup": {
+      "focused_public_health_passed": 4,
+      "lint": "PASS",
+      "build": "PASS"
+    },
+    "browser_checks_independently_counted": {
+      "archive": 32,
+      "corrected_decisions_initial": 46,
+      "corrected_health": 78,
+      "legacy_health": 90
+    },
+    "layout_before": {
+      "checks": 50,
+      "failed": 1,
+      "failing_case": "phone T8 prose/table bounds",
+      "prose_right": 573.90625,
+      "section_right": 365
+    },
+    "layout_after": {
+      "checks": 50,
+      "failed": 0,
+      "same_input_and_script_as_before": true
+    },
+    "after_assets_rehashed": 24,
+    "asset_or_script_hash_mismatches": [],
+    "before_after_screenshots_independently_inspected": true,
+    "corrected_snapshot_count": 8,
+    "corrected_observation_count_in_receipt": 3776,
+    "corrected_receipt_limit": "All arrival windows incomplete in eight-turn input; no complete-window browser witness or repair-wage receipt claimed.",
+    "legacy_package_receipt_entries": 1200,
+    "archive_arithmetic_reviewer": "/root/rework_review/archive_review",
+    "archive_raw_sample_count": 24,
+    "archive_metric_groups": 12,
+    "archive_median_budgets_passed": 12,
+    "archive_load_slowdown_percent": [
+      5.2465,
+      5.4245,
+      7.9436,
+      4.1916
+    ],
+    "archive_actual_elapsed_seconds": 141.51360097199998,
+    "archive_ceiling_seconds": 300,
+    "archive_pilot_elapsed_seconds": 27.472086893,
+    "archive_projected_seconds": 164.832521358,
+    "archive_projection_margin_seconds": 247.248782037,
+    "archive_result": "Arithmetic, controls, source/build manifests and visible-history equality reconcile. Load and some warm-reopen harms retained; no RAM/simulation speed claim.",
+    "minor_reproduction_nit": "README config filename must be repository-relative in its repo-root example; sent author for docs-only correction."
+  },
+  "runtime_candidate": {
+    "commit": "7c1496c7",
+    "root_commit": "c88dae74",
+    "source_review": "APPROVED. Per-call physical/path/dated-price cache; accepted candidates refresh full native eligibility and wallet before stock/quote/payment. Live commitments, envelopes, bookings, treasury, escrow/cargo retained. No new tests executed during timed matrix."
+  },
+  "runtime_pilot": {
+    "receipt_sha256": "20ae9471e6c18a605d007b527b7f4bca27faad6e8506525f25c81b6920cadcb8",
+    "before_source": {
+      "commit": "09403c15070ddab4977ae8b2e65c336238468447",
+      "files": 348,
+      "sha256": "c021b58f560406d5f478033d28872643b56639e25714c69c115696924497454d",
+      "base_sha256": "396a569a1fff4d86896bb57036727a769b63c879827aa05382ac9bd84c52cf79",
+      "validation_sha256": {
+        "scripts/cw_rework_screen.py": "f8409b1b76be49dbff968323f9eee2f65229e5c1280e0c349fe2e2a3927e4fef",
+        "scripts/cw_health_screen.py": "cfa5d1116ee49716017bf5119c8e26dc704ea6d98f645c48da875b2e537a7e32",
+        "scripts/screen_runner.py": "5ded5f3548bb6403b1df25e9d31e5c5ce638631aa5fd1b4fabdcfb8510b5cadb"
+      }
+    },
+    "after_source": {
+      "commit": "a1fcb482f4d971e1c20e99075f2e256f9838a359",
+      "files": 348,
+      "sha256": "37590d816871f6b563d3e5833830f56a37418d5b63a2810a4fdf1cbf6f91b423",
+      "base_sha256": "baf6513cdb3ceaffd7b50980951b81e4f5e8916f757dd3979579c4548548b004",
+      "validation_sha256": {
+        "scripts/cw_rework_screen.py": "f8409b1b76be49dbff968323f9eee2f65229e5c1280e0c349fe2e2a3927e4fef",
+        "scripts/cw_health_screen.py": "cfa5d1116ee49716017bf5119c8e26dc704ea6d98f645c48da875b2e537a7e32",
+        "scripts/screen_runner.py": "5ded5f3548bb6403b1df25e9d31e5c5ce638631aa5fd1b4fabdcfb8510b5cadb"
+      }
+    },
+    "native_sha256": "b1d3ea5ac858681960b2cb880c534164905501f6ab4f6f3c94f7c9b5f66196cd",
+    "case": {
+      "world": "template seed5",
+      "regions": 8,
+      "civs": 4,
+      "turns": 200,
+      "arm": "FULL corrected rules3/all/density_only"
+    },
+    "run_cpu_seconds_before_after": [
+      22.302055,
+      22.311818
+    ],
+    "cpu_change_percent": 0.04377623497027194,
+    "interpretation": "Null whole-run difference in single serial runs; not a speedup.",
+    "timber_cpu_seconds_before_after": [
+      0.7992380370000001,
+      0.2876229620000048
+    ],
+    "timber_cpu_change_percent": -64.0128536575137,
+    "non_bundle_files_reported_byte_equal": 111,
+    "checkpoint_count_per_source": 4,
+    "all_37_livelihood_component_exports_equal": true,
+    "population_and_saved_sizes_equal": true,
+    "source_delta_only": [
+      "src/chronicler/timber_orders.py",
+      "tests/test_timber_orders.py"
+    ],
+    "independent_compact_checks": "Ratios recomputed; four complete semantic checkpoint maps compared; actual Git source delta verified. Full large raw file rehash deferred during timed matrix.",
+    "budget_amendment": "a34385c0 replaces proposed proc19 pilot with actual template admission pair before fixed matrix; 1350 CPU seconds per source/2700 paired, fixed five scales and all OFF/FULL cases. Large-scale uncertainty explicit. Count correction8c62770e uses111; historical proc19 diagnostic117 remains separate.",
+    "full_matrix_status_at_review": "RUNNING; no final matrix approval or gain claimed"
+  },
+  "downstream_c2_test_review": {
+    "commit": "201934f2",
+    "production_changed": false,
+    "source_review": "Real epidemic tick/introduction/SEIRS step called via recording wrappers; identical physical/health worlds, T-1 guarded inputs, genuine hunger/density/urban/sanitation/care retained. Corrected equality and explicit legacy higher cases tested. Constructed care capacity does not claim paid carers.",
+    "old_source_sha256_independently_verified": "5e68aec3104902baf012e20225bd5801f60dd63333f59375a1224a60ebc71ea8",
+    "test_execution": "Root reports41PASS; this reviewer inspected actual source/diff but did not rerun during timed matrix."
+  },
+  "unrun_or_pending": [
+    "Complete matrix independent raw/evidence review",
+    "Fresh source-bound causal pilot, freeze and held outcomes",
+    "Actual enabled active-state resume execution",
+    "Integrated feature-off reference checks",
+    "Real complete-window corrected browser journey",
+    "Reviewed exact-head premerge Tests and verified final main CI",
+    "Restricted full200-seed/procedural qualifications, default promotion, physical handset/browser RAM"
+  ],
+  "approval": "Scoped viewer/source/compact-pilot evidence approval only. These files do not authorize qualification, default promotion or bypass final execution/CI gates."
+}

@@ -20,6 +20,9 @@ import copy
 import json
 import math
 import pickle
+from fractions import Fraction
+from itertools import product
+from types import SimpleNamespace as NS
 
 import pytest
 
@@ -782,3 +785,101 @@ def test_a_later_carrier_may_buy_the_surplus_an_earlier_carrier_cannot_buy_from_
     ship = next(s for s in h.tt.shipments + h.tt.closed if s.holder == 91)
     d = next(x for x in h.tt.frame["dispatched"] if x["shipment"] == ship.id)
     assert {r[0] for r in d["seller_rows"]} == {90}       # 91 bought 90's surplus above its reserve
+
+
+def _dispatch_floor_case(monkeypatch, carriers=(90,)):
+    """Direct dispatch with real Arrow people and isolated market/price inputs."""
+    from chronicler.household_retail_state import RetailRegion
+    h = TradeHarness()
+    _market(h, owners=(1, 2), buyers=(51,), merchant=None)
+    for aid in carriers:
+        _merchant(h, aid, VERDANT, 100.0)
+    claims = {1: 101_000, 2: 101_000}
+    h.state.regions = [RetailRegion(region=VERDANT, opened_turn=9, reason="all",
+                                    claims=claims, goods=[sum(claims.values()), 0, 0, 0, 0]),
+                       RetailRegion(region=THORNWOOD, opened_turn=9, reason="all")]
+    values = {"ration": .35, "price": 100}
+    monkeypatch.setattr(HR, "_ration", lambda _: values["ration"])
+    monkeypatch.setattr(HR, "price_milli", lambda *_: values["price"])
+    monkeypatch.setattr(TT, "_capacity", lambda *_: 2**100)
+    edges = {(VERDANT, THORNWOOD): (False, -1.0)}
+    return h, values, edges
+
+
+def test_dispatch_floor_quantities_match_exact_fraction_oracle_at_boundaries(monkeypatch):
+    h, values, edges = _dispatch_floor_case(monkeypatch)
+    seen = []
+    monkeypatch.setattr(TT, "_plan_quantity", lambda _o, _d, _decay, q: seen.append(q) or 0)
+    big_intermediate = False
+    # Binary-float rations retain their complete exact ratios.  Wealth is read
+    # back through the real float32 Arrow columns before computing the oracle.
+    for ration, price, owner_wealth, carrier_wealth in product(
+            (.35, .6, 1 / 3, math.nextafter(.35, 0.0), math.nextafter(.6, math.inf)),
+            (1, 7, 333, 1000, 3333), (0.0, 50.0, 99.0, 99.99, 99.999, 100.0),
+            (0.0, 6.0, 20.0, 100.0)):
+        values.update(ration=ration, price=price)
+        for aid in (1, 2):
+            h.sim.people[aid]["wealth"] = owner_wealth
+        h.sim.people[90]["wealth"] = carrier_wealth
+        people = TT._people(h.sim.get_snapshot())
+        exact = Fraction(ration) * TT.MILLI
+        offer = {}
+        for owner, claim in h.state.region(VERDANT).claims.items():
+            room = max(0, math.floor((TT.MAX_WEALTH - people[owner][3]) * TT.MILLI))
+            most = int(room * exact // price)
+            big_intermediate |= room * exact.numerator > 2**64
+            if (surplus := min(claim - TT.OWNER_KEEP, most)) > 0:
+                offer[owner] = surplus
+        cash = math.floor(people[90][3] * TT.MILLI) - TT.RESERVE_RATIONS * price - len(offer)
+        q_cash = int(max(0, cash) * exact // price)
+        expected = [min(sum(offer.values()), q_cash)] if sum(offer.values()) >= TT.MIN_CARGO and q_cash >= TT.MIN_CARGO else []
+        seen.clear()
+        TT._dispatch(h.world, h.tt, TT._Turn(h.world.turn), h.sim, edges, NS(), None)
+        assert seen == expected, (ration, price, owner_wealth, carrier_wealth)
+        assert not h.tt.shipments and not h.sim.pair_calls
+    assert big_intermediate
+    assert h.state.region(VERDANT).claims == {1: 101_000, 2: 101_000}
+
+
+def test_dispatch_no_margin_candidates_avoid_fraction_multiplication_per_owner(monkeypatch):
+    h, _values, edges = _dispatch_floor_case(monkeypatch, carriers=range(90, 130))
+    monkeypatch.setattr(TT, "_plan_quantity", lambda *_: 0)
+    calls = []
+    original = Fraction.__rmul__
+
+    def multiply(self, other):
+        calls.append(1)
+        return original(self, other)
+
+    monkeypatch.setattr(Fraction, "__rmul__", multiply)
+    before = copy.deepcopy(h.sim.people)
+    TT._dispatch(h.world, h.tt, TT._Turn(h.world.turn), h.sim, edges, NS(), None)
+    assert not h.tt.shipments and not h.sim.pair_calls
+    assert h.sim.people == before
+    assert h.state.region(VERDANT).claims == {1: 101_000, 2: 101_000}
+    assert h.tt.counters["plans_no_margin"] == 40
+    # The old correct arithmetic allocated 120 intermediate Fractions for this
+    # unchanged refused market; the measured stress case made millions.
+    assert calls == []
+
+
+def test_dispatch_ceiling_and_claim_changes_after_buy_are_read_by_next_carrier(monkeypatch):
+    h, _values, edges = _dispatch_floor_case(monkeypatch, carriers=(90, 91))
+    reg = h.state.region(VERDANT)
+    reg.claims = {1: 101_000}
+    reg.goods = [101_000, 0, 0, 0, 0]
+    bought = []
+    monkeypatch.setattr(TT, "_plan_quantity", lambda _o, _d, _decay, q: min(10, q))
+
+    def buy(world, state, t, sim, acc, aid, origin, dest, path, q, offer, price, ratio, people):
+        bought.append((aid, dict(offer)))
+        # _buy updates this same mutable people map after the actual transfer;
+        # exercise both a newly binding ceiling and a changed physical claim.
+        people[1] = (*people[1][:3], TT.MAX_WEALTH)
+        reg.claims[1] -= q
+
+    monkeypatch.setattr(TT, "_buy", buy)
+    TT._dispatch(h.world, h.tt, TT._Turn(h.world.turn), h.sim, edges, NS(), None)
+    assert len(bought) == 1 and bought[0][0] == 90
+    assert h.tt.counters["plans_no_offer"] == 1
+    assert reg.claims == {1: 100_990}

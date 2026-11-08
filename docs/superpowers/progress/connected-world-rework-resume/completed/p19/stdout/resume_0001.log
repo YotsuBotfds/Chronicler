@@ -1,0 +1,33 @@
+Resuming exactly from /workspace/evidence/cwr-resume/run-p19-8792-bb02-v2/cwr1_ad_procedural19/straight/ckpt/turn_0001.ckpt at turn 1
+Generating chronicle for 'Aetheris' — 119 turns, 10 civs
+  Sim model: dummy | Narrative model: dummy [local inference]
+  Era reflection generated for turns 1-10
+  Turn 10/120 complete
+  Era reflection generated for turns 11-20
+  Turn 20/120 complete
+  Era reflection generated for turns 21-30
+  Turn 30/120 complete
+  Era reflection generated for turns 31-40
+  Turn 40/120 complete
+  Era reflection generated for turns 41-50
+  Turn 50/120 complete
+  Era reflection generated for turns 51-60
+  Turn 60/120 complete
+  Era reflection generated for turns 61-70
+  Turn 70/120 complete
+  Era reflection generated for turns 71-80
+  Turn 80/120 complete
+  Era reflection generated for turns 81-90
+  Turn 90/120 complete
+  Era reflection generated for turns 91-100
+  Turn 100/120 complete
+  Era reflection generated for turns 101-110
+  Turn 110/120 complete
+  Era reflection generated for turns 111-120
+  Turn 120/120 complete
+
+Chronicle written to /workspace/evidence/cwr-resume/run-p19-8792-bb02-v2/cwr1_ad_procedural19/resume_0001/chronicle.md (1698 characters)
+Final world state saved to /workspace/evidence/cwr-resume/run-p19-8792-bb02-v2/cwr1_ad_procedural19/resume_0001/state.json
+Viewer bundle written to /workspace/evidence/cwr-resume/run-p19-8792-bb02-v2/cwr1_ad_procedural19/resume_0001/chronicle_bundle.json
+
+Chronicle complete: /workspace/evidence/cwr-resume/run-p19-8792-bb02-v2/cwr1_ad_procedural19/resume_0001

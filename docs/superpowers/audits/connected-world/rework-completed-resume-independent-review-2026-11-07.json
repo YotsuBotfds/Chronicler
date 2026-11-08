@@ -1,0 +1,104 @@
+{
+  "scope": "Independent completed enabled-resume evidence review; no new simulation/native probe/profile",
+  "packet_commit": "771863fad8ced6221cb3f718b6a2979ab509b4ca",
+  "result": "APPROVED; no blockers",
+  "delegated_actual_artifact_reviewer": "/root/rework_review/archive_review",
+  "packet_files_sha256": {
+    "README.md": "e8b674fc2d47efc57c7c82547d9f89bd0bf28813374c9327afbcdd9553b0fcc9",
+    "completed-readback.json": "8112355a57d7f5f6a71e83035748a4a8fdffa2bc6b774458822aae55387b5e7a",
+    "execution-schedule.json": "7ec89c210d9d9c44ad0db18aa03f9a5b2a257a12c5b68069986f714c109152b7",
+    "prestart-refusal.json": "a1edee15fdaabd8d8ce363407845ad6f01ad9265bb55b802e739533421715dc0",
+    "plan-p19.json": "e37010a507bc1e26f8d7246f704a78b1dd45402c89cbb15f28648e4093525ce9",
+    "plan-t5.json": "d6b4c534a5e97c4c39d58ec46de45d02e375551093fc8f89311a40ca4e1cd87a",
+    "completed/p19/report.json": "b64e991a36a293a545dd9eb7a78729cb965e80ee628cb032dd83e826596619c8",
+    "completed/p19/invocations.json": "b5949db61a1ee5c0d97c51da6ca914fd67cb4295b437c560d8ec71a145eedbe3",
+    "completed/p19/retained-logs.json": "3e2326c03ae8128c4c84f44fc04de9e81b71f4efb6091ce8eb45cfb803ba6bef",
+    "completed/t5/report.json": "18315f56356df7e31580b299cc57c1eeafd044c843c0eddf88e0cfc939d48743",
+    "completed/t5/invocations.json": "94121bec23bc614aefd36f40420e4f4b4c9448ff4817f106946189ca2a7bb686",
+    "completed/t5/retained-logs.json": "4058071f565091c7387918e4f0d75ccb94c75c1dfa82d6ab3ccc7477e049f713",
+    "driver.py.txt": "bb02ef4bac760bdc4068c443294a9b466169ca937b9ae9645debc88030bf0c2c",
+    "retain-logs.py.txt": "7887aa7417876a47c50ffb3953d0697792816f04f5738d7d5008acd26e64d752",
+    "audit-completed.py.txt": "e8bb1f2c0576c5032050da2e7ce55120536c523d87fd6f708b062e8563fa5863"
+  },
+  "runtime_source": "8792be88dd36ba4d7c22e480de6a19dd64ea1300",
+  "native_sha256": "b1d3ea5ac858681960b2cb880c534164905501f6ab4f6f3c94f7c9b5f66196cd",
+  "adapter_sha256": "bb02ef4bac760bdc4068c443294a9b466169ca937b9ae9645debc88030bf0c2c",
+  "comparisons": {
+    "procedural19": {
+      "resumed_branches": 6,
+      "checkpoints": [
+        1,
+        2,
+        3,
+        18,
+        19,
+        67
+      ],
+      "files_per_comparison": 16,
+      "comparison_sets_including_neutrality": 7,
+      "file_comparisons": 112,
+      "wall_seconds": 387.02938470499794,
+      "predeclared_cap_seconds": 600
+    },
+    "template5": {
+      "resumed_branches": 8,
+      "checkpoints": [
+        3,
+        4,
+        5,
+        6,
+        12,
+        13,
+        41,
+        61
+      ],
+      "files_per_comparison": 10,
+      "comparison_sets_including_neutrality": 9,
+      "file_comparisons": 90,
+      "wall_seconds": 174.53076225900077,
+      "predeclared_cap_seconds": 350,
+      "preexecution_projection_seconds": 234.0964143887968
+    },
+    "total_file_comparisons_not_unique_artifacts": 202,
+    "differences": 0,
+    "resumed_branches": 14,
+    "checkpoint_writing_neutrality_checks": 2,
+    "recorded_matching_arrow_outputs": 18,
+    "selected_checkpoint_metadata": 14,
+    "retained_stdout_logs": 18
+  },
+  "independent_readback": {
+    "streaming_bytes_mib": 140.97,
+    "cpu_seconds": 0.14,
+    "at_most_one_CPU": true,
+    "actual_pilot_JSON_Arrow_and_source_hashes_match": true,
+    "all_26_retained_straight_outputs_hashes_match": true,
+    "compiled_native_and_527_tracked_inputs_match": true,
+    "compact_report_plan_invocation_collector_audit_logs_hashes_match": true,
+    "external_compact_receipts_equal_published_packet": true,
+    "large_resumed_files_after_canonical_cleanup": "Not independently rehashed after deletion; actual comparator returned zero differences and retained per-invocation inventories.",
+    "checkpoint_metadata_after_cleanup": "Selected hashes/sizes reconcile; checkpoint bytes are not an identity target and canonical passing cleanup remains unchanged."
+  },
+  "comparison_semantics": "Unchanged comparator removes metadata.generated_at, decodes values and compares sorted-key JSON; not raw bundle bytes/key-order identity. Other compared outputs are byte comparisons. Canonical exclusions and cleanup explicitly documented.",
+  "collector_scope": "Read-only stdout descriptors survive unlink; copied bytes outside compared simulation directories; no model state or compared output changed.",
+  "honest_coverage": {
+    "union_covers_all_declared_categories": true,
+    "procedural_unavailable_checkpoint_zero": [
+      "before first wound",
+      "before first release"
+    ],
+    "template_missing_positive_categories": [
+      "health_coverage",
+      "moving_timber_escrow"
+    ],
+    "not_all_possible_transitions_tested": [
+      "pool reset",
+      "birth",
+      "estate",
+      "training",
+      "all transaction/campaign transitions"
+    ]
+  },
+  "failure_preserved": "First procedural attempt refused before simulation/output creation when official pilot source.txt appended finished line. Only fullsourcefile hash changed; fresh plan revalidated closed source, driver/model/CLI/selection/JSON/Arrow/cap unchanged.",
+  "limits": "Timing is wall-budget evidence, not a performance comparison; template shared host with one held process. Clinical/scientific effect/qualification/default promotion are not established. Held outcomes and final reviewed-head/mainCI remain separate gates."
+}

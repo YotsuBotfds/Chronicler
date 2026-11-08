@@ -1,0 +1,909 @@
+[
+  {
+    "command": [
+      "/workspace/cwr-native/bin/python",
+      "-m",
+      "chronicler.main",
+      "--agents",
+      "hybrid",
+      "--campaigns",
+      "--health-care",
+      "--grain-reserves",
+      "--grain-storage",
+      "--public-grain-shipments",
+      "--grain-convoys",
+      "--scholarship",
+      "--academy-services",
+      "--learning-cohorts",
+      "--workshops",
+      "--workshop-payroll",
+      "--workshop-economics",
+      "--workshop-economics-rules",
+      "2",
+      "--apprenticeship",
+      "--operating-wear",
+      "--veteran-reintegration",
+      "--timber-stock",
+      "--commons-rules",
+      "--clearing-protection",
+      "--timber-supply",
+      "--repair-projects",
+      "--recovery-crews",
+      "--local-budgets",
+      "--maintenance-obligation",
+      "--remittances",
+      "--relocation-costs",
+      "--food-allocation",
+      "--household-retail",
+      "--household-retail-rules",
+      "2",
+      "--household-retail-boundary",
+      "all",
+      "--titled-trade",
+      "--infrastructure-condition",
+      "--infrastructure-condition-mode",
+      "repair",
+      "--reform-services",
+      "--guild-leagues",
+      "--movement-branches",
+      "--movement-branches-mode",
+      "funded",
+      "--epidemic-care",
+      "--public-health",
+      "--quarantine-mode",
+      "closure",
+      "--quarantine-channels",
+      "trade,migration",
+      "--residence-ledger",
+      "--war-requisition",
+      "--war-consequences",
+      "--adaptive-livelihoods",
+      "--adaptive-livelihoods-rules",
+      "3",
+      "--attribution-records",
+      "--wealth-accounting",
+      "--wealth-accounting-mode",
+      "strict",
+      "--adaptive-livelihoods-mode",
+      "adapt",
+      "--war-consequences-mode",
+      "active",
+      "--war-requisition-mode",
+      "transfer",
+      "--harvest-cover",
+      "--harvest-cover-mode",
+      "loss",
+      "--timber-orders",
+      "--adaptive-livelihoods-decision-channels",
+      "all",
+      "--public-health-crowding",
+      "density_only",
+      "--public-health-mode",
+      "active",
+      "--household-retail-mode",
+      "retail",
+      "--seed",
+      "5",
+      "--turns",
+      "120",
+      "--simulate-only",
+      "--output",
+      "/workspace/evidence/cwr-resume/run-t5-8792-bb02-v1/cwr1_ad_template5/plain/chronicle.md",
+      "--state",
+      "/workspace/evidence/cwr-resume/run-t5-8792-bb02-v1/cwr1_ad_template5/plain/state.json"
+    ],
+    "cwd": "/workspace/evidence/cwr-resume/run-t5-8792-bb02-v1/cwr1_ad_template5",
+    "log": "/workspace/evidence/cwr-resume/run-t5-8792-bb02-v1/cwr1_ad_template5/plain.log",
+    "environment": {
+      "PYTHONPATH": "/workspace/cwr-final-runtime/src",
+      "PYTHONHASHSEED": "0",
+      "RAYON_NUM_THREADS": "1",
+      "OMP_NUM_THREADS": "1",
+      "OPENBLAS_NUM_THREADS": "1",
+      "MKL_NUM_THREADS": "1",
+      "NUMEXPR_NUM_THREADS": "1",
+      "CHRONICLER_QUIET": "1"
+    },
+    "exit": 0,
+    "seconds": 10.993057161998877,
+    "outputs": {
+      "agent_events.arrow": {
+        "bytes": 322458,
+        "sha256": "19f6966bca04fde4ec942faa859e4cc34310f218024a53044d9985887545ea21"
+      },
+      "chronicle.md": {
+        "bytes": 1074,
+        "sha256": "8e488651f60032e1b1dfd989bda1906da5985183afacb4845b6efa8aeddf1ec9"
+      },
+      "chronicle_bundle.json": {
+        "bytes": 12850394,
+        "sha256": "fb18d16ca073cce70a523ce9bb196534f6613920fea895730a89b5fdb32853d8"
+      },
+      "memories_ashkari_nomads.json": {
+        "bytes": 118545,
+        "sha256": "5f5ff29c919c269bf322a4ce38a451eef6da36a2640320fc1cc336a4b8c84fc0"
+      },
+      "memories_selurian_republic.json": {
+        "bytes": 103268,
+        "sha256": "94ecb6772db3359b279d66bed0d3bf2bace007aa75c9acf16305df6212aefd45"
+      },
+      "memories_thornwall_confederacy.json": {
+        "bytes": 94320,
+        "sha256": "f2f25104a484ef091a445950361de23fd1f103a9ddd9c7be9b8aea0fdd9c8aee"
+      },
+      "memories_vrashni_dominion.json": {
+        "bytes": 131659,
+        "sha256": "9b25c9c5dc7590a74809fafed76338ee9bb716d28a56497e5175907fe63001e3"
+      },
+      "state.historiography.json": {
+        "bytes": 300382,
+        "sha256": "ade89c59b0cbaa909135d9a7515645a4ffcd5a3e4323b0e7ba0ef0889236865b"
+      },
+      "state.json": {
+        "bytes": 2387728,
+        "sha256": "56d1e6b73af1ed38356f93365154449866204d57e477f494fc7096b029a07aa1"
+      },
+      "state.languages.json": {
+        "bytes": 137599,
+        "sha256": "a78e05efcf6c9a2b7056d1630001bc242d0547800edcc647e2c4330d9b155069"
+      }
+    },
+    "checkpoints": {}
+  },
+  {
+    "command": [
+      "/workspace/cwr-native/bin/python",
+      "-m",
+      "chronicler.main",
+      "--agents",
+      "hybrid",
+      "--campaigns",
+      "--health-care",
+      "--grain-reserves",
+      "--grain-storage",
+      "--public-grain-shipments",
+      "--grain-convoys",
+      "--scholarship",
+      "--academy-services",
+      "--learning-cohorts",
+      "--workshops",
+      "--workshop-payroll",
+      "--workshop-economics",
+      "--workshop-economics-rules",
+      "2",
+      "--apprenticeship",
+      "--operating-wear",
+      "--veteran-reintegration",
+      "--timber-stock",
+      "--commons-rules",
+      "--clearing-protection",
+      "--timber-supply",
+      "--repair-projects",
+      "--recovery-crews",
+      "--local-budgets",
+      "--maintenance-obligation",
+      "--remittances",
+      "--relocation-costs",
+      "--food-allocation",
+      "--household-retail",
+      "--household-retail-rules",
+      "2",
+      "--household-retail-boundary",
+      "all",
+      "--titled-trade",
+      "--infrastructure-condition",
+      "--infrastructure-condition-mode",
+      "repair",
+      "--reform-services",
+      "--guild-leagues",
+      "--movement-branches",
+      "--movement-branches-mode",
+      "funded",
+      "--epidemic-care",
+      "--public-health",
+      "--quarantine-mode",
+      "closure",
+      "--quarantine-channels",
+      "trade,migration",
+      "--residence-ledger",
+      "--war-requisition",
+      "--war-consequences",
+      "--adaptive-livelihoods",
+      "--adaptive-livelihoods-rules",
+      "3",
+      "--attribution-records",
+      "--wealth-accounting",
+      "--wealth-accounting-mode",
+      "strict",
+      "--adaptive-livelihoods-mode",
+      "adapt",
+      "--war-consequences-mode",
+      "active",
+      "--war-requisition-mode",
+      "transfer",
+      "--harvest-cover",
+      "--harvest-cover-mode",
+      "loss",
+      "--timber-orders",
+      "--adaptive-livelihoods-decision-channels",
+      "all",
+      "--public-health-crowding",
+      "density_only",
+      "--public-health-mode",
+      "active",
+      "--household-retail-mode",
+      "retail",
+      "--seed",
+      "5",
+      "--turns",
+      "120",
+      "--simulate-only",
+      "--output",
+      "/workspace/evidence/cwr-resume/run-t5-8792-bb02-v1/cwr1_ad_template5/straight/chronicle.md",
+      "--state",
+      "/workspace/evidence/cwr-resume/run-t5-8792-bb02-v1/cwr1_ad_template5/straight/state.json",
+      "--checkpoint-every",
+      "1",
+      "--checkpoint",
+      "/workspace/evidence/cwr-resume/run-t5-8792-bb02-v1/cwr1_ad_template5/straight/ckpt/turn_{turn:04d}.ckpt"
+    ],
+    "cwd": "/workspace/evidence/cwr-resume/run-t5-8792-bb02-v1/cwr1_ad_template5",
+    "log": "/workspace/evidence/cwr-resume/run-t5-8792-bb02-v1/cwr1_ad_template5/straight.log",
+    "environment": {
+      "PYTHONPATH": "/workspace/cwr-final-runtime/src",
+      "PYTHONHASHSEED": "0",
+      "RAYON_NUM_THREADS": "1",
+      "OMP_NUM_THREADS": "1",
+      "OPENBLAS_NUM_THREADS": "1",
+      "MKL_NUM_THREADS": "1",
+      "NUMEXPR_NUM_THREADS": "1",
+      "CHRONICLER_QUIET": "1"
+    },
+    "exit": 0,
+    "seconds": 37.22693419999996,
+    "outputs": {
+      "agent_events.arrow": {
+        "bytes": 322458,
+        "sha256": "19f6966bca04fde4ec942faa859e4cc34310f218024a53044d9985887545ea21"
+      },
+      "chronicle.md": {
+        "bytes": 1074,
+        "sha256": "8e488651f60032e1b1dfd989bda1906da5985183afacb4845b6efa8aeddf1ec9"
+      },
+      "chronicle_bundle.json": {
+        "bytes": 12850394,
+        "sha256": "37068644a77f2d2daba6d7d360f389e403a83fcf50659e16aff14ef20cea52a9"
+      },
+      "memories_ashkari_nomads.json": {
+        "bytes": 118545,
+        "sha256": "5f5ff29c919c269bf322a4ce38a451eef6da36a2640320fc1cc336a4b8c84fc0"
+      },
+      "memories_selurian_republic.json": {
+        "bytes": 103268,
+        "sha256": "94ecb6772db3359b279d66bed0d3bf2bace007aa75c9acf16305df6212aefd45"
+      },
+      "memories_thornwall_confederacy.json": {
+        "bytes": 94320,
+        "sha256": "f2f25104a484ef091a445950361de23fd1f103a9ddd9c7be9b8aea0fdd9c8aee"
+      },
+      "memories_vrashni_dominion.json": {
+        "bytes": 131659,
+        "sha256": "9b25c9c5dc7590a74809fafed76338ee9bb716d28a56497e5175907fe63001e3"
+      },
+      "state.historiography.json": {
+        "bytes": 300382,
+        "sha256": "ade89c59b0cbaa909135d9a7515645a4ffcd5a3e4323b0e7ba0ef0889236865b"
+      },
+      "state.json": {
+        "bytes": 2387728,
+        "sha256": "56d1e6b73af1ed38356f93365154449866204d57e477f494fc7096b029a07aa1"
+      },
+      "state.languages.json": {
+        "bytes": 137599,
+        "sha256": "a78e05efcf6c9a2b7056d1630001bc242d0547800edcc647e2c4330d9b155069"
+      }
+    },
+    "checkpoints": {
+      "ckpt/turn_0003.ckpt": {
+        "bytes": 140825,
+        "sha256": "799a7223ac193bfd97ec7f65c3b377a4d350f29693a1bd3b556710ea2a4c3d00"
+      },
+      "ckpt/turn_0004.ckpt": {
+        "bytes": 169064,
+        "sha256": "80224ee167b61a5b9c9fe8a16a7c0ce7f414f63d33ef670775c5e49ec8a25f54"
+      },
+      "ckpt/turn_0005.ckpt": {
+        "bytes": 196548,
+        "sha256": "d5dc96bee6d00272492ca462444189146bcc329c7cbcbc88c03f88fdce387f57"
+      },
+      "ckpt/turn_0006.ckpt": {
+        "bytes": 224591,
+        "sha256": "3fe8fc168eb5675081cf4de2331b8fc7e65867e725e6bd92eadb5d04fb743495"
+      },
+      "ckpt/turn_0012.ckpt": {
+        "bytes": 405574,
+        "sha256": "9374ad05418db64d26dd24ec783483ed5b3cf2be53aff86b30e4e16aff444515"
+      },
+      "ckpt/turn_0013.ckpt": {
+        "bytes": 436380,
+        "sha256": "456dd5cbac2e6633d10083754b2f03dd3c51fbac332ebc2ae47169497b4e7ae9"
+      },
+      "ckpt/turn_0041.ckpt": {
+        "bytes": 1561983,
+        "sha256": "b2077b8247aa68e0dd6ce1a8af750e9c39b47ed06251d342c9a961ca28417db9"
+      },
+      "ckpt/turn_0061.ckpt": {
+        "bytes": 2474426,
+        "sha256": "d800f0a170924dda4acaff4f979dffb39466952b27af5eedbeb5f35ad8be51de"
+      }
+    }
+  },
+  {
+    "command": [
+      "/workspace/cwr-native/bin/python",
+      "-m",
+      "chronicler.main",
+      "--resume",
+      "/workspace/evidence/cwr-resume/run-t5-8792-bb02-v1/cwr1_ad_template5/straight/ckpt/turn_0003.ckpt",
+      "--simulate-only",
+      "--output",
+      "/workspace/evidence/cwr-resume/run-t5-8792-bb02-v1/cwr1_ad_template5/resume_0003/chronicle.md",
+      "--state",
+      "/workspace/evidence/cwr-resume/run-t5-8792-bb02-v1/cwr1_ad_template5/resume_0003/state.json"
+    ],
+    "cwd": "/workspace/evidence/cwr-resume/run-t5-8792-bb02-v1/cwr1_ad_template5",
+    "log": "/workspace/evidence/cwr-resume/run-t5-8792-bb02-v1/cwr1_ad_template5/resume_0003.log",
+    "environment": {
+      "PYTHONPATH": "/workspace/cwr-final-runtime/src",
+      "PYTHONHASHSEED": "0",
+      "RAYON_NUM_THREADS": "1",
+      "OMP_NUM_THREADS": "1",
+      "OPENBLAS_NUM_THREADS": "1",
+      "MKL_NUM_THREADS": "1",
+      "NUMEXPR_NUM_THREADS": "1",
+      "CHRONICLER_QUIET": "1"
+    },
+    "exit": 0,
+    "seconds": 10.946754226999474,
+    "outputs": {
+      "agent_events.arrow": {
+        "bytes": 322458,
+        "sha256": "19f6966bca04fde4ec942faa859e4cc34310f218024a53044d9985887545ea21"
+      },
+      "chronicle.md": {
+        "bytes": 1074,
+        "sha256": "8e488651f60032e1b1dfd989bda1906da5985183afacb4845b6efa8aeddf1ec9"
+      },
+      "chronicle_bundle.json": {
+        "bytes": 12850394,
+        "sha256": "544a4fc2c28c2476b990709124b75fccd403dae32919fdb148d74c6caff39965"
+      },
+      "memories_ashkari_nomads.json": {
+        "bytes": 118545,
+        "sha256": "5f5ff29c919c269bf322a4ce38a451eef6da36a2640320fc1cc336a4b8c84fc0"
+      },
+      "memories_selurian_republic.json": {
+        "bytes": 103268,
+        "sha256": "94ecb6772db3359b279d66bed0d3bf2bace007aa75c9acf16305df6212aefd45"
+      },
+      "memories_thornwall_confederacy.json": {
+        "bytes": 94320,
+        "sha256": "f2f25104a484ef091a445950361de23fd1f103a9ddd9c7be9b8aea0fdd9c8aee"
+      },
+      "memories_vrashni_dominion.json": {
+        "bytes": 131659,
+        "sha256": "9b25c9c5dc7590a74809fafed76338ee9bb716d28a56497e5175907fe63001e3"
+      },
+      "state.historiography.json": {
+        "bytes": 300382,
+        "sha256": "ade89c59b0cbaa909135d9a7515645a4ffcd5a3e4323b0e7ba0ef0889236865b"
+      },
+      "state.json": {
+        "bytes": 2387728,
+        "sha256": "56d1e6b73af1ed38356f93365154449866204d57e477f494fc7096b029a07aa1"
+      },
+      "state.languages.json": {
+        "bytes": 137599,
+        "sha256": "a78e05efcf6c9a2b7056d1630001bc242d0547800edcc647e2c4330d9b155069"
+      }
+    },
+    "checkpoints": {}
+  },
+  {
+    "command": [
+      "/workspace/cwr-native/bin/python",
+      "-m",
+      "chronicler.main",
+      "--resume",
+      "/workspace/evidence/cwr-resume/run-t5-8792-bb02-v1/cwr1_ad_template5/straight/ckpt/turn_0004.ckpt",
+      "--simulate-only",
+      "--output",
+      "/workspace/evidence/cwr-resume/run-t5-8792-bb02-v1/cwr1_ad_template5/resume_0004/chronicle.md",
+      "--state",
+      "/workspace/evidence/cwr-resume/run-t5-8792-bb02-v1/cwr1_ad_template5/resume_0004/state.json"
+    ],
+    "cwd": "/workspace/evidence/cwr-resume/run-t5-8792-bb02-v1/cwr1_ad_template5",
+    "log": "/workspace/evidence/cwr-resume/run-t5-8792-bb02-v1/cwr1_ad_template5/resume_0004.log",
+    "environment": {
+      "PYTHONPATH": "/workspace/cwr-final-runtime/src",
+      "PYTHONHASHSEED": "0",
+      "RAYON_NUM_THREADS": "1",
+      "OMP_NUM_THREADS": "1",
+      "OPENBLAS_NUM_THREADS": "1",
+      "MKL_NUM_THREADS": "1",
+      "NUMEXPR_NUM_THREADS": "1",
+      "CHRONICLER_QUIET": "1"
+    },
+    "exit": 0,
+    "seconds": 10.998032516999956,
+    "outputs": {
+      "agent_events.arrow": {
+        "bytes": 322458,
+        "sha256": "19f6966bca04fde4ec942faa859e4cc34310f218024a53044d9985887545ea21"
+      },
+      "chronicle.md": {
+        "bytes": 1074,
+        "sha256": "8e488651f60032e1b1dfd989bda1906da5985183afacb4845b6efa8aeddf1ec9"
+      },
+      "chronicle_bundle.json": {
+        "bytes": 12850394,
+        "sha256": "00e90327cb321f0cb9aade885eb44940edc81dd25dc8454cbdf5b30894d04566"
+      },
+      "memories_ashkari_nomads.json": {
+        "bytes": 118545,
+        "sha256": "5f5ff29c919c269bf322a4ce38a451eef6da36a2640320fc1cc336a4b8c84fc0"
+      },
+      "memories_selurian_republic.json": {
+        "bytes": 103268,
+        "sha256": "94ecb6772db3359b279d66bed0d3bf2bace007aa75c9acf16305df6212aefd45"
+      },
+      "memories_thornwall_confederacy.json": {
+        "bytes": 94320,
+        "sha256": "f2f25104a484ef091a445950361de23fd1f103a9ddd9c7be9b8aea0fdd9c8aee"
+      },
+      "memories_vrashni_dominion.json": {
+        "bytes": 131659,
+        "sha256": "9b25c9c5dc7590a74809fafed76338ee9bb716d28a56497e5175907fe63001e3"
+      },
+      "state.historiography.json": {
+        "bytes": 300382,
+        "sha256": "ade89c59b0cbaa909135d9a7515645a4ffcd5a3e4323b0e7ba0ef0889236865b"
+      },
+      "state.json": {
+        "bytes": 2387728,
+        "sha256": "56d1e6b73af1ed38356f93365154449866204d57e477f494fc7096b029a07aa1"
+      },
+      "state.languages.json": {
+        "bytes": 137599,
+        "sha256": "a78e05efcf6c9a2b7056d1630001bc242d0547800edcc647e2c4330d9b155069"
+      }
+    },
+    "checkpoints": {}
+  },
+  {
+    "command": [
+      "/workspace/cwr-native/bin/python",
+      "-m",
+      "chronicler.main",
+      "--resume",
+      "/workspace/evidence/cwr-resume/run-t5-8792-bb02-v1/cwr1_ad_template5/straight/ckpt/turn_0005.ckpt",
+      "--simulate-only",
+      "--output",
+      "/workspace/evidence/cwr-resume/run-t5-8792-bb02-v1/cwr1_ad_template5/resume_0005/chronicle.md",
+      "--state",
+      "/workspace/evidence/cwr-resume/run-t5-8792-bb02-v1/cwr1_ad_template5/resume_0005/state.json"
+    ],
+    "cwd": "/workspace/evidence/cwr-resume/run-t5-8792-bb02-v1/cwr1_ad_template5",
+    "log": "/workspace/evidence/cwr-resume/run-t5-8792-bb02-v1/cwr1_ad_template5/resume_0005.log",
+    "environment": {
+      "PYTHONPATH": "/workspace/cwr-final-runtime/src",
+      "PYTHONHASHSEED": "0",
+      "RAYON_NUM_THREADS": "1",
+      "OMP_NUM_THREADS": "1",
+      "OPENBLAS_NUM_THREADS": "1",
+      "MKL_NUM_THREADS": "1",
+      "NUMEXPR_NUM_THREADS": "1",
+      "CHRONICLER_QUIET": "1"
+    },
+    "exit": 0,
+    "seconds": 10.94499146599992,
+    "outputs": {
+      "agent_events.arrow": {
+        "bytes": 322458,
+        "sha256": "19f6966bca04fde4ec942faa859e4cc34310f218024a53044d9985887545ea21"
+      },
+      "chronicle.md": {
+        "bytes": 1074,
+        "sha256": "8e488651f60032e1b1dfd989bda1906da5985183afacb4845b6efa8aeddf1ec9"
+      },
+      "chronicle_bundle.json": {
+        "bytes": 12850394,
+        "sha256": "d788eeb2824ff98e6aacad1449117488f13489c8c76efaa7b1588afd402b0e05"
+      },
+      "memories_ashkari_nomads.json": {
+        "bytes": 118545,
+        "sha256": "5f5ff29c919c269bf322a4ce38a451eef6da36a2640320fc1cc336a4b8c84fc0"
+      },
+      "memories_selurian_republic.json": {
+        "bytes": 103268,
+        "sha256": "94ecb6772db3359b279d66bed0d3bf2bace007aa75c9acf16305df6212aefd45"
+      },
+      "memories_thornwall_confederacy.json": {
+        "bytes": 94320,
+        "sha256": "f2f25104a484ef091a445950361de23fd1f103a9ddd9c7be9b8aea0fdd9c8aee"
+      },
+      "memories_vrashni_dominion.json": {
+        "bytes": 131659,
+        "sha256": "9b25c9c5dc7590a74809fafed76338ee9bb716d28a56497e5175907fe63001e3"
+      },
+      "state.historiography.json": {
+        "bytes": 300382,
+        "sha256": "ade89c59b0cbaa909135d9a7515645a4ffcd5a3e4323b0e7ba0ef0889236865b"
+      },
+      "state.json": {
+        "bytes": 2387728,
+        "sha256": "56d1e6b73af1ed38356f93365154449866204d57e477f494fc7096b029a07aa1"
+      },
+      "state.languages.json": {
+        "bytes": 137599,
+        "sha256": "a78e05efcf6c9a2b7056d1630001bc242d0547800edcc647e2c4330d9b155069"
+      }
+    },
+    "checkpoints": {}
+  },
+  {
+    "command": [
+      "/workspace/cwr-native/bin/python",
+      "-m",
+      "chronicler.main",
+      "--resume",
+      "/workspace/evidence/cwr-resume/run-t5-8792-bb02-v1/cwr1_ad_template5/straight/ckpt/turn_0006.ckpt",
+      "--simulate-only",
+      "--output",
+      "/workspace/evidence/cwr-resume/run-t5-8792-bb02-v1/cwr1_ad_template5/resume_0006/chronicle.md",
+      "--state",
+      "/workspace/evidence/cwr-resume/run-t5-8792-bb02-v1/cwr1_ad_template5/resume_0006/state.json"
+    ],
+    "cwd": "/workspace/evidence/cwr-resume/run-t5-8792-bb02-v1/cwr1_ad_template5",
+    "log": "/workspace/evidence/cwr-resume/run-t5-8792-bb02-v1/cwr1_ad_template5/resume_0006.log",
+    "environment": {
+      "PYTHONPATH": "/workspace/cwr-final-runtime/src",
+      "PYTHONHASHSEED": "0",
+      "RAYON_NUM_THREADS": "1",
+      "OMP_NUM_THREADS": "1",
+      "OPENBLAS_NUM_THREADS": "1",
+      "MKL_NUM_THREADS": "1",
+      "NUMEXPR_NUM_THREADS": "1",
+      "CHRONICLER_QUIET": "1"
+    },
+    "exit": 0,
+    "seconds": 11.753522178998537,
+    "outputs": {
+      "agent_events.arrow": {
+        "bytes": 322458,
+        "sha256": "19f6966bca04fde4ec942faa859e4cc34310f218024a53044d9985887545ea21"
+      },
+      "chronicle.md": {
+        "bytes": 1074,
+        "sha256": "8e488651f60032e1b1dfd989bda1906da5985183afacb4845b6efa8aeddf1ec9"
+      },
+      "chronicle_bundle.json": {
+        "bytes": 12850394,
+        "sha256": "0396c2abd8de66629dc48a607bfb7e1cfb1de8bd33f0f4b97c9310bc1ac4a42a"
+      },
+      "memories_ashkari_nomads.json": {
+        "bytes": 118545,
+        "sha256": "5f5ff29c919c269bf322a4ce38a451eef6da36a2640320fc1cc336a4b8c84fc0"
+      },
+      "memories_selurian_republic.json": {
+        "bytes": 103268,
+        "sha256": "94ecb6772db3359b279d66bed0d3bf2bace007aa75c9acf16305df6212aefd45"
+      },
+      "memories_thornwall_confederacy.json": {
+        "bytes": 94320,
+        "sha256": "f2f25104a484ef091a445950361de23fd1f103a9ddd9c7be9b8aea0fdd9c8aee"
+      },
+      "memories_vrashni_dominion.json": {
+        "bytes": 131659,
+        "sha256": "9b25c9c5dc7590a74809fafed76338ee9bb716d28a56497e5175907fe63001e3"
+      },
+      "state.historiography.json": {
+        "bytes": 300382,
+        "sha256": "ade89c59b0cbaa909135d9a7515645a4ffcd5a3e4323b0e7ba0ef0889236865b"
+      },
+      "state.json": {
+        "bytes": 2387728,
+        "sha256": "56d1e6b73af1ed38356f93365154449866204d57e477f494fc7096b029a07aa1"
+      },
+      "state.languages.json": {
+        "bytes": 137599,
+        "sha256": "a78e05efcf6c9a2b7056d1630001bc242d0547800edcc647e2c4330d9b155069"
+      }
+    },
+    "checkpoints": {}
+  },
+  {
+    "command": [
+      "/workspace/cwr-native/bin/python",
+      "-m",
+      "chronicler.main",
+      "--resume",
+      "/workspace/evidence/cwr-resume/run-t5-8792-bb02-v1/cwr1_ad_template5/straight/ckpt/turn_0012.ckpt",
+      "--simulate-only",
+      "--output",
+      "/workspace/evidence/cwr-resume/run-t5-8792-bb02-v1/cwr1_ad_template5/resume_0012/chronicle.md",
+      "--state",
+      "/workspace/evidence/cwr-resume/run-t5-8792-bb02-v1/cwr1_ad_template5/resume_0012/state.json"
+    ],
+    "cwd": "/workspace/evidence/cwr-resume/run-t5-8792-bb02-v1/cwr1_ad_template5",
+    "log": "/workspace/evidence/cwr-resume/run-t5-8792-bb02-v1/cwr1_ad_template5/resume_0012.log",
+    "environment": {
+      "PYTHONPATH": "/workspace/cwr-final-runtime/src",
+      "PYTHONHASHSEED": "0",
+      "RAYON_NUM_THREADS": "1",
+      "OMP_NUM_THREADS": "1",
+      "OPENBLAS_NUM_THREADS": "1",
+      "MKL_NUM_THREADS": "1",
+      "NUMEXPR_NUM_THREADS": "1",
+      "CHRONICLER_QUIET": "1"
+    },
+    "exit": 0,
+    "seconds": 10.644454751996818,
+    "outputs": {
+      "agent_events.arrow": {
+        "bytes": 322458,
+        "sha256": "19f6966bca04fde4ec942faa859e4cc34310f218024a53044d9985887545ea21"
+      },
+      "chronicle.md": {
+        "bytes": 1074,
+        "sha256": "8e488651f60032e1b1dfd989bda1906da5985183afacb4845b6efa8aeddf1ec9"
+      },
+      "chronicle_bundle.json": {
+        "bytes": 12850394,
+        "sha256": "d5940db71f300d118a5d0d694411b0f63b5dd7e10fedd0afb137f6392d478195"
+      },
+      "memories_ashkari_nomads.json": {
+        "bytes": 118545,
+        "sha256": "5f5ff29c919c269bf322a4ce38a451eef6da36a2640320fc1cc336a4b8c84fc0"
+      },
+      "memories_selurian_republic.json": {
+        "bytes": 103268,
+        "sha256": "94ecb6772db3359b279d66bed0d3bf2bace007aa75c9acf16305df6212aefd45"
+      },
+      "memories_thornwall_confederacy.json": {
+        "bytes": 94320,
+        "sha256": "f2f25104a484ef091a445950361de23fd1f103a9ddd9c7be9b8aea0fdd9c8aee"
+      },
+      "memories_vrashni_dominion.json": {
+        "bytes": 131659,
+        "sha256": "9b25c9c5dc7590a74809fafed76338ee9bb716d28a56497e5175907fe63001e3"
+      },
+      "state.historiography.json": {
+        "bytes": 300382,
+        "sha256": "ade89c59b0cbaa909135d9a7515645a4ffcd5a3e4323b0e7ba0ef0889236865b"
+      },
+      "state.json": {
+        "bytes": 2387728,
+        "sha256": "56d1e6b73af1ed38356f93365154449866204d57e477f494fc7096b029a07aa1"
+      },
+      "state.languages.json": {
+        "bytes": 137599,
+        "sha256": "a78e05efcf6c9a2b7056d1630001bc242d0547800edcc647e2c4330d9b155069"
+      }
+    },
+    "checkpoints": {}
+  },
+  {
+    "command": [
+      "/workspace/cwr-native/bin/python",
+      "-m",
+      "chronicler.main",
+      "--resume",
+      "/workspace/evidence/cwr-resume/run-t5-8792-bb02-v1/cwr1_ad_template5/straight/ckpt/turn_0013.ckpt",
+      "--simulate-only",
+      "--output",
+      "/workspace/evidence/cwr-resume/run-t5-8792-bb02-v1/cwr1_ad_template5/resume_0013/chronicle.md",
+      "--state",
+      "/workspace/evidence/cwr-resume/run-t5-8792-bb02-v1/cwr1_ad_template5/resume_0013/state.json"
+    ],
+    "cwd": "/workspace/evidence/cwr-resume/run-t5-8792-bb02-v1/cwr1_ad_template5",
+    "log": "/workspace/evidence/cwr-resume/run-t5-8792-bb02-v1/cwr1_ad_template5/resume_0013.log",
+    "environment": {
+      "PYTHONPATH": "/workspace/cwr-final-runtime/src",
+      "PYTHONHASHSEED": "0",
+      "RAYON_NUM_THREADS": "1",
+      "OMP_NUM_THREADS": "1",
+      "OPENBLAS_NUM_THREADS": "1",
+      "MKL_NUM_THREADS": "1",
+      "NUMEXPR_NUM_THREADS": "1",
+      "CHRONICLER_QUIET": "1"
+    },
+    "exit": 0,
+    "seconds": 10.999028491998615,
+    "outputs": {
+      "agent_events.arrow": {
+        "bytes": 322458,
+        "sha256": "19f6966bca04fde4ec942faa859e4cc34310f218024a53044d9985887545ea21"
+      },
+      "chronicle.md": {
+        "bytes": 1074,
+        "sha256": "8e488651f60032e1b1dfd989bda1906da5985183afacb4845b6efa8aeddf1ec9"
+      },
+      "chronicle_bundle.json": {
+        "bytes": 12850394,
+        "sha256": "7f3e0e3eacbb22a2b9ecfb7145a17a5ac4b689926f07288aa59753dc9ee9c862"
+      },
+      "memories_ashkari_nomads.json": {
+        "bytes": 118545,
+        "sha256": "5f5ff29c919c269bf322a4ce38a451eef6da36a2640320fc1cc336a4b8c84fc0"
+      },
+      "memories_selurian_republic.json": {
+        "bytes": 103268,
+        "sha256": "94ecb6772db3359b279d66bed0d3bf2bace007aa75c9acf16305df6212aefd45"
+      },
+      "memories_thornwall_confederacy.json": {
+        "bytes": 94320,
+        "sha256": "f2f25104a484ef091a445950361de23fd1f103a9ddd9c7be9b8aea0fdd9c8aee"
+      },
+      "memories_vrashni_dominion.json": {
+        "bytes": 131659,
+        "sha256": "9b25c9c5dc7590a74809fafed76338ee9bb716d28a56497e5175907fe63001e3"
+      },
+      "state.historiography.json": {
+        "bytes": 300382,
+        "sha256": "ade89c59b0cbaa909135d9a7515645a4ffcd5a3e4323b0e7ba0ef0889236865b"
+      },
+      "state.json": {
+        "bytes": 2387728,
+        "sha256": "56d1e6b73af1ed38356f93365154449866204d57e477f494fc7096b029a07aa1"
+      },
+      "state.languages.json": {
+        "bytes": 137599,
+        "sha256": "a78e05efcf6c9a2b7056d1630001bc242d0547800edcc647e2c4330d9b155069"
+      }
+    },
+    "checkpoints": {}
+  },
+  {
+    "command": [
+      "/workspace/cwr-native/bin/python",
+      "-m",
+      "chronicler.main",
+      "--resume",
+      "/workspace/evidence/cwr-resume/run-t5-8792-bb02-v1/cwr1_ad_template5/straight/ckpt/turn_0041.ckpt",
+      "--simulate-only",
+      "--output",
+      "/workspace/evidence/cwr-resume/run-t5-8792-bb02-v1/cwr1_ad_template5/resume_0041/chronicle.md",
+      "--state",
+      "/workspace/evidence/cwr-resume/run-t5-8792-bb02-v1/cwr1_ad_template5/resume_0041/state.json"
+    ],
+    "cwd": "/workspace/evidence/cwr-resume/run-t5-8792-bb02-v1/cwr1_ad_template5",
+    "log": "/workspace/evidence/cwr-resume/run-t5-8792-bb02-v1/cwr1_ad_template5/resume_0041.log",
+    "environment": {
+      "PYTHONPATH": "/workspace/cwr-final-runtime/src",
+      "PYTHONHASHSEED": "0",
+      "RAYON_NUM_THREADS": "1",
+      "OMP_NUM_THREADS": "1",
+      "OPENBLAS_NUM_THREADS": "1",
+      "MKL_NUM_THREADS": "1",
+      "NUMEXPR_NUM_THREADS": "1",
+      "CHRONICLER_QUIET": "1"
+    },
+    "exit": 0,
+    "seconds": 9.240430314999685,
+    "outputs": {
+      "agent_events.arrow": {
+        "bytes": 322458,
+        "sha256": "19f6966bca04fde4ec942faa859e4cc34310f218024a53044d9985887545ea21"
+      },
+      "chronicle.md": {
+        "bytes": 1074,
+        "sha256": "8e488651f60032e1b1dfd989bda1906da5985183afacb4845b6efa8aeddf1ec9"
+      },
+      "chronicle_bundle.json": {
+        "bytes": 12850394,
+        "sha256": "c7371a02f68b537b9d81fbb9163874dde024103dcf19f05dd3b3053a5371bdfa"
+      },
+      "memories_ashkari_nomads.json": {
+        "bytes": 118545,
+        "sha256": "5f5ff29c919c269bf322a4ce38a451eef6da36a2640320fc1cc336a4b8c84fc0"
+      },
+      "memories_selurian_republic.json": {
+        "bytes": 103268,
+        "sha256": "94ecb6772db3359b279d66bed0d3bf2bace007aa75c9acf16305df6212aefd45"
+      },
+      "memories_thornwall_confederacy.json": {
+        "bytes": 94320,
+        "sha256": "f2f25104a484ef091a445950361de23fd1f103a9ddd9c7be9b8aea0fdd9c8aee"
+      },
+      "memories_vrashni_dominion.json": {
+        "bytes": 131659,
+        "sha256": "9b25c9c5dc7590a74809fafed76338ee9bb716d28a56497e5175907fe63001e3"
+      },
+      "state.historiography.json": {
+        "bytes": 300382,
+        "sha256": "ade89c59b0cbaa909135d9a7515645a4ffcd5a3e4323b0e7ba0ef0889236865b"
+      },
+      "state.json": {
+        "bytes": 2387728,
+        "sha256": "56d1e6b73af1ed38356f93365154449866204d57e477f494fc7096b029a07aa1"
+      },
+      "state.languages.json": {
+        "bytes": 137599,
+        "sha256": "a78e05efcf6c9a2b7056d1630001bc242d0547800edcc647e2c4330d9b155069"
+      }
+    },
+    "checkpoints": {}
+  },
+  {
+    "command": [
+      "/workspace/cwr-native/bin/python",
+      "-m",
+      "chronicler.main",
+      "--resume",
+      "/workspace/evidence/cwr-resume/run-t5-8792-bb02-v1/cwr1_ad_template5/straight/ckpt/turn_0061.ckpt",
+      "--simulate-only",
+      "--output",
+      "/workspace/evidence/cwr-resume/run-t5-8792-bb02-v1/cwr1_ad_template5/resume_0061/chronicle.md",
+      "--state",
+      "/workspace/evidence/cwr-resume/run-t5-8792-bb02-v1/cwr1_ad_template5/resume_0061/state.json"
+    ],
+    "cwd": "/workspace/evidence/cwr-resume/run-t5-8792-bb02-v1/cwr1_ad_template5",
+    "log": "/workspace/evidence/cwr-resume/run-t5-8792-bb02-v1/cwr1_ad_template5/resume_0061.log",
+    "environment": {
+      "PYTHONPATH": "/workspace/cwr-final-runtime/src",
+      "PYTHONHASHSEED": "0",
+      "RAYON_NUM_THREADS": "1",
+      "OMP_NUM_THREADS": "1",
+      "OPENBLAS_NUM_THREADS": "1",
+      "MKL_NUM_THREADS": "1",
+      "NUMEXPR_NUM_THREADS": "1",
+      "CHRONICLER_QUIET": "1"
+    },
+    "exit": 0,
+    "seconds": 7.635873595998419,
+    "outputs": {
+      "agent_events.arrow": {
+        "bytes": 322458,
+        "sha256": "19f6966bca04fde4ec942faa859e4cc34310f218024a53044d9985887545ea21"
+      },
+      "chronicle.md": {
+        "bytes": 1074,
+        "sha256": "8e488651f60032e1b1dfd989bda1906da5985183afacb4845b6efa8aeddf1ec9"
+      },
+      "chronicle_bundle.json": {
+        "bytes": 12850394,
+        "sha256": "dc8e5fa75a2e657f199e3caceae09691dc9d0131ecefa22e8fb74a0e65a2cf8f"
+      },
+      "memories_ashkari_nomads.json": {
+        "bytes": 118545,
+        "sha256": "5f5ff29c919c269bf322a4ce38a451eef6da36a2640320fc1cc336a4b8c84fc0"
+      },
+      "memories_selurian_republic.json": {
+        "bytes": 103268,
+        "sha256": "94ecb6772db3359b279d66bed0d3bf2bace007aa75c9acf16305df6212aefd45"
+      },
+      "memories_thornwall_confederacy.json": {
+        "bytes": 94320,
+        "sha256": "f2f25104a484ef091a445950361de23fd1f103a9ddd9c7be9b8aea0fdd9c8aee"
+      },
+      "memories_vrashni_dominion.json": {
+        "bytes": 131659,
+        "sha256": "9b25c9c5dc7590a74809fafed76338ee9bb716d28a56497e5175907fe63001e3"
+      },
+      "state.historiography.json": {
+        "bytes": 300382,
+        "sha256": "ade89c59b0cbaa909135d9a7515645a4ffcd5a3e4323b0e7ba0ef0889236865b"
+      },
+      "state.json": {
+        "bytes": 2387728,
+        "sha256": "56d1e6b73af1ed38356f93365154449866204d57e477f494fc7096b029a07aa1"
+      },
+      "state.languages.json": {
+        "bytes": 137599,
+        "sha256": "a78e05efcf6c9a2b7056d1630001bc242d0547800edcc647e2c4330d9b155069"
+      }
+    },
+    "checkpoints": {}
+  }
+]

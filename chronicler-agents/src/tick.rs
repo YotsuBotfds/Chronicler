@@ -42,11 +42,13 @@ pub struct AgentEvent {
     /// Migrations: the largest utility term of the decision that moved the
     /// agent (`migration_drivers::MIGRATION_TERM_NAMES` index; a household
     /// follower carries its lead's; `MIGRATION_TERMS` when no term was
-    /// positive). [`NO_MIGRATION_DRIVER`] on every other event.
+    /// positive). [`NO_MIGRATION_DRIVER`] also marks migrations whose adaptive
+    /// utility attribution is unknown, and every non-migration event.
     pub migration_driver: u8,
 }
 
-/// `AgentEvent::migration_driver` of events that are not migrations.
+/// No known migration attribution (including adaptive migrations), or an event
+/// that is not a migration. Never infer a voluntary or forced motive from it.
 pub const NO_MIGRATION_DRIVER: u8 = 255;
 
 struct DeathApplyContext {
@@ -3821,3 +3823,6 @@ crate::persist_struct!(DemographicDebug {
     expected_deaths, expected_births, expected_hunger_deaths, hunger_births_withheld,
     sat_near_threshold,
 });
+
+#[cfg(test)]
+mod residence_exposure_tests;

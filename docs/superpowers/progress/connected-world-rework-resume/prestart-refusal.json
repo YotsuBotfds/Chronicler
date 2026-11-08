@@ -1,0 +1,16 @@
+{
+  "status": "pre-simulation guard refusal preserved; no model invocation/output directory created",
+  "failed_command_log": "/workspace/evidence/cwr-resume/run-p19-8792-bb02-v1.log",
+  "failed_command_log_sha256": "77aa071e50e1edd19cd196636d38680e20d22392b86eb09f221430f9f679544c",
+  "reason": "official screen source.txt appended its final completed-pilot record after parse-only planning",
+  "changed_plan_fields": [
+    "pilot_source_sha256"
+  ],
+  "sole_source_record_append": true,
+  "before_source_sha256": "807cb6f49217d34097152dc6b2a08e3ee0eb44cab04d3920df6d6e86c7e91cb3",
+  "closed_source_sha256": "5eb23b33f02b032b910a72567122f9e65e8e68df2655e3f1f5635a8e601cdc51",
+  "model_source_native_cli_selection_json_arrow_unchanged": true,
+  "rerun_cap_unchanged_seconds": 600,
+  "adapter_modified": false,
+  "simulation_executed_before_refusal": false
+}

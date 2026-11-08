@@ -1,0 +1,13 @@
+Traceback (most recent call last):
+  File "/workspace/evidence/cwr-resume/driver.py", line 467, in <module>
+    raise SystemExit(main())
+                     ~~~~^^
+  File "/workspace/evidence/cwr-resume/driver.py", line 463, in main
+    return 0 if run_plan(args).get("pass") else 1
+                ~~~~~~~~^^^^^^
+  File "/workspace/evidence/cwr-resume/driver.py", line 264, in run_plan
+    guard()
+    ~~~~~^^
+  File "/workspace/evidence/cwr-resume/driver.py", line 263, in guard
+    raise ValueError("pilot input bytes changed")
+ValueError: pilot input bytes changed

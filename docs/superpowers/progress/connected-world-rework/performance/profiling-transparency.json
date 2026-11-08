@@ -1,0 +1,11 @@
+{
+  "kind": "profiling transparency check",
+  "left": "/workspace/evidence/final-program/profile-eaa4a5d3/proc32_s19-full/chronicle_bundle.json",
+  "right": "/workspace/evidence/cwr-profile/main2726-proc19-full200-cprofile/chronicle_bundle.json",
+  "normalizations": [
+    "metadata.generated_at only"
+  ],
+  "same_encoded_bundle_types_values_order_signzero": true,
+  "left_sha256": "7db87b132bca1603a78163153b57a8fb522699fafdb389ad85586c0ea7263445",
+  "right_sha256": "005c61edba377da9d990bd231bb01a8c3fee9e286516327245a4d18f04786917"
+}

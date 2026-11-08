@@ -7,6 +7,8 @@
  * and the version-6 history expansion (`bundleCodec`, which throws
  * `BundleDecodeError` for a malformed patch and becomes the loader's
  * `INVALID_HISTORY_DELTA` message), and the hash of the original bytes.
+ * Optional gzip archives are recognized by their bytes and inflated before
+ * those same steps. Identity always names the original uploaded bytes.
  * Nothing here touches React or the DOM.
  */
 import type { Bundle } from "../types";
@@ -55,9 +57,39 @@ export function decodeBundleText(bytes: ArrayBuffer): string {
 
 /** The bundle in a file's bytes, the loader's error, and (for a bundle) the bytes' identity. */
 export async function decodeBundleBytes(name: string, bytes: ArrayBuffer): Promise<DecodedBundleFile> {
-  const result = parseBundleBytes(bytes);
+  const result = await parseUploadedBundleBytes(bytes);
   const identity = result.bundle ? await identifyArtifact(name, bytes) : null;
   return { bundle: result.bundle, error: result.error, identity };
+}
+
+class GzipBundleError extends Error {}
+
+/** Lossless optional container only; extensions never decide the format. */
+export async function expandBundleBytes(bytes: ArrayBuffer): Promise<ArrayBuffer> {
+  const prefix = new Uint8Array(bytes, 0, Math.min(2, bytes.byteLength));
+  if (prefix[0] !== 0x1f || prefix[1] !== 0x8b) return bytes;
+  if (typeof DecompressionStream !== "function" || typeof Response !== "function") {
+    throw new GzipBundleError("This browser cannot open gzip archives. Extract the archive and open its unchanged JSON file.");
+  }
+  try {
+    const compressed = new Response(new Uint8Array(bytes)).body!;
+    return await new Response(compressed.pipeThrough(new DecompressionStream("gzip"))).arrayBuffer();
+  } catch {
+    throw new GzipBundleError("Could not decompress gzip archive. It may be truncated, corrupt or unsupported; extract the archive and open its unchanged JSON file.");
+  }
+}
+
+/** The asynchronous file path, shared by worker and fallback. Inflation is
+ * completed (including checksum validation) before parsing or publishing parts. */
+export async function parseUploadedBundleBytes(bytes: ArrayBuffer): Promise<ReturnType<typeof parseBundle>> {
+  let expanded: ArrayBuffer;
+  try {
+    expanded = await expandBundleBytes(bytes);
+  } catch (error) {
+    if (!(error instanceof GzipBundleError)) throw error;
+    return { bundle: null, error: error.message };
+  }
+  return parseBundleBytes(expanded);
 }
 
 /** Recognize the binary envelope before any text or JSON decoding. */

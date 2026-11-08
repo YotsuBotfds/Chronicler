@@ -1,0 +1,45 @@
+{
+  "kind": "pre-matrix budget and sequencing amendment",
+  "recorded_at": "2026-11-07T21:35:20.196592+00:00",
+  "actual_pilot": "template_s5-full,200 turns,8 regions/4 civilizations; before and after",
+  "pilot": [
+    {
+      "source": "before",
+      "run_cpu_seconds": 22.302055,
+      "child_cpu_seconds": 33.260588,
+      "run_wall_seconds": 22.37069243299993,
+      "run_peak_rss_kib": 847524
+    },
+    {
+      "source": "after",
+      "run_cpu_seconds": 22.311818,
+      "child_cpu_seconds": 33.534461,
+      "run_wall_seconds": 22.372377636998863,
+      "run_peak_rss_kib": 848056
+    }
+  ],
+  "pilot_admission_passed": true,
+  "before_commit": "09403c15070ddab4977ae8b2e65c336238468447",
+  "after_commit": "a1fcb482f4d971e1c20e99075f2e256f9838a359",
+  "native_sha256": "b1d3ea5ac858681960b2cb880c534164905501f6ab4f6f3c94f7c9b5f66196cd",
+  "matrix_cpu_budget_seconds_per_source": 1350,
+  "paired_matrix_budget_seconds": 2700,
+  "kernel_ceiling_note": "Each remaining process-CPU budget rounded up to a whole second; no 110-second offline limit change.",
+  "case_names": [
+    "template_s5-off",
+    "template_s5-full",
+    "proc32_s19-off",
+    "proc32_s19-full",
+    "scaled22k_s42-off",
+    "scaled22k_s42-full",
+    "scaled52k_s7-off",
+    "scaled52k_s7-full",
+    "proc48_s42-off",
+    "proc48_s42-full"
+  ],
+  "decision": "Lead approved 1350 per-source ceiling before the matrix command. Actual producer plan freezes it before any case. Stop and retain failures if exhausted.",
+  "pilot_change_reason": "The lead requested a separate low-cost deterministic 100/200-turn admission pair before five-scale timing. Template seed5 FULL200 supplies that whole-run equality test and cheap complete-child overhead estimate; it replaces the previously proposed proc19 pilot and is not represented as a proc19 timing observation.",
+  "projection": "The original five declared OFF+FULL model CPU times sum469.22 seconds per source (350.09 FULL +119.13 OFF). Actual template pilot complete-child/model-CPU overhead is approximately1.5. This suggests approximately704 CPU seconds per source; 1350 gives approximately1.9x margin for corrected-source scale variation and exact-checkpoint/private-state evidence. This is a budget projection, not a measured proc19/stress result.",
+  "uncertainty": "A template pilot cannot identify corrected-source large-population or long-procedural costs. All five original scales/arms remain fixed and will be measured; single serial timing variation is explicit. Whole-template CPU is null (+0.04%); no speedup claim motivated this ceiling.",
+  "arithmetic_correction": "The initial approximate444-second historical sum was incorrect. Recomputed directly from connected-world-program-profile.md rows template_s5/proc32_s19/scaled22k_s42/scaled52k_s7/proc48_s42:469.22. Frozen1350-per-source process ceilings are unchanged."
+}

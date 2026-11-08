@@ -1,0 +1,265 @@
+{
+  "stage": "fresh live pre-held audit; no held execution",
+  "main": "125a69066ea158a973ac5207f393e4eeb330aee8",
+  "refs_with_registry": 63,
+  "distinct_versions": 14,
+  "own_reservation_only": true,
+  "collisions": [],
+  "spent": [],
+  "registry_content": "62ce5aa81170da9efa52c56340ef8719f78eae9dfe612459f798195efb3cc446",
+  "protocol_sha256": "51b8a336969f48b4beb6f5b3e543062eda71822b98513b337ceb2d010e6efe7a",
+  "refs": [
+    {
+      "ref": "refs/heads/codex/cw-army-reset",
+      "registry_blob": "e8e70868a3ba39e832f3a55a9c0a52ef492b179f"
+    },
+    {
+      "ref": "refs/heads/codex/cw-b3",
+      "registry_blob": "696aec3e48e2797102859b4720e6673b4ee4d9ef"
+    },
+    {
+      "ref": "refs/heads/codex/cw-b4",
+      "registry_blob": "696aec3e48e2797102859b4720e6673b4ee4d9ef"
+    },
+    {
+      "ref": "refs/heads/codex/cw-completion-ledger",
+      "registry_blob": "bd0eaea9bbff787ca35c6da071b04c8e5540e204"
+    },
+    {
+      "ref": "refs/heads/codex/cw-d1",
+      "registry_blob": "238a7e1efca22e5b79cba0103047a09a3623faca"
+    },
+    {
+      "ref": "refs/heads/codex/cw-d1-branches",
+      "registry_blob": "238a7e1efca22e5b79cba0103047a09a3623faca"
+    },
+    {
+      "ref": "refs/heads/codex/cw-d1-integration",
+      "registry_blob": "696aec3e48e2797102859b4720e6673b4ee4d9ef"
+    },
+    {
+      "ref": "refs/heads/codex/cw-d1c-final",
+      "registry_blob": "e8e70868a3ba39e832f3a55a9c0a52ef492b179f"
+    },
+    {
+      "ref": "refs/heads/codex/cw-d4",
+      "registry_blob": "238a7e1efca22e5b79cba0103047a09a3623faca"
+    },
+    {
+      "ref": "refs/heads/codex/cw-evidence",
+      "registry_blob": "238a7e1efca22e5b79cba0103047a09a3623faca"
+    },
+    {
+      "ref": "refs/heads/codex/cw-final-review",
+      "registry_blob": "edd2f950a1ec40861766368e70f0bc6e9083a174"
+    },
+    {
+      "ref": "refs/heads/codex/cw-final-screen",
+      "registry_blob": "edd2f950a1ec40861766368e70f0bc6e9083a174"
+    },
+    {
+      "ref": "refs/heads/codex/cw-health",
+      "registry_blob": "edd2f950a1ec40861766368e70f0bc6e9083a174"
+    },
+    {
+      "ref": "refs/heads/codex/cw-history",
+      "registry_blob": "238a7e1efca22e5b79cba0103047a09a3623faca"
+    },
+    {
+      "ref": "refs/heads/codex/cw-integrated-screen",
+      "registry_blob": "e8e70868a3ba39e832f3a55a9c0a52ef492b179f"
+    },
+    {
+      "ref": "refs/heads/codex/cw-lead",
+      "registry_blob": "bd0eaea9bbff787ca35c6da071b04c8e5540e204"
+    },
+    {
+      "ref": "refs/heads/codex/cw-resume-final",
+      "registry_blob": "9e0363830416bdb2ea9748592b9ac5aef47571b5"
+    },
+    {
+      "ref": "refs/heads/codex/cw-rework",
+      "registry_blob": "4714944018669118c47513f8fedd239f877384cd"
+    },
+    {
+      "ref": "refs/heads/codex/cw-screen-final",
+      "registry_blob": "9e0363830416bdb2ea9748592b9ac5aef47571b5"
+    },
+    {
+      "ref": "refs/heads/codex/cw-screen-v2",
+      "registry_blob": "edd2f950a1ec40861766368e70f0bc6e9083a174"
+    },
+    {
+      "ref": "refs/heads/codex/cw-startup-guards",
+      "registry_blob": "9e0363830416bdb2ea9748592b9ac5aef47571b5"
+    },
+    {
+      "ref": "refs/heads/codex/cw-tail-enrollment",
+      "registry_blob": "cd8da6540e67975f18c75ec4733b286ad582d609"
+    },
+    {
+      "ref": "refs/heads/codex/cw-timber-stakes",
+      "registry_blob": "edd2f950a1ec40861766368e70f0bc6e9083a174"
+    },
+    {
+      "ref": "refs/heads/codex/cw-trade-tests",
+      "registry_blob": "9e0363830416bdb2ea9748592b9ac5aef47571b5"
+    },
+    {
+      "ref": "refs/heads/codex/cw-viewer-compat",
+      "registry_blob": "9e0363830416bdb2ea9748592b9ac5aef47571b5"
+    },
+    {
+      "ref": "refs/heads/codex/cwr-arithmetic",
+      "registry_blob": "4714944018669118c47513f8fedd239f877384cd"
+    },
+    {
+      "ref": "refs/heads/codex/cwr-attribution",
+      "registry_blob": "bd0eaea9bbff787ca35c6da071b04c8e5540e204"
+    },
+    {
+      "ref": "refs/heads/codex/cwr-c2-trace",
+      "registry_blob": "4714944018669118c47513f8fedd239f877384cd"
+    },
+    {
+      "ref": "refs/heads/codex/cwr-corrected-baseline",
+      "registry_blob": "4714944018669118c47513f8fedd239f877384cd"
+    },
+    {
+      "ref": "refs/heads/codex/cwr-corrected-v2",
+      "registry_blob": "4714944018669118c47513f8fedd239f877384cd"
+    },
+    {
+      "ref": "refs/heads/codex/cwr-evaluation",
+      "registry_blob": "bd0eaea9bbff787ca35c6da071b04c8e5540e204"
+    },
+    {
+      "ref": "refs/heads/codex/cwr-final-runtime",
+      "registry_blob": "4714944018669118c47513f8fedd239f877384cd"
+    },
+    {
+      "ref": "refs/heads/codex/cwr-historical",
+      "registry_blob": "bd0eaea9bbff787ca35c6da071b04c8e5540e204"
+    },
+    {
+      "ref": "refs/heads/codex/cwr-perf-c1-after",
+      "registry_blob": "4714944018669118c47513f8fedd239f877384cd"
+    },
+    {
+      "ref": "refs/heads/codex/cwr-perf-c1-before",
+      "registry_blob": "4714944018669118c47513f8fedd239f877384cd"
+    },
+    {
+      "ref": "refs/heads/codex/cwr-perf-final",
+      "registry_blob": "4714944018669118c47513f8fedd239f877384cd"
+    },
+    {
+      "ref": "refs/heads/codex/cwr-prereg-freeze",
+      "registry_blob": "4714944018669118c47513f8fedd239f877384cd"
+    },
+    {
+      "ref": "refs/heads/codex/cwr-profile",
+      "registry_blob": "bd0eaea9bbff787ca35c6da071b04c8e5540e204"
+    },
+    {
+      "ref": "refs/heads/codex/cwr-resume",
+      "registry_blob": "4714944018669118c47513f8fedd239f877384cd"
+    },
+    {
+      "ref": "refs/heads/codex/cwr-review",
+      "registry_blob": "bd0eaea9bbff787ca35c6da071b04c8e5540e204"
+    },
+    {
+      "ref": "refs/heads/codex/cwr-storage",
+      "registry_blob": "bd0eaea9bbff787ca35c6da071b04c8e5540e204"
+    },
+    {
+      "ref": "refs/heads/codex/cwr-validation-v1",
+      "registry_blob": "4714944018669118c47513f8fedd239f877384cd"
+    },
+    {
+      "ref": "refs/heads/codex/cwr-validation-v2",
+      "registry_blob": "4714944018669118c47513f8fedd239f877384cd"
+    },
+    {
+      "ref": "refs/heads/codex/cwr-viewer",
+      "registry_blob": "bd0eaea9bbff787ca35c6da071b04c8e5540e204"
+    },
+    {
+      "ref": "refs/heads/codex/cwr-viewer-perf",
+      "registry_blob": "bd0eaea9bbff787ca35c6da071b04c8e5540e204"
+    },
+    {
+      "ref": "refs/heads/work",
+      "registry_blob": "238a7e1efca22e5b79cba0103047a09a3623faca"
+    },
+    {
+      "ref": "refs/remotes/origin/HEAD",
+      "registry_blob": "bd0eaea9bbff787ca35c6da071b04c8e5540e204"
+    },
+    {
+      "ref": "refs/remotes/origin/claude/connected-world",
+      "registry_blob": "015d6f1e6bd45090fe5c5d34385f2358e004427f"
+    },
+    {
+      "ref": "refs/remotes/origin/claude/cw-a3-workshop-economics",
+      "registry_blob": "40fafbc9b2c520b55b0f7dc88d571686108bfe6b"
+    },
+    {
+      "ref": "refs/remotes/origin/claude/cw-a4-titled-trade",
+      "registry_blob": "238a7e1efca22e5b79cba0103047a09a3623faca"
+    },
+    {
+      "ref": "refs/remotes/origin/claude/cw-b2-flow",
+      "registry_blob": "8351c712b0f555839b0cd24d29720af3f9fa2af7"
+    },
+    {
+      "ref": "refs/remotes/origin/claude/cw-b3-infrastructure",
+      "registry_blob": "696aec3e48e2797102859b4720e6673b4ee4d9ef"
+    },
+    {
+      "ref": "refs/remotes/origin/claude/cw-c1b-migration",
+      "registry_blob": "40fafbc9b2c520b55b0f7dc88d571686108bfe6b"
+    },
+    {
+      "ref": "refs/remotes/origin/claude/cw-c2-care",
+      "registry_blob": "f0d47f4c275e05f218aa0d7af1a04d76d45ff8b7"
+    },
+    {
+      "ref": "refs/remotes/origin/claude/cw-cw4-screen",
+      "registry_blob": "523d90bc52f2d2bf192d4abae308b3600479d278"
+    },
+    {
+      "ref": "refs/remotes/origin/claude/cw-d1-institutions",
+      "registry_blob": "238a7e1efca22e5b79cba0103047a09a3623faca"
+    },
+    {
+      "ref": "refs/remotes/origin/claude/cw-d2-attribution",
+      "registry_blob": "40fafbc9b2c520b55b0f7dc88d571686108bfe6b"
+    },
+    {
+      "ref": "refs/remotes/origin/claude/cw-e1-tooling",
+      "registry_blob": "015d6f1e6bd45090fe5c5d34385f2358e004427f"
+    },
+    {
+      "ref": "refs/remotes/origin/claude/cw-pr1-tooling",
+      "registry_blob": "015d6f1e6bd45090fe5c5d34385f2358e004427f"
+    },
+    {
+      "ref": "refs/remotes/origin/claude/cw-pr2-watershed",
+      "registry_blob": "015d6f1e6bd45090fe5c5d34385f2358e004427f"
+    },
+    {
+      "ref": "refs/remotes/origin/claude/cw-s1-accounting",
+      "registry_blob": "6b4e6e63e71ce8bdd934b094b985b943a9f5380c"
+    },
+    {
+      "ref": "refs/remotes/origin/claude/cw-x1-residence",
+      "registry_blob": "238a7e1efca22e5b79cba0103047a09a3623faca"
+    },
+    {
+      "ref": "refs/remotes/origin/main",
+      "registry_blob": "bd0eaea9bbff787ca35c6da071b04c8e5540e204"
+    }
+  ]
+}

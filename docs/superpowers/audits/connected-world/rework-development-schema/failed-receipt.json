@@ -1,0 +1,19 @@
+{
+  "status": "FAIL",
+  "source": "8de171fda59a2051075d61183bf58dea5d011450",
+  "identity": "9eaba407eb92e75d1a95efac401e422f83da4918e0d6337d3415a7642aefb759",
+  "native": "native /workspace/cwr-native/lib/python3.13/site-packages/chronicler_agents/chronicler_agents.cpython-313-x86_64-linux-gnu.so b1d3ea5ac858681960b2cb880c534164905501f6ab4f6f3c94f7c9b5f66196cd",
+  "horizon": 8,
+  "expected_rows": 13,
+  "rows": 11,
+  "failed": [
+    "RNR-t5"
+  ],
+  "wall_seconds": 16.325503647000005,
+  "cpu_user_seconds": 16.346348,
+  "cpu_system_seconds": 0.8356769999999999,
+  "self_peak_rss_kib": 133912,
+  "child_peak_rss_kib": 165040,
+  "official_budget_authority": false,
+  "held_seeds_spent": 0
+}

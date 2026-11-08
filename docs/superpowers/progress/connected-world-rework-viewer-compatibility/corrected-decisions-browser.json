@@ -1,0 +1,276 @@
+{
+  "generated": "2026-11-07T21:31:58.329Z",
+  "bundle": "/workspace/evidence/cwr-evaluation/dev-schema-094-v2/runs/AD-t5/chronicle_bundle.json",
+  "bundle_sha256": "c1ea7ad1d68591e89b3a1d98a805048994e7a8942343980183b7a52b03a31f30",
+  "build_assets": {
+    "assets/AreaChart-DDQa9jyr.js": "eca9407f91595a949d4e216fcfcada8c1e4f265a3c23a21e8c3c004caaa33065",
+    "assets/BatchAnalytics-BBQ2VFTN.js": "a794ba99c04fc0273744f87eb3159746ca8bf644df9c53a01ff9cda974588042",
+    "assets/BatchCompare-CS4vW-yu.css": "35c60ba060a011a452342ccde389ab3c89960ed3492610c41cd3314b261beb80",
+    "assets/BatchCompare-DnC1W2Pp.js": "65d47c1c7ecd8f364ca3652e3e4e0443fbf50ac396f20fb039a81c6e40d5afbf",
+    "assets/BatchPanel-CKgz-r58.js": "44b1210c3c104e567d515543576b6008c5d7ac68e5458fef4384e3cf36bafd09",
+    "assets/bundleDecode.worker-BGR_W8B6.js": "2d19a8295a409b436b20808408ade7a0e02131c9ce3df6c02ac8f9a712ade86d",
+    "assets/CartesianChart-DhBNa9BX.js": "514899a347c69160f4fa1fb7c0ced5b579bfb4021fc8943ba916a1aeeb2b597d",
+    "assets/ChronicleSources-BokH5KZ1.js": "95ee2a67b55aec548eb668904e491eb994604759953a54feac22248b958b9202",
+    "assets/ChronicleSources-BTNieffh.css": "15891ddf7a9dfaf14b79d99777c0a03c8c7f962f0a63b26867d32bc0606ad285",
+    "assets/faiths-Cw5iQFVm.js": "8e7a0d2b48f577e8c58303f8797c0c3fbd3f4b175a0e6d705a34bd78892a0367",
+    "assets/index-CQnzAFm-.css": "d1ac1e8fb3f497a788f6520aaaba403fe54684caf2df04bca495ece62172ebd5",
+    "assets/index-i2eZ8D9V.js": "03a2ba7a4940f4ddc42ecb966059e3a54193911062fe1f3207ae62c9eaa4356c",
+    "assets/InterventionPanel-BaVtBPcV.css": "af2700d69880d25ce71113aea0882c1f9cfea110e9a356935df372fb6d70628f",
+    "assets/InterventionPanel-DRs4b98w.js": "5e1f0468097c145d9aff90e2b802d23573bc4aace745dd611dab5757ba34e089",
+    "assets/LanguagesPanel-CLOQAddr.js": "f608fe78137b22d4d8255e36ac2318aeb2860972a782b8fabc6893f0da503ffb",
+    "assets/learningServices-DNMQNWeB.js": "3c28ac55c7c38487c246e5133417bc7e4ecfba16d70b340b337651f20f3bc1c0",
+    "assets/LineChart-Cj_A-g8S.js": "3c286bcfc2f46d92202c06c6b489ea54d9fd683a63ec176bd18b0c9459c15362",
+    "assets/RegionHistoryInspector-BGEW2wUl.js": "4515d5b531ec074176e2dbaa9b2de976a0321b58b5030b4b326d9e4212493379",
+    "assets/RegionHistoryInspector-C0OEWtd0.css": "0c2304e349c6101f77a2f6e69d795c9ecf157c981e29cf7b766e81bef9058a39",
+    "assets/SystemsPanel-DxNUUiXG.js": "201d282d2fd236bc870fbf7ef6aee92c526e568e3744117174ffd0c1951eb89a",
+    "assets/watershed-DvJh8fZd.js": "6d51b5b3637d2ecd494bff7dc1c4664bf0b04e5aba1aa584559edd2eb0ceaa20",
+    "favicon.svg": "61bc9a161de58248288e6905425d7180f0624c2865007b97d763fdac12043a66",
+    "icons.svg": "b45fa506195cfcdef406ba9f0c77b36ddc1a7c224040926ec70abc2fdea7b93a",
+    "index.html": "4ed743e3738c8f48d2107721459c453e42ea620088fa17fba2db3e1025b11a64"
+  },
+  "script_sha256": "20e5f36d1a11260ad441f383cfaa475e37fd5e1efda2ec1053137103558c97d5",
+  "viewports": {
+    "desktop": {
+      "checks": [
+        {
+          "label": "T1: actual rules/channel/installed count",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "label": "T1: inputs not presented as moves or causal attribution",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "label": "T1: Actual installed migration scores exact retained rows",
+          "ok": true,
+          "detail": "0/0"
+        },
+        {
+          "label": "T1: Applied A6 personal component exact retained rows",
+          "ok": true,
+          "detail": "0/0"
+        },
+        {
+          "label": "T1: Independent D3 war component exact retained rows",
+          "ok": true,
+          "detail": "0/0"
+        },
+        {
+          "label": "T1: Would-be personal experience scores exact retained rows",
+          "ok": true,
+          "detail": "0/0"
+        },
+        {
+          "label": "T1: spells separate from physical arrivals",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "label": "T1: retained count and incomplete/complete semantics match producer",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "label": "T1: no malformed or nonfinite display",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "label": "T1: no document overflow",
+          "ok": true,
+          "detail": "{\"page\":1440,\"viewport\":1440}"
+        },
+        {
+          "label": "T8: actual rules/channel/installed count",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "label": "T8: inputs not presented as moves or causal attribution",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "label": "T8: Actual installed migration scores exact retained rows",
+          "ok": true,
+          "detail": "214/214"
+        },
+        {
+          "label": "T8: Applied A6 personal component exact retained rows",
+          "ok": true,
+          "detail": "89/89"
+        },
+        {
+          "label": "T8: Independent D3 war component exact retained rows",
+          "ok": true,
+          "detail": "126/126"
+        },
+        {
+          "label": "T8: Would-be personal experience scores exact retained rows",
+          "ok": true,
+          "detail": "89/89"
+        },
+        {
+          "label": "T8: spells separate from physical arrivals",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "label": "T8: retained count and incomplete/complete semantics match producer",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "label": "T8: no malformed or nonfinite display",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "label": "T8: actual person history pointers resolve",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "label": "T8: installed input remains an input",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "label": "T8: no document overflow",
+          "ok": true,
+          "detail": "{\"page\":1440,\"viewport\":1440}"
+        },
+        {
+          "label": "no page/console errors",
+          "ok": true,
+          "detail": ""
+        }
+      ],
+      "errors": []
+    },
+    "phone": {
+      "checks": [
+        {
+          "label": "T1: actual rules/channel/installed count",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "label": "T1: inputs not presented as moves or causal attribution",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "label": "T1: Actual installed migration scores exact retained rows",
+          "ok": true,
+          "detail": "0/0"
+        },
+        {
+          "label": "T1: Applied A6 personal component exact retained rows",
+          "ok": true,
+          "detail": "0/0"
+        },
+        {
+          "label": "T1: Independent D3 war component exact retained rows",
+          "ok": true,
+          "detail": "0/0"
+        },
+        {
+          "label": "T1: Would-be personal experience scores exact retained rows",
+          "ok": true,
+          "detail": "0/0"
+        },
+        {
+          "label": "T1: spells separate from physical arrivals",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "label": "T1: retained count and incomplete/complete semantics match producer",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "label": "T1: no malformed or nonfinite display",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "label": "T1: no document overflow",
+          "ok": true,
+          "detail": "{\"page\":676,\"viewport\":676}"
+        },
+        {
+          "label": "T8: actual rules/channel/installed count",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "label": "T8: inputs not presented as moves or causal attribution",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "label": "T8: Actual installed migration scores exact retained rows",
+          "ok": true,
+          "detail": "214/214"
+        },
+        {
+          "label": "T8: Applied A6 personal component exact retained rows",
+          "ok": true,
+          "detail": "89/89"
+        },
+        {
+          "label": "T8: Independent D3 war component exact retained rows",
+          "ok": true,
+          "detail": "126/126"
+        },
+        {
+          "label": "T8: Would-be personal experience scores exact retained rows",
+          "ok": true,
+          "detail": "89/89"
+        },
+        {
+          "label": "T8: spells separate from physical arrivals",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "label": "T8: retained count and incomplete/complete semantics match producer",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "label": "T8: no malformed or nonfinite display",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "label": "T8: actual person history pointers resolve",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "label": "T8: installed input remains an input",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "label": "T8: no document overflow",
+          "ok": true,
+          "detail": "{\"page\":676,\"viewport\":676}"
+        },
+        {
+          "label": "no page/console errors",
+          "ok": true,
+          "detail": ""
+        }
+      ],
+      "errors": []
+    }
+  },
+  "note": "Actual development schema smoke; no simulation, edited records or held seeds. Early incomplete arrival windows remain unknown shares. Source expectations independently decoded by Python.",
+  "failures": 0
+}

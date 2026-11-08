@@ -17,7 +17,7 @@ field army stands at a person's native residence. People currently attached
 to an army are excluded from this residence-based sighting. They are not
 teleported or prevented from ordinary native migration.
 
-With adaptive livelihoods rules 2 active, a person's own T−1 local threat
+With adaptive livelihoods rules 2/3 active, a person's own T−1 local threat
 adds +0.20 to each adjacent destination's existing native score. This is a
 dated motivation to leave, not knowledge that a destination is safe. Actual
 departures from a personally witnessed threat are recorded as evacuation
@@ -62,3 +62,5 @@ a safety claim. A release reads only its bound OwnRow from T−1; a late release
 after X1's writer leaves an unavailable home unknown and cannot invent a return
 anchor. The pool-reset hook clears all personal memories. This is opt-in D3/A6
 behavior; X1 remains record-only with its sole Phase10 writer unchanged.
+
+Corrected A6 rules3 preserves D3 movement contributions across personal record-only/shuffled/channel controls. Historical rules2 retains its prior shared-control behavior for reproducibility. Neither version dispatches D3 movement when A6 itself is disabled.

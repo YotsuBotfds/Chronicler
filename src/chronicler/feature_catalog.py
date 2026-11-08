@@ -185,6 +185,7 @@ REQUIREMENTS: dict[str, tuple[dict, ...]] = {
     "war_requisition": (_HYBRID, _feature("household_retail"), _choice("household_retail_rules", "2"), _setting("campaigns")),
     "war_consequences": (_HYBRID, _feature("war_requisition"), _feature("health_care"), _feature("residence_ledger")),
     "adaptive_livelihoods": (_HYBRID, _feature("residence_ledger")),
+    "adaptive_livelihoods_decision_channels": (_choice("adaptive_livelihoods_rules", "3"),),
     "public_health": (_HYBRID, _feature("epidemic_care"), _feature("infrastructure_condition"), _feature("residence_ledger"), _choice("quarantine_mode", "closure", "cost_only")),
     "movement_branches": (_HYBRID, _setting("agent_movements")),
     "residence_ledger": (_HYBRID,),
@@ -256,7 +257,7 @@ def _entry(key: str, actions: Mapping[str, Any], *, group: str, experimental: bo
     if parent is None:
         requires = [_with_reasons(c) for c in REQUIREMENTS.get(key, ())]
     else:
-        requires = [_with_reasons(_feature(parent))]
+        requires = [_with_reasons(c) for c in (_feature(parent), *REQUIREMENTS.get(key, ()))]
     return {
         "key": key,
         "flag": action.option_strings[0],
