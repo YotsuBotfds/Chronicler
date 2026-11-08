@@ -23,6 +23,28 @@
     then compared decoded and the raw-bytes check is skipped. Each case
     prints the fields it changed and how many values.
 
+``digest OUT_DIR GOLDEN.json [--build-receipt PATH] [--note TEXT]``
+    Per case, the SHA-256 of every compared file's content (as ``compare``;
+    a batch manifest without its clock, machine and commit fields), plus
+    the runtime: ``compat`` (Python minor version, platform, Rust channel)
+    and ``provenance`` (full versions, native SHA-256 and the native source
+    digest from the build receipt).
+
+``check OUT_DIR GOLDEN.json [--lane python|native] [--build-receipt PATH]``
+    The identity gate against a committed golden
+    (``tests/fixtures/identity/``): (1) provenance, the loaded extension is
+    the receipt's and the receipt's native source is this checkout's; (2)
+    ``compat`` equals the golden's; (3) output digests only. The native
+    SHA-256 is never an equality condition: a rebuilt extension with
+    identical outputs passes and prints ``native rebuilt: OLD -> NEW``.
+
+``receipt PATH [--extension SO] [--wheel WHL]``
+    The build receipt: extension and wheel SHA-256, native source digest
+    (``chronicler-agents`` Cargo files and ``src``) and ``rustc --version``.
+
+``GATE_PYTHON`` and ``GATE_NATIVE`` name the ``g_*`` cases of each lane;
+``run`` without ``--case`` runs the original speed matrix only.
+
 Scaled cases multiply region capacities and starting populations before
 the first turn, as ``scripts/agent_scale_benchmark.py`` does.
 """
@@ -55,7 +77,34 @@ CASES: dict[str, tuple[list[str], int]] = {
                        "--agents", "hybrid", "--validation-sidecar"], 18800),
     "scaled52k_s7": (["--seed", "7", "--turns", "20", "--regions", "12", "--civs", "4",
                       "--agents", "hybrid"], 43700),
+    # Identity gate (``digest``/``check`` against tests/fixtures/identity/):
+    # default switches on the off and hybrid paths plus the default-off
+    # systems the source-witness pins used to guard.
+    "g_off_s42": (["--seed", "42", "--turns", "120", "--agents", "off"], 0),
+    "g_off_proc_s7": (["--seed", "7", "--turns", "100", "--regions", "48", "--civs", "10",
+                       "--agents", "off"], 0),
+    "g_hybrid_s42": (["--seed", "42", "--turns", "100", "--agents", "hybrid",
+                      "--validation-sidecar"], 0),
+    "g_grain_s7": (["--seed", "7", "--turns", "120", "--agents", "hybrid", "--grain-reserves",
+                    "--grain-storage", "--grain-storage-policy", "maintain",
+                    "--grain-storage-work-budget", "1", "--public-grain-shipments",
+                    "--harvest-forecasts", "--transaction-receipts"], 0),
+    "g_learning_s42": (["--seed", "42", "--turns", "120", "--regions", "24", "--civs", "6",
+                        "--agents", "hybrid", "--scholarship", "--academy-services"], 0),
+    "g_mobility_s1234": (["--seed", "1234", "--turns", "100", "--agents", "hybrid",
+                          "--household-mobility-liquid-requirement", "25",
+                          "--community-anchoring", "--capacity-aware-refugees"], 0),
+    "g_scaled_s42": (["--seed", "42", "--turns", "30", "--regions", "12", "--civs", "4",
+                      "--agents", "hybrid", "--validation-sidecar"], 18800),
+    "g_batch_off": (["--batch", "3", "--seed", "100", "--turns", "40", "--agents", "off"], 0),
 }
+# The base-vs-new matrix ``run`` uses when no ``--case`` is given.
+SPEED_CASES = tuple(name for name in CASES if not name.startswith("g_"))
+# Identity-gate lanes: without the native extension, and with it (the off
+# case again, where ``--agents off`` uses the native ecology simulator).
+GATE_PYTHON = ("g_off_s42", "g_off_proc_s7", "g_batch_off")
+GATE_NATIVE = ("g_hybrid_s42", "g_grain_s7", "g_learning_s42", "g_mobility_s1234",
+               "g_scaled_s42", "g_off_s42")
 
 _SCALED_RUNNER = r"""
 import sys
@@ -96,6 +145,8 @@ def _env(source_root: Path | None, native_root: Path | None) -> dict:
 
 
 _WHICH = (
+    "import platform, sys\n"
+    "print('python', platform.python_version(), sys.platform + '-' + platform.machine())\n"
     "import hashlib, chronicler, chronicler_agents.chronicler_agents as m\n"
     "print('chronicler', chronicler.__file__)\n"
     "print('native', m.__file__, hashlib.sha256(open(m.__file__, 'rb').read()).hexdigest())\n"
@@ -341,6 +392,231 @@ def compare(base: Path, new: Path, faith_ids: bool = False) -> int:
     return 0 if total_checked and not total_problems else 1
 
 
+# --- identity gate: digest / check against committed goldens -----------------------
+
+# Fields of a batch manifest that describe the machine, the clock or the
+# commit rather than the runs (``chronicler.batch_manifest``).
+_BATCH_MANIFEST_VOLATILE = ("created_at", "completed_at", "environment", "source", "native")
+NATIVE_SOURCE_FILES = ("chronicler-agents/Cargo.toml", "chronicler-agents/Cargo.lock")
+NATIVE_SOURCE_DIR = "chronicler-agents/src"
+INCOMPATIBLE = "incompatible runtime: re-capture the goldens in a reviewed PR"
+
+
+def _sha256_bytes(data: bytes) -> str:
+    import hashlib
+    return hashlib.sha256(data).hexdigest()
+
+
+def _sha256_file(path: Path) -> str:
+    return _sha256_bytes(Path(path).read_bytes())
+
+
+def _cities_identity():
+    if str(REPO_ROOT / "scripts") not in sys.path:
+        sys.path.insert(0, str(REPO_ROOT / "scripts"))
+    import cities_identity
+    return cities_identity
+
+
+def _batch_manifest_content(path: Path) -> bytes:
+    """A batch manifest without its machine, clock and commit fields; paths
+    under its directory and the digests of its files become labels (the
+    approach of ``tests/test_validation_parity.py::_Normalizer``)."""
+    import json
+    root = path.parent
+    data = json.loads(path.read_text(encoding="utf-8"))
+    for key in _BATCH_MANIFEST_VOLATILE:
+        data.pop(key, None)
+    text = json.dumps(data, sort_keys=True)
+    replacements = []
+    for item in [root, *sorted(root.rglob("*"))]:
+        label = "<WS>" + ("/" + item.relative_to(root).as_posix() if item != root else "")
+        replacements.append((json.dumps(str(item))[1:-1], label))
+        if item.is_file() and item != path:
+            replacements.append((_sha256_file(item), f"<sha256:{label[5:]}>"))
+    replacements.sort(key=lambda pair: len(pair[0]), reverse=True)
+    for old, new in replacements:
+        text = text.replace(old, new)
+    return text.encode("utf-8")
+
+
+def output_digests(case_dir: Path) -> dict[str, str]:
+    """``relpath -> sha256`` of every compared file of one case directory:
+    the content ``compare`` compares (``cities_identity._content``: bundles
+    decoded, ``metadata.generated_at`` dropped), skipping ``.log`` files and
+    ``run_manifest.json``; a batch manifest is projected first."""
+    ci = _cities_identity()
+    digests = {}
+    for path in sorted(p for p in case_dir.rglob("*") if p.is_file()):
+        if path.name in ci.IGNORED_NAMES or path.suffix == ".log":
+            continue
+        if path.name == "batch_manifest.json":
+            content = _batch_manifest_content(path)
+        else:
+            content = ci._content(path, False)
+        digests[path.relative_to(case_dir).as_posix()] = _sha256_bytes(content)
+    return digests
+
+
+def native_source_digest(root: Path) -> str:
+    """SHA-256 over the native crate's manifest, lockfile and ``src`` tree of
+    a checkout: each file's relative path and content digest, in path order."""
+    root = Path(root)
+    rels = list(NATIVE_SOURCE_FILES) + sorted(
+        p.relative_to(root).as_posix() for p in (root / NATIVE_SOURCE_DIR).rglob("*") if p.is_file())
+    lines = []
+    for rel in rels:
+        path = root / rel
+        if not path.is_file():
+            raise FileNotFoundError(f"native source file missing: {path}")
+        lines.append(f"{rel}\0{_sha256_file(path)}\n")
+    return _sha256_bytes("".join(lines).encode("utf-8"))
+
+
+def _rust_channel(rustc: str | None) -> str | None:
+    if not rustc:
+        return None
+    version = rustc.split()[1] if len(rustc.split()) > 1 else rustc
+    for channel in ("nightly", "beta"):
+        if channel in version:
+            return channel
+    return "stable"
+
+
+def loaded_runtime(out: Path) -> dict:
+    """What the runs in ``out`` loaded, from the ``which.txt`` that ``run``
+    writes: Python version and platform, and the native extension's path and
+    SHA-256 (``None`` when the extension was absent)."""
+    import platform as _platform
+    info = {"python_full": _platform.python_version(),
+            "platform": f"{sys.platform}-{_platform.machine()}",
+            "native_path": None, "native_sha256": None}
+    which = Path(out) / "which.txt"
+    for line in (which.read_text(encoding="utf-8").splitlines() if which.exists() else []):
+        parts = line.split()
+        if parts[:1] == ["python"] and len(parts) == 3:
+            info["python_full"], info["platform"] = parts[1], parts[2]
+        elif parts[:1] == ["native"] and len(parts) >= 3:
+            info["native_path"], info["native_sha256"] = " ".join(parts[1:-1]), parts[-1]
+    return info
+
+
+def environment(out: Path, receipt: dict | None) -> dict:
+    runtime = loaded_runtime(out)
+    native = runtime["native_sha256"]
+    rustc = (receipt or {}).get("rustc") if native else None
+    python_minor = ".".join(runtime["python_full"].split(".")[:2])
+    return {
+        "compat": {"python_minor": python_minor, "platform": runtime["platform"],
+                   "rust_channel": _rust_channel(rustc)},
+        "provenance": {"python_full": runtime["python_full"], "rustc": rustc,
+                       "native_sha256": native,
+                       "native_source_digest": (receipt or {}).get("source_digest") if native else None},
+    }
+
+
+def digest_tree(out: Path, receipt: dict | None = None) -> dict:
+    out = Path(out)
+    cases = {p.name: output_digests(p) for p in sorted(out.iterdir()) if p.is_dir()}
+    return {"environment": environment(out, receipt), "cases": cases}
+
+
+def _load_json(path: Path | None) -> dict | None:
+    import json
+    return None if path is None else json.loads(Path(path).read_text(encoding="utf-8"))
+
+
+def digest(out: Path, golden: Path, receipt_path: Path | None = None, note: str | None = None) -> int:
+    import json
+    data = digest_tree(out, _load_json(receipt_path))
+    if note:
+        data["environment"]["provenance"]["note"] = note
+    Path(golden).write_text(json.dumps(data, indent=1, sort_keys=True) + "\n", encoding="utf-8")
+    files = sum(len(v) for v in data["cases"].values())
+    print(f"{len(data['cases'])} cases, {files} files digested -> {golden}")
+    return 0
+
+
+def provenance_problems(out: Path, lane: str, receipt: dict | None, source_root: Path) -> list[str]:
+    """The build must belong to the source under test (step 1 of ``check``)."""
+    runtime = loaded_runtime(out)
+    loaded = runtime["native_sha256"]
+    if lane == "python":
+        return [] if loaded is None else [f"provenance: python lane loaded a native extension ({loaded})"]
+    if loaded is None:
+        return ["provenance: native lane runs did not load chronicler_agents (see which.txt)"]
+    if receipt is None:
+        return ["provenance: native lane needs --build-receipt"]
+    problems = []
+    if receipt.get("extension_sha256") != loaded:
+        problems.append(f"provenance: loaded extension {loaded} is not the receipt's "
+                        f"{receipt.get('extension_sha256')}")
+    candidate = native_source_digest(source_root)
+    if receipt.get("source_digest") != candidate:
+        problems.append(f"provenance: receipt built from native source {receipt.get('source_digest')}, "
+                        f"checkout has {candidate}")
+    return problems
+
+
+def identity_problems(golden_cases: dict, run_cases: dict) -> tuple[int, list[str]]:
+    checked, problems = 0, []
+    for case in sorted(set(golden_cases) | set(run_cases)):
+        if case not in run_cases:
+            problems.append(f"only in golden: {case}")
+            continue
+        if case not in golden_cases:
+            problems.append(f"only in run: {case}")
+            continue
+        want, got = golden_cases[case], run_cases[case]
+        for rel in sorted(set(want) ^ set(got)):
+            problems.append(f"only in {'golden' if rel in want else 'run'}: {case}/{rel}")
+        for rel in sorted(set(want) & set(got)):
+            checked += 1
+            if want[rel] != got[rel]:
+                problems.append(f"differs: {case}/{rel} ({want[rel][:12]} != {got[rel][:12]})")
+    return checked, problems
+
+
+def check(out: Path, golden_path: Path, lane: str = "python", receipt_path: Path | None = None,
+          source_root: Path | None = None) -> int:
+    """Provenance, then compatibility, then output identity. The native
+    SHA-256 is provenance only: a rebuilt extension with identical outputs passes."""
+    golden = _load_json(golden_path)
+    receipt = _load_json(receipt_path)
+    problems = provenance_problems(out, lane, receipt, Path(source_root or REPO_ROOT))
+    if problems:
+        for line in problems:
+            print(line)
+        print("refused: the build does not belong to the source under test")
+        return 1
+    candidate = digest_tree(out, receipt)
+    want_env, got_env = golden["environment"], candidate["environment"]
+    if want_env["compat"] != got_env["compat"]:
+        print(f"{INCOMPATIBLE} (golden {want_env['compat']}, run {got_env['compat']})")
+        return 1
+    old_native = want_env["provenance"].get("native_sha256")
+    new_native = got_env["provenance"].get("native_sha256")
+    if old_native and new_native and old_native != new_native:
+        print(f"native rebuilt: {old_native} -> {new_native}")
+    checked, problems = identity_problems(golden["cases"], candidate["cases"])
+    for line in problems:
+        print(f"  {line}")
+    print(f"{len(golden['cases'])} golden cases, {checked} files checked, {len(problems)} differences")
+    return 0 if checked and not problems else 1
+
+
+def write_receipt(path: Path, extension: Path, source_root: Path, wheel: Path | None = None,
+                  rustc: str | None = None) -> dict:
+    """The native build receipt ``check --build-receipt`` reads."""
+    import json
+    receipt = {"extension": str(extension), "extension_sha256": _sha256_file(extension),
+               "wheel": None if wheel is None else Path(wheel).name,
+               "wheel_sha256": None if wheel is None else _sha256_file(wheel),
+               "source_digest": native_source_digest(source_root), "rustc": rustc}
+    Path(path).write_text(json.dumps(receipt, indent=1, sort_keys=True) + "\n", encoding="utf-8")
+    return receipt
+
+
 def main(argv=None) -> int:
     p = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     sub = p.add_subparsers(dest="cmd", required=True)
@@ -356,10 +632,41 @@ def main(argv=None) -> int:
     c.add_argument("new", type=Path)
     c.add_argument("--faith-ids", action="store_true",
                    help="project the new run's permanent faith ids back to slots (see above)")
+    d = sub.add_parser("digest")
+    d.add_argument("out", type=Path)
+    d.add_argument("golden", type=Path)
+    d.add_argument("--build-receipt", type=Path)
+    d.add_argument("--note", help="free text kept in the golden's provenance (where it was captured)")
+    k = sub.add_parser("check")
+    k.add_argument("out", type=Path)
+    k.add_argument("golden", type=Path)
+    k.add_argument("--lane", choices=("python", "native"), default="python")
+    k.add_argument("--build-receipt", type=Path)
+    k.add_argument("--source-root", type=Path,
+                   help="checkout whose native source the receipt must match (default: this one)")
+    b = sub.add_parser("receipt")
+    b.add_argument("path", type=Path)
+    b.add_argument("--extension", type=Path,
+                   help="installed extension file (default: the one this interpreter imports)")
+    b.add_argument("--wheel", type=Path)
+    b.add_argument("--source-root", type=Path, default=REPO_ROOT)
     a = p.parse_args(argv)
     if a.cmd == "run":
         a.out.mkdir(parents=True, exist_ok=True)
-        return run(a.out.resolve(), a.case or list(CASES), a.source_root, a.native_root, a.cli_arg)
+        return run(a.out.resolve(), a.case or list(SPEED_CASES), a.source_root, a.native_root, a.cli_arg)
+    if a.cmd == "digest":
+        return digest(a.out, a.golden, a.build_receipt, a.note)
+    if a.cmd == "check":
+        return check(a.out, a.golden, a.lane, a.build_receipt, a.source_root)
+    if a.cmd == "receipt":
+        extension = a.extension
+        if extension is None:
+            import importlib
+            extension = Path(importlib.import_module("chronicler_agents.chronicler_agents").__file__)
+        rustc = subprocess.run(["rustc", "--version"], capture_output=True, text=True).stdout.strip() or None
+        receipt = write_receipt(a.path, extension, a.source_root, a.wheel, rustc)
+        print(f"extension {receipt['extension_sha256']}, native source {receipt['source_digest']}, {rustc}")
+        return 0
     return compare(a.base, a.new, faith_ids=a.faith_ids)
 
 

@@ -155,3 +155,199 @@ def test_memory_stream_text_matches_json_dumps(tmp_path):
     stream.save(path)
     assert path.read_text() == _reference_memory_text(stream)
     assert MemoryStream.load(path).json_text() == path.read_text()
+
+
+# --- identity gate: scripts/turn_speed_identity.py digest / check -------------------
+
+def _identity_script():
+    import sys
+    from pathlib import Path
+    scripts = str(Path(__file__).resolve().parents[1] / "scripts")
+    if scripts not in sys.path:
+        sys.path.insert(0, scripts)
+    import turn_speed_identity
+    return turn_speed_identity
+
+
+def _native_checkout(root, lib="pub fn f() {}\n"):
+    crate = root / "chronicler-agents"
+    (crate / "src" / "ffi").mkdir(parents=True)
+    (crate / "Cargo.toml").write_text("[package]\nname = 'x'\n")
+    (crate / "Cargo.lock").write_text("# lock\n")
+    (crate / "src" / "lib.rs").write_text(lib)
+    (crate / "src" / "ffi" / "mod.rs").write_text("// ffi\n")
+    return root
+
+
+def _identity_run(out, *, native=None, python="3.13.17", platform="linux-x86_64",
+                  bundle_stamp="2026-01-01T00:00:00", memory=b"[]\n"):
+    import hashlib
+    import json
+    out.mkdir(parents=True)
+    which = [f"python {python} {platform}", "chronicler /src/chronicler/__init__.py"]
+    if native is not None:
+        which.append(f"native /site/chronicler_agents/ext.so {hashlib.sha256(native).hexdigest()}")
+    (out / "which.txt").write_text("\n".join(which) + "\n")
+    for case in ("g_a", "g_b"):
+        d = out / case
+        (d / "seed_1").mkdir(parents=True)
+        bundle = {"metadata": {"generated_at": bundle_stamp, "seed": 1}, "history": [{"turn": 1}]}
+        (d / "chronicle_bundle.json").write_text(json.dumps(bundle))
+        (d / "memories_x.json").write_bytes(memory)
+        (d / "seed_1" / "state.json").write_text('{"turn": 1}')
+        (d / "run_manifest.json").write_text(json.dumps({"wall": bundle_stamp}))
+        (out / f"{case}.log").write_text(f"{case}: {bundle_stamp}\n")
+    return out
+
+
+def _golden(tmp_path, out, receipt=None):
+    M = _identity_script()
+    path = tmp_path / f"golden-{out.name}.json"
+    assert M.digest(out, path, receipt) == 0
+    return path
+
+
+def _receipt(tmp_path, root, extension_bytes, name="receipt.json"):
+    M = _identity_script()
+    ext = tmp_path / f"{name}.so"
+    ext.write_bytes(extension_bytes)
+    path = tmp_path / name
+    M.write_receipt(path, ext, root, rustc="rustc 1.97.0 (2d8144b78 2026-07-07)")
+    return path
+
+
+def test_identity_digest_is_stable_and_ignores_the_wall_clock(tmp_path):
+    import json
+    M = _identity_script()
+    a = _golden(tmp_path, _identity_run(tmp_path / "a"))
+    b = _golden(tmp_path, _identity_run(tmp_path / "b", bundle_stamp="2031-05-05T12:00:00"))
+    assert a.read_bytes() == b.read_bytes()
+    data = json.loads(a.read_text())
+    assert sorted(data["cases"]) == ["g_a", "g_b"]
+    assert sorted(data["cases"]["g_a"]) == ["chronicle_bundle.json", "memories_x.json", "seed_1/state.json"]
+    assert data["environment"] == {
+        "compat": {"python_minor": "3.13", "platform": "linux-x86_64", "rust_channel": None},
+        "provenance": {"python_full": "3.13.17", "rustc": None, "native_sha256": None,
+                       "native_source_digest": None}}
+    assert M.check(tmp_path / "b", a) == 0
+
+
+def test_identity_check_detects_a_one_byte_output_change(tmp_path, capsys):
+    M = _identity_script()
+    golden = _golden(tmp_path, _identity_run(tmp_path / "a"))
+    _identity_run(tmp_path / "b", memory=b"[1\n")
+    assert M.check(tmp_path / "b", golden) == 1
+    out = capsys.readouterr().out
+    assert "differs: g_a/memories_x.json" in out and "differs: g_b/memories_x.json" in out
+    (tmp_path / "b" / "g_b" / "memories_x.json").unlink()
+    (tmp_path / "b" / "g_b" / "extra.json").write_text("{}")
+    assert M.check(tmp_path / "b", golden) == 1
+    out = capsys.readouterr().out
+    assert "only in golden: g_b/memories_x.json" in out and "only in run: g_b/extra.json" in out
+
+
+def test_identity_check_accepts_a_rebuilt_extension_with_identical_outputs(tmp_path, capsys):
+    import hashlib
+    M = _identity_script()
+    root = _native_checkout(tmp_path / "repo")
+    golden = _golden(tmp_path, _identity_run(tmp_path / "a", native=b"old build"),
+                     _receipt(tmp_path, root, b"old build", "old.json"))
+    receipt = _receipt(tmp_path, root, b"new build", "new.json")
+    _identity_run(tmp_path / "b", native=b"new build")
+    assert M.check(tmp_path / "b", golden, "native", receipt, root) == 0
+    old, new = (hashlib.sha256(b).hexdigest() for b in (b"old build", b"new build"))
+    assert f"native rebuilt: {old} -> {new}" in capsys.readouterr().out
+
+
+def test_identity_check_rejects_the_same_extension_with_changed_outputs(tmp_path, capsys):
+    M = _identity_script()
+    root = _native_checkout(tmp_path / "repo")
+    receipt = _receipt(tmp_path, root, b"build")
+    golden = _golden(tmp_path, _identity_run(tmp_path / "a", native=b"build"), receipt)
+    _identity_run(tmp_path / "b", native=b"build", memory=b"[2]\n")
+    assert M.check(tmp_path / "b", golden, "native", receipt, root) == 1
+    out = capsys.readouterr().out
+    assert "differs: g_a/memories_x.json" in out and "native rebuilt" not in out
+
+
+@pytest.mark.parametrize("change", [{"python": "3.14.0"}, {"platform": "darwin-arm64"}])
+def test_identity_check_refuses_an_incompatible_runtime(tmp_path, capsys, change):
+    M = _identity_script()
+    golden = _golden(tmp_path, _identity_run(tmp_path / "a"))
+    _identity_run(tmp_path / "b", **change)
+    assert M.check(tmp_path / "b", golden) == 1
+    assert M.INCOMPATIBLE in capsys.readouterr().out
+
+
+def test_identity_check_refuses_a_build_that_is_not_the_checkouts(tmp_path, capsys):
+    M = _identity_script()
+    root = _native_checkout(tmp_path / "repo")
+    receipt = _receipt(tmp_path, root, b"build")
+    golden = _golden(tmp_path, _identity_run(tmp_path / "a", native=b"build"), receipt)
+    _identity_run(tmp_path / "b", native=b"build")
+    assert M.check(tmp_path / "b", golden, "native", receipt, root) == 0
+    capsys.readouterr()
+    # The checkout's native source moved on since the receipt's build.
+    other = _native_checkout(tmp_path / "other", lib="pub fn g() {}\n")
+    assert M.check(tmp_path / "b", golden, "native", receipt, other) == 1
+    assert "receipt built from native source" in capsys.readouterr().out
+    # The runs loaded an extension other than the receipt's.
+    _identity_run(tmp_path / "c", native=b"another build")
+    assert M.check(tmp_path / "c", golden, "native", receipt, root) == 1
+    assert "is not the receipt's" in capsys.readouterr().out
+    # No receipt, or a python lane that loaded the extension.
+    assert M.check(tmp_path / "b", golden, "native", None, root) == 1
+    assert M.check(tmp_path / "b", golden, "python") == 1
+    assert "python lane loaded a native extension" in capsys.readouterr().out
+
+
+def test_identity_gate_cases_and_native_source_digest():
+    from pathlib import Path
+    M = _identity_script()
+    assert M.SPEED_CASES == ("off_s42", "off_s7", "hybrid_s42", "hybrid_s7", "hybrid_s1234",
+                             "proc48_hybrid_s42", "proc48_off_s7", "scaled22k_s42", "scaled52k_s7")
+    gate = {name for name in M.CASES if name.startswith("g_")}
+    assert set(M.GATE_PYTHON) | set(M.GATE_NATIVE) == gate and len(gate) == 8
+    assert "g_off_s42" in M.GATE_PYTHON and "g_off_s42" in M.GATE_NATIVE
+    assert M._rust_channel("rustc 1.97.0 (2d8144b78 2026-07-07)") == "stable"
+    assert M._rust_channel("rustc 1.99.0-nightly (abc 2026-08-01)") == "nightly"
+    repo = Path(__file__).resolve().parents[1]
+    assert len(M.native_source_digest(repo)) == 64
+    # The workflow runs exactly each lane's cases against that lane's golden.
+    import json
+    import re
+    text = (repo / ".github" / "workflows" / "identity-gate.yml").read_text(encoding="utf-8")
+    python_job, native_job = text.split("\n  native-lane:\n")
+    assert tuple(re.findall(r"--case (\S+)", python_job)) == M.GATE_PYTHON
+    assert tuple(re.findall(r"--case (\S+)", native_job)) == M.GATE_NATIVE
+    for lane, cases in (("python", M.GATE_PYTHON), ("native", M.GATE_NATIVE)):
+        golden = json.loads((repo / "tests" / "fixtures" / "identity" / f"{lane}_goldens.json").read_text())
+        assert sorted(golden["cases"]) == sorted(cases)
+
+
+def test_identity_batch_manifest_drops_clock_machine_and_commit(tmp_path):
+    import hashlib
+    import json
+    M = _identity_script()
+
+    def batch(root, stamp, sha):
+        d = root / "batch_1"
+        (d / "seed_1").mkdir(parents=True)
+        (d / "seed_1" / "chronicle_bundle.json").write_text(json.dumps({"metadata": {"generated_at": stamp}}))
+        digest = hashlib.sha256((d / "seed_1" / "chronicle_bundle.json").read_bytes()).hexdigest()
+        (d / "batch_manifest.json").write_text(json.dumps({
+            "created_at": stamp, "completed_at": stamp, "environment": {"executable": str(root)},
+            "source": {"git_sha": sha, "package_dir": str(root)}, "native": {"status": "absent"},
+            "seeds": [1], "runs": [{"seed": 1, "files": {"seed_1/chronicle_bundle.json": digest}}],
+            "where": str(d / "seed_1")}))
+        return M.output_digests(root)
+
+    a = batch(tmp_path / "a", "2026-01-01", "abc")
+    b = batch(tmp_path / "b", "2027-02-02", "def")
+    assert a == b
+    # The recorded digest is still checked: a wrong one is not a label.
+    d = tmp_path / "b" / "batch_1"
+    data = json.loads((d / "batch_manifest.json").read_text())
+    data["runs"][0]["files"]["seed_1/chronicle_bundle.json"] = "0" * 64
+    (d / "batch_manifest.json").write_text(json.dumps(data))
+    assert M.output_digests(tmp_path / "b") != a

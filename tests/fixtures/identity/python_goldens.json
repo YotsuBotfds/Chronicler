@@ -1,0 +1,77 @@
+{
+ "cases": {
+  "g_batch_off": {
+   "batch_100/batch_manifest.json": "63fecd590b9e4fc58525b1a977066d2c3aa42776a340feb92da1838879099d04",
+   "batch_100/seed_100/chronicle.md": "5b29f6b5aa25fff86fb5ce4500124436a3241defcddaceda70353a7df478f5d3",
+   "batch_100/seed_100/chronicle_bundle.json": "39b36dd93bcc40eea066a77aca08f4ea5149ba5d934760d6947aa7de8e505261",
+   "batch_100/seed_100/memories_dorrathi_clans.json": "0cb2c9487657347ff09904e95b014728a776b6b56849b12fe6a4845b36cd8d3b",
+   "batch_100/seed_100/memories_kethani_empire.json": "e928758607acd2f857866ba988cbaacf00688d3a70fa456711fd76d3752b5ca3",
+   "batch_100/seed_100/memories_thornwall_confederacy.json": "35fdac056fb7f705933fbbd3ee3360d346eaaadabfcc10dc7fd0d4e9c29d3094",
+   "batch_100/seed_100/memories_vrashni_dominion.json": "1f6facc75fde3b307aad7166780d976d39cc6451d4d03ba75aaae42b97c7a9d7",
+   "batch_100/seed_100/state.historiography.json": "37d740710772f4ca9f895fc95ef3671cd170cd6e237a4d83cccdcc4df8cab3ac",
+   "batch_100/seed_100/state.json": "f5d2e69b1f38a8c0853c2fbbf9db8272c970ff6936449f1ac4db1ff82d40dd99",
+   "batch_100/seed_100/state.languages.json": "a0060a285ca737cc8f679082d6908346d47f8a928453addb8f3388c10a9a6c53",
+   "batch_100/seed_101/chronicle.md": "5b29f6b5aa25fff86fb5ce4500124436a3241defcddaceda70353a7df478f5d3",
+   "batch_100/seed_101/chronicle_bundle.json": "a905271b562064b0be93c728741ebfbf28d6c8e24ae6d5df060f910414a51b64",
+   "batch_100/seed_101/memories_ashkari_nomads.json": "9bbaa66b68e88264bab4a7a1078544ef2720fe5280b846e809032a48fc0a658f",
+   "batch_100/seed_101/memories_dorrathi_clans.json": "9fc08d461ce0f71a0292016a35e33482eb90c49b7ce6a5f53c00de18edd4c860",
+   "batch_100/seed_101/memories_selurian_republic.json": "d4deb697f664a613800ec098a99a1608a7c16be30df4080fd6ef37595b466788",
+   "batch_100/seed_101/memories_thornwall_confederacy.json": "fadcfd1d29ad0f3ff2a8d833fd2936ff2dcaa67f4ab8da791d8ac8732410d992",
+   "batch_100/seed_101/state.historiography.json": "590943e8f5147d2a57139bc24406518f770f1d9599a1a5c9594e11c2ab1d3e65",
+   "batch_100/seed_101/state.json": "50147a0380fdd4a8bd8ddba6f44901b7a26c2153203c5d04d3209b2224b0c034",
+   "batch_100/seed_101/state.languages.json": "a10c01994c360adffc08ec51d5df36f74a06db1b1ead28dfb8699256de58126c",
+   "batch_100/seed_102/chronicle.md": "5b29f6b5aa25fff86fb5ce4500124436a3241defcddaceda70353a7df478f5d3",
+   "batch_100/seed_102/chronicle_bundle.json": "8201d623b804f84cbd7e7f6e0595abb8f271a1a12c2f4b2546eb2dfb9294b22f",
+   "batch_100/seed_102/memories_dorrathi_clans.json": "bdc1ca98356796af78ab4bfc7a4dbce1cdaf8b3fdb842cefbde7c613679566fb",
+   "batch_100/seed_102/memories_kethani_empire.json": "58724574b1e1d9af09500cfb323884ffd8803f22207da7d55f0e1986b9d0f30e",
+   "batch_100/seed_102/memories_selurian_republic.json": "57847324c120333e8da3a0e1971c87f0f73fdc092abcc7533909c5998fe8640d",
+   "batch_100/seed_102/memories_thornwall_confederacy.json": "ff017dcb05c65c9128e64097bb8759b10a9597156cd07dd39d5e02ebe08ca621",
+   "batch_100/seed_102/state.historiography.json": "6cb2629866975a936bc8533d19bf5530b2f7da30be8dcce7ff47655f67899148",
+   "batch_100/seed_102/state.json": "6d71b39d2addb2615f6660cf054b1a4de69028b60dce9a21840a8c6f821a7ad0",
+   "batch_100/seed_102/state.languages.json": "160bb407f417a5a0d25f68d210f7d08c24987522ba44e29b9ed215e4c6bdb028",
+   "batch_100/summary.md": "8514ce76a349bcbd8d4cfbafbff29af44ebc0d2f0df32188e99f7b4ef609e411"
+  },
+  "g_off_proc_s7": {
+   "chronicle.md": "d98f477a0151465e85647feaa1ececf9dda928ac2c84679c6177a09dcfd57f96",
+   "chronicle_bundle.json": "eb7a75add36ccb56ff5be5f165e2a857be6c89ca322732ffee0c97d5c377e7c5",
+   "memories_confederacy_of_wodeth.json": "dc1cd304aa030ab1e571dbd26589b1cc223e30e8f5746fa57729e9249680de7e",
+   "memories_confederacy_of_wofideth.json": "a1d9149132fb6acb7cfc7e48036b249a5f47f6130dc5baa6bc582ab73edfc18a",
+   "memories_dominion_of_tosikhan.json": "79be1f8f0c8dd9bd76d961bbcada33242918397596df9812aaf139f41bf156f6",
+   "memories_hatoyan_kingdom.json": "9f880a901e1f6cb5bb88e16d821437a1cc8bbeb151008f813e548d5f7d9f38a3",
+   "memories_khitekani_republic.json": "6353d913ea5d7e2aad87ef4bd5e339de8dd3bda03f46f77c18f2f4e5873b6840",
+   "memories_kingdom_of_geniwyn.json": "46a66503f5c0d62e6dfe3583820847a6c16588be421049b26cfc786a8cd6eba3",
+   "memories_kingdom_of_quserai.json": "6c78bccf14c4879c70fbb5a4e7a99e9004fea170789b6cc5b4eee7b576b2991a",
+   "memories_pythysi_league.json": "12288996fc49d8f0e189cff2939a09269d482ac95ba37f08ffd50a4942e63b9e",
+   "memories_sakhuguri_empire.json": "e046191156f518746826e11125c610fdfeb2cc2d4ddffcc328c3c793437a841d",
+   "memories_thavigrimi_kingdom.json": "17ef4fe82e98bb764d9839b0f04a5198062f247bb7f667595b978ed9baef9dc7",
+   "state.historiography.json": "2605cd274dc31b3f2c303d34df2edddee3523a9cf32df0dcd7a02bf5be1c42aa",
+   "state.json": "66cd01396375acdd1dd6bca897c22f044846b0d13295c0175bb3412f196acc62",
+   "state.languages.json": "78b059a40e3726e7b76682b6785d33e4fe9d3bc91af429f49c294117c4135a14"
+  },
+  "g_off_s42": {
+   "chronicle.md": "8e488651f60032e1b1dfd989bda1906da5985183afacb4845b6efa8aeddf1ec9",
+   "chronicle_bundle.json": "d5e3744a6aab0fa9700969e509567a77380d80bd05078ac088f2d7cba9928e5e",
+   "memories_ashkari_nomads.json": "728c285685b0ed8e0d76e83c0534360f6ec26ad617d940f0a546f326d8d022b8",
+   "memories_kethani_empire.json": "59142b5b7953c9cefc0bd7ff9952bd0e5992049860d32e1dfdd1b951731ff6b7",
+   "memories_selurian_republic.json": "72fc6e10d4bfd119e1c8883ab730313db28f2559edb2046c79841e2e1e5ae530",
+   "memories_thornwall_confederacy.json": "69998dbb0f68d6ba6e08d669442a860e439a54b8a79e86959017ee431fe15762",
+   "state.historiography.json": "ae3935d0372fe2b603a0ec1a9694826d5ceb233c0b5c869662f125fec5114b40",
+   "state.json": "36849720cd9aed92df71b99883fa6f9bcb5efea8cadfeee50fb344244b995a66",
+   "state.languages.json": "cffb6243dc9b016c457aa77e2d8ec7a8541c6ddec4547c57c6fafe25dca698c7"
+  }
+ },
+ "environment": {
+  "compat": {
+   "platform": "linux-x86_64",
+   "python_minor": "3.13",
+   "rust_channel": null
+  },
+  "provenance": {
+   "native_sha256": null,
+   "native_source_digest": null,
+   "note": "captured locally (Linux container, not the CI runner) at source 5eedc67; native absent; CI capture and CI determinism re-runs pending",
+   "python_full": "3.13.18",
+   "rustc": null
+  }
+ }
+}
