@@ -1,3 +1,29 @@
+# 2026-11-08 — workstation tooling (Linux 9950X / 3950X)
+
+Both workstations run Linux (owner, 2026-11-08). Setup is in
+[workstations.md](workstations.md); tasks are ENV-1 to ENV-8 on the streamline-and-deepen board.
+
+Implemented on branch `claude/relaxed-brown-4ozgeg` (no PR yet):
+- **ENV-2.** `scripts/check_python_env.py --machine` (with `--json`): a workstation receipt
+  covering CPU, cores and threads, AVX2/AVX-512, batch CPU budget, memory, distribution,
+  governor, tool versions, run variables and git state. It never changes the result.
+- **ENV-3.** `scripts/run_python_oracle_checks.py --jobs N`. The default 1 keeps the serial
+  loop CI runs. N > 1 uses `scripts/testing/chunk_scheduler.py`: chunks start in order,
+  nothing new starts after a failure, and the receipt lists chunks in order.
+- **Tests.** `tests/test_oracle_chunk_scheduler.py` is registered in shard 1, the
+  `build-provenance` chunk and the additions map; the module count is 461.
+
+Verified in the 4-core cloud container:
+- the focused tests (255 passed);
+- the full oracle lane serially (PASS, 76 chunks, 8,135 passed, 69 skipped, 0 failed,
+  324.6 s);
+- the full lane with `--jobs 4` (PASS, same chunk order and per-chunk counts, 85.2 s;
+  slowest chunk 33.7 s of 110 s).
+
+Not run: native tests, viewer tests, the 200-seed gate, and anything on the workstations
+themselves (ENV-5 to ENV-7). ENV-4 (spawned batch workers with hash seed 0) is lower
+priority on Linux, where forked workers inherit the parent's seed. Set `PYTHONHASHSEED=0`.
+
 # 2026-11-08 — repository scout and streamlining plan (docs only)
 
 [Repository scout and streamlining plan](superpowers/audits/2026-11-08-streamlining-scout.md)

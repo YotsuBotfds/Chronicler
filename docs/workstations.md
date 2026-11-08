@@ -158,7 +158,14 @@ Fill this in as each machine is set up. `check_python_env.py --machine --json` g
 | 9950X | | | | | | | | | | |
 | 3950X | | | | | | | | | | |
 
-Cloud-container reference (4 cores): the serial and `--jobs 4` lane runs are pending. The CONTINUATION entry records them once measured.
+Cloud-container reference (4 cores, 2026-11-08, the code of commit `987a107`): the oracle lane passed both ways.
+
+| Run | Chunks | Tests | Lane time | Slowest chunk |
+|---|---|---|---|---|
+| Serial | 76 | 8,135 passed, 69 skipped, 0 failed | 324.6 s | `systems-2`, 33.1 s |
+| `--jobs 4` | 76, same order | same per-chunk counts | 85.2 s | `systems-2`, 33.7 s |
+
+The limit is 110 s per chunk. On a 16-core workstation, `--jobs 12` should be faster still; measure it before relying on it.
 
 ## Appendix: if a machine runs Windows
 
