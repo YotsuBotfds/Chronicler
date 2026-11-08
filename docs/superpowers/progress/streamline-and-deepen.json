@@ -66,9 +66,11 @@
       "depends_on": [],
       "risk": "-",
       "size": "-",
-      "status": "proposed",
+      "status": "review",
       "spec": "docs/superpowers/specs/2026-11-08-pin-policy-transition-design.md",
-      "plan": "docs/superpowers/plans/2026-11-08-pin-policy-transition.md"
+      "plan": "docs/superpowers/plans/2026-11-08-pin-policy-transition.md",
+      "decision": "Option A (freeze witness lane; PIN-2 gate replaces byte provenance)",
+      "decided": "2026-11-08 (owner accepted the recommendations; see progress/streamline-and-deepen-decisions.md)"
     },
     {
       "id": "DEC-2",
@@ -78,9 +80,11 @@
       "depends_on": [],
       "risk": "-",
       "size": "-",
-      "status": "proposed",
+      "status": "review",
       "spec": "docs/superpowers/specs/2026-11-08-rng-and-defaults-design.md",
-      "plan": "docs/superpowers/plans/2026-11-08-rng-and-defaults.md"
+      "plan": "docs/superpowers/plans/2026-11-08-rng-and-defaults.md",
+      "decision": "17 default-on systems = production core in one registry; governance and fisheries stay on; live follows CLI",
+      "decided": "2026-11-08 (owner accepted the recommendations; see progress/streamline-and-deepen-decisions.md)"
     },
     {
       "id": "DEC-3",
@@ -90,9 +94,11 @@
       "depends_on": [],
       "risk": "-",
       "size": "-",
-      "status": "proposed",
+      "status": "review",
       "spec": "docs/superpowers/specs/2026-11-08-rng-and-defaults-design.md",
-      "plan": "docs/superpowers/plans/2026-11-08-rng-and-defaults.md"
+      "plan": "docs/superpowers/plans/2026-11-08-rng-and-defaults.md",
+      "decision": "RNG hygiene correction signed off (COR-1); per-civ streams keyed by civ index unless COR-1 shows a name is required",
+      "decided": "2026-11-08 (owner accepted the recommendations; see progress/streamline-and-deepen-decisions.md)"
     },
     {
       "id": "DEC-4",
@@ -102,9 +108,11 @@
       "depends_on": [],
       "risk": "-",
       "size": "-",
-      "status": "proposed",
+      "status": "review",
       "spec": "docs/superpowers/specs/2026-11-08-behaviour-corrections-design.md",
-      "plan": "docs/superpowers/plans/2026-11-08-behaviour-corrections.md"
+      "plan": "docs/superpowers/plans/2026-11-08-behaviour-corrections.md",
+      "decision": "Move each provenance decision read onto simulation state, one baselined PR each",
+      "decided": "2026-11-08 (owner accepted the recommendations; see progress/streamline-and-deepen-decisions.md)"
     },
     {
       "id": "DEC-5",
@@ -114,9 +122,11 @@
       "depends_on": [],
       "risk": "-",
       "size": "-",
-      "status": "proposed",
+      "status": "review",
       "spec": "docs/superpowers/specs/2026-11-08-behaviour-corrections-design.md",
-      "plan": "docs/superpowers/plans/2026-11-08-behaviour-corrections.md"
+      "plan": "docs/superpowers/plans/2026-11-08-behaviour-corrections.md",
+      "decision": "New public-health enables default to density_only; saved worlds keep legacy",
+      "decided": "2026-11-08 (owner accepted the recommendations; see progress/streamline-and-deepen-decisions.md)"
     },
     {
       "id": "DEC-6",
@@ -126,9 +136,11 @@
       "depends_on": [],
       "risk": "-",
       "size": "-",
-      "status": "proposed",
+      "status": "review",
       "spec": "docs/superpowers/specs/2026-11-08-lab-package-relocation-design.md",
-      "plan": "docs/superpowers/plans/2026-11-08-lab-package-relocation.md"
+      "plan": "docs/superpowers/plans/2026-11-08-lab-package-relocation.md",
+      "decision": "Move to src/chronicler_lab (27 modules; validation_compare and community_admissibility stay); shims until first tagged release after PR 6",
+      "decided": "2026-11-08 (owner accepted the recommendations; see progress/streamline-and-deepen-decisions.md)"
     },
     {
       "id": "DEC-7",
@@ -138,9 +150,11 @@
       "depends_on": [],
       "risk": "-",
       "size": "-",
-      "status": "proposed",
+      "status": "review",
       "spec": "docs/superpowers/specs/2026-11-08-behaviour-corrections-design.md",
-      "plan": "docs/superpowers/plans/2026-11-08-behaviour-corrections.md"
+      "plan": "docs/superpowers/plans/2026-11-08-behaviour-corrections.md",
+      "decision": "Legacy war = --no-campaigns kernel only; era cost option A (keep both rules, documented); keep Python ecology oracle; delete formation fallback; shared constants from one source",
+      "decided": "2026-11-08 (owner accepted the recommendations; see progress/streamline-and-deepen-decisions.md)"
     },
     {
       "id": "DEC-8",
@@ -150,9 +164,11 @@
       "depends_on": [],
       "risk": "-",
       "size": "-",
-      "status": "proposed",
+      "status": "review",
       "spec": "docs/superpowers/specs/2026-11-08-repo-hygiene-design.md",
-      "plan": "docs/superpowers/plans/2026-11-08-repo-hygiene.md"
+      "plan": "docs/superpowers/plans/2026-11-08-repo-hygiene.md",
+      "decision": "Raw output may leave HEAD via GitHub release evidence-2026-11 with SHA-256 manifest; no history rewrite; upload is an owner action",
+      "decided": "2026-11-08 (owner accepted the recommendations; see progress/streamline-and-deepen-decisions.md)"
     },
     {
       "id": "ENV-1",
@@ -198,7 +214,7 @@
       "depends_on": [],
       "risk": "low",
       "size": "~+15",
-      "status": "ready",
+      "status": "active",
       "spec": "docs/superpowers/specs/2026-11-08-workstation-environments-design.md",
       "plan": "docs/superpowers/plans/2026-11-08-workstation-environments.md"
     },
@@ -264,7 +280,7 @@
       "depends_on": [],
       "risk": "low",
       "size": "~2,000 lines moved",
-      "status": "ready",
+      "status": "active",
       "spec": "docs/superpowers/specs/2026-11-08-repo-hygiene-design.md",
       "plan": "docs/superpowers/plans/2026-11-08-repo-hygiene.md"
     },
@@ -276,7 +292,7 @@
       "depends_on": [],
       "risk": "low",
       "size": "small",
-      "status": "ready",
+      "status": "active",
       "spec": "docs/superpowers/specs/2026-11-08-repo-hygiene-design.md",
       "plan": "docs/superpowers/plans/2026-11-08-repo-hygiene.md"
     },
@@ -288,7 +304,7 @@
       "depends_on": [],
       "risk": "low",
       "size": "~3,100 md lines archived",
-      "status": "ready",
+      "status": "active",
       "spec": "docs/superpowers/specs/2026-11-08-repo-hygiene-design.md",
       "plan": "docs/superpowers/plans/2026-11-08-repo-hygiene.md"
     },
@@ -300,9 +316,10 @@
       "depends_on": [],
       "risk": "low",
       "size": "small",
-      "status": "ready",
+      "status": "blocked",
       "spec": "docs/superpowers/specs/2026-11-08-repo-hygiene-design.md",
-      "plan": "docs/superpowers/plans/2026-11-08-repo-hygiene.md"
+      "plan": "docs/superpowers/plans/2026-11-08-repo-hygiene.md",
+      "note": "Needs third-party action tag SHAs (outside this session's repository scope) and a PR CI run (owner call)."
     },
     {
       "id": "HYG-5",
@@ -312,7 +329,7 @@
       "depends_on": [],
       "risk": "low",
       "size": "small",
-      "status": "ready",
+      "status": "active",
       "spec": "docs/superpowers/specs/2026-11-08-repo-hygiene-design.md",
       "plan": "docs/superpowers/plans/2026-11-08-repo-hygiene.md"
     },
@@ -324,7 +341,7 @@
       "depends_on": [],
       "risk": "low",
       "size": "~2,700 lines archived",
-      "status": "ready",
+      "status": "active",
       "spec": "docs/superpowers/specs/2026-11-08-repo-hygiene-design.md",
       "plan": "docs/superpowers/plans/2026-11-08-repo-hygiene.md"
     },
@@ -338,7 +355,7 @@
       ],
       "risk": "med",
       "size": "~6 MB",
-      "status": "blocked",
+      "status": "ready",
       "spec": "docs/superpowers/specs/2026-11-08-repo-hygiene-design.md",
       "plan": "docs/superpowers/plans/2026-11-08-repo-hygiene.md"
     },
@@ -350,7 +367,7 @@
       "depends_on": [],
       "risk": "med",
       "size": "up to ~7 min CI",
-      "status": "ready",
+      "status": "active",
       "spec": "docs/superpowers/specs/2026-11-08-repo-hygiene-design.md",
       "plan": "docs/superpowers/plans/2026-11-08-repo-hygiene.md"
     },
@@ -362,7 +379,7 @@
       "depends_on": [],
       "risk": "low",
       "size": "-2,096 (+440 test)",
-      "status": "ready",
+      "status": "active",
       "spec": "docs/superpowers/specs/2026-11-08-viewer-streamlining-design.md",
       "plan": "docs/superpowers/plans/2026-11-08-viewer-streamlining.md"
     },
@@ -374,7 +391,7 @@
       "depends_on": [],
       "risk": "low",
       "size": "~-300 (+216 analytics, owner call)",
-      "status": "ready",
+      "status": "active",
       "spec": "docs/superpowers/specs/2026-11-08-dead-code-removal-design.md",
       "plan": "docs/superpowers/plans/2026-11-08-dead-code-removal.md"
     },
@@ -386,7 +403,7 @@
       "depends_on": [],
       "risk": "low",
       "size": "~-230",
-      "status": "ready",
+      "status": "active",
       "spec": "docs/superpowers/specs/2026-11-08-dead-code-removal-design.md",
       "plan": "docs/superpowers/plans/2026-11-08-dead-code-removal.md"
     },
@@ -398,7 +415,7 @@
       "depends_on": [],
       "risk": "low",
       "size": "~-30",
-      "status": "ready",
+      "status": "active",
       "spec": "docs/superpowers/specs/2026-11-08-viewer-streamlining-design.md",
       "plan": "docs/superpowers/plans/2026-11-08-viewer-streamlining.md"
     },
@@ -438,7 +455,7 @@
       "depends_on": [],
       "risk": "low",
       "size": "small",
-      "status": "ready",
+      "status": "active",
       "spec": "docs/superpowers/specs/2026-11-08-behaviour-neutral-fixes-design.md",
       "plan": "docs/superpowers/plans/2026-11-08-behaviour-neutral-fixes.md"
     },
@@ -464,7 +481,7 @@
       "depends_on": [],
       "risk": "low",
       "size": "small",
-      "status": "ready",
+      "status": "active",
       "spec": "docs/superpowers/specs/2026-11-08-behaviour-neutral-fixes-design.md",
       "plan": "docs/superpowers/plans/2026-11-08-behaviour-neutral-fixes.md"
     },
@@ -476,7 +493,7 @@
       "depends_on": [],
       "risk": "low",
       "size": "small",
-      "status": "ready",
+      "status": "active",
       "spec": "docs/superpowers/specs/2026-11-08-behaviour-neutral-fixes-design.md",
       "plan": "docs/superpowers/plans/2026-11-08-behaviour-neutral-fixes.md"
     },
@@ -488,7 +505,7 @@
       "depends_on": [],
       "risk": "low",
       "size": "small",
-      "status": "ready",
+      "status": "active",
       "spec": "docs/superpowers/specs/2026-11-08-behaviour-neutral-fixes-design.md",
       "plan": "docs/superpowers/plans/2026-11-08-behaviour-neutral-fixes.md"
     },
@@ -500,7 +517,7 @@
       "depends_on": [],
       "risk": "med",
       "size": "~-30 net",
-      "status": "ready",
+      "status": "active",
       "spec": "docs/superpowers/specs/2026-11-08-behaviour-neutral-fixes-design.md",
       "plan": "docs/superpowers/plans/2026-11-08-behaviour-neutral-fixes.md"
     },
@@ -512,7 +529,7 @@
       "depends_on": [],
       "risk": "low",
       "size": "small",
-      "status": "ready",
+      "status": "active",
       "spec": "docs/superpowers/specs/2026-11-08-viewer-streamlining-design.md",
       "plan": "docs/superpowers/plans/2026-11-08-viewer-streamlining.md"
     },
@@ -524,7 +541,7 @@
       "depends_on": [],
       "risk": "low",
       "size": "small",
-      "status": "ready",
+      "status": "active",
       "spec": "docs/superpowers/specs/2026-11-08-behaviour-neutral-fixes-design.md",
       "plan": "docs/superpowers/plans/2026-11-08-behaviour-neutral-fixes.md"
     },
@@ -564,7 +581,7 @@
       "depends_on": [],
       "risk": "low",
       "size": "small",
-      "status": "ready",
+      "status": "active",
       "spec": "docs/superpowers/specs/2026-11-08-behaviour-neutral-fixes-design.md",
       "plan": "docs/superpowers/plans/2026-11-08-behaviour-neutral-fixes.md"
     },
@@ -576,7 +593,7 @@
       "depends_on": [],
       "risk": "low",
       "size": "small",
-      "status": "ready",
+      "status": "active",
       "spec": "docs/superpowers/specs/2026-11-08-behaviour-neutral-fixes-design.md",
       "plan": "docs/superpowers/plans/2026-11-08-behaviour-neutral-fixes.md"
     },
@@ -590,7 +607,7 @@
       ],
       "risk": "med",
       "size": "new cases",
-      "status": "blocked",
+      "status": "ready",
       "spec": "docs/superpowers/specs/2026-11-08-pin-policy-transition-design.md",
       "plan": "docs/superpowers/plans/2026-11-08-pin-policy-transition.md"
     },
@@ -619,7 +636,7 @@
       ],
       "risk": "high",
       "size": "baseline; pinned wave after PIN-1",
-      "status": "blocked",
+      "status": "ready",
       "spec": "docs/superpowers/specs/2026-11-08-rng-and-defaults-design.md",
       "plan": "docs/superpowers/plans/2026-11-08-rng-and-defaults.md"
     },
@@ -648,7 +665,7 @@
       ],
       "risk": "med",
       "size": "small",
-      "status": "blocked",
+      "status": "ready",
       "spec": "docs/superpowers/specs/2026-11-08-behaviour-corrections-design.md",
       "plan": "docs/superpowers/plans/2026-11-08-behaviour-corrections.md"
     },
@@ -662,7 +679,7 @@
       ],
       "risk": "low",
       "size": "small",
-      "status": "blocked",
+      "status": "ready",
       "spec": "docs/superpowers/specs/2026-11-08-behaviour-corrections-design.md",
       "plan": "docs/superpowers/plans/2026-11-08-behaviour-corrections.md"
     },
@@ -691,7 +708,8 @@
       "size": "small",
       "status": "ready",
       "spec": "docs/superpowers/specs/2026-11-08-behaviour-corrections-design.md",
-      "plan": "docs/superpowers/plans/2026-11-08-behaviour-corrections.md"
+      "plan": "docs/superpowers/plans/2026-11-08-behaviour-corrections.md",
+      "owner_go_ahead": "2026-11-08"
     },
     {
       "id": "COR-7",
@@ -703,7 +721,8 @@
       "size": "~-140",
       "status": "ready",
       "spec": "docs/superpowers/specs/2026-11-08-behaviour-corrections-design.md",
-      "plan": "docs/superpowers/plans/2026-11-08-behaviour-corrections.md"
+      "plan": "docs/superpowers/plans/2026-11-08-behaviour-corrections.md",
+      "owner_go_ahead": "2026-11-08"
     },
     {
       "id": "COR-8",
@@ -729,7 +748,8 @@
       "size": "small",
       "status": "ready",
       "spec": "docs/superpowers/specs/2026-11-08-rng-and-defaults-design.md",
-      "plan": "docs/superpowers/plans/2026-11-08-rng-and-defaults.md"
+      "plan": "docs/superpowers/plans/2026-11-08-rng-and-defaults.md",
+      "owner_go_ahead": "2026-11-08"
     },
     {
       "id": "COR-10",
@@ -741,7 +761,8 @@
       "size": "small",
       "status": "ready",
       "spec": "docs/superpowers/specs/2026-11-08-turn-loop-consolidation-design.md",
-      "plan": "docs/superpowers/plans/2026-11-08-turn-loop-consolidation.md"
+      "plan": "docs/superpowers/plans/2026-11-08-turn-loop-consolidation.md",
+      "owner_go_ahead": "2026-11-08"
     },
     {
       "id": "LAB-1",
@@ -753,7 +774,7 @@
       ],
       "risk": "med",
       "size": "~13k moved",
-      "status": "blocked",
+      "status": "ready",
       "spec": "docs/superpowers/specs/2026-11-08-lab-package-relocation-design.md",
       "plan": "docs/superpowers/plans/2026-11-08-lab-package-relocation.md"
     },
@@ -861,7 +882,7 @@
       "depends_on": [],
       "risk": "low",
       "size": "~0",
-      "status": "ready",
+      "status": "active",
       "spec": "docs/superpowers/specs/2026-11-08-economy-depth-and-measurement-design.md",
       "plan": "docs/superpowers/plans/2026-11-08-economy-depth-and-measurement.md"
     },
@@ -873,7 +894,7 @@
       "depends_on": [],
       "risk": "med",
       "size": "~-900 to -1,300",
-      "status": "ready",
+      "status": "active",
       "spec": "docs/superpowers/specs/2026-11-08-viewer-streamlining-design.md",
       "plan": "docs/superpowers/plans/2026-11-08-viewer-streamlining.md"
     },
@@ -957,7 +978,7 @@
       "depends_on": [],
       "risk": "med",
       "size": "tooling",
-      "status": "ready",
+      "status": "active",
       "spec": "docs/superpowers/specs/2026-11-08-economy-depth-and-measurement-design.md",
       "plan": "docs/superpowers/plans/2026-11-08-economy-depth-and-measurement.md"
     },
@@ -984,7 +1005,7 @@
       "depends_on": [],
       "risk": "med",
       "size": "medium",
-      "status": "ready",
+      "status": "active",
       "spec": "docs/superpowers/specs/2026-11-08-economy-depth-and-measurement-design.md",
       "plan": "docs/superpowers/plans/2026-11-08-economy-depth-and-measurement.md"
     },
@@ -993,12 +1014,15 @@
       "title": "Aggregate inequality metric",
       "phase": "R6",
       "class": "measurement",
-      "depends_on": [],
+      "depends_on": [
+        "PIN-1"
+      ],
       "risk": "low",
       "size": "small",
-      "status": "ready",
+      "status": "blocked",
       "spec": "docs/superpowers/specs/2026-11-08-core-loop-depth-design.md",
-      "plan": "docs/superpowers/plans/2026-11-08-core-loop-depth.md"
+      "plan": "docs/superpowers/plans/2026-11-08-core-loop-depth.md",
+      "note": "Plan edits enforced models.py, main.py and batch_manifest.py; waits for PIN-1 (planning session agreed 2026-11-08)."
     },
     {
       "id": "DEP-1",
@@ -1226,9 +1250,10 @@
     }
   ],
   "recorded_limits": [
+    "2026-11-08: owner decisions DEC-1..DEC-8 recorded (progress/streamline-and-deepen-decisions.md); COR-6, COR-7, COR-9, COR-10 approved to start. Wave 1 tasks (status active) run on the lead branch claude/exciting-mayer-nolksw; nothing is merged to main.",
     "ENV-1, ENV-2, ENV-3 and ENV-8 are in review on branch claude/relaxed-brown-4ozgeg; no other task is started. ready = no unmet prerequisite; blocked = waits on the tasks in depends_on; proposed = owner decision or R7 brief.",
     "Gates not run for this plan: oracle lane, native tests, viewer test/lint/build, turn_speed_identity, 200-seed gate.",
     "Sizes are estimates from the audit; specs refine them."
   ],
-  "next": "Set up a workstation (ENV-1..ENV-6) and record its receipts; owner records DEC-1..DEC-8; ready R1/R2 tasks can start in parallel."
+  "next": "Integrate wave 1; PIN-2 then PIN-1; corrections one at a time (COR-9, COR-10, COR-6, COR-7, then COR-4, COR-3, COR-1 unpinned wave); then LAB-1 and the PIN-1 dependants."
 }
