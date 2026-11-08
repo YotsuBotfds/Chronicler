@@ -53,6 +53,7 @@ pub fn is_asymmetric(bond_type: u8) -> bool {
     bond_type == BondType::Mentor as u8
 }
 
+#[cfg(test)]
 pub fn is_symmetric(bond_type: u8) -> bool {
     !is_asymmetric(bond_type)
 }
@@ -272,6 +273,7 @@ pub fn remove_directed(pool: &mut AgentPool, src_slot: usize, target_id: u32, bo
 }
 
 /// Remove a symmetric bond (both directions independently).
+#[cfg(test)]
 pub fn remove_symmetric(pool: &mut AgentPool, slot_a: usize, slot_b: usize, bond_type: u8) {
     let id_a = pool.ids[slot_a];
     let id_b = pool.ids[slot_b];
@@ -285,6 +287,7 @@ pub fn remove_symmetric(pool: &mut AgentPool, slot_a: usize, slot_b: usize, bond
 
 /// Per-tick sentiment drift for all agents.
 /// Phase 0.8: after needs (0.75), before satisfaction (1.0).
+#[cfg(test)]
 pub fn drift_relationships(pool: &mut AgentPool, turn: u32) {
     drift_relationships_with_lookup(pool, turn, None);
 }

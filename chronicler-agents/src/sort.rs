@@ -62,24 +62,6 @@ pub fn radix_sort_u64(keys: &[u64]) -> Vec<usize> {
     indices
 }
 
-/// Region-key sort: (region_index << 32) | agent_id
-/// Groups agents by region, tiebroken by agent_id.
-pub fn sort_by_region(pool: &AgentPool) -> Vec<usize> {
-    let mut keys = Vec::new();
-    let mut slots = Vec::new();
-
-    for slot in 0..pool.capacity() {
-        if pool.is_alive(slot) {
-            let key = ((pool.regions[slot] as u64) << 32) | (pool.ids[slot] as u64);
-            keys.push(key);
-            slots.push(slot);
-        }
-    }
-
-    let sorted_indices = radix_sort_u64(&keys);
-    sorted_indices.iter().map(|&i| slots[i]).collect()
-}
-
 /// Morton sort: (region_index << 48) | (morton << 32) | agent_id
 /// Groups by region, then by spatial locality (Z-curve), tiebroken by agent_id.
 pub fn sort_by_morton(pool: &AgentPool) -> Vec<usize> {

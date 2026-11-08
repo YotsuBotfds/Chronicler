@@ -751,6 +751,7 @@ mod tests {
         assert_eq!((PURPOSE_APPRENTICE_STIPEND, PURPOSE_REPAIR_WAGE, PURPOSE_REMITTANCE), (2, 3, 4));
         assert_eq!((PURPOSE_FOOD_PURCHASE, PURPOSE_FOOD_PROCUREMENT, PURPOSE_WARES_PURCHASE), (5, 6, 7));
         assert_eq!((PURPOSE_CARGO_PURCHASE, PURPOSE_CARGO_SALE), (8, 9));
+        assert_eq!(PURPOSE_RESTITUTION, 10);
         let mut pool = pool_with(&[1.0]);
         let a = pool.ids[0];
         for purpose in [PURPOSE_APPRENTICE_STIPEND, PURPOSE_REPAIR_WAGE, PURPOSE_REMITTANCE,

@@ -136,7 +136,7 @@ fn make_sort_pool(size: usize) -> AgentPool {
 }
 
 fn bench_sort(c: &mut Criterion) {
-    use chronicler_agents::sort::{sort_by_region, sort_by_morton, sorted_iteration_order};
+    use chronicler_agents::sort::{sort_by_morton, sorted_iteration_order};
 
     let mut group = c.benchmark_group("sort");
 
@@ -149,12 +149,6 @@ fn bench_sort(c: &mut Criterion) {
                     .filter(|&s| pool.is_alive(s))
                     .collect();
                 black_box(order);
-            })
-        });
-
-        group.bench_function(format!("region_sort_{}", size), |b| {
-            b.iter(|| {
-                black_box(sort_by_region(&pool));
             })
         });
 

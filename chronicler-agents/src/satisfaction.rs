@@ -1,14 +1,8 @@
 //! Branchless satisfaction formula — computes per-agent satisfaction from
 //! ecology, civ state, and occupation context.
 
-use crate::region::RegionState;
 use crate::signals::CivShock;
 
-const FAMINE_YIELD_THRESHOLD: f32 = 0.12;
-// Fixed normalization ceiling for farmer yield satisfaction. Intentionally not
-// a tuning key: the Python `ecology.peak_yield` override never reached Rust and
-// was removed (deferred-backlog 2026-10).
-const PEAK_YIELD: f32 = 1.0;
 // [CALIBRATE] Multiplies `(1.0 - food_sufficiency)` when food_sufficiency < 1.0,
 // so the added penalty range is [0.0, 0.15]. Recalibration (2026-10, food
 // balance): M47c set 0.15 (halving the M42 0.30 so the uncapped penalty plus
@@ -27,31 +21,6 @@ const WAR_PENALTY_CONTESTED: f32 = 0.05;  // [CALIBRATE] M47c: 0.10->0.05 (regio
 const FACTION_ALIGNMENT_BONUS: f32 = 0.05; // bonus when occupation matches dominant faction
 const DISPLACEMENT_PENALTY: f32 = 0.10;    // penalty for displaced agents
 const MEMORY_POSITIVE_CAP_FRACTION: f32 = 0.50; // good memories can reduce at most 50% of accumulated penalty
-
-/// Food types: GRAIN=0, BOTANICALS=2, FISH=3, EXOTIC=7
-fn is_food(rtype: u8) -> bool {
-    matches!(rtype, 0 | 2 | 3 | 7)
-}
-
-pub fn resource_satisfaction(region: &RegionState) -> f32 {
-    let primary_yield = region.resource_yields[0];
-    let sat = (primary_yield - FAMINE_YIELD_THRESHOLD)
-            / (PEAK_YIELD - FAMINE_YIELD_THRESHOLD);
-    sat.clamp(0.0, 1.0)
-}
-
-pub fn trade_satisfaction(region: &RegionState) -> f32 {
-    let mut trade_score: f32 = 0.0;
-    for i in 0..3 {
-        let rtype = region.resource_types[i];
-        let yield_val = region.resource_yields[i];
-        if rtype != 255 && yield_val > 0.0 {
-            let weight = if is_food(rtype) { 0.15 } else { 0.35 };
-            trade_score += weight;
-        }
-    }
-    trade_score.clamp(0.1, 1.0)
-}
 
 /// Compute per-occupation shock penalty using general + specific pattern.
 /// All occupations get baseline sensitivity to all shocks,
@@ -594,49 +563,6 @@ mod m37_tests {
         // Without a persecuting faith the region majority stands in (old rule).
         assert!(persecuted(3, 0xFF).abs() < 1e-6);
         assert!((persecuted(7, 0xFF) - w).abs() < 1e-6);
-    }
-}
-
-#[cfg(test)]
-mod m34_tests {
-    use super::*;
-    use crate::region::RegionState;
-
-    fn make_region_with_resources(types: [u8; 3], yields: [f32; 3]) -> RegionState {
-        let mut r = RegionState::new(0);
-        r.resource_types = types;
-        r.resource_yields = yields;
-        r
-    }
-
-    #[test]
-    fn test_resource_satisfaction_at_peak() {
-        let r = make_region_with_resources([0, 255, 255], [1.0, 0.0, 0.0]);
-        let sat = resource_satisfaction(&r);
-        assert!((sat - 1.0).abs() < 0.01);
-    }
-
-    #[test]
-    fn test_resource_satisfaction_at_threshold() {
-        let r = make_region_with_resources([0, 255, 255], [0.12, 0.0, 0.0]);
-        let sat = resource_satisfaction(&r);
-        assert!(sat.abs() < 0.01);
-    }
-
-    #[test]
-    fn test_trade_satisfaction_mountains() {
-        // Ore(5) + Precious(6) = 0.35 + 0.35 = 0.7
-        let r = make_region_with_resources([5, 6, 255], [0.9, 0.5, 0.0]);
-        let sat = trade_satisfaction(&r);
-        assert!((sat - 0.7).abs() < 0.01);
-    }
-
-    #[test]
-    fn test_trade_satisfaction_tundra_exotic_only() {
-        // Exotic(7) is food → weight 0.15
-        let r = make_region_with_resources([7, 255, 255], [0.5, 0.0, 0.0]);
-        let sat = trade_satisfaction(&r);
-        assert!((sat - 0.15).abs() < 0.01);
     }
 }
 

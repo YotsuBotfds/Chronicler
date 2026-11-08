@@ -1273,7 +1273,7 @@ pub fn spatial_drift_step_with_options(
 
 /// `spatial_drift_step_with_mode` with a chosen lane kernel (tests and
 /// benchmarks; the kernel must be one of `DriftKernel::available()`).
-#[doc(hidden)]
+#[cfg(test)]
 pub fn spatial_drift_step_with_kernel(
     pool: &mut AgentPool,
     grids: &[SpatialGrid],

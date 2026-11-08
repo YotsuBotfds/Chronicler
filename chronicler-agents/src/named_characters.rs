@@ -145,6 +145,7 @@ impl NamedCharacterRegistry {
     /// Returns (slot, CharacterRole, trigger) tuples for agents that qualify,
     /// in slot order, while their civ has room under the living caps
     /// (`living` is raised for each accepted candidate).
+    #[cfg(test)]
     pub fn find_candidates(&self, pool: &AgentPool, turn: u32) -> Vec<(usize, CharacterRole, u8)> {
         let mut living = self.living_named(pool);
         self.find_candidates_with(pool, turn, &mut living, &std::collections::HashSet::new())
