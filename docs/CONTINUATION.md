@@ -1,3 +1,32 @@
+# 2026-11-08 — repository scout and streamlining plan (docs only)
+
+[Repository scout and streamlining plan](superpowers/audits/2026-11-08-streamlining-scout.md)
+records a read-only audit of `main` at `c3d752fa`. Thirty-two area scouts did the
+audit and the lead spot-checked their claims; the per-area reports are in
+`superpowers/audits/2026-11-08-scout/`. It changes no runtime, default, RNG,
+serialization or pin.
+
+It ran:
+- `pytest --collect-only` (11,972 tests)
+- `cargo check` (0 warnings)
+- the app `tsc --noEmit` (0 errors)
+- four aggregate 150-turn runs
+- `refactor_preflight.py` over all tracked sources
+
+It did not run the oracle lane, native tests, viewer tests/lint/build,
+`turn_speed_identity.py` or the 200-seed gate.
+
+It lists eleven lead-verified bugs or contract breaches. Among them:
+- the EXPAND draw ignores the world seed;
+- new live worlds miss the governance default;
+- a food debit's order depends on PYTHONHASHSEED;
+- live integer parsing overflows on `Infinity`;
+- four default-path provenance decision reads.
+
+It also lists eight owner decisions (D1–D8) that gate the streamlining waves. D1 is
+whether source-witness pins keep enforcing current source. No wave has started. The
+connected-world rework entry below is still the current runtime state.
+
 # Connected World rework — runtime integrated and verified
 
 The focused correctness, causal evaluation and performance rework is implemented,

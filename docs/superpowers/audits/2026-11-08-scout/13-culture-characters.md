@@ -1,0 +1,48 @@
+## 13 Culture, faith, language and characters
+**Map**
+- Culture: `culture.py` (505 lines). Value drift and assimilation run in phase 10 at `simulation.py:1229-1237`. Prestige ticks at `simulation.py:685`. `resolve_invest_culture` is reached via `action_engine.py:607`.
+- Religion: `religion.py` (1056) computes conversion signals (`:266`), persecution (`:504`), martyrdom (`:662`), schisms and reformation (`:784-1002`). Called from `simulation.py:1279` and `:1317-1324`. Faith records live in `faiths.py` (672).
+- Great persons and agendas: `great_persons.py` (567), `gp_agendas.py` (1773) with state in `gp_agendas_state.py`. Agenda kinds come from `ruler_ambitions.py:63-102`. Ticked at `simulation.py:2465`.
+- Relationships: `relationships.py` (557), with bond formation and hostages. Ticked at `simulation.py:570-572`.
+- Languages: `languages.py` (1767) plus `languages_phonology.py` (782). Observed at `main.py:1159-1160`. Default on (`languages.py:80`).
+- Traditions, leaders, dynasties: `traditions.py` (239), `leaders.py` (438), `dynasties.py` (198). Dynasty legitimacy feeds `factions.py:565,745`.
+- Rust: `culture_tick.rs` (319), `conversion_tick.rs` (554), `memory.rs` (602), `named_characters.rs` (491), `relationships.rs` (819).
+- Ritual gatherings (384 plus state) and `arcs.py` are default-off or narrative-only.
+
+**Findings**
+1. [med] dead-code: Four named-event generators are never called in production. They are `generate_movement_name`, `generate_schism_name`, `generate_propaganda_name` and `generate_cultural_milestone_name` (`named_events.py:114,123,147,156`). Grep finds only definitions and tests in `tests/test_culture.py:637-666`. Suggested action: delete them, or wire them in if naming is wanted.
+2. [med] dead-code: `apply_prophet_martyrdom` (`traditions.py:204-239`) has no production caller. Its only caller is `tests/test_traditions.py:226`. The live martyrdom path is `religion.py:662` (`compute_martyrdom_boosts`).
+3. [low] dead-code: `culture.py:319-322` (`PROPAGANDA_*`, `COUNTER_PROPAGANDA_COST`, `CULTURE_PROJECTION_THRESHOLD=60`) and `culture.py:143-147` (`ASSIMILATION_*`, `RECONQUEST_COOLDOWN`) are module constants. Live code reads `get_override(..., literal)` instead, so these are duplicated defaults. `CULTURE_PROJECTION_THRESHOLD` is never read. `K_CULTURE_PROJECTION_THRESHOLD` (`tuning.py:192`) is imported at `culture.py:19` and never used, so it is a dead tuning knob.
+4. [med] duplication: `apply_value_drift` (`culture.py:51-130`) repeats the disposition-drift upgrade and downgrade block in its M36 and M16 branches. The assimilation agent-count logic (`culture.py:~238-281`) also has a numpy path and a per-row fallback that compute the same thing. Extracting helpers would remove about 40 lines. Both paths are reachable: `simulation.py:1229` passes `_snap=None` when no snapshot exists.
+5. [med] fragile: The rate composition in `religion.py` `compute_conversion_signals` (`:266-465`) is order-dependent and inconsistent. The martyrdom boost is added after the religion multiplier. The relic multiplier is applied after martyrdom. The conquest boost is added after relic. Martyrdom also adds a rate when no foreign priest exists (`target_faith_id` stays 0xFF). Whether downstream ignores that case is unverified.
+6. [med] duplication: `SCHISM_SECESSION_MODIFIER = 10` is defined in Python (`religion.py:52`) and again as a Rust constant with a "from religion.py" comment (`chronicler-agents/src/politics.rs:19-20`). Python reads it from `politics.py:213,219`. Nothing enforces that the two stay equal. The brief's premise of duplicated conversion logic is not borne out. `conversion_tick.rs` contains none of the Python rate constants (grep for 0.03, PROSELYT, INSULAR, NAMED_PROPHET, CONQUEST_BOOST returns nothing). Python computes rates and Rust samples conversions.
+7. [high] sim-depth: Languages do not feed outcomes. Their only turn-loop hook is `observe_turn` (`main.py:1159-1160`). Other references are export, bundle, live and narration (`narration_inputs.py`, `narration_provenance.py`, `run_checkpoint.py`). The module is on by default, so it costs time and state without changing politics, economy or war.
+8. [med] docs/naming: `memory.py` is the Stanford-style narrative `MemoryStream`. It is used only for LLM era reflections (`main.py:1221-1227`). Rust `memory.rs` (`MEMORY_SLOTS=8`) is the agent-level memory that does affect behaviour. The shared word "memory" invites confusion.
+9. [med] sim-depth: Culture's effects on politics are narrow. Assimilation drains controller stability as a `guard-shock` (`culture.py` tick_cultural_assimilation). Propaganda moves `foreign_control_turns`. Prestige converts to treasury (`tick_prestige`). `check_cultural_victories` only appends a `NamedEvent` (`culture.py`, end of file), with no mechanical effect seen. Cultural works (`simulation.py:1631-1640`) and schisms appear to produce names and events, not durable consequences; the work body was not read.
+10. [low] perf/cleanup: `resolve_invest_culture` re-imports `Event` and `NamedEvent` inside the function (`culture.py`), though both are imported at module top. The religion region loop imports `tuning` and `infrastructure` on every iteration.
+11. [med] sim-depth/test-gap: `gp_agendas.py` has 10 agenda kinds. `ADVANCE_LEARNING` is offered only when techniques are off (`gp_agendas.py:~795-800`). `SEIZE_THRONE` needs a weak or uneasy-and-opposed ruler and military influence of at least 0.2 (`_coup_motive`, `:571-607`). I found no recorded per-kind declaration counts in docs or tests (grep for `declared:<kind>` is empty), so which kinds actually fire is unverified.
+12. [low] fragile: `compute_conversion_signals` returns a tuple list "for backward compatibility" (docstring). Only `simulation.py:1279` calls it, and it uses the fields written onto regions instead. Whether the return value is read is unverified.
+
+**Simulation depth**
+- Give languages a feedback path. Sound changes or loanwords could alter place-name exonyms that narration reads, or alter faith and civ identity labels. As it stands, a language split has no mechanical consequence.
+- Wire the culture-victory and cultural-work outputs into prestige, legitimacy or stability. Art, law and customs have no mechanism in the code I read.
+- Add schism-driven lasting effects, such as persecution or a secession split of region ownership. Currently the schism mainly fires events.
+- Add marriage politics and dynastic alliances that use `dynasties.py` legitimacy beyond factions, and personality traits that affect agenda weights beyond `_TRAIT_LEANING`.
+
+**Confidence**
+Verified by grep and reads: call sites for named_events, traditions, culture constants, languages hooks, memory consumers, Rust conversion constants, and the coup and agenda pool logic. Inferred: depth gaps and the claim that cultural works and victories have no mechanical effect (the function bodies were not read). Unverified: runtime frequency of agenda kinds and whether downstream ignores the no-foreign-priest martyrdom case.
+
+### Streamlining candidates
+| Candidate (path or symbol) | Action (delete / merge into X / extract / rewrite) | Lines saved (approx) | Breaks or blocks (tests, pins, CLI flags, saved-bundle compat) | Risk (low/med/high) |
+|---|---|---|---|---|
+| `named_events.py` generate_movement_name, generate_schism_name, generate_propaganda_name, generate_cultural_milestone_name (`:114-164`) | delete (or wire in) | ~50 | `tests/test_culture.py:637-666` will need removing. `tests/test_culture.py` is listed in `scripts/testing/native_shards_manifest.json:46`, so the manifest must be updated. No bundle or CLI impact | low |
+| `traditions.py` apply_prophet_martyrdom (`:204-239`) | delete | ~36 | `tests/test_traditions.py:13,226` (import and call). That file is pinned in manifest `:243`. No bundle or CLI impact | low |
+| `culture.py` unused module constants (`:143-147`, `:319-322`) | delete | ~9 | Tests reference some names (`tests/test_culture.py`: ASSIMILATION_THRESHOLD, RECONQUEST_COOLDOWN, ASSIMILATION_GUARD_TURNS, PROPAGANDA_COST, PROPAGANDA_ACCELERATION). Update those tests | low |
+| `tuning.py:192` K_CULTURE_PROJECTION_THRESHOLD and its import at `culture.py:19` | delete | ~2 | Not in `main.py` override list (`:1593-1602`), so no CLI flag. Whether saved overrides or bundles persist the key is unverified | low-med |
+| `culture.py` apply_value_drift M36 and M16 drift-update blocks | merge into one helper `_apply_drift` | ~15 | Must keep the upgrade and downgrade semantics and the reset at plus or minus 10. Needs an equivalence test. Changes no snapshot values | low-med |
+| `culture.py` assimilation counting (numpy path vs per-row fallback, `~238-281`) | merge into one helper | ~30 | The fallback runs when batch arrays are unavailable, so the equivalence test must cover it. Does not alter bundle format | med |
+| `culture.py` `resolve_invest_culture` local import of `Event`, `NamedEvent` | delete redundant import | ~1 | None | low |
+| `religion.py` in-loop imports in `compute_conversion_signals` (`tuning`, `infrastructure`, `models`) | hoist to module top, if no cycle | ~3 | Possible import cycle, which is unverified. Check the `chronicler.infrastructure` dependency first | low |
+| `religion.py` SCHISM_SECESSION_MODIFIER duplicated in `politics.rs:19-20` | extract shared constant or generate Rust from Python | ~2 | Changes the native build. `politics.py:213` imports it from religion | med |
+
+Not candidates: `memory.py` (used by `main.py`, `live.py`, `fork.py`), `ritual_gatherings` (default-off, but live code behind a flag), `languages` (on by default but not dead), `gp_agendas` kinds (rare, not verified dead).
