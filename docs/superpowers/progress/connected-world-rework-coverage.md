@@ -14,8 +14,9 @@ physical runtime `8792be88dd36ba4d7c22e480de6a19dd64ea1300`, native artifact
 `b45c1e99`, production-equivalent to that runtime. Fresh CWR1 is **complete**:
 144 of 144 cases pass, zero failures, independently checked within the fixed
 two-core-hour cap. The cohort is recorded as used once. This is a bounded
-screen, not qualification or a favorable-result claim. Final reviewed-head/main
-CI closure remains required before integration.
+screen, not qualification or a favorable-result claim. Runtime #99 merged at
+`a5ccbbf5`, tree equal to reviewed `72d89dde`; Tests `42426724513` and exact
+main Tests `42428257952` each passed all nine jobs.
 
 ## Original rows and rework disposition
 
@@ -40,7 +41,7 @@ rework newly implemented it or independently established benefit.
 | D2 attribution | Retained actor/victim/cause and transfer/mint/destruction/restriction observations, including distinct war-condition damage. Physical arrivals are observed independently of motive uncertainty. | Default-path provenance consumers, merchant origin/current-region income mismatch and natural deaths booked as army casualties remain explicit default defects. They were not silently corrected in feature-off runs. |
 | D3 separation/injury; D4 army supply/restoration | D3's evacuation/return scores survive personal A6 controls under rules 3. Native movement remains sole mover. Existing wound/health, army-ration, service-census, actual custody and funded restitution authorities remain. | Actual before/after wound/release/evacuation/return resumes pass across the two development worlds. Army meals, positive seizure and restitution are covered. Severe ration shortage remains a possible adverse modeled outcome; existing Soldier income remains modeled. Battle losses are not a complete war-cause mortality register. |
 | E linked histories; E stories/provenance | Corrected readers distinguish physical arrivals, motive spells, prepared legacy proposals, actual rules-3 inputs, configured current neutral factors and prior observations. Old bundles and optional gzip retain strict decoding/provenance. Formatter reuse speeds indexing without deleting rows. | Real desktop/phone journeys, legacy/gzip compatibility and complete-index/query identity are retained. The constructed example is a reversible visibility/redaction demonstration, not an alternate simulation, independent outcome sample or full per-slice story suite. Regional context remains distinct from an individual's causal record. |
-| E whole-program evidence | Source/native isolation, catalog/compatibility, historical pins/inverses, test enrollment, bounded screens, exact resume, profiling and CI policy remain. This rework adds source-bound corrected controls and independent result reviews. | Both-reference feature-off identity, Rust/native/focused tests, complete performance admission, actual enabled resumes and all 144 fresh held cases pass. Held arithmetic and retained raw worlds are independently checked. Final reviewed-head/main CI remains required; earlier successes do not automatically cover a new head. |
+| E whole-program evidence | Source/native isolation, catalog/compatibility, historical pins/inverses, test enrollment, bounded screens, exact resume, profiling and CI policy remain. This rework adds source-bound corrected controls and independent result reviews. | Both-reference feature-off identity, Rust/native/focused tests, complete performance admission, actual enabled resumes and all 144 fresh held cases pass. Held arithmetic and retained raw worlds are independently checked. Runtime #99 reviewed-head and exact main CI each passed all nine jobs. Later documentation receives its own exact-head/main checks; earlier successes do not cover a new head. |
 
 ## Correctness and causal interpretation
 
@@ -166,5 +167,6 @@ uncalibrated care/proxy assumptions and incomplete cause/person observations
 remain explicit. The full 200-seed and procedural qualification gates and default
 promotion remain restricted and unrun. No paid narration, purchase, deployment
 or credential/sharing change is part of this execution. This artifact accounts
-for scope and closed held evidence. Exact reviewed-head/main CI closure remains
-a separate gate rather than an inference from a board row.
+for scope and closed held evidence. Runtime #99 reviewed-head and exact main
+CI are verified. The final documentation/audit PR receives its own independent
+review and exact-head/main checks, linked in that PR and final handoff.

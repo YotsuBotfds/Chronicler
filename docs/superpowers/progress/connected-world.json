@@ -16,7 +16,7 @@
   },
   "durable_location": {
     "branch": "main (#99 runtime) plus codex/cwr-closeout (current integration ledger)",
-    "base": "a5ccbbf528de82d8a4fa19dbebe7d6ab805b2b96 (#99); exact main Tests42428257952 pending"
+    "base": "a5ccbbf528de82d8a4fa19dbebe7d6ab805b2b96 (#99 runtime); exact main Tests42428257952 all nine verified success. Later documentation follows the same gated PR policy."
   },
   "status_values": [
     "proposed",
@@ -679,11 +679,11 @@
       "premerge_run": 42426724513,
       "premerge_status": "success, all nine jobs independently verified",
       "main_run": 42428257952,
-      "main_status": "pending; freeze further feature merges until verified",
+      "main_status": "success; all nine exact main jobs independently verified",
       "date": "2026-11-08"
     }
   ],
-  "next": "Verify all nine exact #99 main Tests jobs; repair or revert through a PR if red. Then finalize reviewed integration ledger and late read-only audit reproduction, require green exact-head Tests, merge its documentation PR and verify final main CI.",
+  "next": "No remaining implementation or evaluation task in the focused rework. Preserve opt-in defaults, consumed cohorts and explicit limitations. New qualification, promotion or feature work requires a new owner instruction.",
   "baseline": {
     "oracle_lane": "PASS, 63 chunks, 295.5 s, slowest 32.4 s of 110 s",
     "native_check": "check_python_env --expect native PASS (101a4cd5)",
@@ -875,13 +875,13 @@
     "final_documentation_policy": "The completion-ledger PR changes documentation only; its exact-head premerge and final main Tests are verified separately. The authoritative later ledger result is the GitHub Tests push run for current main HEAD, linked in the completion PR."
   },
   "rework": {
-    "status": "runtime_merged_main_ci_pending",
+    "status": "complete_runtime_reviewed_and_main_verified",
     "instruction": "Correctness, causal evaluation and practical performance; no favorable-result target; preserve default-off/restricted gates",
     "base": "2726bf449d0e4d581a72034000ee0861a58ee439",
     "base_main_run": 42397121718,
     "ledger": "docs/superpowers/progress/connected-world-rework.md",
     "branch": "codex/cwr-closeout",
-    "next": "Verify all nine exact #99 main Tests jobs; repair or revert through a PR if red. Then finalize reviewed integration ledger and late read-only audit reproduction, require green exact-head Tests, merge its documentation PR and verify final main CI.",
+    "next": "No remaining implementation or evaluation task in the focused rework. Preserve opt-in defaults, consumed cohorts and explicit limitations. New qualification, promotion or feature work requires a new owner instruction.",
     "correctness": "Explicit rules 3 / density_only independently reviewed and tested; established feature and version defaults unchanged. Physical-arrival, downstream real epidemic, native adversarial and control tests pass. Historical CW6 adverse findings remain reproduced; all 144 fresh held cases complete with independent arithmetic and mixed/adverse outcomes retained.",
     "native": {
       "sha256": "b1d3ea5ac858681960b2cb880c534164905501f6ab4f6f3c94f7c9b5f66196cd",
@@ -949,7 +949,7 @@
       "pr": 99,
       "initial_head": "89e80e8c53b00e167850d8ec3af85676fcb35e89",
       "initial_tests": 42417373801,
-      "status": "Merged #99 after independent review and all nine exact-head Tests; exact main CI pending.",
+      "status": "Merged #99 after independent review and all nine exact-head Tests; all nine exact main Tests passed.",
       "initial_tests_status": "no-Rust/offline failed sole historical registry projection; test-only reviewed fix preserves all3hashes and live CWR identity. Fresh-head gates required."
     },
     "verification_checkpoint": {
@@ -975,7 +975,7 @@
       },
       "final_runtime": "8792be88dd36ba4d7c22e480de6a19dd64ea1300",
       "final_profile": "1e047e7b6585d2cf13bb990f03f292c1067979c5 (same src/Rust/scripts bytes)",
-      "next": "Verify all nine exact #99 main Tests jobs; repair or revert through a PR if red. Then finalize reviewed integration ledger and late read-only audit reproduction, require green exact-head Tests, merge its documentation PR and verify final main CI.",
+      "next": "No remaining implementation or evaluation task in the focused rework. Preserve opt-in defaults, consumed cohorts and explicit limitations. New qualification, promotion or feature work requires a new owner instruction.",
       "enabled_resume": {
         "source": "8792be88dd36ba4d7c22e480de6a19dd64ea1300",
         "branches": 14,
@@ -1018,9 +1018,9 @@
       "held_started": true
     },
     "code_ci": {
-      "head": "27074bba8adc7701a220c5baabf9a753029b91ee",
-      "run": 42424371808,
-      "all_nine": "passed; final held evidence and reviewed head require separate exact-head checks"
+      "head": "72d89dde42a3b53cc36d7e002b7f164b7d63d645",
+      "run": 42426724513,
+      "all_nine": "passed on final independently reviewed #99 head; exact merged main also passed all nine in42428257952"
     },
     "preclosure_review": {
       "head": "2fc370565c97ca622be036465fc4b65c0425efcc",
@@ -1035,13 +1035,28 @@
       "merge_commit": "a5ccbbf528de82d8a4fa19dbebe7d6ab805b2b96",
       "merge_tree_equals_reviewed_head": true,
       "main_tests": 42428257952,
-      "main_all_nine": "pending"
+      "main_all_nine": "passed, independently verified"
     },
     "final_review": {
       "source_candidate": "a1e6e0142f8c0bae82026d41dd539e0667f3419e",
       "reviewed_head_with_audit": "72d89dde42a3b53cc36d7e002b7f164b7d63d645",
-      "status": "Approved actual source, closed evidence, registry and final claims; exact reviewed-head Tests passed, exact main CI pending.",
+      "status": "Approved actual source, closed evidence, registry and final claims; all nine exact reviewed-head and main Tests passed.",
       "receipt": "docs/superpowers/audits/connected-world/rework-pr99-final-independent-review-2026-11-07.json"
+    },
+    "final_documentation": {
+      "branch": "codex/cwr-closeout",
+      "scope": "Integration ledger and late read-only harm-audit/reproduction; no runtime or model change.",
+      "policy": "Independent actual-diff review, all nine exact-head Tests, authorized PR merge, and all nine exact final main Tests. The later documentation verification is linked in its PR and final handoff; use current main HEAD GitHub Tests as authority."
+    },
+    "report": "docs/superpowers/progress/connected-world-rework-report.md",
+    "coverage": "docs/superpowers/progress/connected-world-rework-coverage.md",
+    "late_audit": {
+      "rendered_harm_rows": 242,
+      "paired_world_cells": 1452,
+      "observation_cells": 3744,
+      "simulation_runs": 0,
+      "reproduction": "docs/superpowers/audits/connected-world/rework-cwr1-independent/held-review-2026-11-07.md",
+      "note": "Fresh staging recipe validated and independently reviewed; archived evidence bytes unchanged."
     }
   }
 }

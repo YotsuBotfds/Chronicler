@@ -1,30 +1,32 @@
-# Connected World rework — runtime merged, main CI pending
+# Connected World rework — runtime integrated and verified
 
-PR #99 merged at `a5ccbbf528de82d8a4fa19dbebe7d6ab805b2b96` on
-2026-11-08. Its tree equals independently reviewed `72d89dde`; premerge Tests
-`42426724513` passed all nine jobs. Exact main Tests **42428257952 is pending**.
-Freeze further feature merges until it passes; repair or revert through a PR
-if it fails. No direct push to main.
+The focused correctness, causal evaluation and performance rework is implemented,
+independently reviewed and evaluated. PR #99 merged at
+`a5ccbbf528de82d8a4fa19dbebe7d6ab805b2b96`, tree equal to reviewed `72d89dde`.
+Premerge Tests `42426724513` and exact main Tests `42428257952` each passed
+all nine jobs. PR #98's formatter improvement and exact main CI also passed.
 
-Implementation and bounded evaluation are complete and independently reviewed.
-Read the [current ledger](superpowers/progress/connected-world-rework.md),
-[machine board](superpowers/progress/connected-world.json),
-[closed-results report](superpowers/progress/connected-world-rework-report.md)
-and [coverage](superpowers/progress/connected-world-rework-coverage.md).
-They supersede historical next-task/completion entries below.
+Read the [report](superpowers/progress/connected-world-rework-report.md),
+[coverage](superpowers/progress/connected-world-rework-coverage.md),
+[machine board](superpowers/progress/connected-world.json) and
+[ledger](superpowers/progress/connected-world-rework.md). They supersede all
+historical next-task entries below. No implementation/evaluation task remains
+in this focused rework. Ports, owned wares and constructed-story scope remain
+explicitly limited; no broader completion or qualification is implied.
 
-All 144 CWR1 cases passed under the fixed two-core-hour cap; the twelve held
-seeds are recorded used once. Do not rerun them as fresh. Old CW6 and fresh
-adverse/null/mixed outcomes, access/demographic limits and capped traces remain
-explicit. Defaults remain unchanged; corrected use selects explicit rules 3
-and density_only. Restricted qualification/default promotion remains unrun.
+All 144 fresh held cases passed under the fixed two-core-hour cap. Seeds
+4101–4106 and 4201–4206 are recorded used once: do not rerun as fresh.
+Adverse/null/mixed results, demographic/access limits, capped traces, unrecorded
+famine/war causes and the raw-report heading erratum remain explicit. Existing
+feature/version defaults are unchanged; corrected use selects explicit rules 3
+and density_only. No restricted qualification or default promotion occurred.
 
-The isolated `codex/cwr-closeout` branch at `/workspace/cwr-closeout` carries
-this integration ledger and late read-only harm-audit reproduction. Next:
-verify #99 exact main CI, finish independent ledger review, open draft PR,
-require green reviewed-head Tests, merge and verify final main CI. Runtime,
-profiles and held source remain frozen; no new simulations are required.
-No automatic recovery after reclamation is promised.
+The final `codex/cwr-closeout` ledger/audit PR changes no runtime. It follows
+independent actual-diff review, all nine exact-head Tests, authorized merge and
+all nine exact final main Tests. Its verification is linked in that PR and the
+final handoff; query GitHub's Tests push run for current main HEAD to verify a
+later documentation commit. Do not infer an unrun gate from historical reports.
+No automatic restart after reclamation is promised.
 
 ## Historical checkpoints (not current tasks)
 
