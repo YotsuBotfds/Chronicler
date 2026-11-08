@@ -532,6 +532,23 @@ def test_sidecar_round_trip_and_stale_or_missing_sidecars(make_civ, tmp_path):
     assert not L.sidecar_path(path).exists()
 
 
+def test_sidecar_write_failure_leaves_no_temp_file(make_civ, tmp_path, monkeypatch):
+    from chronicler.artifact_io import ArtifactIOError
+
+    w = _world(make_civ)
+    _end(w, 3)
+    path = tmp_path / "state.json"
+
+    def fail_replace(*args, **kwargs):
+        raise OSError("simulated replace failure")
+
+    monkeypatch.setattr("os.replace", fail_replace)
+    with pytest.raises(ArtifactIOError):
+        L.save_sidecar(w, path, atomic=True)
+    assert list(tmp_path.glob("*.tmp")) == []
+    assert not L.sidecar_path(path).exists()
+
+
 # ---------------------------------------------------------------------------
 # Whole runs
 # ---------------------------------------------------------------------------
