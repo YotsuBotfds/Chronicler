@@ -318,9 +318,9 @@ The broad offline gate passes 76 chunks, 8,119 tests and 69 conditional skips,
 maximum 31.99 s within the unchanged 110 s chunk limit. This source precedes
 only the final exact-floor change; 70 focused trade tests and nine native
 lifecycle checks cover that delta. Full Rust: 1,339 pass, two pre-existing
-manual timing benches ignored. All nine Tests jobs pass on code/evidence head
-`27074bba` (run `42424371808`); final reviewed-head and post-merge checks remain
-required. The appended cwr1 inverse is independently verified bidirectionally;
+manual timing benches ignored. All nine Tests jobs pass on the final independently
+reviewed head `72d89dde` (run `42426724513`); the merged tree is identical.
+Exact #99 main Tests `42428257952` remains pending. The appended cwr1 inverse is independently verified bidirectionally;
 historical source and registry hash pins are preserved.
 
 ## Scope and remaining limits

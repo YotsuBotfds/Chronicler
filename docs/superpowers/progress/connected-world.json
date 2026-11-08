@@ -882,7 +882,7 @@
     "ledger": "docs/superpowers/progress/connected-world-rework.md",
     "branch": "codex/cwr-closeout",
     "next": "Verify all nine exact #99 main Tests jobs; repair or revert through a PR if red. Then finalize reviewed integration ledger and late read-only audit reproduction, require green exact-head Tests, merge its documentation PR and verify final main CI.",
-    "correctness": "Explicit rules 3 / density_only independently reviewed and tested; legacy feature and version defaults unchanged. Physical-arrival, downstream real epidemic, native adversarial and control tests pass. Historical CW6 adverse findings remain reproduced; fresh results await held closure.",
+    "correctness": "Explicit rules 3 / density_only independently reviewed and tested; established feature and version defaults unchanged. Physical-arrival, downstream real epidemic, native adversarial and control tests pass. Historical CW6 adverse findings remain reproduced; all 144 fresh held cases complete with independent arithmetic and mixed/adverse outcomes retained.",
     "native": {
       "sha256": "b1d3ea5ac858681960b2cb880c534164905501f6ab4f6f3c94f7c9b5f66196cd",
       "input_sha256": "f55df55d453ac37694410246c4a9728c56f3f6148f679fde8efc21ffd8775acf",
@@ -960,7 +960,7 @@
         "skipped": 69,
         "max_chunk_seconds": 31.99,
         "limit": 110,
-        "note": "Before final TT exact arithmetic; newTT70focused pass; final CI stillrequired"
+        "note": "Before final TT exact arithmetic; 70 focused trade and nine native lifecycle checks passed; all nine exact #99 premerge Tests passed on final source."
       },
       "default_identity": {
         "source": "8792be88dd36ba4d7c22e480de6a19dd64ea1300",
@@ -1036,6 +1036,12 @@
       "merge_tree_equals_reviewed_head": true,
       "main_tests": 42428257952,
       "main_all_nine": "pending"
+    },
+    "final_review": {
+      "source_candidate": "a1e6e0142f8c0bae82026d41dd539e0667f3419e",
+      "reviewed_head_with_audit": "72d89dde42a3b53cc36d7e002b7f164b7d63d645",
+      "status": "Approved actual source, closed evidence, registry and final claims; exact reviewed-head Tests passed, exact main CI pending.",
+      "receipt": "docs/superpowers/audits/connected-world/rework-pr99-final-independent-review-2026-11-07.json"
     }
   }
 }
