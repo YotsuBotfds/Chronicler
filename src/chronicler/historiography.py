@@ -473,7 +473,10 @@ def sidecar_text(world: "WorldState") -> str | None:
 
 def save_sidecar(world: "WorldState", state_path: Path, *, atomic: bool = False,
                  artifact_budget=None) -> None:
-    """Write the chronicles next to the state file; remove a stale one while off."""
+    """Write the chronicles next to the state file; remove a stale one while off.
+
+    ``atomic`` is accepted for compatibility; every write is atomic.
+    """
     path = sidecar_path(state_path)
     text = sidecar_text(world)
     if artifact_budget is not None:
@@ -490,14 +493,9 @@ def save_sidecar(world: "WorldState", state_path: Path, *, atomic: bool = False,
         except OSError:  # pragma: no cover - unusual filesystem
             logger.warning("could not remove stale historiography sidecar %s", path)
         return
-    if atomic:
-        # Replace atomically (a reader never sees half a file). No fsync: a
-        # sidecar that does not match its state file is rejected on load.
-        tmp = path.with_name(path.name + ".tmp")
-        tmp.write_text(text, encoding="utf-8")
-        tmp.replace(path)
-    else:
-        path.write_text(text, encoding="utf-8")
+    from chronicler.artifact_io import atomic_write_text
+
+    atomic_write_text(path, text)
 
 
 def load_sidecar(world: "WorldState", state_path: Path) -> bool:
