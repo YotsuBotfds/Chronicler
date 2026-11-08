@@ -33,7 +33,7 @@ Fill in the blanks with the machine receipt (`check_python_env.py --machine`, be
 |---|---|---|---|---|
 | Git, compiler, pkg-config | – | `sudo apt install git build-essential pkg-config curl` | `sudo dnf install git gcc gcc-c++ make pkgconf-pkg-config curl` | `sudo pacman -S git base-devel curl` |
 | uv | ≥ 0.5 (CI pins `<1`) | official installer | same | same |
-| Python | 3.13 (as CI) | `uv python install 3.13` | same | same |
+| Python | 3.13, patch ≥ 3.13.17 (CI pins 3.13.17 for its native jobs). 3.13.5 fails `test_argparse_output_is_pinned` in the `validation-tooling` chunk on untouched `main`, because its argparse prints choices without quotes; 3.13.18 passes. | `uv python install 3.13`, then check `python --version` | same | same |
 | Rust | stable, ≥ 1.85 (`rust-version` in `chronicler-agents/Cargo.toml`) | rustup | rustup | rustup |
 | Node.js | 22.12+ or 20.19+ (Vite 7) | nvm or NodeSource | nvm or `dnf module` | nvm or `pacman -S nodejs npm` |
 | Optional | cargo-nextest; Playwright Chromium for the `viewer/scripts` QA tools (not yet declared as a dependency, FIX-8) | `cargo install cargo-nextest`; `npx playwright install --with-deps chromium` | same | same |
@@ -62,10 +62,11 @@ For long benchmark or gate runs, the `performance` CPU governor gives steadier t
 Run these in order on each machine, and record the results in the receipt table at the end.
 
 ```bash
-# 1. Environments are what they claim to be; the --machine receipt fills the table below
-.venv/bin/python scripts/check_python_env.py --expect no-native --machine
-~/.venvs/chronicler-native/bin/python scripts/check_python_env.py --expect native
-.venv/bin/python scripts/check_python_env.py --machine --json > output/machine-receipt.json
+# 1. Environments are what they claim to be. Each command checks and saves a receipt; exit status 0 means PASS.
+#    The native receipt's native.compiled_files[].sha256 is the "Native ext SHA-256" column.
+mkdir -p output
+.venv/bin/python scripts/check_python_env.py --expect no-native --machine --json > output/machine-receipt-no-native.json
+~/.venvs/chronicler-native/bin/python scripts/check_python_env.py --expect native --machine --json > output/machine-receipt-native.json
 
 # 2. Bounded offline Python lane: 76 chunks of at most 110 s each.
 #    CI runs it serially; --jobs runs chunks at once (keep it at or below the 16 physical cores)
@@ -90,14 +91,29 @@ npm --prefix viewer run build
 .venv/bin/python -m chronicler.main --seed 42 --turns 20 --agents off --simulate-only --output output/smoke/chronicle.md
 ~/.venvs/chronicler-native/bin/python -m chronicler.main --batch 32 --parallel --seed 42 --turns 100 --simulate-only --output output/smoke-batch/chronicle.md
 
-# 8. The canonical validation gate (ENV-6); compare it with CI's run on the same commit
+# 8. The canonical validation gate on your current checkout (a local PASS, nothing more)
 ~/.venvs/chronicler-native/bin/python scripts/m53b_run_validation.py --profile full --parallel 30 --output-root output/m53/full-local
 ```
 
 Expected results:
 - Step 1 passes for both environments.
 - Steps 2, 3 and 5 pass, with native-only tests skipping in `.venv`.
-- Step 8 produces a report comparable with CI. The scheduled Validation Gate ran the `full` profile on `main` `c3d752fa` (run 42491150017, 2026-11-08) and passed in about 51 minutes, serially on a GitHub runner. That is the reference for ENV-6.
+- Step 8 is a local PASS or FAIL on whatever you checked out. It is not, by itself, a reproduction of CI.
+
+### Reproducing CI's reference gate run (ENV-6)
+
+The scheduled Validation Gate ran the `full` profile on `main` `c3d752fa` (run 42491150017, 2026-11-08) and passed in about 51 minutes, serially on a GitHub runner. A same-source reproduction needs that exact commit, a fresh native build from it, and CI's report as the baseline:
+
+1. Run `git worktree add ../chronicler-c3d752fa c3d752faf0b287b7833bf5d58af470a127c985b2`, then run `setup.sh --native-venv` inside it. Use a separate `CHRONICLER_NATIVE_VENV`, so your everyday native venv is untouched.
+2. Download the run's artifact `validation-gate-42491150017`, which holds `output/github-validation/42491150017/`, into a directory outside the worktree, for example with `gh run download 42491150017 -n validation-gate-42491150017 -D ../ci-gate-42491150017`. Locate the validation report JSON in it.
+3. In the worktree, run `PYTHONHASHSEED=0 $CHRONICLER_NATIVE_VENV/bin/python scripts/m53b_run_validation.py --profile full --parallel K --output-root output/m53/full-c3d752fa --baseline-report ../ci-gate-42491150017/<report>.json`. Choose K from the machine receipt's batch budget and a one-run memory probe.
+4. Record:
+   - pass/fail equality;
+   - the comparison's regression lines;
+   - wall time, K and peak memory;
+   - the receipts.
+
+Only an equal verdict, with no unexplained metric difference against CI's report on the same commit, counts as a demonstrated reproduction. The [workstation plan](superpowers/plans/2026-11-08-workstation-environments.md), measurement M3, has the same steps.
 
 ## Using 32 threads
 

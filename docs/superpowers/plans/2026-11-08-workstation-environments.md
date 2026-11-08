@@ -67,7 +67,7 @@
   The oracle guard blocks subprocesses, so mark any test that calls a tool with `pytest.mark.native` or monkeypatch `subprocess.run`.
 - [ ] Step 4: Verify:
   - `.venv/bin/python -m pytest -q tests/test_check_python_env.py`
-  - `.venv/bin/python scripts/check_python_env.py --machine --json /tmp/m.json`, then inspect the output.
+  - `.venv/bin/python scripts/check_python_env.py --machine --json > /tmp/m.json`, then inspect the output. The script takes no output filename; `--json` prints to stdout.
   - `.venv/bin/python scripts/run_python_oracle_checks.py`
 - [ ] Step 5: Commit `scripts: machine receipt in check_python_env`.
 

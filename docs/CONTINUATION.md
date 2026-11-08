@@ -1,3 +1,17 @@
+# 2026-11-08 — external review response (branch `claude/relaxed-brown-4ozgeg`)
+
+The external review of `b0811a73` requested changes, all at P2. All are addressed on the branch.
+
+1. **Oracle `--jobs` and Ctrl-C.** The scheduler now publishes results into caller-owned storage. On an exceptional exit, the executor waits for the running chunks, and those that finished normally are published too. The runner builds the receipt from them in `finally`, records `error: interrupted`, and keeps `passed: false`. Regression tests interrupt after a success at both the scheduler and the runner level. The runner tests run the real script in process with child processes stubbed, and both fail on `b0811a73`.
+2. **COR-1 hash-seed sweep plan.** The child no longer runs with `-I` (which ignores `PYTHONHASHSEED` and `PYTHONPATH`). It gets an absolute `PYTHONPATH`, an explicit `cwd` and the platform variables it needs. It checks that it imported this checkout, that the seeds took effect, and that seed 0 still reproduces the pre-fix output.
+3. **PIN-2 gate plan.** The native SHA-256 is provenance, not an equality condition. Builds must match their own source digest, and identity is judged by output digests within a compatibility class. A different binary with identical outputs is accepted.
+4. **DEP-6 tax plan.** `money.pay` is the only settlement step, with its `MoneyBook` kept in `ClosedMoneyState`. There is no second treasury credit and no separate carry.
+5. **DEP-6 tithe plan.** One funded collection pays both the treasury and the priest parts. The priest signal comes from the collected amount, and zero priests, insufficient funds, refusals and the escrow residual are specified.
+
+The guide also creates `output/` before writing receipts and saves a native receipt. It gives the same-source reproduction steps for the reference CI gate run, separates a local PASS from a reproduction, and states the Python patch requirement (3.13.5 fails the argparse golden on untouched `main`). The plan's `--machine --json` usage is corrected.
+
+Exact-head CI has still not run: `tests.yml` does not run on pushes to this branch, so a PR or a dispatch is needed.
+
 # 2026-11-08 — workstation tooling (Linux 9950X / 3950X)
 
 Both workstations run Linux (owner, 2026-11-08). Setup is in

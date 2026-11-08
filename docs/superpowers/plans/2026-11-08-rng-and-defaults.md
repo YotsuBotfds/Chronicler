@@ -48,8 +48,22 @@ Baseline preparation (once, before PR 2): from fetched `main`, run
 ### Task COR-1b: food debit order and sweep test
 - [ ] Step 1: In `war_requisition.py` add near the top `_FOOD_DEBIT_ORDER = ("salt", "grain", "fish", "exotic", "botanicals")` (the `PYTHONHASHSEED=0` order on Python 3.13, lead-measured 2026-11-08 without `-I`; re-derive it first with `PYTHONHASHSEED=0 .venv/bin/python -c "import sys; sys.path.insert(0,'src'); from chronicler.economy import FOOD_GOODS; print(tuple(FOOD_GOODS))"` and stop if it differs). Add `tests/test_hash_seed_sweep.py::test_food_order_matches_seed0` which runs a `PYTHONHASHSEED=0` subprocess (no `-I`) and asserts `tuple(FOOD_GOODS) == _FOOD_DEBIT_ORDER` and change `:183` to `for good in _FOOD_DEBIT_ORDER:`; also use it in `:71` fsum.
 - [ ] Step 2: `tests/test_war_requisition.py`: add `assert set(_FOOD_DEBIT_ORDER) == FOOD_GOODS`.
-- [ ] Step 3: New `tests/test_hash_seed_sweep.py`: for seeds `"0","1","2","3"` run `subprocess.run([sys.executable, "-I", "-c", SCRIPT], env={"PYTHONHASHSEED": s, "PYTHONPATH": "src"})` where SCRIPT builds a hybrid-free world fixture (reuse the helper in `tests/test_war_requisition.py` that builds a region with mixed food stock), runs `_withdraw` and prints `json.dumps(stockpile)`; assert four outputs are equal. Add a second script calling `consume_from_stockpile` on a mixed stockpile (xfail-marked until PR 4, `strict=True`).
-- [ ] Step 4: Verify: the new test fails on `main` for seeds 1..3 (run once with the old code via `git stash`-free means: temporarily point at `FOOD_GOODS` in a scratch copy), passes after the change.
+- [ ] Step 3: Write the new `tests/test_hash_seed_sweep.py`. It starts child processes, so it belongs to the native/subprocess lane: list it in the shard manifest, not in an oracle chunk, because the oracle guard blocks child processes.
+  - **Child processes.** For seeds `"0","1","2","3"`, run `subprocess.run([sys.executable, "-c", SCRIPT], cwd=ROOT, env=child_env(seed), capture_output=True, text=True, timeout=120, check=True)`.
+    - **Never pass `-I` or `-E`.** Both make the child ignore `PYTHONHASHSEED` and `PYTHONPATH`. This is the mistake recorded in the synthesis errata (section 8): `python -I` with `PYTHONHASHSEED=0` reports `sys.flags.ignore_environment == 1` and a random `hash`.
+    - `child_env(seed)` keeps the platform variables the interpreter needs, as `run_python_oracle_checks.py` does (`PATH`, `SYSTEMROOT`, `WINDIR`, `TEMP`, `TMP`, `LANG`, `LC_ALL`). It adds `PYTHONHASHSEED=seed` and an absolute `PYTHONPATH=str(ROOT / "src")`, and passes nothing else.
+  - **Self-checks.** SCRIPT first prints a JSON header with `sys.flags.ignore_environment`, `hash("salt")` and `chronicler.__file__`. The test asserts:
+    - `ignore_environment == 0`;
+    - the `hash("salt")` values of seeds 0 to 3 are pairwise distinct, so the seeds took effect;
+    - `Path(chronicler.__file__).resolve().is_relative_to(ROOT / "src")`, so the child imported this checkout and not an installed editable package elsewhere.
+  - **Food debit.** SCRIPT then builds the mixed food-stock region (reuse the helper in `tests/test_war_requisition.py`), runs `_withdraw`, and prints `json.dumps(stockpile, sort_keys=True)`.
+    - **Independence:** the four outputs are equal.
+    - **Baseline identity:** the seed-0 output equals `SEED0_BEFORE`, a literal captured from the pre-fix code under `PYTHONHASHSEED=0`. It proves the fix keeps every seed-0 baseline.
+  - **Second script.** Add a second script calling `consume_from_stockpile` on a mixed stockpile, with the same self-checks. Mark it `xfail(strict=True)` until PR 4.
+- [ ] Step 4: Verify both directions.
+  - **Before the fix,** in a scratch worktree of `main`, the independence assertion must fail for at least one of seeds 1 to 3, while the seed-0 output equals `SEED0_BEFORE` (that is where `SEED0_BEFORE` comes from).
+  - **After the fix,** all four outputs are equal and the seed-0 output still equals `SEED0_BEFORE`.
+  - **Without either,** the test does not prove independence and baseline identity together.
 
 ### Task COR-1c: EXPAND and additive seeds
 - [ ] Step 1: `action_engine.py:198` -> `rng = system_rng("expand", world, civ.name)`; remove the unused `civ_idx` only if no other use (`:197` is read by later code? check with `rg civ_idx action_engine.py` in that function).

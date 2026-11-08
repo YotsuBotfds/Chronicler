@@ -610,9 +610,16 @@ try:
                 print("".join(captured), end="", flush=True)
             return chunk
 
-        report["chunks"].extend(run_in_order(list(CHUNKS.items()), run_parallel,
-                                             lambda chunk: chunk["passed"], args.jobs))
+        finished = {}
+        try:
+            run_in_order(list(CHUNKS.items()), run_parallel, lambda chunk: chunk["passed"], args.jobs,
+                         results=finished)
+        finally:  # an interrupted run keeps the chunks that finished, in chunk order
+            report["chunks"].extend(finished[index] for index in sorted(finished))
     report["passed"] = len(report["chunks"]) == len(CHUNKS) and all(chunk["passed"] for chunk in report["chunks"])
+except KeyboardInterrupt:
+    report["error"] = "interrupted"
+    raise
 finally:
     report.setdefault("passed", False)
     report["seconds"] = time.monotonic() - start
@@ -622,8 +629,10 @@ for chunk in report["chunks"]:
     counts = (chunk.get("guard") or {}).get("test_reports", {})
     print(f"chunk {chunk['name']}: {state}, {chunk['seconds']:.1f} s of {CHUNK_LIMIT_SECONDS} s; "
           f"{counts.get('passed', 0)} passed, {counts.get('skipped', 0)} skipped, {counts.get('failed', 0)} failed")
-for name in list(CHUNKS)[len(report["chunks"]):]:
-    print(f"chunk {name}: not run")
+ran = {chunk["name"] for chunk in report["chunks"]}
+for name in CHUNKS:
+    if name not in ran:
+        print(f"chunk {name}: not run")
 print(f"Lane: {'PASS' if report['passed'] else 'FAIL'} in {report['seconds']:.1f} s")
 print(f"Evidence: {out}")
 raise SystemExit(0 if report["passed"] else 1)
