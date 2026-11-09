@@ -17,7 +17,7 @@ through the requested boundary. Unknown history is never filled from final
 world state or interpreted as zero activity or a disabled feature.
 
 The reusable API is `audit_bundle(mapping, as_of=AsOf.after(T), limits=Limits())`
-or `audit_path(path, ...)` in `chronicler.expansion_audit`; `render_markdown`
+or `audit_path(path, ...)` in `chronicler_lab.expansion_audit`; `render_markdown`
 renders its JSON-compatible result. Bundle v6 uses the shared decoder. Legacy
 bundles without the new sections return an explicit evidence gap. The module
 does not validate/reconstruct a `WorldState`, run a turn, load a native runtime,

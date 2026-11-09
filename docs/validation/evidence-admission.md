@@ -2,7 +2,7 @@
 
 `scripts/admit_experiment.py` seals and validates experiment evidence without
 running simulations, editing source, rewriting outputs, or changing scientific
-gate tolerances. It also runs as `python -m chronicler.evidence_admission` with
+gate tolerances. It also runs as `python -m chronicler_lab.evidence_admission` with
 `PYTHONPATH=src`. Python 3.12+ and Git are sufficient; no native extension, paid
 service, network access, or third-party dependency is required.
 

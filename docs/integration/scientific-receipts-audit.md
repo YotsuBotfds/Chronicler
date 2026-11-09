@@ -2,7 +2,7 @@
 
 The read-only [expansion audit](expansion-audit.md) includes dated
 `scientific_claims` sections. Its separate helper,
-`chronicler.scientific_receipts_audit.ScientificReceiptsAudit`, shares the host's
+`chronicler_lab.scientific_receipts_audit.ScientificReceiptsAudit`, shares the host's
 byte, snapshot, event, receipt, text and detail bounds. It imports no simulation
 or native runtime and uses no LLM. Existing JSON/escaped Markdown exports,
 source-byte hashing and input/output alias protection apply unchanged.
