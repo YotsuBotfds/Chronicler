@@ -50,8 +50,6 @@ from chronicler.events import (
     record_hazard_event,
     take_turn_cascade_events,
 )
-# Historical module attributes (no longer used by the turn loop).
-from chronicler.events import apply_probability_cascade, roll_for_event  # noqa: F401
 from chronicler.settlements import run_settlement_tick
 from chronicler.models import (
     ActionType,
