@@ -401,6 +401,23 @@ KNOWN_OVERRIDES: set[str] = {
     K_RELIGION_INTENSITY, K_SECESSION_LIKELIHOOD,
 }
 
+# Keys that load_tuning accepts (they stay in KNOWN_OVERRIDES and keep their
+# K_* constants for import compatibility) but that no simulation code reads.
+# Where equivalent behaviour exists it uses module constants
+# (infrastructure.py, world_gen.initialize_disease_baseline). Setting one has
+# no effect, so load_tuning warns instead of accepting it silently.
+DEPRECATED_UNREAD_KEYS: frozenset[str] = frozenset({
+    K_TWILIGHT_STABILITY,
+    K_FAMINE_WATER_THRESHOLD,
+    K_DISEASE_BASELINE_FEVER,
+    K_DISEASE_BASELINE_CHOLERA,
+    K_DISEASE_BASELINE_PLAGUE,
+    K_FAMINE_REFUGEE_POP,
+    K_MAX_TEMPLES_PER_REGION,
+    K_TEMPLE_CONVERSION_BOOST,
+    K_CULTURE_PROJECTION_THRESHOLD,
+})
+
 
 def _flatten(d: dict, prefix: str = "") -> dict[str, float]:
     """Recursively join dict keys with '.' separator.
@@ -433,6 +450,8 @@ def load_tuning(path: Path) -> dict[str, float]:
     if unknown:
         for key in sorted(unknown):
             warnings.warn(f"Unknown tuning key: {key}")
+    for key in sorted(DEPRECATED_UNREAD_KEYS.intersection(flat)):
+        warnings.warn(f"tuning key {key} is accepted but has no effect")
     for key, value in flat.items():
         if key.startswith("multiplier.") and value <= 0:
             raise ValueError(

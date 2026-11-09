@@ -260,3 +260,70 @@ def test_load_tuning_reads_utf8_regardless_of_locale(tmp_path):
     )
     result = load_tuning(p)
     assert result == {K_DROUGHT_STABILITY: -3.0}
+
+
+# --- COR-8b: unread tuning keys are deprecated, not silently accepted ---
+
+def test_deprecated_unread_key_warns_once_and_loads(tmp_path):
+    import chronicler.tuning as tuning
+
+    assert tuning.K_FAMINE_REFUGEE_POP in tuning.DEPRECATED_UNREAD_KEYS
+    # Still accepted: the constant and the KNOWN_OVERRIDES entry stay.
+    assert tuning.DEPRECATED_UNREAD_KEYS <= tuning.KNOWN_OVERRIDES
+    p = tmp_path / "t.yaml"
+    p.write_text(
+        "ecology:\n  famine_refugee_pop: 0.25\n"
+        "stability:\n  drain:\n    drought_immediate: -3\n",
+        encoding="utf-8",
+    )
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        result = load_tuning(p)
+    messages = [str(w.message) for w in caught]
+    assert messages == [
+        "tuning key ecology.famine_refugee_pop is accepted but has no effect"
+    ]
+    assert result == {
+        "ecology.famine_refugee_pop": 0.25,
+        K_DROUGHT_STABILITY: -3.0,
+    }
+
+
+def test_every_live_tuning_constant_has_a_reader():
+    """Every K_* key outside DEPRECATED_UNREAD_KEYS is read somewhere in
+    src/chronicler (by constant name or dotted literal), and every deprecated
+    key really has no reader. New dead keys therefore cannot appear."""
+    import re
+
+    import chronicler.tuning as tuning
+
+    tuning_path = Path(tuning.__file__).resolve()
+    text = "\n".join(
+        path.read_text(encoding="utf-8")
+        for path in sorted(tuning_path.parent.rglob("*.py"))
+        if path.resolve() != tuning_path
+    )
+    constants = {
+        name: value
+        for name, value in vars(tuning).items()
+        if name.startswith("K_") and isinstance(value, str)
+    }
+
+    def has_reader(name: str, value: str) -> bool:
+        return bool(
+            re.search(rf"\b{name}\b", text)
+            or f'"{value}"' in text
+            or f"'{value}'" in text
+        )
+
+    unread = sorted(
+        name for name, value in constants.items()
+        if value not in tuning.DEPRECATED_UNREAD_KEYS and not has_reader(name, value)
+    )
+    assert unread == [], f"tuning constants with no reader: {unread}"
+    revived = sorted(
+        name for name, value in constants.items()
+        if value in tuning.DEPRECATED_UNREAD_KEYS and has_reader(name, value)
+    )
+    assert revived == [], f"deprecated keys that now have a reader: {revived}"
+    assert tuning.DEPRECATED_UNREAD_KEYS <= set(constants.values())
