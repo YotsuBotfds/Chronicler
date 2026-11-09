@@ -634,6 +634,32 @@ def test_live_server_start_raises_when_not_listening_in_time(monkeypatch):
         server.thread.join(timeout=5)
 
 
+def test_live_server_that_binds_after_a_timed_out_start_closes(monkeypatch):
+    """A server thread that binds after start() gave up does not keep listening."""
+    import socket
+    from chronicler import live
+    from chronicler.live import LiveServer, LiveServerStartError
+
+    gate = threading.Event()
+    original = LiveServer._run_loop
+
+    def late_run_loop(self, ready):
+        gate.wait(5)
+        original(self, ready)
+
+    monkeypatch.setattr(live, "_START_TIMEOUT_SECONDS", 0.05)
+    monkeypatch.setattr(LiveServer, "_run_loop", late_run_loop)
+    server = LiveServer(port=0)
+    with pytest.raises(LiveServerStartError, match="not listening after"):
+        server.start()
+    gate.set()
+    server.thread.join(timeout=5)
+    assert not server.thread.is_alive()
+    assert server._actual_port is not None
+    with pytest.raises(OSError):
+        socket.create_connection(("localhost", server._actual_port), timeout=1).close()
+
+
 def test_run_live_reports_a_server_that_cannot_start(held_port, tmp_path, capsys):
     """run_live prints the cause and returns None instead of announcing a lobby."""
     import argparse
@@ -651,7 +677,12 @@ def test_run_live_reports_a_server_that_cannot_start(held_port, tmp_path, capsys
 
 @pytest.mark.parametrize("name", ["../x.yaml", "../../etc/passwd", "/etc/passwd", "a/../../x.yaml"])
 def test_scenario_names_outside_scenarios_are_refused(name):
-    """A lobby or batch scenario cannot name a file outside scenarios/ (FIX-10)."""
+    """A lobby scenario cannot name a file outside scenarios/ (FIX-10).
+
+    The batch scenario is loaded relative to the working directory, not
+    under scenarios/, so the batch check does not apply that rule and the
+    name passes through as before (confinement is a separate follow-up).
+    """
     from chronicler.live import LiveServer, _scenario_file
 
     with pytest.raises(ValueError, match="Scenario must be within scenarios/"):
@@ -662,13 +693,13 @@ def test_scenario_names_outside_scenarios_are_refused(name):
     assert err == {"type": "error",
                    "message": "Start field 'scenario': Scenario must be within scenarios/"}
     assert server._server_state == "lobby" and not server.start_event.is_set()
-    assert server._validate_batch_config({"scenario": name}) == (
-        "batch_start config 'scenario': Scenario must be within scenarios/")
+    assert server._validate_batch_config({"scenario": name}) is None
 
 
 @pytest.mark.parametrize("name", ["dead_miles.yaml", "sub/x.yaml", "sub/../x.yaml"])
 def test_scenario_names_inside_scenarios_keep_their_path(name):
-    """Accepted names keep the relative path the session always used."""
+    """Accepted lobby names keep the relative path the session always used;
+    the batch check accepts them unchanged."""
     from pathlib import Path
     from chronicler.live import LiveServer, _record_live_world_args, _scenario_file
 

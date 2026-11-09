@@ -233,6 +233,8 @@ class LiveServer:
         self.thread: threading.Thread | None = None
         # Why the server thread failed before it was listening (see start()).
         self._start_error: BaseException | None = None
+        # Set when start() gave up waiting, so a late bind closes at once.
+        self._start_abandoned = threading.Event()
         self._loop: asyncio.AbstractEventLoop | None = None
         self._stop_event: asyncio.Event | None = None
         self._actual_port: int | None = None
@@ -410,13 +412,12 @@ class LiveServer:
                 value = config.get(field)
                 if value is not None and not isinstance(value, str):
                     return f"batch_start config '{field}' must be a string or null"
-        if config.get("scenario"):
-            # The batch passes the name on unchanged (relative to the working
-            # directory); a name that escapes scenarios/ is refused here.
-            try:
-                _scenario_file(config["scenario"])
-            except ValueError as exc:
-                return f"batch_start config 'scenario': {exc}"
+        # The batch scenario is not confined to scenarios/: batch_start passes
+        # the name on unchanged and execute_run loads it relative to the
+        # working directory, unlike the lobby's scenarios/ join
+        # (_scenario_file). A check against scenarios/ here would test a
+        # different path from the one loaded, so none is made; confining
+        # the batch load is a separate follow-up.
 
         if "narrator" in config:
             narrator = config.get("narrator")
@@ -534,12 +535,22 @@ class LiveServer:
 
         Raises ``LiveServerStartError`` when the server fails before it is
         listening (a bind error, for example) or is not listening in time.
+        On a timeout the server thread is told to stop, so a server that
+        binds later closes instead of listening with no caller.
         """
         ready = threading.Event()
         self._start_error = None
+        self._start_abandoned.clear()
         self.thread = threading.Thread(target=self._run_loop, args=(ready,), daemon=True)
         self.thread.start()
         if not ready.wait(timeout=_START_TIMEOUT_SECONDS):
+            # Either the thread sees the flag after binding, or its stop
+            # event already exists and stop() sets it.
+            self._start_abandoned.set()
+            try:
+                self.stop()
+            except RuntimeError:  # the loop closed between the check and the call
+                pass
             raise LiveServerStartError(
                 f"the server was not listening after {_START_TIMEOUT_SECONDS} seconds")
         if self._start_error is not None:
@@ -1037,6 +1048,12 @@ class LiveServer:
             addr = sock.getsockname()
             self._actual_port = addr[1]
             break
+
+        if self._start_abandoned.is_set():
+            # start() timed out before this bind; nobody owns the server.
+            server.close()
+            await server.wait_closed()
+            return
 
         ready.set()
 
