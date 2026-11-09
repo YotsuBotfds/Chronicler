@@ -18,7 +18,7 @@ Owned paths, and only these four:
 
 | Path | Role |
 | --- | --- |
-| `src/chronicler/governance_measurements.py` | Immutable measurement frame plus deterministic report/JSON renderings |
+| `src/chronicler_lab/governance_measurements.py` | Immutable measurement frame plus deterministic report/JSON renderings |
 | `scripts/governance_measurement_report.py` | Standalone opt-in report. Default off; runs no example without `--run-example` |
 | `tests/test_governance_measurements.py` | Measurement tests reusing existing harness fixtures and the existing example |
 | `docs/governance/m67-readiness.md` | This document |

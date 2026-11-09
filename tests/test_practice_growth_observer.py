@@ -11,7 +11,7 @@ import weakref
 
 import pytest
 
-from chronicler import practice_growth as P
+from chronicler_lab import practice_growth as P
 from chronicler import techniques as T
 from chronicler.techniques_state import TECHNIQUE_INDEX as K, TechniqueState
 
@@ -271,7 +271,8 @@ def test_bounded_payload_empty_selection_inactive_phase_and_close():
 def test_default_phase_has_no_optional_import_fields_or_observation_calls(monkeypatch):
     w = world(); keys = set(w.__dict__); original_import = builtins.__import__
     def no_observer_import(name, *args, **kwargs):
-        if name == "chronicler.practice_growth": pytest.fail("default imported practice observer")
+        if name in ("chronicler.practice_growth", "chronicler_lab.practice_growth"):
+            pytest.fail("default imported practice observer")
         return original_import(name, *args, **kwargs)
     def forbidden(*args, **kwargs): pytest.fail("default used observer")
     monkeypatch.setattr(builtins, "__import__", no_observer_import)

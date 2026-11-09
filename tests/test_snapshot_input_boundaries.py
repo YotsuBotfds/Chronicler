@@ -6,6 +6,7 @@ import io
 import json
 import os
 from pathlib import Path
+import re
 import runpy
 import stat
 import subprocess
@@ -16,8 +17,8 @@ import pyarrow as pa
 import pytest
 
 from chronicler import campaign_logistics as cl
-from chronicler import experiment_sessions as es
-from chronicler import snapshot_campaign_sessions as bridge
+from chronicler_lab import experiment_sessions as es
+from chronicler_lab import snapshot_campaign_sessions as bridge
 from test_campaign_snapshot_adapter import snapshot, side_document, view, write_snapshot
 from test_snapshot_campaign_sessions import (
     files, prepare, test_bounded_handle_read_ignores_metadata_and_rejects_before_arrow as original_read_gate,
@@ -391,10 +392,17 @@ def test_verifier_session_digest_binds_one_descriptor_after_path_replacement(tmp
 
 
 def test_original_function_and_assertion_asts_preserved_outside_owned_hook():
+    # The frozen baseline predates the chronicler_lab relocation (LAB-1b), so its
+    # copies are compared after the same mechanical import-path rewrite.
+    relocated = "|".join(("experiment_sessions", "memome_experiment", "session_operations",
+                          "session_comparison", "experiment_receipt_inspector", "memome_candidate_preview",
+                          "campaign_order_preview", "campaign_snapshot_adapter", "snapshot_campaign_sessions"))
     def baseline(name):
-        return baseline_source(PARENT, name)
-    name = "src/chronicler/snapshot_campaign_sessions.py"
-    old, new = ast.parse(baseline(name)), ast.parse((ROOT / name).read_text())
+        source = re.sub(rf"\bchronicler\.({relocated})\b", r"chronicler_lab.\1", baseline_source(PARENT, name))
+        return re.sub(rf"\bfrom chronicler import ({relocated})\b", r"from chronicler_lab import \1", source)
+    baseline_name = "src/chronicler/snapshot_campaign_sessions.py"
+    current_name = "src/chronicler_lab/snapshot_campaign_sessions.py"
+    old, new = ast.parse(baseline(baseline_name)), ast.parse((ROOT / current_name).read_text())
     old_functions = {node.name: node for node in old.body if isinstance(node, ast.FunctionDef)}
     new_functions = {node.name: node for node in new.body if isinstance(node, ast.FunctionDef)}
     assert old_functions.keys() == new_functions.keys()
@@ -410,6 +418,8 @@ def test_original_function_and_assertion_asts_preserved_outside_owned_hook():
     assert old_functions.keys() == new_functions.keys()
     for key in old_functions:
         a, b = old_functions[key], new_functions[key]
+        if key == "test_exact_experimental_import_contract_and_no_other_package_consumers":
+            continue  # re-pinned to the chronicler_lab paths and old-path shim by LAB-1b
         if key != "test_bounded_handle_read_ignores_metadata_and_rejects_before_arrow":
             assert ast.dump(a) == ast.dump(b)
         else:

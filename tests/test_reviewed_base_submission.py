@@ -16,8 +16,8 @@ import unittest
 from unittest import mock
 
 from chronicler import campaign_logistics as cl
-from chronicler import experiment_sessions as es
-from chronicler import session_operations as operations
+from chronicler_lab import experiment_sessions as es
+from chronicler_lab import session_operations as operations
 import test_session_operations as existing
 import test_operator_submission_workflow as r
 import test_campaign_order_preview as p
@@ -28,7 +28,7 @@ DRIVER = ROOT / 'scripts/session_operation.py'
 DOC = ROOT / 'docs/experiments/session-operations.md'
 RECORDS = {'q-observation-evidence.json': [], 'q-race-evidence.json': [],
            'q-negative-controls.json': [], 'q-command-evidence.json': []}
-OWNED = ['src/chronicler/session_operations.py', 'scripts/session_operation.py',
+OWNED = ['src/chronicler_lab/session_operations.py', 'scripts/session_operation.py',
          'tests/test_reviewed_base_submission.py', 'docs/experiments/session-operations.md']
 
 

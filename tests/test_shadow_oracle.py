@@ -6,7 +6,7 @@ import pyarrow.ipc as ipc
 import numpy as np
 import pytest
 from chronicler.shadow import SHADOW_SCHEMA
-from chronicler.shadow_oracle import (
+from chronicler_lab.shadow_oracle import (
     shadow_oracle_report, load_shadow_data, extract_at_turn, OracleReport,
     compare_distributions, _anderson_pvalue,
 )
@@ -163,7 +163,7 @@ def test_anderson_pvalue_raises_on_unexpected_result_shape(monkeypatch):
     class BadResult:
         statistic = 1.0
 
-    monkeypatch.setattr("chronicler.shadow_oracle.anderson_ksamp", lambda samples: BadResult())
+    monkeypatch.setattr("chronicler_lab.shadow_oracle.anderson_ksamp", lambda samples: BadResult())
 
     with pytest.raises(TypeError, match="pvalue/significance_level"):
         _anderson_pvalue([np.array([1.0, 2.0]), np.array([1.0, 2.0])])

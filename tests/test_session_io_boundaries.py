@@ -14,8 +14,8 @@ import tempfile
 import unittest
 from unittest import mock
 
-from chronicler import experiment_sessions as es
-from chronicler import session_operations as operations
+from chronicler_lab import experiment_sessions as es
+from chronicler_lab import session_operations as operations
 from test_session_read_bounds import TrackedHandle, exact_limit_file, fixture_session
 from test_session_operations import first_input, submission
 

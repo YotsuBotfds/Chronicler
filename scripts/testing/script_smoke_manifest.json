@@ -44,7 +44,7 @@
       "network": false,
       "inputs": ["a run's chronicle_bundle.json"],
       "fixture_outputs": [],
-      "note": "Prints usage (chronicler.expansion_audit). Writes only the --json or --markdown paths it is given."
+      "note": "Prints usage (chronicler_lab.expansion_audit). Writes only the --json or --markdown paths it is given."
     },
     "scripts/archive/benchmark_lean_ablation.py": {
       "invocation": ["--help"],
@@ -110,7 +110,7 @@
       "network": false,
       "inputs": ["bundle files or study directories"],
       "fixture_outputs": [],
-      "note": "Prints usage (chronicler.expansion_compare). Writes only the --json path it is given."
+      "note": "Prints usage (chronicler_lab.expansion_compare). Writes only the --json path it is given."
     },
     "scripts/archive/curator_spread.py": {
       "invocation": ["--help"],

@@ -9,7 +9,7 @@ import numpy as np
 import pytest
 
 from chronicler import main as M
-from chronicler.practice_growth import PracticeGrowthObserver
+from chronicler_lab.practice_growth import PracticeGrowthObserver
 from chronicler.run_checkpoint import read_checkpoint
 from test_scientific_claims import _complete, _world
 

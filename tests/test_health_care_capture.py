@@ -9,9 +9,9 @@ from unittest import mock
 
 import pytest
 
-from chronicler import health_care_capture as capture
+from chronicler_lab import health_care_capture as capture
 from chronicler.health_care_state import HealthCareState, InjuryEpisode
-from chronicler.health_care_observation_codec import (
+from chronicler_lab.health_care_observation_codec import (
     BYTE_CAP, CareFaultView, CareFrameView, decode_care_frame,
 )
 
@@ -597,7 +597,7 @@ def test_capture_module_has_no_implicit_io_runtime_imports_rng_or_persistence_ho
     tree = ast.parse(inspect.getsource(capture))
     modules = [node.module for node in ast.walk(tree) if isinstance(node, ast.ImportFrom)]
     assert set(modules) == {'__future__', 'dataclasses', 'chronicler.health_care',
-                           'chronicler.health_care_observation_codec'}
+                           'chronicler_lab.health_care_observation_codec'}
     names = {node.id for node in ast.walk(tree) if isinstance(node, ast.Name)}
     assert not names & {'open', 'WorldState', 'random', 'numpy', 'os', 'Path', 'pickle'}
     attributes = {node.attr for node in ast.walk(tree) if isinstance(node, ast.Attribute)}

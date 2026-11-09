@@ -1,6 +1,6 @@
 # Explicit next-turn order preview
 
-`chronicler.campaign_order_preview.preview_orders` compares caller-supplied
+`chronicler_lab.campaign_order_preview.preview_orders` compares caller-supplied
 orders on one immutable `CampaignSession`. Every alternative starts from that
 same opening state. The result is a report, with complete canonical public
 kernel receipts and small food, movement, morale, grants and stock summaries.
@@ -46,8 +46,8 @@ import os
 from pathlib import Path
 import runpy
 from chronicler import campaign_logistics as cl
-from chronicler import experiment_sessions as es
-from chronicler.campaign_order_preview import CONTRACT
+from chronicler_lab import experiment_sessions as es
+from chronicler_lab.campaign_order_preview import CONTRACT
 
 d = Path(os.environ['example_dir'])
 table = runpy.run_path('scripts/campaign_logistics_demo.py')

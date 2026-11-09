@@ -7,7 +7,7 @@ import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from chronicler.history_forensics import main
+from chronicler_lab.history_forensics import main
 
 
 if __name__ == "__main__":

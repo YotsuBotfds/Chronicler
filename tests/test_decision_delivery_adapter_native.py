@@ -4,7 +4,7 @@ import io
 import pytest
 
 from chronicler.agent_bridge import AgentBridge
-from chronicler.decision_delivery import DecisionDeliveryObserver
+from chronicler_lab.decision_delivery import DecisionDeliveryObserver
 from tests.test_decision_delivery_native import _native
 
 pytestmark = pytest.mark.native

@@ -14,8 +14,8 @@ composition seam; it does not authenticate the checkout or the caller.
 ## One explicit operation
 
 ```python
-from chronicler import experiment_sessions as es
-from chronicler import session_operations as operations
+from chronicler_lab import experiment_sessions as es
+from chronicler_lab import session_operations as operations
 
 # transport is an explicit, validated es.TransportPolicy.
 # submission is the UTF-8 JSON bytes of one complete public Tick or Batch.
@@ -231,8 +231,8 @@ or automatic choice policy is involved.
 from dataclasses import asdict
 import json
 from pathlib import Path
-from chronicler import experiment_sessions as es
-from chronicler.memome_candidate_preview import CONTRACT
+from chronicler_lab import experiment_sessions as es
+from chronicler_lab.memome_candidate_preview import CONTRACT
 
 encode = lambda value: json.dumps(value, sort_keys=True, separators=(',', ':')).encode()
 Path('transport.json').write_bytes(encode(asdict(es.documented_transport_policy())))
@@ -431,8 +431,8 @@ informational and still reports `submission_token: false`.
 "$PYTHON" - <<'PY'
 import json
 from pathlib import Path
-from chronicler import experiment_sessions as es
-from chronicler import session_operations as operations
+from chronicler_lab import experiment_sessions as es
+from chronicler_lab import session_operations as operations
 
 preview = json.loads(Path('reviewed-preview.json').read_text())
 observed = preview['cli_observation']

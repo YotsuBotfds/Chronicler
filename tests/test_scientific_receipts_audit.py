@@ -4,7 +4,7 @@ import copy
 import json
 import pytest
 from chronicler.bundle_codec import dumps_bundle
-from chronicler.expansion_audit import Limits, audit_bundle, audit_path, render_markdown
+from chronicler_lab.expansion_audit import Limits, audit_bundle, audit_path, render_markdown
 from chronicler.historical_context import AsOf
 
 
@@ -282,7 +282,7 @@ def mutate(path, fn):
 
 
 def test_strict_science_comparator_matches_four_controls_and_postfork_scope(science_bundle,tmp_path):
-    from chronicler.expansion_compare import compare_paths,render_markdown as compare_md
+    from chronicler_lab.expansion_compare import compare_paths,render_markdown as compare_md
     paths=write_study(tmp_path,science_bundle)
     report=compare_paths(paths)
     assert report['summary']['matched_contrasts']==3 and report['summary']['blocked_contrasts']==0
@@ -305,7 +305,7 @@ def test_strict_science_comparator_matches_four_controls_and_postfork_scope(scie
     ('named','named_arm_control_mismatch'),('snapshot','science_snapshot_controls_mismatch'),
     ('gap','incomplete_treatment_window'),('rows','incomplete_feature_receipts')])
 def test_science_comparison_refuses_semantic_or_record_gaps(science_bundle,tmp_path,kind,blocker):
-    from chronicler.expansion_compare import compare_paths
+    from chronicler_lab.expansion_compare import compare_paths
     paths=write_study(tmp_path,science_bundle)
     def change(b):
         receipt=b['metadata']['expansion_experiment']
@@ -324,7 +324,7 @@ def test_science_comparison_refuses_semantic_or_record_gaps(science_bundle,tmp_p
 
 
 def test_science_comparison_unknown_counter_boundary_stays_null(science_bundle,tmp_path):
-    from chronicler.expansion_compare import compare_paths
+    from chronicler_lab.expansion_compare import compare_paths
     paths=write_study(tmp_path,science_bundle)
     for path in paths:
         mutate(path,lambda b:b['history'][0].pop('scientific_claims'))
@@ -334,7 +334,7 @@ def test_science_comparison_unknown_counter_boundary_stays_null(science_bundle,t
 
 
 def test_rejected_future_boundary_counters_never_leak_into_changes(science_bundle,tmp_path):
-    from chronicler.expansion_compare import compare_paths
+    from chronicler_lab.expansion_compare import compare_paths
     paths=write_study(tmp_path,science_bundle)
     def future(b):
         state=section(b,0)

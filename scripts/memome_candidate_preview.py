@@ -9,8 +9,8 @@ import sys
 if __name__ == "__main__":
     sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from chronicler import experiment_sessions as es
-from chronicler.memome_candidate_preview import (
+from chronicler_lab import experiment_sessions as es
+from chronicler_lab.memome_candidate_preview import (
     Alternative, CONTRACT, PreviewError, PreviewReport, preview_candidates, preview_json, preview_text,
 )
 

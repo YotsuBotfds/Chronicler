@@ -14,9 +14,9 @@ import sys
 REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT / "src"))
 
-from chronicler import governance_capture as capture
+from chronicler_lab import governance_capture as capture
 from chronicler import governance_kernel_harness as h
-from chronicler import governance_measurements as gm
+from chronicler_lab import governance_measurements as gm
 
 
 def existing_fixture():

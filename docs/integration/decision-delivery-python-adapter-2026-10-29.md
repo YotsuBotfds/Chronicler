@@ -7,7 +7,7 @@ native event ordering, world option or CLI. It has no writer, callback, thread
 or automatic observation history.
 
 ```python
-from chronicler.decision_delivery import DecisionDeliveryObserver
+from chronicler_lab.decision_delivery import DecisionDeliveryObserver
 
 observer = DecisionDeliveryObserver.attach(bridge, max_move_rows=16384)
 source_turn = world.turn

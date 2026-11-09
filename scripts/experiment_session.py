@@ -2,7 +2,7 @@
 
 Default invocation performs no file read, no file write and no kernel call: it
 prints the closed command surface and a documented transport policy. Explicit
-subcommands use only the public ``chronicler.experiment_sessions`` API and the
+subcommands use only the public ``chronicler_lab.experiment_sessions`` API and the
 two reviewed detached kernels. Nothing here starts a simulation, draws an RNG,
 generates a world, or touches production state, bundles or the CLI registry.
 """
@@ -19,7 +19,7 @@ import sys
 if __name__ == "__main__":
     sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from chronicler import experiment_sessions as es  # noqa: E402
+from chronicler_lab import experiment_sessions as es  # noqa: E402
 
 
 COMMANDS = ("create", "apply", "inspect", "verify")

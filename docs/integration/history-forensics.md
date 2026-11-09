@@ -1,6 +1,6 @@
 # Historical forensics
 
-`chronicler.history_forensics` reads an existing bundle to answer: what did
+`chronicler_lab.history_forensics` reads an existing bundle to answer: what did
 the simulation record, what did its chroniclers say, which accounts still
 stood at a chosen point, and which earlier events does the record cite as
 dependencies? It makes no LLM calls, runs no simulation, and changes neither
@@ -12,7 +12,7 @@ From the repository root, with Python 3.13+ and the project dependencies:
 
 ```sh
 python scripts/history_forensics.py output/chronicle_bundle.json '63:famine:0'
-python -m chronicler.history_forensics output/chronicle_bundle.json '63:famine:0' --as-of 70 --phase end
+python -m chronicler_lab.history_forensics output/chronicle_bundle.json '63:famine:0' --as-of 70 --phase end
 python scripts/history_forensics.py output/chronicle_bundle.json '63:famine:0' --json finding.json --markdown finding.md
 python scripts/history_forensics.py output/chronicle_bundle.json '63:famine:0' --format json
 ```
@@ -103,7 +103,7 @@ not a streaming bundle reader.
 
 ```python
 from chronicler.historical_context import AsOf
-from chronicler.history_forensics import HistoryForensics, Limits, inspect_path, render_markdown
+from chronicler_lab.history_forensics import HistoryForensics, Limits, inspect_path, render_markdown
 
 report = inspect_path('chronicle_bundle.json', '63:famine:0', as_of=AsOf.after(70))
 text = render_markdown(report)

@@ -121,7 +121,7 @@ class TestBatchRunner:
         assert report["metadata"]["seeds"] == 1
 
 
-from chronicler.shadow_oracle import OracleResult, CorrelationResult, OracleReport
+from chronicler_lab.shadow_oracle import OracleResult, CorrelationResult, OracleReport
 
 
 class TestReportFormatting:

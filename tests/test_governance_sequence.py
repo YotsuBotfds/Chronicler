@@ -14,9 +14,9 @@ from threading import Barrier
 
 import pytest
 
-from chronicler import governance_capture as gc
-from chronicler import governance_sequence as gs
-from chronicler import governance_measurements as gm
+from chronicler_lab import governance_capture as gc
+from chronicler_lab import governance_sequence as gs
+from chronicler_lab import governance_measurements as gm
 from chronicler import governance_kernel_harness as h
 from chronicler import governance_capital as c
 from chronicler import institutions as i
@@ -501,19 +501,25 @@ def test_fresh_seed_0_42_101_outputs_match(args):
 
 
 def test_source_import_surface_exact_and_production_has_no_consumers():
-    source = ROOT / "src/chronicler/governance_sequence.py"
+    source = ROOT / "src/chronicler_lab/governance_sequence.py"
+    shim = ROOT / "src/chronicler/governance_sequence.py"
     imports = [node.module for node in ast.walk(ast.parse(source.read_text())) if isinstance(node, ast.ImportFrom)]
-    assert imports == ["__future__", "dataclasses", None, None]
+    assert imports == ["__future__", "dataclasses", "chronicler_lab", "chronicler_lab"]
     for path in (ROOT / "src").rglob("*.py"):
-        if path != source:
+        if path not in (source, shim):
             assert "governance_sequence" not in path.read_text(), path
+    # The old path, while it exists, is only the chronicler_lab import alias.
+    assert not shim.exists() or "sys.modules[__name__] = _m" in shim.read_text()
     code = '''import importlib.util, sys
 from pathlib import Path
-import chronicler.governance_sequence as gs
+import chronicler_lab.governance_sequence as gs
+lab={"governance_sequence","governance_capture","governance_measurements"}
 expected={"governance_sequence","governance_capture","governance_measurements","governance_kernel_harness","institutions","elite_metrics","governance_capital","ruler_ambitions"}
-assert {n.removeprefix("chronicler.") for n in sys.modules if n.startswith("chronicler.")} == expected
+loaded={n for n in sys.modules if n.startswith(("chronicler.","chronicler_lab."))}
+assert loaded == {("chronicler_lab." if name in lab else "chronicler.")+name for name in expected}
 for name in expected:
-    assert Path(sys.modules["chronicler."+name].__file__).resolve() == Path("src/chronicler",name+".py").resolve()
+    package="chronicler_lab" if name in lab else "chronicler"
+    assert Path(sys.modules[package+"."+name].__file__).resolve() == Path("src",package,name+".py").resolve()
 assert not any(n in sys.modules for n in ("chronicler_agents","numpy","random"))
 assert gs.inspect_sequence().status == "disabled_no_evidence"
 spec=importlib.util.spec_from_file_location("off_driver","scripts/governance_sequence_report.py")
@@ -531,7 +537,8 @@ assert not any(n in sys.modules for n in ("explicit_sequence_capture_fixture","e
 def test_fresh_concurrency_is_pure_and_seed_stable():
     code = '''import importlib.util, random, sys
 from concurrent.futures import ThreadPoolExecutor
-from chronicler import governance_sequence as gs, governance_measurements as gm, governance_kernel_harness as h
+from chronicler import governance_kernel_harness as h
+from chronicler_lab import governance_sequence as gs, governance_measurements as gm
 spec=importlib.util.spec_from_file_location("fresh_private_driver","scripts/governance_sequence_report.py")
 m=importlib.util.module_from_spec(spec); spec.loader.exec_module(m)
 identity=gm.SourceIdentity("1"*40,"2"*40,"fresh independent inspection")

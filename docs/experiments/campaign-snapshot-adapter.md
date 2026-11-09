@@ -3,7 +3,7 @@
 Detached M60a input adapter, contract
 `chronicler-campaign-snapshot-adapter-v1`, adapter version
 `campaign-snapshot-adapter-v1`. Four added paths only:
-`src/chronicler/campaign_snapshot_adapter.py`,
+`src/chronicler_lab/campaign_snapshot_adapter.py`,
 `scripts/campaign_snapshot_plan.py`,
 `tests/test_campaign_snapshot_adapter.py` and this document. Every existing
 source file, schema, fixture, test, native artifact, CLI registry entry and
@@ -19,7 +19,7 @@ mechanic, no runtime mutation and no enlistment.
 
 ```python
 from chronicler.campaign_logistics import Policy
-from chronicler.campaign_snapshot_adapter import (
+from chronicler_lab.campaign_snapshot_adapter import (
     RegionBinding, admit_snapshot_plan, plan_bytes,
 )
 from chronicler.turn_artifacts import AgentRows, Stamp

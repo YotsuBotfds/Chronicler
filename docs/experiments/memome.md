@@ -142,7 +142,7 @@ the Knowledge/Cunning incompatibility are illustrative, not calibration.
 
 This increment adds only:
 
-- `src/chronicler/memome_experiment.py`
+- `src/chronicler_lab/memome_experiment.py`
 - `scripts/memome_demo.py`
 - `tests/test_memome_experiment.py`
 - `docs/experiments/memome.md`

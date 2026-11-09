@@ -661,7 +661,7 @@ def test_save_load_resume_is_identical_with_live_treaties(tmp_path):
 
 
 def test_checkpoint_replay_continues_identically_with_diplomacy(tmp_path):
-    from chronicler import checkpoint_replay as replay
+    from chronicler_lab import checkpoint_replay as replay
     world = _world(11)
     report = replay.validate_replay(world, turns=36, split=18, checkpoint_path=tmp_path / "cp.json")
     assert report["status"] == "PASS" and report["compared_resumed_turns"] == 18

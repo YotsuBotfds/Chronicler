@@ -16,7 +16,7 @@ additive paths, blob and mode identities, a clean checkout with no remotes and
 
 This increment adds exactly four paths:
 
-- `src/chronicler/experiment_sessions.py` — the session library
+- `src/chronicler_lab/experiment_sessions.py` — the session library
 - `scripts/experiment_session.py` — the standalone CLI
 - `tests/test_experiment_sessions.py` — the focused gates
 - `docs/experiments/session-workflow.md` — this document

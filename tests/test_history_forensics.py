@@ -11,7 +11,7 @@ import pytest
 from chronicler.bundle_codec import dumps_bundle
 from chronicler.historical_context import AsOf
 from chronicler.historiography import ACCOUNT_COLUMNS
-from chronicler.history_forensics import (
+from chronicler_lab.history_forensics import (
     ForensicsError, HistoryForensics, Limits, inspect_bundle, inspect_path, main, render_markdown,
 )
 

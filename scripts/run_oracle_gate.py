@@ -13,7 +13,7 @@ from pathlib import Path
 
 import numpy as np
 
-from chronicler.shadow_oracle import OracleResult, CorrelationResult, OracleReport
+from chronicler_lab.shadow_oracle import OracleResult, CorrelationResult, OracleReport
 
 METRICS = ["population", "military", "economy", "culture", "stability"]
 
@@ -307,7 +307,7 @@ def main():
                         help="Turns per seed (default: 500)")
     args = parser.parse_args()
 
-    from chronicler.shadow_oracle import compare_distributions
+    from chronicler_lab.shadow_oracle import compare_distributions
 
     agg_dir = args.aggregate_dir or (args.output_dir / "aggregate")
     hyb_dir = args.output_dir / "hybrid"

@@ -30,7 +30,7 @@ from chronicler.bridge_contract import SNAPSHOT_FIELD_NAMES, SNAPSHOT_SCHEMA
 from chronicler.campaign_logistics import (
     ORDERING, Policy, Region, Session, Soldier, Stock, Topology, admit, canonical_bytes,
 )
-from chronicler.campaign_snapshot_adapter import (
+from chronicler_lab.campaign_snapshot_adapter import (
     ADAPTER, CONTRACT, DEMANDED_COLUMNS, MORALE_LIMIT, SOLDIER_OCCUPATION,
     AdmissionPlan, CampaignSnapshotError, RegionBinding, SourceIdentity,
     admit_snapshot_plan, parse_side_inputs, plan_bytes, plan_document,
@@ -1042,7 +1042,7 @@ def test_driver_has_no_native_query_or_simulation_advance_in_executable_code():
     assert not calls & {"get_snapshot", "run_turn", "tick", "advance"}
     # Only the adapter, the reviewed views and the strict JSON reader are imported.
     modules = {node.module for node in ast.walk(tree) if isinstance(node, ast.ImportFrom)}
-    assert modules == {"chronicler.artifact_io", "chronicler.campaign_snapshot_adapter",
+    assert modules == {"chronicler.artifact_io", "chronicler_lab.campaign_snapshot_adapter",
                        "chronicler.turn_artifacts", "__future__", "pathlib"}
 
 
@@ -1173,9 +1173,9 @@ def test_plan_bytes_are_stable_across_fresh_processes(tmp_path):
     probe = '''import random, sys
 FORBIDDEN = ("chronicler.models", "chronicler.simulation", "chronicler.agent_bridge",
              "chronicler.main", "chronicler.world_gen", "chronicler.economy",
-             "chronicler.memome_experiment", "chronicler_agents")
+             "chronicler_lab.memome_experiment", "chronicler_agents")
 before = random.getstate()
-import chronicler.campaign_snapshot_adapter
+import chronicler_lab.campaign_snapshot_adapter
 assert random.getstate() == before
 assert not any(k in sys.modules for k in FORBIDDEN), sorted(sys.modules)
 import runpy
@@ -1188,7 +1188,7 @@ assert not any(k in sys.modules for k in FORBIDDEN), sorted(sys.modules)
 
 
 def test_kernel_and_existing_fixtures_are_reused_not_copied():
-    module = (ROOT / "src" / "chronicler" / "campaign_snapshot_adapter.py").read_text("utf-8")
+    module = (ROOT / "src" / "chronicler_lab" / "campaign_snapshot_adapter.py").read_text("utf-8")
     # Only the public kernel seam is used: no private helpers, no copied algorithm.
     assert "from chronicler.campaign_logistics import" in module
     # Line-anchored, so unrelated identifiers cannot satisfy or break the check.
@@ -1215,7 +1215,7 @@ def test_kernel_and_existing_fixtures_are_reused_not_copied():
               soldiers=(Soldier(7, 0, 8, 800), Soldier(8, 1, 8, 800)),
               stocks=(Stock(0, 0), Stock(1, 0), Stock(2, 4))).state)
     # This lane owns exactly four added paths and registers no production surface.
-    added = {"src/chronicler/campaign_snapshot_adapter.py",
+    added = {"src/chronicler_lab/campaign_snapshot_adapter.py",
              "scripts/campaign_snapshot_plan.py",
              "tests/test_campaign_snapshot_adapter.py",
              "docs/experiments/campaign-snapshot-adapter.md"}
@@ -1227,7 +1227,7 @@ def test_kernel_and_existing_fixtures_are_reused_not_copied():
                  if path.name != "campaign_snapshot_adapter.py"
                  and "campaign_snapshot_adapter" in path.read_text("utf-8")]
     assert {path.relative_to(ROOT).as_posix() for path in importers} == {
-        "src/chronicler/snapshot_campaign_sessions.py"}
+        "src/chronicler_lab/snapshot_campaign_sessions.py"}
     # Existing snapshot-contract and campaign fixtures are reused unchanged.
     assert SNAPSHOT_FIELD_NAMES == tuple(SNAPSHOT_SCHEMA.names)
     assert len(SNAPSHOT_FIELD_NAMES) == 24 and SNAPSHOT_FIELD_NAMES[0] == "id"

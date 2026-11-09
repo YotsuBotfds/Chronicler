@@ -6,7 +6,8 @@ reads it. A decision that read ``WorldState.provenance`` (the causal index,
 episodes, exciters) or an event's ``causes``/``episode`` would feed recorded
 causes back into the outcomes and give agents omniscient causal links.
 
-This test walks every module under ``src/chronicler`` except the narration
+This test walks every module under ``src/chronicler`` (and the bundle readers
+moved to ``src/chronicler_lab``) except the narration
 and curation modules that exist to read provenance (``NOT_DECISION_CODE``)
 and collects each read (``collect_reads``): a call of, or any other reference
 to, a provenance read function through the module (``prov.recall``,
@@ -61,6 +62,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 SRC = ROOT / "src" / "chronicler"
+LAB = ROOT / "src" / "chronicler_lab"
 
 #: Modules whose purpose is to read provenance for narration and curation
 #: (they decide no simulation outcome), and provenance itself.
@@ -286,6 +288,8 @@ def collect_reads(src: Path = SRC) -> dict[tuple[str, str, str], int]:
 
 def test_every_provenance_read_outside_narration_is_registered():
     found = collect_reads()
+    for key, n in collect_reads(LAB).items():
+        found[key] = found.get(key, 0) + n
     registered = {key: n for key, (n, _c) in PROVENANCE_READS.items()}
     unregistered = sorted(set(found) - set(registered))
     stale = sorted(set(registered) - set(found))

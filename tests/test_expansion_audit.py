@@ -5,7 +5,7 @@ import hashlib
 import json
 import pytest
 from chronicler.bundle_codec import dumps_bundle
-from chronicler.expansion_audit import AuditError, Limits, audit_bundle, audit_path, main, render_markdown
+from chronicler_lab.expansion_audit import AuditError, Limits, audit_bundle, audit_path, main, render_markdown
 from chronicler.historical_context import AsOf
 
 
@@ -316,7 +316,7 @@ def test_same_read_hash_and_parse(bundle, tmp_path, monkeypatch):
     path = tmp_path / "bundle.json"
     raw = dumps_bundle(bundle).encode()
     path.write_bytes(raw)
-    import chronicler.expansion_audit as module
+    import chronicler_lab.expansion_audit as module
     original = module.json.loads
     def replace(data, *args, **kwargs):
         path.write_text("{}")

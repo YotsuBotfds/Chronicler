@@ -377,6 +377,34 @@ capture them with the workflow's `capture` input, commit them unmodified, and
 record the before/after differences and a CONTINUATION entry. Never edit a
 golden by hand, and never mix a golden update into a refactor.
 
+### Detached lab package
+
+`src/chronicler_lab/` holds detached harnesses (experiment sessions and
+receipts, governance capture, expansion and science audits, health-care
+observation, checkpoint replay and similar tools) that no production entry point
+reaches. The rules:
+
+- Production code under `src/chronicler/` must never import `chronicler_lab`,
+  and no production string may name a lab module.
+  `tests/test_import_compatibility.py` enforces this with an AST scan and a
+  reachability check from the `main`, `live`, `validate` and `narration_audit`
+  roots (`LAB_MODULES` lists the 27 modules). The dependency runs one way:
+  `chronicler_lab` imports `chronicler`.
+- A moved module leaves a shim at its old `src/chronicler/<name>.py` that
+  aliases the new module through `sys.modules`, and its name is listed in
+  `src/chronicler_lab/SHIMS`. The shims stay until the first tagged release
+  after the last move, then are deleted; they emit no `DeprecationWarning`.
+- `validation_compare` and `community_admissibility` stay in `chronicler`.
+- Source identities cover `src/chronicler` only: receipts and digests that hash
+  that tree (`package_digest` in `batch_manifest.py`, the source globs of
+  `scripts/benchmark_headless.py` and `scripts/a01_acceptance.py`, the oracle
+  lane's `source_sha256`) do not include `chronicler_lab`. The relocated
+  `checkpoint_replay` still hashes the production package: its runtime
+  identity is `package_digest(Path(chronicler.__file__).parent)`.
+- The wheel ships both packages (`[tool.hatch.build.targets.wheel]` in
+  `pyproject.toml`); the editable install and pytest already put `src` on the
+  path. Tests and scripts stay where they are.
+
 ## Claude Code cloud sessions
 
 The cloud container already provides Python 3.13, uv, Node 22, npm and a

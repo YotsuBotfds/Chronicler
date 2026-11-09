@@ -8,8 +8,8 @@ import struct
 
 import pytest
 
-from chronicler import decision_delivery as wire
-from chronicler import kin_root_exposure as exposure
+from chronicler_lab import decision_delivery as wire
+from chronicler_lab import kin_root_exposure as exposure
 
 
 def bits(value):

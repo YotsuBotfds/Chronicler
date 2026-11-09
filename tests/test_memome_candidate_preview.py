@@ -17,15 +17,15 @@ import tempfile
 import unittest
 from unittest import mock
 
-from chronicler import experiment_sessions as es
-from chronicler import memome_experiment as mm
-from chronicler import memome_candidate_preview as preview
-from chronicler.memome_candidate_preview import (
+from chronicler_lab import experiment_sessions as es
+from chronicler_lab import memome_experiment as mm
+from chronicler_lab import memome_candidate_preview as preview
+from chronicler_lab.memome_candidate_preview import (
     Alternative, CONTRACT, PreviewError, PreviewReport, preview_candidates, preview_json, preview_text,
 )
 
 ROOT = Path(__file__).resolve().parents[1]
-MODULE = ROOT/'src/chronicler/memome_candidate_preview.py'
+MODULE = ROOT/'src/chronicler_lab/memome_candidate_preview.py'
 DRIVER = ROOT/'scripts/memome_candidate_preview.py'
 # Read only the existing explicit table; no demonstration is run.
 DEMO = runpy.run_path(str(ROOT/'scripts/memome_demo.py'))

@@ -296,7 +296,7 @@ from pathlib import Path as _care_codec_Path
 import struct as _care_codec_struct
 
 import pytest as _care_codec_pytest
-from chronicler import health_care_observation_codec as _care_codec
+from chronicler_lab import health_care_observation_codec as _care_codec
 
 
 def _care_codec_b32(value):
@@ -1074,7 +1074,7 @@ def test_care_main_source_inverse_refuses_unreviewed_mutations(old, new):
 
 # INDEPENDENT MECHANICS SOURCE CONTRACTS — invented primitive facts, UNRUN.
 import sys as _care_mech_sys
-from chronicler import health_care_observation_mechanics as _care_mech
+from chronicler_lab import health_care_observation_mechanics as _care_mech
 
 
 def _care_mech_context(expected):

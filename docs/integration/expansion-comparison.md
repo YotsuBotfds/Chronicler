@@ -5,7 +5,7 @@ python scripts/archive/compare_system_expansion.py path/to/forecast-study path/t
 ```
 
 Inputs are explicit bundle files or directories searched for
-`chronicle_bundle.json`. `compare_paths` in `chronicler.expansion_compare` is
+`chronicle_bundle.json`. `compare_paths` in `chronicler_lab.expansion_compare` is
 the reusable API. It reads each bundle once, hashes those bytes, uses the shared
 v6/legacy decoder, and reads only the adjacent `worker_identity.json` companion.
 It never follows paths embedded in experiment receipts or loads native code,

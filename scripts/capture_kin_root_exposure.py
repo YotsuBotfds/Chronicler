@@ -115,8 +115,8 @@ def _cohort(sidecar, oracle_snapshot):
 def _load_runtime():
     # These imports occur only after explicit opt-in, never at module import.
     from chronicler import main, run_checkpoint
-    from chronicler.decision_delivery import DecisionDeliveryObserver
-    from chronicler.kin_root_exposure import summarize_kin_root_exposure
+    from chronicler_lab.decision_delivery import DecisionDeliveryObserver
+    from chronicler_lab.kin_root_exposure import summarize_kin_root_exposure
     from chronicler.validation_communities import oracle1_snapshot
 
     return SimpleNamespace(read_header=run_checkpoint.read_header,

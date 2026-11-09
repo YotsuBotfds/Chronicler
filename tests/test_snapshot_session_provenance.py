@@ -14,9 +14,9 @@ import pyarrow as pa
 import pytest
 
 from chronicler import campaign_logistics as cl
-from chronicler import experiment_sessions as es
-from chronicler import snapshot_campaign_sessions as bridge
-from chronicler.campaign_snapshot_adapter import CampaignSnapshotError, parse_side_inputs, plan_bytes
+from chronicler_lab import experiment_sessions as es
+from chronicler_lab import snapshot_campaign_sessions as bridge
+from chronicler_lab.campaign_snapshot_adapter import CampaignSnapshotError, parse_side_inputs, plan_bytes
 from test_campaign_snapshot_adapter import snapshot, side_document, view, write_snapshot
 from test_experiment_sessions import canonical, memome_session, reseal
 
@@ -330,9 +330,9 @@ from contextlib import redirect_stdout
 from pathlib import Path
 import pyarrow as pa
 from chronicler import campaign_logistics as kernel
-from chronicler import campaign_snapshot_adapter as adapter
-from chronicler import experiment_sessions as sessions
-from chronicler import snapshot_campaign_sessions as bridge
+from chronicler_lab import campaign_snapshot_adapter as adapter
+from chronicler_lab import experiment_sessions as sessions
+from chronicler_lab import snapshot_campaign_sessions as bridge
 def forbidden(*args, **kwargs):
     raise AssertionError("forbidden work")
 before = random.getstate()

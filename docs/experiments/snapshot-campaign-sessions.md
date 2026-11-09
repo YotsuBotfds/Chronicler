@@ -7,7 +7,7 @@ snapshot, advances a production simulation, draws randomness or changes a schema
 
 The parent-reconciled experimental-import contract permits exactly one package
 consumer of `campaign_snapshot_adapter`: this explicit
-`src/chronicler/snapshot_campaign_sessions.py` bridge. The existing source-text
+`src/chronicler_lab/snapshot_campaign_sessions.py` bridge. The existing source-text
 scan now requires that exact relative-path set instead of zero consumers; every
 other original assertion is retained, and the old test bytes remain in accepted
 history and the preserved snapshot pin `45dc49dbd997bac1331019d2e5bc0893025aa449`.
@@ -86,9 +86,9 @@ overhead; those require a separate explicit resource contract (AM-06).
 For callers already holding a captured view:
 
 ```python
-from chronicler.snapshot_campaign_sessions import prepare_snapshot_session, read_snapshot
-from chronicler.campaign_snapshot_adapter import parse_side_inputs
-from chronicler.experiment_sessions import commit_session, submission_from_bytes
+from chronicler_lab.snapshot_campaign_sessions import prepare_snapshot_session, read_snapshot
+from chronicler_lab.campaign_snapshot_adapter import parse_side_inputs
+from chronicler_lab.experiment_sessions import commit_session, submission_from_bytes
 from chronicler.turn_artifacts import AgentRows, Stamp
 
 # transport is an exact, explicitly validated public TransportPolicy record.

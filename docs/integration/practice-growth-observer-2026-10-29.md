@@ -5,7 +5,7 @@ This Python-only candidate starts from `45e1b939`, preserving qualified
 no allowance, payment rule, decision, study registration or native source.
 
 ```python
-from chronicler.practice_growth import PracticeGrowthObserver
+from chronicler_lab.practice_growth import PracticeGrowthObserver
 
 observer = PracticeGrowthObserver([(4, "irrigation"), (4, "masonry")])
 source_turn = world.turn
