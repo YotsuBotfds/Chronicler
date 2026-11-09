@@ -9,7 +9,7 @@ from dataclasses import dataclass, replace
 import json
 
 from chronicler import campaign_logistics as cl
-from chronicler import experiment_sessions as es
+from chronicler_lab import experiment_sessions as es
 
 CONTRACT = "chronicler-campaign-order-preview-v1"
 

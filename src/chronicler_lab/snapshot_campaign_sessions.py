@@ -12,10 +12,10 @@ from pathlib import Path
 import pyarrow as pa
 
 from chronicler.campaign_logistics import canonical_bytes
-from chronicler.campaign_snapshot_adapter import (
+from chronicler_lab.campaign_snapshot_adapter import (
     CONTRACT, AdmissionPlan, CampaignSnapshotError, SideInputs, admit_snapshot_plan,
 )
-from chronicler.experiment_sessions import (
+from chronicler_lab.experiment_sessions import (
     CampaignSession, Envelope, IntegrityError, SessionError, TransportDomainError,
     TransportPolicy, create_campaign_session, decode_envelope, encode_session,
     read_regular_file_bytes, transport_policy_from_payload,

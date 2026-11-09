@@ -10,9 +10,9 @@ from dataclasses import dataclass, fields, is_dataclass
 import json
 from pathlib import Path
 
-from chronicler import experiment_sessions as es
+from chronicler_lab import experiment_sessions as es
 from chronicler.campaign_logistics import Receipt as CampaignReceipt
-from chronicler.memome_experiment import Tick as MemomeTick
+from chronicler_lab.memome_experiment import Tick as MemomeTick
 
 CONTRACT = "chronicler-experiment-receipt-inspector-v1"
 

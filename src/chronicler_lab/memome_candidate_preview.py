@@ -8,8 +8,8 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass
 import json
 
-from chronicler import experiment_sessions as es
-from chronicler import memome_experiment as mm
+from chronicler_lab import experiment_sessions as es
+from chronicler_lab import memome_experiment as mm
 
 CONTRACT = "chronicler-memome-candidate-preview-v1"
 

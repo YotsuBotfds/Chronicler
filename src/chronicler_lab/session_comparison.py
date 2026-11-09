@@ -5,9 +5,9 @@ from dataclasses import dataclass, fields, is_dataclass
 import json
 import os
 
-from chronicler import experiment_sessions as es
+from chronicler_lab import experiment_sessions as es
 from chronicler.campaign_logistics import Tick as CampaignTick
-from chronicler.memome_experiment import Batch as MemomeBatch
+from chronicler_lab.memome_experiment import Batch as MemomeBatch
 
 CONTRACT = "chronicler-session-comparison-v1"
 LIMITATIONS = (

@@ -11,7 +11,7 @@ from dataclasses import dataclass, asdict
 import hashlib
 import os
 
-from chronicler import experiment_sessions as es
+from chronicler_lab import experiment_sessions as es
 
 
 CONTRACT = "chronicler-session-operation-v1"

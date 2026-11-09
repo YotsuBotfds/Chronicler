@@ -33,7 +33,7 @@ from pathlib import Path
 import stat
 
 from chronicler import campaign_logistics as cl
-from chronicler import memome_experiment as mm
+from chronicler_lab import memome_experiment as mm
 
 try:  # POSIX-only writer lock. Absence is reported before any mutation.
     import fcntl
