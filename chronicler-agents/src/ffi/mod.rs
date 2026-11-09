@@ -3397,7 +3397,7 @@ impl AgentSimulator {
             Float32Builder, UInt8Builder, UInt16Builder, BooleanBuilder,
         };
         use crate::economy::{
-            EconomyRegionInput, TradeRouteInput, tick_economy_core_full,
+            EconomyExtras, EconomyRegionInput, TradeRouteInput, tick_economy_core_full,
         };
 
         let ri_rb: RecordBatch = region_input_batch.into_inner();
@@ -3798,10 +3798,12 @@ impl AgentSimulator {
             trade_friction,
             is_winter,
             hybrid_delivery.as_ref(),
-            &granary_work_requested,
-            woodcut.as_ref(),
-            retail_inputs.as_deref(),
-            workshop_owned.as_deref(),
+            &EconomyExtras {
+                granary_work_requested: &granary_work_requested,
+                woodcut: woodcut.as_ref(),
+                retail: retail_inputs.as_deref(),
+                workshop_owned: workshop_owned.as_deref(),
+            },
         );
 
         // M58b: Write transit decay diagnostics back to delivery buffer before clearing.

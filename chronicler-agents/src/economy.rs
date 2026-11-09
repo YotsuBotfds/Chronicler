@@ -1284,119 +1284,45 @@ pub fn tick_economy_core(
     is_winter: bool,
     hybrid_delivery: Option<&HybridDeliveryInput>,
 ) -> EconomyOutput {
-    tick_economy_core_with_granary_work(region_inputs, agent_counts, routes,
-        civ_merchant_wealth, civ_priest_count, n_civs, region_civ_owner, config,
-        trade_friction, is_winter, hybrid_delivery, &[])
-}
-
-/// The optional request reserves aggregate land-work after city and care
-/// adjustments. This does not select people or imply a worker roster.
-pub fn tick_economy_core_with_granary_work(
-    region_inputs: &[EconomyRegionInput],
-    agent_counts: &[RegionAgentCounts],
-    routes: &[TradeRouteInput],
-    civ_merchant_wealth: &[f32],
-    civ_priest_count: &[u32],
-    n_civs: usize,
-    region_civ_owner: &[u8],
-    config: &EconomyConfig,
-    trade_friction: f32,
-    is_winter: bool,
-    hybrid_delivery: Option<&HybridDeliveryInput>,
-    granary_work_requested: &[f32],
-) -> EconomyOutput {
-    tick_economy_core_with_inputs(region_inputs, agent_counts, routes, civ_merchant_wealth,
-        civ_priest_count, n_civs, region_civ_owner, config, trade_friction, is_winter, hybrid_delivery,
-        granary_work_requested, None, None)
-}
-
-/// [`tick_economy_core_with_granary_work`] with PL1 woodcutting crews
-/// (`None`: every output exactly as without them).
-#[allow(clippy::too_many_arguments)]
-pub fn tick_economy_core_with_woodcut(
-    region_inputs: &[EconomyRegionInput],
-    agent_counts: &[RegionAgentCounts],
-    routes: &[TradeRouteInput],
-    civ_merchant_wealth: &[f32],
-    civ_priest_count: &[u32],
-    n_civs: usize,
-    region_civ_owner: &[u8],
-    config: &EconomyConfig,
-    trade_friction: f32,
-    is_winter: bool,
-    hybrid_delivery: Option<&HybridDeliveryInput>,
-    granary_work_requested: &[f32],
-    woodcut: Option<&WoodcutInput>,
-) -> EconomyOutput {
-    tick_economy_core_with_inputs(region_inputs, agent_counts, routes, civ_merchant_wealth,
-        civ_priest_count, n_civs, region_civ_owner, config, trade_friction, is_winter, hybrid_delivery,
-        granary_work_requested, woodcut, None)
-}
-
-/// Livelihoods L6b household retail: `retail` (per region in input order,
-/// `Some` for a pilot region) splits each pilot region's food production
-/// into the titled share θ (owned stock) and the commons, counts owned stock
-/// in availability, prices and sufficiency, draws consumption from the
-/// commons only, and applies decay and the per-good cap to the owned stock
-/// carried into the turn before sufficiency is derived, with the per-good cap
-/// enforced once on both pools together at opening (`RetailOpening`;
-/// the commons decay after consumption and are capped at close, as in every
-/// region). `None`, or `None` for a region, executes none of that
-/// arithmetic. Hybrid economy only: the abstract path is refused.
-#[allow(clippy::too_many_arguments)]
-pub fn tick_economy_core_with_retail(
-    region_inputs: &[EconomyRegionInput],
-    agent_counts: &[RegionAgentCounts],
-    routes: &[TradeRouteInput],
-    civ_merchant_wealth: &[f32],
-    civ_priest_count: &[u32],
-    n_civs: usize,
-    region_civ_owner: &[u8],
-    config: &EconomyConfig,
-    trade_friction: f32,
-    is_winter: bool,
-    hybrid_delivery: Option<&HybridDeliveryInput>,
-    granary_work_requested: &[f32],
-    retail: Option<&[Option<RetailRegionInput>]>,
-) -> EconomyOutput {
-    tick_economy_core_with_inputs(region_inputs, agent_counts, routes, civ_merchant_wealth,
-        civ_priest_count, n_civs, region_civ_owner, config, trade_friction, is_winter, hybrid_delivery,
-        granary_work_requested, None, retail)
-}
-
-/// The economy tick with PL1 woodcutting crews and L6b household retail
-/// (each `None`: none of its arithmetic runs).
-#[allow(clippy::too_many_arguments)]
-pub fn tick_economy_core_with_inputs(
-    region_inputs: &[EconomyRegionInput],
-    agent_counts: &[RegionAgentCounts],
-    routes: &[TradeRouteInput],
-    civ_merchant_wealth: &[f32],
-    civ_priest_count: &[u32],
-    n_civs: usize,
-    region_civ_owner: &[u8],
-    config: &EconomyConfig,
-    trade_friction: f32,
-    is_winter: bool,
-    hybrid_delivery: Option<&HybridDeliveryInput>,
-    granary_work_requested: &[f32],
-    woodcut: Option<&WoodcutInput>,
-    retail: Option<&[Option<RetailRegionInput>]>,
-) -> EconomyOutput {
     tick_economy_core_full(region_inputs, agent_counts, routes, civ_merchant_wealth, civ_priest_count, n_civs,
-        region_civ_owner, config, trade_friction, is_winter, hybrid_delivery, granary_work_requested, woodcut,
-        retail, None)
+        region_civ_owner, config, trade_friction, is_winter, hybrid_delivery, &EconomyExtras::default())
 }
 
-/// The economy tick with every optional input, adding A3-2's
-/// `workshop_owned` (per region in input order, `Some(firm inventory)` for a
-/// region whose workshop firm holds its own output, in loads): that region's
-/// crafted wares are reported in `craft_output` and counted in production
-/// but never enter the commons stockpile (the people's free draw and
-/// merchants cannot take them; Python adds them to the firm's inventory), and
-/// the firm's inventory at opening counts in the wares supply for prices
-/// only. `None`, or `None` for a region, executes none of that arithmetic.
-/// Hybrid economy only.
+/// The economy tick's optional inputs. `EconomyExtras::default()` (no
+/// granary request, every option `None`) executes none of their arithmetic:
+/// every output is exactly as from [`tick_economy_core`].
+#[derive(Clone, Copy, Default)]
+pub struct EconomyExtras<'a> {
+    /// Aggregate land-work reserved for granary work after city and care
+    /// adjustments, one value per region in input order (empty: none). This
+    /// does not select people or imply a worker roster.
+    pub granary_work_requested: &'a [f32],
+    /// PL1 woodcutting crews (`None`: every output exactly as without them).
+    pub woodcut: Option<&'a WoodcutInput<'a>>,
+    /// Livelihoods L6b household retail: `retail` (per region in input order,
+    /// `Some` for a pilot region) splits each pilot region's food production
+    /// into the titled share θ (owned stock) and the commons, counts owned
+    /// stock in availability, prices and sufficiency, draws consumption from
+    /// the commons only, and applies decay and the per-good cap to the owned
+    /// stock carried into the turn before sufficiency is derived, with the
+    /// per-good cap enforced once on both pools together at opening
+    /// (`RetailOpening`; the commons decay after consumption and are capped
+    /// at close, as in every region). `None`, or `None` for a region,
+    /// executes none of that arithmetic. Hybrid economy only: the abstract
+    /// path is refused.
+    pub retail: Option<&'a [Option<RetailRegionInput>]>,
+    /// A3-2's `workshop_owned` (per region in input order, `Some(firm
+    /// inventory)` for a region whose workshop firm holds its own output, in
+    /// loads): that region's crafted wares are reported in `craft_output` and
+    /// counted in production but never enter the commons stockpile (the
+    /// people's free draw and merchants cannot take them; Python adds them to
+    /// the firm's inventory), and the firm's inventory at opening counts in
+    /// the wares supply for prices only. `None`, or `None` for a region,
+    /// executes none of that arithmetic. Hybrid economy only.
+    pub workshop_owned: Option<&'a [Option<f32>]>,
+}
+
+/// The economy tick with every optional input ([`EconomyExtras`]).
 #[allow(clippy::too_many_arguments)]
 pub fn tick_economy_core_full(
     region_inputs: &[EconomyRegionInput],
@@ -1410,11 +1336,9 @@ pub fn tick_economy_core_full(
     trade_friction: f32,
     is_winter: bool,
     hybrid_delivery: Option<&HybridDeliveryInput>,
-    granary_work_requested: &[f32],
-    woodcut: Option<&WoodcutInput>,
-    retail: Option<&[Option<RetailRegionInput>]>,
-    workshop_owned: Option<&[Option<f32>]>,
+    extras: &EconomyExtras,
 ) -> EconomyOutput {
+    let EconomyExtras { granary_work_requested, woodcut, retail, workshop_owned } = *extras;
     assert!(workshop_owned.is_none_or(|w| w.len() == region_inputs.len()), "workshop rows must match the regions");
     assert!(workshop_owned.is_none() || hybrid_delivery.is_some(), "owned workshop output requires the hybrid economy");
     assert!(workshop_owned.is_none_or(|w| w.iter().flatten().all(|v| v.is_finite() && *v >= 0.0)),
@@ -2587,9 +2511,10 @@ mod tests {
         let mut region = city_market_region(0.4, 0.0); // 10 * .5 city - 1 care
         let counts = [RegionAgentCounts { population: 10, farmer_count: 10,
             soldier_count: 0, merchant_count: 0, wealthy_count: 0 }];
-        let run = |requests: &[f32], r: &EconomyRegionInput| tick_economy_core_with_granary_work(
+        let run = |requests: &[f32], r: &EconomyRegionInput| tick_economy_core_full(
             std::slice::from_ref(r), &counts, &[], &[0.0], &[0], 1, &[0],
-            &EconomyConfig::default(), 1.0, false, None, requests);
+            &EconomyConfig::default(), 1.0, false, None,
+            &EconomyExtras { granary_work_requested: requests, ..Default::default() });
         for curves in [false, true] {
             region.slot_curves = curves;
             let base = run(&[], &region);
@@ -2623,8 +2548,9 @@ mod tests {
         assert!((forage.region_results[0].forage_output - 0.8).abs() < 1e-6);
         let no_farmers = [RegionAgentCounts { population: 10, farmer_count: 0,
             soldier_count: 0, merchant_count: 0, wealthy_count: 0 }];
-        let no = tick_economy_core_with_granary_work(&[region], &no_farmers, &[], &[0.0], &[0],
-            1, &[0], &EconomyConfig::default(), 1.0, false, None, &[3.0]);
+        let no = tick_economy_core_full(&[region], &no_farmers, &[], &[0.0], &[0],
+            1, &[0], &EconomyConfig::default(), 1.0, false, None,
+            &EconomyExtras { granary_work_requested: &[3.0], ..Default::default() });
         assert_eq!(no.region_results[0].granary_work_delivered, 0.0);
     }
 
@@ -3060,8 +2986,9 @@ mod woodcut_tests {
     fn run_with(regions: &[EconomyRegionInput], home_farmers: u32, requests: &[f32],
                 woodcut: Option<(&[f32], &[f32])>) -> EconomyOutput {
         let input = woodcut.map(|(labor_away, labor)| WoodcutInput { labor_away, labor });
-        tick_economy_core_with_woodcut(regions, &counts(home_farmers), &[], &[0.0], &[0], 1, &[0, 0],
-            &EconomyConfig::default(), 1.0, false, None, requests, input.as_ref())
+        tick_economy_core_full(regions, &counts(home_farmers), &[], &[0.0], &[0], 1, &[0, 0],
+            &EconomyConfig::default(), 1.0, false, None,
+            &EconomyExtras { granary_work_requested: requests, woodcut: input.as_ref(), ..Default::default() })
     }
 
     fn run(regions: &[EconomyRegionInput], requests: &[f32], woodcut: Option<(&[f32], &[f32])>) -> EconomyOutput {
@@ -3117,8 +3044,9 @@ mod woodcut_tests {
         for curves in [false, true] {
             let r = regions(curves);
             for requests in [&[][..], &[3.0, 0.0][..]] {
-                let legacy = tick_economy_core_with_granary_work(&r, &counts(12), &[], &[0.0], &[0], 1, &[0, 0],
-                    &EconomyConfig::default(), 1.0, false, None, requests);
+                let legacy = tick_economy_core_full(&r, &counts(12), &[], &[0.0], &[0], 1, &[0, 0],
+                    &EconomyConfig::default(), 1.0, false, None,
+                    &EconomyExtras { granary_work_requested: requests, ..Default::default() });
                 let absent = run(&r, requests, None);
                 let zero = run(&r, requests, Some((&[0.0, 0.0], &[0.0, 0.0])));
                 assert_same_bits(&legacy, &absent);
@@ -3182,9 +3110,10 @@ mod woodcut_tests {
         let mut nobody = counts(12);
         nobody[1] = RegionAgentCounts { population: 0, farmer_count: 0, soldier_count: 0, merchant_count: 0,
                                         wealthy_count: 0 };
-        let empty = tick_economy_core_with_woodcut(&regions(true), &nobody, &[], &[0.0], &[0], 1, &[0, 0],
-            &EconomyConfig::default(), 1.0, false, None, &[],
-            Some(&WoodcutInput { labor_away: &[0.0, 0.0], labor: &[0.0, crew] }));
+        let empty = tick_economy_core_full(&regions(true), &nobody, &[], &[0.0], &[0], 1, &[0, 0],
+            &EconomyConfig::default(), 1.0, false, None,
+            &EconomyExtras { woodcut: Some(&WoodcutInput { labor_away: &[0.0, 0.0], labor: &[0.0, crew] }),
+                ..Default::default() });
         let e = &empty.region_results[1];
         assert!((e.woodcut_output - 2.0 * effective_farm_labor(crew, 10.0, 10.0)).abs() < 1e-5);
         assert_eq!(e.slot_output[1], e.woodcut_output);
@@ -3293,10 +3222,11 @@ mod workshop_owned_tests {
         let hybrid = HybridDeliveryInput::from_buffer(&buf, 1);
         let rows = owned.map(|v| vec![v]);
         match rows {
-            None => tick_economy_core_with_inputs(&[r], &agents, &[], &[0.0], &[0], 1, &[0u8],
-                &EconomyConfig::default(), 1.0, false, Some(&hybrid), &[], None, None),
+            None => tick_economy_core_full(&[r], &agents, &[], &[0.0], &[0], 1, &[0u8],
+                &EconomyConfig::default(), 1.0, false, Some(&hybrid), &EconomyExtras::default()),
             Some(rows) => tick_economy_core_full(&[r], &agents, &[], &[0.0], &[0], 1, &[0u8],
-                &EconomyConfig::default(), 1.0, false, Some(&hybrid), &[], None, None, Some(&rows)),
+                &EconomyConfig::default(), 1.0, false, Some(&hybrid),
+                &EconomyExtras { workshop_owned: Some(&rows), ..Default::default() }),
         }
     }
 
