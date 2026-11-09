@@ -12,6 +12,7 @@ import heapq
 
 from chronicler.adaptive_livelihoods_state import AdaptiveLivelihoodsState
 from chronicler.utils import stable_hash_int
+from chronicler.switch_state import sub_state_getter
 
 MAX_MEMORY = 16384
 MAX_WORK = 16384
@@ -20,8 +21,7 @@ P_REFUSED, P_LEFT, P_CAP = 0.20, 0.15, 0.30
 WORK_WINDOW = 10
 
 
-def _state(world):
-    return getattr(getattr(world, "livelihoods", None), "adaptive_livelihoods", None)
+_state = sub_state_getter("adaptive_livelihoods")
 
 
 def adaptive_livelihoods_active(world):

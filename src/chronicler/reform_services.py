@@ -80,6 +80,7 @@ from chronicler.reform_services_state import (
     COUNTERS, LOG_KINDS, MAX_LOG, MODES, CivRelief, Delivery, Purchase, ReformServicesState, ReliefFrame,
     ReliefRecord,
 )
+from chronicler.switch_state import sub_state_getter
 
 STAGE = "D1a"
 #: A relief fund holds at most this many turns of the realm's relief upkeep;
@@ -97,9 +98,7 @@ MILLI = money.MILLI
 # State and switch
 # ---------------------------------------------------------------------------
 
-def _state(world) -> ReformServicesState | None:
-    container = getattr(world, "livelihoods", None)
-    return getattr(container, "reform_services", None) if container is not None else None
+_state = sub_state_getter("reform_services")
 
 
 def _bump(state: ReformServicesState, key: str, amount: int = 1) -> None:

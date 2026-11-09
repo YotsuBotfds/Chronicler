@@ -71,6 +71,7 @@ from chronicler.clearing_protection_state import (
     COUNTER_KEYS, ClearingProtectionState, Protection, ProtectionDecision,
     ProtectionReceipt, UnprotectedRegion,
 )
+from chronicler.switch_state import sub_state_getter
 
 #: Protections a civilization may hold at once.
 MAX_REGIONS = 2
@@ -114,9 +115,7 @@ class _Plan:
 
 # --- State and switch -----------------------------------------------------------
 
-def _state(world) -> ClearingProtectionState | None:
-    container = getattr(world, "livelihoods", None)
-    return getattr(container, "clearing_protection", None) if container is not None else None
+_state = sub_state_getter("clearing_protection")
 
 
 def clearing_protection_active(world) -> bool:

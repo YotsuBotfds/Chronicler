@@ -57,6 +57,7 @@ from chronicler.local_budgets import Provider
 from chronicler.maintenance_obligation_state import (
     COUNTERS, MODES, MaintenanceObligationState, ReservationDecision, ReservationUse,
 )
+from chronicler.switch_state import sub_state_getter
 
 #: Largest share of the budget a civ would otherwise have that the
 #: maintenance obligation may reserve (declared, uncalibrated).
@@ -75,9 +76,7 @@ class _Turn:
         self.finished = False
 
 
-def _state(world) -> MaintenanceObligationState | None:
-    container = getattr(world, "livelihoods", None)
-    return getattr(container, "maintenance_obligation", None) if container is not None else None
+_state = sub_state_getter("maintenance_obligation")
 
 
 def _bump(state, key: str, amount=1) -> None:

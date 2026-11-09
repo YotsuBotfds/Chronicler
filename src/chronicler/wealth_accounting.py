@@ -47,6 +47,7 @@ from chronicler.wealth_accounting_state import (
     CHANNEL_NAMES, CHANNELS, COUNTERS, LIFETIME, MAX_CONTINUITY_REGIONS, MAX_LOG, WITHHELD_PACKAGES, Closing, LedgerRecord,
     WealthAccountingState,
 )
+from chronicler.switch_state import sub_state_getter
 
 MILLI = 1000
 STAGE = "A1"
@@ -110,9 +111,7 @@ class _Turn:
 # Switch
 # ---------------------------------------------------------------------------
 
-def _state(world) -> WealthAccountingState | None:
-    container = getattr(world, "livelihoods", None)
-    return getattr(container, "wealth_accounting", None) if container is not None else None
+_state = sub_state_getter("wealth_accounting")
 
 
 def _bump(state: WealthAccountingState, key: str, amount: int = 1) -> None:

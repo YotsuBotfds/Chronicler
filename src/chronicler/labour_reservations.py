@@ -21,7 +21,7 @@ the two agree on the people they exclude.
 """
 from __future__ import annotations
 
-from importlib import import_module
+from chronicler.switch_state import lane_active
 
 #: Native work registry categories, in declaration order (``workshop_work.rs``
 #: ``RESERVATION_CATEGORIES``, append only; A4 appended ``trade`` for its
@@ -39,10 +39,7 @@ REASONS: tuple[str, ...] = (
 )
 
 
-def _lane_active(world, name: str) -> bool:
-    if getattr(getattr(world, "livelihoods", None), name, None) is None:
-        return False
-    return bool(getattr(import_module("chronicler." + name), f"{name}_active")(world))
+_lane_active = lane_active
 
 
 def health_rows(world) -> tuple[set[int], set[int]]:

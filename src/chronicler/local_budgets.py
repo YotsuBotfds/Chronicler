@@ -102,6 +102,7 @@ from chronicler.local_budgets_state import (
     CANDIDATES, CONSTITUENCIES, MAX_PROPOSALS, MAX_SETTLED, REASONS, SERVICES,
     Award, Commitment, Decision, LocalBudgetState, Proposal, Response,
 )
+from chronicler.switch_state import sub_state_getter
 
 # Declared modeling choices (proposed tuning keys ``livelihoods.budgets.*``).
 ENVELOPE_SHARE = 0.25      # of the disposable treasury per turn, for all governed services
@@ -139,9 +140,7 @@ PROVIDERS: tuple[str, ...] = (
 )
 
 
-def _state(world) -> LocalBudgetState | None:
-    container = getattr(world, "livelihoods", None)
-    return getattr(container, "local_budgets", None) if container is not None else None
+_state = sub_state_getter("local_budgets")
 
 
 def _reserves_on(world) -> bool:

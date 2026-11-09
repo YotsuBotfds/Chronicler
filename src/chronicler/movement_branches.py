@@ -30,13 +30,13 @@ from chronicler.movement_branches_state import (
     BRANCH_BATCH, COUNTERS, DUES_MILLI, MAX_BRANCHES, MAX_PAYERS, MAX_PAYERS_TOTAL,
     MIN_PAYERS, MODES, Branch, BranchFrame, BranchRow, MovementBranchesState,
 )
+from chronicler.switch_state import sub_state_getter
 
 ADULT_AGE = 16                     # native movements::ADULT_AGE
 PURPOSE = "branch_dues"
 
 
-def _state(world):
-    return getattr(getattr(world, "livelihoods", None), "movement_branches", None)
+_state = sub_state_getter("movement_branches")
 
 
 def movement_branches_active(world):

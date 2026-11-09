@@ -15,14 +15,14 @@ from chronicler import money
 from chronicler.war_requisition_state import (
     COUNTERS, MAX_CLAIMS, MAX_ROWS, MODES, RestitutionClaim, WarRequisitionState,
 )
+from chronicler.switch_state import sub_state_getter
 
 MILLI = 1000
 FOOD_PER_RATION_MILLI = 500
 RESTITUTION_BATCH = 0xD4000
 
 
-def _state(world):
-    return getattr(getattr(world, "livelihoods", None), "war_requisition", None)
+_state = sub_state_getter("war_requisition")
 
 
 def war_requisition_active(world):

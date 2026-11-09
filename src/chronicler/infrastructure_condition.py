@@ -123,6 +123,7 @@ from chronicler.infrastructure_condition_state import (
     InfraAsset, InfraDamage, InfrastructureConditionState, InfraWork, SkippedDamage, UnmetWork, WorkReceipt,
     WorksLedger,
 )
+from chronicler.switch_state import sub_state_getter
 
 MILLI = 1000
 #: Condition lost per turn by a serving asset (declared).
@@ -166,9 +167,7 @@ _TYPES = {"IRRIGATION": "irrigation", "ROADS": "roads"}
 # Switch and lookups
 # ---------------------------------------------------------------------------
 
-def _state(world) -> InfrastructureConditionState | None:
-    container = getattr(world, "livelihoods", None)
-    return getattr(container, "infrastructure_condition", None) if container is not None else None
+_state = sub_state_getter("infrastructure_condition")
 
 
 def infrastructure_condition_active(world) -> bool:

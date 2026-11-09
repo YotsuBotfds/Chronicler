@@ -68,6 +68,7 @@ from chronicler.remittances_state import (
     TRANSFER_STATUSES, UNLINKED_REASONS, Closure, DiasporaEntry, MoveRecord, PoolReset, RegionFlow,
     RemittanceReceipt, RemittancesState, UnmetSender,
 )
+from chronicler.switch_state import sub_state_getter
 
 SETTLED_TURNS = 5            # turns since the last arrival before a migrant may send
 SHARE_PERMILLE = 100         # SHARE: 10% of wealth above the reserve
@@ -88,9 +89,7 @@ _TOTALS = ("requested_milli", "fee_requested_milli", "sent_milli", "fee_milli", 
            "refunded_milli", "debited_milli", "not_sent_milli")
 
 
-def _state(world) -> RemittancesState | None:
-    container = getattr(world, "livelihoods", None)
-    return getattr(container, "remittances", None) if container is not None else None
+_state = sub_state_getter("remittances")
 
 
 def _bump(state: RemittancesState, key: str, amount: int = 1) -> None:

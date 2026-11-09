@@ -79,6 +79,7 @@ from chronicler.veteran_reintegration_state import (
     MAX_SPELLS, MODES, OUTCOMES, PLACEMENTS, CaptureRow, FrameOutcome, FramePlacement, FrameWaiting,
     PlacementSpell, VeteranFrame, VeteranOutcome, VeteranRecord, VeteranReintegrationState,
 )
+from chronicler.switch_state import sub_state_getter
 
 #: Turns after release during which a veteran is eligible (declared, uncalibrated).
 ELIGIBLE_TURNS = 20
@@ -99,9 +100,7 @@ class _Phase2:
         self.reasons: dict[int, str] = {}
 
 
-def _state(world) -> VeteranReintegrationState | None:
-    container = getattr(world, "livelihoods", None)
-    return getattr(container, "veteran_reintegration", None) if container is not None else None
+_state = sub_state_getter("veteran_reintegration")
 
 
 def _bump(state: VeteranReintegrationState, key: str, amount: int = 1) -> None:

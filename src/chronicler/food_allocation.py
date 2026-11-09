@@ -24,14 +24,13 @@ from __future__ import annotations
 import math
 
 from chronicler.food_allocation_state import REGIMES, SNAPSHOT_SAMPLE, FoodAllocationState
+from chronicler.switch_state import sub_state_getter
 
 FLOOR = 0.5
 TARGET_SHARE = 0.5
 
 
-def _state(world) -> FoodAllocationState | None:
-    container = getattr(world, "livelihoods", None)
-    return getattr(container, "food_allocation", None) if container is not None else None
+_state = sub_state_getter("food_allocation")
 
 
 def set_food_allocation_enabled(world, value: bool, *, args=None, agent_mode=None) -> None:

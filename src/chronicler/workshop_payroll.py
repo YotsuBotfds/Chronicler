@@ -81,6 +81,7 @@ from chronicler.workshop_payroll_state import (
     MAX_CLOSED, MAX_HISTORY, MAX_OWED, MAX_TRANSFERS, MaterialTransfer, MoneyTransfer, OwedWage,
     PayrollReceipt, WorkshopFirm, WorkshopPayrollState,
 )
+from chronicler.switch_state import sub_state_getter
 
 MILLI = 1000
 #: Wage per unit of paid work time (one person's whole turn), milli-units.
@@ -133,9 +134,7 @@ class _Turn:
 # Switch and lookups
 # ---------------------------------------------------------------------------
 
-def _state(world) -> WorkshopPayrollState | None:
-    container = getattr(world, "livelihoods", None)
-    return getattr(container, "workshop_payroll", None) if container is not None else None
+_state = sub_state_getter("workshop_payroll")
 
 
 def _workshops(world):

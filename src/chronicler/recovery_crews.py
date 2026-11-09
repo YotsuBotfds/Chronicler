@@ -74,11 +74,11 @@ calibrated.
 from __future__ import annotations
 
 import math
-from importlib import import_module
 
 from chronicler.recovery_crews_state import (
     COUNTERS, KINDS, MAX_FRAME_ROWS, MODES, CivCrewLedger, CrewMember, CrewReceipt, RecoveryCrewsState,
 )
+from chronicler.switch_state import health_holders, lane_active, sub_state_getter
 
 MILLI = 1000
 #: Native ``agent::AGE_ADULT`` (the crew planners' age).
@@ -117,9 +117,7 @@ class _Turn:
         self.counts[key] = self.counts.get(key, 0) + amount
 
 
-def _state(world) -> RecoveryCrewsState | None:
-    container = getattr(world, "livelihoods", None)
-    return getattr(container, "recovery_crews", None) if container is not None else None
+_state = sub_state_getter("recovery_crews")
 
 
 def _bump(state, key: str, amount=1) -> None:
@@ -155,10 +153,7 @@ def recovery_crews_active(world) -> bool:
     return repair_projects_active(world)
 
 
-def _lane_active(world, name: str) -> bool:
-    if getattr(getattr(world, "livelihoods", None), name, None) is None:
-        return False
-    return bool(getattr(import_module("chronicler." + name), f"{name}_active")(world))
+_lane_active = lane_active
 
 
 def _begin(world, sim) -> _Turn:
@@ -223,16 +218,7 @@ def _people(world, t: _Turn, snapshot, sim) -> _People:
     return t.people
 
 
-def _health_holders(world) -> set[int]:
-    """Patients and carers of this turn's prepared rural health work."""
-    health = getattr(world, "health_care", None)
-    rows = getattr(health, "_prepared", None) if health is not None else None
-    out: set[int] = set()
-    for aid, _region, giver, care in rows or ():
-        out.add(int(aid))
-        if int(giver) and float(care) > 0:
-            out.add(int(giver))
-    return out
+_health_holders = health_holders
 
 
 def _excluded(world, sim, turn: int) -> set[int]:

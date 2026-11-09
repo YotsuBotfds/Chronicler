@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from copy import deepcopy
 
+from chronicler.switch_state import sub_state_getter
 from chronicler.utils import stable_hash_int
 from chronicler.war_consequences_state import WarConsequencesState
 
@@ -20,8 +21,7 @@ RETURN_WINDOW = 20
 EVACUATE_PULL, RETURN_PULL = 0.20, 0.15
 
 
-def _state(world):
-    return getattr(getattr(world, "livelihoods", None), "war_consequences", None)
+_state = sub_state_getter("war_consequences")
 
 
 def war_consequences_active(world):

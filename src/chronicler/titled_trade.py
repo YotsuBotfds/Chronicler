@@ -78,6 +78,7 @@ from chronicler.titled_trade_state import (
     COUNTERS, DEPOSIT_REASONS, MAX_CLOSED, MAX_FRAME_SELLERS, MAX_HISTORY, MAX_LOG, MAX_LOTS, MAX_SHIPMENTS,
     OUTCOMES, RELEASE_REASONS, RETURN_CAUSES, Lot, Shipment, TitledTradeState, TradeRecord,
 )
+from chronicler.switch_state import sub_state_getter
 
 MILLI = 1000
 #: Milli-food every owner keeps (its fair-share reserve: one turn's two rations).
@@ -127,9 +128,7 @@ class _Turn:
 # Switch
 # ---------------------------------------------------------------------------
 
-def _state(world) -> TitledTradeState | None:
-    container = getattr(world, "livelihoods", None)
-    return getattr(container, "titled_trade", None) if container is not None else None
+_state = sub_state_getter("titled_trade")
 
 
 def _bump(state: TitledTradeState, key: str, amount: int = 1) -> None:
