@@ -94,7 +94,7 @@ def test_economy_result_conservation_has_expected_fields():
 
 def test_accumulate_stockpile_returns_clamp_floor_loss():
     """accumulate_stockpile returns clamp_floor_loss when exports exceed stock + production."""
-    from chronicler.economy import accumulate_stockpile
+    from chronicler.economy_oracle import accumulate_stockpile
     goods = {"grain": 5.0}
     loss = accumulate_stockpile(goods, production={}, exports={"grain": 10.0}, imports={})
     assert loss == pytest.approx(5.0)
@@ -103,7 +103,7 @@ def test_accumulate_stockpile_returns_clamp_floor_loss():
 
 def test_accumulate_stockpile_no_loss_returns_zero():
     """accumulate_stockpile returns 0.0 when no clamping occurs."""
-    from chronicler.economy import accumulate_stockpile
+    from chronicler.economy_oracle import accumulate_stockpile
     goods = {"grain": 50.0}
     loss = accumulate_stockpile(goods, production={"grain": 10.0}, exports={"grain": 5.0}, imports={})
     assert loss == 0.0
@@ -113,7 +113,7 @@ def test_accumulate_stockpile_no_loss_returns_zero():
 def test_conservation_with_clamp_floor_loss():
     """compute_economy tracks clamp_floor_loss in the conservation dict."""
     import pyarrow as pa
-    from chronicler.economy import compute_economy
+    from chronicler.economy_oracle import compute_economy
     world = _make_two_region_world()
 
     # Make a snapshot with agents
@@ -449,3 +449,38 @@ def test_fixed_goods_has_9_entries():
 def test_fixed_goods_is_tuple():
     """FIXED_GOODS is a tuple (immutable, ordered)."""
     assert isinstance(FIXED_GOODS, tuple)
+
+
+# ---------------------------------------------------------------------------
+# COR-8c: tithe constant parity between Python and the Rust economy kernel
+# ---------------------------------------------------------------------------
+
+def _rust_f32_const(source: str, name: str) -> float:
+    import re
+
+    matches = re.findall(rf"^\s*const\s+{name}\s*:\s*f32\s*=\s*([0-9.]+)\s*;", source, re.M)
+    assert len(matches) == 1, f"expected exactly one `const {name}` in economy.rs, found {matches}"
+    return float(matches[0])
+
+
+def test_tithe_constants_match_rust_economy():
+    """`TITHE_RATE` and `TITHE_FOOD_GATE` must agree across runtimes.
+
+    No tuning key exists for either; a future `economy.tithe_rate` key goes through CON-5.
+    """
+    import inspect
+    import re
+    from pathlib import Path
+
+    from chronicler import economy, factions
+
+    rs_path = Path(__file__).resolve().parents[1] / "chronicler-agents" / "src" / "economy.rs"
+    rust = rs_path.read_text(encoding="utf-8")
+    assert _rust_f32_const(rust, "TITHE_RATE") == pytest.approx(factions.TITHE_RATE)
+
+    py_gates = re.findall(
+        r"^\s*TITHE_FOOD_GATE\s*(?::\s*float\s*)?=\s*([0-9.]+)\s*$", inspect.getsource(economy), re.M,
+    )
+    assert len(py_gates) == 1, f"expected one TITHE_FOOD_GATE literal in economy.py, found {py_gates}"
+    assert float(py_gates[0]) == economy.TITHE_FOOD_GATE
+    assert _rust_f32_const(rust, "TITHE_FOOD_GATE") == pytest.approx(economy.TITHE_FOOD_GATE)

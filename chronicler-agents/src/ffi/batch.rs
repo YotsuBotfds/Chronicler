@@ -14,6 +14,7 @@ use pyo3_arrow::PyRecordBatch;
 
 use crate::agent::PERSONALITY_LABEL_THRESHOLD;
 use crate::region::RegionState;
+use super::columns::col;
 use super::schema::*;
 
 // ---------------------------------------------------------------------------
@@ -178,15 +179,7 @@ pub(crate) fn parse_civ_input_batch(rb: &RecordBatch) -> Result<Vec<CivInput>, P
     use arrow::array::{Array, UInt8Array, UInt16Array, Int32Array, Float32Array, ListArray, StringArray};
 
     let n = rb.num_rows();
-    macro_rules! col {
-        ($name:expr, $ty:ty) => {
-            rb.column_by_name($name)
-                .ok_or_else(|| PyValueError::new_err(format!("civ input missing column {}", $name)))?
-                .as_any()
-                .downcast_ref::<$ty>()
-                .ok_or_else(|| PyValueError::new_err(format!("civ input column {} wrong type", $name)))?
-        };
-    }
+    macro_rules! col { ($name:expr, $ty:ty) => { col::<$ty>(rb, $name, "civ input ")? }; }
 
     let civ_idx_col = col!("civ_idx", UInt16Array);
     let civ_name_col = col!("civ_name", StringArray);
@@ -279,23 +272,13 @@ pub(crate) fn parse_region_input_batch(rb: &RecordBatch) -> Result<Vec<RegionInp
     use arrow::array::{Array, UInt8Array, UInt16Array, ListArray};
 
     let n = rb.num_rows();
-    macro_rules! col {
-        ($name:expr, $ty:ty) => {
-            rb.column_by_name($name)
-                .ok_or_else(|| PyValueError::new_err(format!("region input missing column {}", $name)))?
-                .as_any()
-                .downcast_ref::<$ty>()
-                .ok_or_else(|| PyValueError::new_err(format!("region input column {} wrong type", $name)))?
-        };
-    }
-
-    let region_idx_col = col!("region_idx", UInt16Array);
-    let controller_col = col!("controller", UInt16Array);
-    let capacity_col = col!("carrying_capacity", UInt16Array);
-    let population_col = col!("population", UInt16Array);
-    let majority_belief_col = col!("majority_belief", UInt8Array);
-    let effective_capacity_col = col!("effective_capacity", UInt16Array);
-    let adj_list = col!("adjacencies", ListArray);
+    let region_idx_col = col::<UInt16Array>(rb, "region_idx", "region input ")?;
+    let controller_col = col::<UInt16Array>(rb, "controller", "region input ")?;
+    let capacity_col = col::<UInt16Array>(rb, "carrying_capacity", "region input ")?;
+    let population_col = col::<UInt16Array>(rb, "population", "region input ")?;
+    let majority_belief_col = col::<UInt8Array>(rb, "majority_belief", "region input ")?;
+    let effective_capacity_col = col::<UInt16Array>(rb, "effective_capacity", "region input ")?;
+    let adj_list = col::<ListArray>(rb, "adjacencies", "region input ")?;
 
     let mut regions = Vec::with_capacity(n);
     for i in 0..n {
@@ -333,15 +316,7 @@ pub(crate) fn parse_topology_batches(
 ) -> Result<PoliticsTopology, PyErr> {
     use arrow::array::{Array, UInt8Array, UInt16Array, UInt32Array, Int32Array, BooleanArray, ListArray};
 
-    macro_rules! col {
-        ($rb:expr, $name:expr, $ty:ty) => {
-            $rb.column_by_name($name)
-                .ok_or_else(|| PyValueError::new_err(format!("topology missing column {}", $name)))?
-                .as_any()
-                .downcast_ref::<$ty>()
-                .ok_or_else(|| PyValueError::new_err(format!("topology column {} wrong type", $name)))?
-        };
-    }
+    macro_rules! col { ($rb:expr, $name:expr, $ty:ty) => { col::<$ty>($rb, $name, "topology ")? }; }
 
     // Relationships
     let mut relationships = Vec::with_capacity(rel_rb.num_rows());
@@ -1242,24 +1217,13 @@ pub(crate) fn apply_patch_to_regions(
 ) -> Result<Vec<usize>, PyErr> {
     let n = batch.num_rows();
 
-    macro_rules! patch_col {
-        ($name:expr, $ty:ty) => {
-            batch
-                .column_by_name($name)
-                .ok_or_else(|| PyValueError::new_err(format!("patch missing column {}", $name)))?
-                .as_any()
-                .downcast_ref::<$ty>()
-                .ok_or_else(|| PyValueError::new_err(format!("patch column {} wrong type", $name)))?
-        };
-    }
-
-    let region_ids = patch_col!("region_id", arrow::array::UInt16Array);
-    let populations = patch_col!("population", arrow::array::UInt16Array);
-    let soils = patch_col!("soil", arrow::array::Float32Array);
-    let waters = patch_col!("water", arrow::array::Float32Array);
-    let forest_covers = patch_col!("forest_cover", arrow::array::Float32Array);
-    let terrains = patch_col!("terrain", arrow::array::UInt8Array);
-    let capacities = patch_col!("carrying_capacity", arrow::array::UInt16Array);
+    let region_ids = col::<arrow::array::UInt16Array>(batch, "region_id", "patch ")?;
+    let populations = col::<arrow::array::UInt16Array>(batch, "population", "patch ")?;
+    let soils = col::<arrow::array::Float32Array>(batch, "soil", "patch ")?;
+    let waters = col::<arrow::array::Float32Array>(batch, "water", "patch ")?;
+    let forest_covers = col::<arrow::array::Float32Array>(batch, "forest_cover", "patch ")?;
+    let terrains = col::<arrow::array::UInt8Array>(batch, "terrain", "patch ")?;
+    let capacities = col::<arrow::array::UInt16Array>(batch, "carrying_capacity", "patch ")?;
 
     let num_regions = regions.len();
     let mut recompute_indices = Vec::new();

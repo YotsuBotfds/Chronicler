@@ -9,8 +9,9 @@ import pytest
 from chronicler.accumulator import StatAccumulator
 from chronicler.economy import (
     EconomyResult, FIXED_GOODS, FOOD_GOODS, build_economy_region_input_batch,
-    build_economy_trade_route_batch, compute_economy, reconstruct_economy_result,
+    build_economy_trade_route_batch, reconstruct_economy_result,
 )
+from chronicler.economy_oracle import compute_economy
 from chronicler.models import MutualAidState, Region, WorldState
 from chronicler.mutual_aid import dispatch_mutual_aid, observe_mutual_aid, read_stockpile_commitments
 

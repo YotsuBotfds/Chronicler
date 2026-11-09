@@ -142,7 +142,7 @@ fn two_consecutive_retail_ticks_settle_once_each_and_carry_the_claims() {
 /// everyone (reviewer D's B1: the owned stock was counted before its decay).
 #[test]
 fn the_fair_share_the_economy_reports_is_on_offer_at_phase_0_7() {
-    use chronicler_agents::economy::{tick_economy_core_with_retail, EconomyConfig, EconomyRegionInput,
+    use chronicler_agents::economy::{tick_economy_core_full, EconomyConfig, EconomyExtras, EconomyRegionInput,
         HybridDeliveryInput, RegionAgentCounts, RetailRegionInput, NUM_GOODS, RETAIL_FOOD_SLOTS, SLOT_FISH,
         SLOT_GRAIN, SLOT_SALT};
     use chronicler_agents::merchant::DeliveryBuffer;
@@ -168,8 +168,9 @@ fn the_fair_share_the_economy_reports_is_on_offer_at_phase_0_7() {
                                           merchant_count: 0, wealthy_count: 0 }];
         let delivery = HybridDeliveryInput::from_buffer(&DeliveryBuffer::new(1), 1);
         let rows = [Some(RetailRegionInput { title_share: theta, owned })];
-        let economy = tick_economy_core_with_retail(&[region], &counts, &[], &[0.0], &[0], 1, &[0],
-            &EconomyConfig::default(), 1.0, false, Some(&delivery), &[], Some(&rows));
+        let economy = tick_economy_core_full(&[region], &counts, &[], &[0.0], &[0], 1, &[0],
+            &EconomyConfig::default(), 1.0, false, Some(&delivery),
+            &EconomyExtras { retail: Some(&rows), ..Default::default() });
         let result = &economy.region_results[0];
         let rt = economy.retail.as_ref().unwrap()[0].as_ref().unwrap();
         assert!(result.food_sufficiency < 1.0, "case {case} must be short");

@@ -58,6 +58,9 @@ TERRAIN_ECOLOGY_DEFAULTS: dict[str, RegionEcology] = {
     "steppe":    RegionEcology(soil=0.60, water=0.35, forest_cover=0.10),
     "jungle":    RegionEcology(soil=0.55, water=0.90, forest_cover=0.95),
     "marsh":     RegionEcology(soil=0.60, water=0.90, forest_cover=0.30),
+    # Legacy labels map to plains in Rust, `ffi_constants.TERRAIN_MAP`.
+    "hills":     RegionEcology(soil=0.90, water=0.60, forest_cover=0.20),
+    "river":     RegionEcology(soil=0.90, water=0.60, forest_cover=0.20),
 }
 
 TERRAIN_ECOLOGY_CAPS: dict[str, dict[str, float]] = {
@@ -70,6 +73,9 @@ TERRAIN_ECOLOGY_CAPS: dict[str, dict[str, float]] = {
     "steppe":    {"soil": 0.75, "water": 0.50, "forest_cover": 0.25},
     "jungle":    {"soil": 0.70, "water": 0.95, "forest_cover": 0.98},
     "marsh":     {"soil": 0.70, "water": 0.95, "forest_cover": 0.50},
+    # Legacy labels map to plains in Rust, `ffi_constants.TERRAIN_MAP`.
+    "hills":     {"soil": 0.95, "water": 0.70, "forest_cover": 0.40},
+    "river":     {"soil": 0.95, "water": 0.70, "forest_cover": 0.40},
 }
 
 _FLOOR_SOIL = 0.05

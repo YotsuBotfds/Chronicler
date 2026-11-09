@@ -6,9 +6,7 @@
 //! Without the inputs (or for a non-pilot region) every output keeps its bits.
 
 use chronicler_agents::economy::{
-    tick_economy_core, tick_economy_core_with_granary_work, tick_economy_core_with_inputs,
-    tick_economy_core_with_retail, tick_economy_core_with_woodcut, WoodcutInput,
-    EconomyConfig, EconomyOutput, EconomyRegionInput, HybridDeliveryInput, RegionAgentCounts,
+    tick_economy_core, tick_economy_core_full, EconomyExtras, WoodcutInput, EconomyConfig, EconomyOutput, EconomyRegionInput, HybridDeliveryInput, RegionAgentCounts,
     RetailRegionInput, TradeRouteInput, CAT_FOOD, GOOD_CATEGORY, NUM_GOODS, RETAIL_FOOD_SLOTS,
     SLOT_BOTANICALS, SLOT_EXOTIC, SLOT_FISH, SLOT_GRAIN, SLOT_SALT, SLOT_TIMBER,
 };
@@ -78,8 +76,8 @@ fn scenario() -> (Vec<EconomyRegionInput>, Vec<RegionAgentCounts>, Vec<TradeRout
 fn run(retail: Option<&[Option<RetailRegionInput>]>) -> EconomyOutput {
     let (regions, counts, routes, buf) = scenario();
     let delivery = HybridDeliveryInput::from_buffer(&buf, 3);
-    tick_economy_core_with_retail(&regions, &counts, &routes, &[3.0, 1.0], &[2, 1], 2, &[0, 1, 0],
-        &EconomyConfig::default(), 1.0, false, Some(&delivery), &[], retail)
+    tick_economy_core_full(&regions, &counts, &routes, &[3.0, 1.0], &[2, 1], 2, &[0, 1, 0],
+        &EconomyConfig::default(), 1.0, false, Some(&delivery), &EconomyExtras { retail, ..Default::default() })
 }
 
 fn bits(out: &EconomyOutput) -> Vec<u64> {
@@ -161,8 +159,8 @@ fn without_the_retail_inputs_every_output_keeps_its_bits() {
     let delivery = HybridDeliveryInput::from_buffer(&buf, 3);
     let plain = tick_economy_core(&regions, &counts, &routes, &[3.0, 1.0], &[2, 1], 2, &[0, 1, 0],
         &EconomyConfig::default(), 1.0, false, Some(&delivery));
-    let granary = tick_economy_core_with_granary_work(&regions, &counts, &routes, &[3.0, 1.0], &[2, 1], 2,
-        &[0, 1, 0], &EconomyConfig::default(), 1.0, false, Some(&delivery), &[]);
+    let granary = tick_economy_core_full(&regions, &counts, &routes, &[3.0, 1.0], &[2, 1], 2,
+        &[0, 1, 0], &EconomyConfig::default(), 1.0, false, Some(&delivery), &EconomyExtras::default());
     let absent = run(None);
     let no_pilot = run(Some(&[None, None, None]));
     assert!(plain.retail.is_none() && absent.retail.is_none());
@@ -198,8 +196,8 @@ fn one(stock: [f32; NUM_GOODS], pop: u32, farmers: u32, storage_population: u16,
         merchant_count: 0, wealthy_count: 0 }];
     let delivery = HybridDeliveryInput::from_buffer(&DeliveryBuffer::new(1), 1);
     let rows = [retail];
-    tick_economy_core_with_retail(&[r], &counts, &[], &[0.0], &[0], 1, &[0], &EconomyConfig::default(),
-        1.0, false, Some(&delivery), &[], retail.map(|_| &rows[..]))
+    tick_economy_core_full(&[r], &counts, &[], &[0.0], &[0], 1, &[0], &EconomyConfig::default(),
+        1.0, false, Some(&delivery), &EconomyExtras { retail: retail.map(|_| &rows[..]), ..Default::default() })
 }
 
 fn pilot(theta: f32, own: [f32; NUM_GOODS]) -> Option<RetailRegionInput> {
@@ -455,12 +453,13 @@ fn woodcutting_crews_and_retail_combine_without_touching_each_other() {
     let rows = [pilot(0.9, owned([(SLOT_GRAIN, 2.0), (SLOT_FISH, 0.0), (SLOT_SALT, 0.0), (SLOT_BOTANICALS, 0.0),
                                   (SLOT_EXOTIC, 0.0)])), None];
     let config = EconomyConfig::default();
-    let woodcut_only = tick_economy_core_with_woodcut(&regions, &counts, &[], &[0.0], &[0], 1, &[0, 0], &config, 1.0,
-        false, Some(&delivery), &[], Some(&crew));
-    let null_retail = tick_economy_core_with_inputs(&regions, &counts, &[], &[0.0], &[0], 1, &[0, 0], &config, 1.0,
-        false, Some(&delivery), &[], Some(&crew), Some(&[None, None]));
-    let both = tick_economy_core_with_inputs(&regions, &counts, &[], &[0.0], &[0], 1, &[0, 0], &config, 1.0,
-        false, Some(&delivery), &[], Some(&crew), Some(&rows));
+    let woodcut_only = tick_economy_core_full(&regions, &counts, &[], &[0.0], &[0], 1, &[0, 0], &config, 1.0,
+        false, Some(&delivery), &EconomyExtras { woodcut: Some(&crew), ..Default::default() });
+    let null_retail = tick_economy_core_full(&regions, &counts, &[], &[0.0], &[0], 1, &[0, 0], &config, 1.0,
+        false, Some(&delivery),
+        &EconomyExtras { woodcut: Some(&crew), retail: Some(&[None, None]), ..Default::default() });
+    let both = tick_economy_core_full(&regions, &counts, &[], &[0.0], &[0], 1, &[0, 0], &config, 1.0,
+        false, Some(&delivery), &EconomyExtras { woodcut: Some(&crew), retail: Some(&rows), ..Default::default() });
     assert_eq!(bits(&null_retail), bits(&woodcut_only));
     let (w, b) = (&woodcut_only.region_results, &both.region_results);
     assert!(w[1].woodcut_output > 0.0 && w[0].woodcut_labor_away_delivered == 3.0);
@@ -487,8 +486,8 @@ fn woodcutting_crews_and_retail_combine_without_touching_each_other() {
 fn the_abstract_path_is_refused() {
     let r = region(0, 0, 1.0);
     let rows = [pilot(0.9, [0.0; NUM_GOODS])];
-    tick_economy_core_with_retail(&[r], &[agents(4, 2)], &[], &[0.0], &[0], 1, &[0], &EconomyConfig::default(),
-        1.0, false, None, &[], Some(&rows));
+    tick_economy_core_full(&[r], &[agents(4, 2)], &[], &[0.0], &[0], 1, &[0], &EconomyConfig::default(),
+        1.0, false, None, &EconomyExtras { retail: Some(&rows), ..Default::default() });
 }
 
 #[test]
@@ -507,8 +506,8 @@ fn the_opening_cap_reads_the_commons_net_of_merchant_departures() {
     let delivery = HybridDeliveryInput::from_buffer(&buf, 1);
     let own = owned([(SLOT_GRAIN, 20.0), (SLOT_FISH, 0.0), (SLOT_SALT, 0.0), (SLOT_BOTANICALS, 0.0), (SLOT_EXOTIC, 0.0)]);
     let rows = [pilot(0.9, own)];
-    let out = tick_economy_core_with_retail(&[r], &counts, &[], &[0.0], &[0], 1, &[0], &EconomyConfig::default(),
-        1.0, false, Some(&delivery), &[], Some(&rows));
+    let out = tick_economy_core_full(&[r], &counts, &[], &[0.0], &[0], 1, &[0], &EconomyConfig::default(),
+        1.0, false, Some(&delivery), &EconomyExtras { retail: Some(&rows), ..Default::default() });
     let rr = &out.region_results[0];
     let rt = out.retail.as_ref().unwrap()[0].as_ref().unwrap();
     assert_eq!(out.conservation.clamp_floor_loss, 0.0);
@@ -525,8 +524,8 @@ fn the_opening_cap_reads_the_commons_net_of_merchant_departures() {
     assert!((ledger[2] + 8.0).abs() < 1e-6 && (ledger[0] - 30.0).abs() < 1e-6);
     // Without departures the cap reads the whole commons, as before.
     let none = HybridDeliveryInput::from_buffer(&DeliveryBuffer::new(1), 1);
-    let plain = tick_economy_core_with_retail(&[r_at_cap()], &counts, &[], &[0.0], &[0], 1, &[0],
-        &EconomyConfig::default(), 1.0, false, Some(&none), &[], Some(&rows));
+    let plain = tick_economy_core_full(&[r_at_cap()], &counts, &[], &[0.0], &[0], 1, &[0],
+        &EconomyConfig::default(), 1.0, false, Some(&none), &EconomyExtras { retail: Some(&rows), ..Default::default() });
     let pt = plain.retail.as_ref().unwrap()[0].as_ref().unwrap();
     assert!((pt.owned_close[SLOT_GRAIN] - carried * (10.0 / (10.0 + carried))).abs() < 1e-5);
 }

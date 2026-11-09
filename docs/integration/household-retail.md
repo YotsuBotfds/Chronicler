@@ -848,7 +848,7 @@ pilot row, owned food in a non-pilot row, and any retail column outside the hybr
 economy (`set_hybrid_economy_mode(False)`; the core also asserts this). The parsing sits
 after the L3 timber-cap columns, before any simulator mutation.
 
-**Arithmetic in a pilot region** (`tick_economy_core_with_retail`; non-pilot regions
+**Arithmetic in a pilot region** (`tick_economy_core_full` with `EconomyExtras::retail`; non-pilot regions
 and absent inputs execute none of it):
 
 - Opening (review D, B1): **before** sufficiency, the owned stock carried into the turn

@@ -113,11 +113,14 @@ const WINTER_MODIFIER: f32 = 1.5;
 const TITHE_RATE: f32 = 0.10;
 
 /// Food sufficiency threshold below which tithe collection is reduced.
-/// Matches Python economy.py H-2 food gate: `tithe_scale = min(avg_food_suff / 0.5, 1.0)`.
+/// Matches Python `economy.TITHE_FOOD_GATE` (H-2 food gate):
+/// `tithe_scale = min(avg_food_suff / TITHE_FOOD_GATE, 1.0)`.
 const TITHE_FOOD_GATE: f32 = 0.5;
 
-/// Supply floor for price computation (avoid division by zero).
-const SUPPLY_FLOOR: f32 = 0.1;
+/// Supply floor for price computation (avoid division by zero). The merchant
+/// planner's price floors (`merchant::PRICE_SUPPLY_FLOOR`,
+/// `merchant::FOOD_PRICE_SUFFICIENCY_FLOOR`) are this constant.
+pub const SUPPLY_FLOOR: f32 = 0.1;
 
 // ---------------------------------------------------------------------------
 // Config
@@ -1131,6 +1134,133 @@ fn run_abstract_allocation(
 }
 
 // ---------------------------------------------------------------------------
+// Agent-pool derivations (the FFI's tick_economy inputs)
+// ---------------------------------------------------------------------------
+
+/// Derive per-region agent counts from the live pool, one row per region.
+/// Enlisted people are not counted in population or as farmers; transit
+/// merchants count in their trip-origin region (M58a anchor counting).
+pub fn derive_region_agent_counts(
+    pool: &crate::pool::AgentPool,
+    n_regions: usize,
+    luxury_demand_threshold: f32,
+) -> Vec<RegionAgentCounts> {
+    use crate::agent::Occupation;
+    // Partition by region for efficient iteration
+    let partitioned = pool.partition_by_region(n_regions as u16);
+    let mut agent_counts: Vec<RegionAgentCounts> = Vec::with_capacity(n_regions);
+    for rid in 0..n_regions {
+        let slots = &partitioned[rid];
+        let mut population = 0u32;
+        let mut farmer_count = 0u32;
+        let mut soldier_count = 0u32;
+        let mut merchant_count = 0u32;
+        let mut wealthy_count = 0u32;
+        for &slot in slots {
+            if !pool.enlisted(slot) { population += 1; }
+            match Occupation::from_u8(pool.occupation(slot)) {
+                Some(Occupation::Farmer) if !pool.enlisted(slot) => farmer_count += 1,
+                Some(Occupation::Soldier) => soldier_count += 1,
+                Some(Occupation::Merchant) => {
+                    // M58a: Transit merchants counted by origin region in second pass
+                    if pool.trip_phase[slot] == crate::agent::TRIP_PHASE_TRANSIT {
+                        // Don't count here — counted by origin region below
+                    } else {
+                        merchant_count += 1;
+                    }
+                }
+                _ => {}
+            }
+            if pool.wealth[slot] > luxury_demand_threshold {
+                wealthy_count += 1;
+            }
+        }
+        agent_counts.push(RegionAgentCounts {
+            population,
+            farmer_count,
+            soldier_count,
+            merchant_count,
+            wealthy_count,
+        });
+    }
+
+    // M58a: Second pass — count transit merchants by their origin region (anchor counting)
+    for slot in 0..pool.capacity() {
+        if !pool.is_alive(slot) { continue; }
+        if pool.trip_phase[slot] != crate::agent::TRIP_PHASE_TRANSIT { continue; }
+        if pool.occupations[slot] != Occupation::Merchant as u8 { continue; }
+        let origin = pool.trip_origin_region[slot] as usize;
+        if origin < agent_counts.len() {
+            agent_counts[origin].merchant_count += 1;
+        }
+    }
+    agent_counts
+}
+
+/// Per-civ fiscal inputs derived from the live pool and region controllers.
+pub struct CivFiscalInputs {
+    /// Civs controlling at least one region, ascending.
+    pub active_civ_ids: Vec<u8>,
+    /// One past the highest active civ id (0 with none).
+    pub n_civs: usize,
+    /// Summed merchant wealth per civ id (slot order); 0.0 for inactive civs.
+    pub merchant_wealth: Vec<f32>,
+    /// Priest count per civ id; 0 for inactive civs.
+    pub priest_count: Vec<u32>,
+}
+
+/// Derive per-civ merchant wealth and priest count.
+///
+/// Match Python's "living civ" semantics: fiscal outputs are keyed to civs
+/// that currently control at least one region, not every affinity present
+/// in the live pool. This keeps zero-agent controller civs explicit at 0.0
+/// and prevents Phase 10 from falling back to stale trade_income values.
+pub fn derive_civ_fiscal_inputs(
+    pool: &crate::pool::AgentPool,
+    regions: &[crate::region::RegionState],
+) -> CivFiscalInputs {
+    use crate::agent::Occupation;
+    let mut active_civ_flags = [false; 256];
+    let mut active_civ_ids: Vec<u8> = Vec::new();
+    let mut max_active_civ: Option<u8> = None;
+    for region in regions {
+        let civ = region.controller_civ;
+        if civ == 255 || active_civ_flags[civ as usize] {
+            continue;
+        }
+        active_civ_flags[civ as usize] = true;
+        active_civ_ids.push(civ);
+        max_active_civ = Some(max_active_civ.map_or(civ, |prev| prev.max(civ)));
+    }
+    active_civ_ids.sort_unstable();
+
+    let n_civs = max_active_civ.map_or(0, |max_civ| max_civ as usize + 1);
+
+    let mut civ_merchant_wealth = vec![0.0f32; n_civs];
+    let mut civ_priest_count = vec![0u32; n_civs];
+    for slot in 0..pool.capacity() {
+        if !pool.is_alive(slot) { continue; }
+        let ca = pool.civ_affinity(slot) as usize;
+        if ca >= n_civs || !active_civ_flags[ca] { continue; }
+        match Occupation::from_u8(pool.occupation(slot)) {
+            Some(Occupation::Merchant) => {
+                civ_merchant_wealth[ca] += pool.wealth[slot];
+            }
+            Some(Occupation::Priest) => {
+                civ_priest_count[ca] += 1;
+            }
+            _ => {}
+        }
+    }
+    CivFiscalInputs {
+        active_civ_ids,
+        n_civs,
+        merchant_wealth: civ_merchant_wealth,
+        priest_count: civ_priest_count,
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Core tick function
 // ---------------------------------------------------------------------------
 
@@ -1154,119 +1284,45 @@ pub fn tick_economy_core(
     is_winter: bool,
     hybrid_delivery: Option<&HybridDeliveryInput>,
 ) -> EconomyOutput {
-    tick_economy_core_with_granary_work(region_inputs, agent_counts, routes,
-        civ_merchant_wealth, civ_priest_count, n_civs, region_civ_owner, config,
-        trade_friction, is_winter, hybrid_delivery, &[])
-}
-
-/// The optional request reserves aggregate land-work after city and care
-/// adjustments. This does not select people or imply a worker roster.
-pub fn tick_economy_core_with_granary_work(
-    region_inputs: &[EconomyRegionInput],
-    agent_counts: &[RegionAgentCounts],
-    routes: &[TradeRouteInput],
-    civ_merchant_wealth: &[f32],
-    civ_priest_count: &[u32],
-    n_civs: usize,
-    region_civ_owner: &[u8],
-    config: &EconomyConfig,
-    trade_friction: f32,
-    is_winter: bool,
-    hybrid_delivery: Option<&HybridDeliveryInput>,
-    granary_work_requested: &[f32],
-) -> EconomyOutput {
-    tick_economy_core_with_inputs(region_inputs, agent_counts, routes, civ_merchant_wealth,
-        civ_priest_count, n_civs, region_civ_owner, config, trade_friction, is_winter, hybrid_delivery,
-        granary_work_requested, None, None)
-}
-
-/// [`tick_economy_core_with_granary_work`] with PL1 woodcutting crews
-/// (`None`: every output exactly as without them).
-#[allow(clippy::too_many_arguments)]
-pub fn tick_economy_core_with_woodcut(
-    region_inputs: &[EconomyRegionInput],
-    agent_counts: &[RegionAgentCounts],
-    routes: &[TradeRouteInput],
-    civ_merchant_wealth: &[f32],
-    civ_priest_count: &[u32],
-    n_civs: usize,
-    region_civ_owner: &[u8],
-    config: &EconomyConfig,
-    trade_friction: f32,
-    is_winter: bool,
-    hybrid_delivery: Option<&HybridDeliveryInput>,
-    granary_work_requested: &[f32],
-    woodcut: Option<&WoodcutInput>,
-) -> EconomyOutput {
-    tick_economy_core_with_inputs(region_inputs, agent_counts, routes, civ_merchant_wealth,
-        civ_priest_count, n_civs, region_civ_owner, config, trade_friction, is_winter, hybrid_delivery,
-        granary_work_requested, woodcut, None)
-}
-
-/// Livelihoods L6b household retail: `retail` (per region in input order,
-/// `Some` for a pilot region) splits each pilot region's food production
-/// into the titled share θ (owned stock) and the commons, counts owned stock
-/// in availability, prices and sufficiency, draws consumption from the
-/// commons only, and applies decay and the per-good cap to the owned stock
-/// carried into the turn before sufficiency is derived, with the per-good cap
-/// enforced once on both pools together at opening (`RetailOpening`;
-/// the commons decay after consumption and are capped at close, as in every
-/// region). `None`, or `None` for a region, executes none of that
-/// arithmetic. Hybrid economy only: the abstract path is refused.
-#[allow(clippy::too_many_arguments)]
-pub fn tick_economy_core_with_retail(
-    region_inputs: &[EconomyRegionInput],
-    agent_counts: &[RegionAgentCounts],
-    routes: &[TradeRouteInput],
-    civ_merchant_wealth: &[f32],
-    civ_priest_count: &[u32],
-    n_civs: usize,
-    region_civ_owner: &[u8],
-    config: &EconomyConfig,
-    trade_friction: f32,
-    is_winter: bool,
-    hybrid_delivery: Option<&HybridDeliveryInput>,
-    granary_work_requested: &[f32],
-    retail: Option<&[Option<RetailRegionInput>]>,
-) -> EconomyOutput {
-    tick_economy_core_with_inputs(region_inputs, agent_counts, routes, civ_merchant_wealth,
-        civ_priest_count, n_civs, region_civ_owner, config, trade_friction, is_winter, hybrid_delivery,
-        granary_work_requested, None, retail)
-}
-
-/// The economy tick with PL1 woodcutting crews and L6b household retail
-/// (each `None`: none of its arithmetic runs).
-#[allow(clippy::too_many_arguments)]
-pub fn tick_economy_core_with_inputs(
-    region_inputs: &[EconomyRegionInput],
-    agent_counts: &[RegionAgentCounts],
-    routes: &[TradeRouteInput],
-    civ_merchant_wealth: &[f32],
-    civ_priest_count: &[u32],
-    n_civs: usize,
-    region_civ_owner: &[u8],
-    config: &EconomyConfig,
-    trade_friction: f32,
-    is_winter: bool,
-    hybrid_delivery: Option<&HybridDeliveryInput>,
-    granary_work_requested: &[f32],
-    woodcut: Option<&WoodcutInput>,
-    retail: Option<&[Option<RetailRegionInput>]>,
-) -> EconomyOutput {
     tick_economy_core_full(region_inputs, agent_counts, routes, civ_merchant_wealth, civ_priest_count, n_civs,
-        region_civ_owner, config, trade_friction, is_winter, hybrid_delivery, granary_work_requested, woodcut,
-        retail, None)
+        region_civ_owner, config, trade_friction, is_winter, hybrid_delivery, &EconomyExtras::default())
 }
 
-/// The economy tick with every optional input, adding A3-2's
-/// `workshop_owned` (per region in input order, `Some(firm inventory)` for a
-/// region whose workshop firm holds its own output, in loads): that region's
-/// crafted wares are reported in `craft_output` and counted in production
-/// but never enter the commons stockpile (the people's free draw and
-/// merchants cannot take them; Python adds them to the firm's inventory), and
-/// the firm's inventory at opening counts in the wares supply for prices
-/// only. `None`, or `None` for a region, executes none of that arithmetic.
-/// Hybrid economy only.
+/// The economy tick's optional inputs. `EconomyExtras::default()` (no
+/// granary request, every option `None`) executes none of their arithmetic:
+/// every output is exactly as from [`tick_economy_core`].
+#[derive(Clone, Copy, Default)]
+pub struct EconomyExtras<'a> {
+    /// Aggregate land-work reserved for granary work after city and care
+    /// adjustments, one value per region in input order (empty: none). This
+    /// does not select people or imply a worker roster.
+    pub granary_work_requested: &'a [f32],
+    /// PL1 woodcutting crews (`None`: every output exactly as without them).
+    pub woodcut: Option<&'a WoodcutInput<'a>>,
+    /// Livelihoods L6b household retail: `retail` (per region in input order,
+    /// `Some` for a pilot region) splits each pilot region's food production
+    /// into the titled share θ (owned stock) and the commons, counts owned
+    /// stock in availability, prices and sufficiency, draws consumption from
+    /// the commons only, and applies decay and the per-good cap to the owned
+    /// stock carried into the turn before sufficiency is derived, with the
+    /// per-good cap enforced once on both pools together at opening
+    /// (`RetailOpening`; the commons decay after consumption and are capped
+    /// at close, as in every region). `None`, or `None` for a region,
+    /// executes none of that arithmetic. Hybrid economy only: the abstract
+    /// path is refused.
+    pub retail: Option<&'a [Option<RetailRegionInput>]>,
+    /// A3-2's `workshop_owned` (per region in input order, `Some(firm
+    /// inventory)` for a region whose workshop firm holds its own output, in
+    /// loads): that region's crafted wares are reported in `craft_output` and
+    /// counted in production but never enter the commons stockpile (the
+    /// people's free draw and merchants cannot take them; Python adds them to
+    /// the firm's inventory), and the firm's inventory at opening counts in
+    /// the wares supply for prices only. `None`, or `None` for a region,
+    /// executes none of that arithmetic. Hybrid economy only.
+    pub workshop_owned: Option<&'a [Option<f32>]>,
+}
+
+/// The economy tick with every optional input ([`EconomyExtras`]).
 #[allow(clippy::too_many_arguments)]
 pub fn tick_economy_core_full(
     region_inputs: &[EconomyRegionInput],
@@ -1280,11 +1336,9 @@ pub fn tick_economy_core_full(
     trade_friction: f32,
     is_winter: bool,
     hybrid_delivery: Option<&HybridDeliveryInput>,
-    granary_work_requested: &[f32],
-    woodcut: Option<&WoodcutInput>,
-    retail: Option<&[Option<RetailRegionInput>]>,
-    workshop_owned: Option<&[Option<f32>]>,
+    extras: &EconomyExtras,
 ) -> EconomyOutput {
+    let EconomyExtras { granary_work_requested, woodcut, retail, workshop_owned } = *extras;
     assert!(workshop_owned.is_none_or(|w| w.len() == region_inputs.len()), "workshop rows must match the regions");
     assert!(workshop_owned.is_none() || hybrid_delivery.is_some(), "owned workshop output requires the hybrid economy");
     assert!(workshop_owned.is_none_or(|w| w.iter().flatten().all(|v| v.is_finite() && *v >= 0.0)),
@@ -2457,9 +2511,10 @@ mod tests {
         let mut region = city_market_region(0.4, 0.0); // 10 * .5 city - 1 care
         let counts = [RegionAgentCounts { population: 10, farmer_count: 10,
             soldier_count: 0, merchant_count: 0, wealthy_count: 0 }];
-        let run = |requests: &[f32], r: &EconomyRegionInput| tick_economy_core_with_granary_work(
+        let run = |requests: &[f32], r: &EconomyRegionInput| tick_economy_core_full(
             std::slice::from_ref(r), &counts, &[], &[0.0], &[0], 1, &[0],
-            &EconomyConfig::default(), 1.0, false, None, requests);
+            &EconomyConfig::default(), 1.0, false, None,
+            &EconomyExtras { granary_work_requested: requests, ..Default::default() });
         for curves in [false, true] {
             region.slot_curves = curves;
             let base = run(&[], &region);
@@ -2493,8 +2548,9 @@ mod tests {
         assert!((forage.region_results[0].forage_output - 0.8).abs() < 1e-6);
         let no_farmers = [RegionAgentCounts { population: 10, farmer_count: 0,
             soldier_count: 0, merchant_count: 0, wealthy_count: 0 }];
-        let no = tick_economy_core_with_granary_work(&[region], &no_farmers, &[], &[0.0], &[0],
-            1, &[0], &EconomyConfig::default(), 1.0, false, None, &[3.0]);
+        let no = tick_economy_core_full(&[region], &no_farmers, &[], &[0.0], &[0],
+            1, &[0], &EconomyConfig::default(), 1.0, false, None,
+            &EconomyExtras { granary_work_requested: &[3.0], ..Default::default() });
         assert_eq!(no.region_results[0].granary_work_delivered, 0.0);
     }
 
@@ -2930,8 +2986,9 @@ mod woodcut_tests {
     fn run_with(regions: &[EconomyRegionInput], home_farmers: u32, requests: &[f32],
                 woodcut: Option<(&[f32], &[f32])>) -> EconomyOutput {
         let input = woodcut.map(|(labor_away, labor)| WoodcutInput { labor_away, labor });
-        tick_economy_core_with_woodcut(regions, &counts(home_farmers), &[], &[0.0], &[0], 1, &[0, 0],
-            &EconomyConfig::default(), 1.0, false, None, requests, input.as_ref())
+        tick_economy_core_full(regions, &counts(home_farmers), &[], &[0.0], &[0], 1, &[0, 0],
+            &EconomyConfig::default(), 1.0, false, None,
+            &EconomyExtras { granary_work_requested: requests, woodcut: input.as_ref(), ..Default::default() })
     }
 
     fn run(regions: &[EconomyRegionInput], requests: &[f32], woodcut: Option<(&[f32], &[f32])>) -> EconomyOutput {
@@ -2987,8 +3044,9 @@ mod woodcut_tests {
         for curves in [false, true] {
             let r = regions(curves);
             for requests in [&[][..], &[3.0, 0.0][..]] {
-                let legacy = tick_economy_core_with_granary_work(&r, &counts(12), &[], &[0.0], &[0], 1, &[0, 0],
-                    &EconomyConfig::default(), 1.0, false, None, requests);
+                let legacy = tick_economy_core_full(&r, &counts(12), &[], &[0.0], &[0], 1, &[0, 0],
+                    &EconomyConfig::default(), 1.0, false, None,
+                    &EconomyExtras { granary_work_requested: requests, ..Default::default() });
                 let absent = run(&r, requests, None);
                 let zero = run(&r, requests, Some((&[0.0, 0.0], &[0.0, 0.0])));
                 assert_same_bits(&legacy, &absent);
@@ -3052,9 +3110,10 @@ mod woodcut_tests {
         let mut nobody = counts(12);
         nobody[1] = RegionAgentCounts { population: 0, farmer_count: 0, soldier_count: 0, merchant_count: 0,
                                         wealthy_count: 0 };
-        let empty = tick_economy_core_with_woodcut(&regions(true), &nobody, &[], &[0.0], &[0], 1, &[0, 0],
-            &EconomyConfig::default(), 1.0, false, None, &[],
-            Some(&WoodcutInput { labor_away: &[0.0, 0.0], labor: &[0.0, crew] }));
+        let empty = tick_economy_core_full(&regions(true), &nobody, &[], &[0.0], &[0], 1, &[0, 0],
+            &EconomyConfig::default(), 1.0, false, None,
+            &EconomyExtras { woodcut: Some(&WoodcutInput { labor_away: &[0.0, 0.0], labor: &[0.0, crew] }),
+                ..Default::default() });
         let e = &empty.region_results[1];
         assert!((e.woodcut_output - 2.0 * effective_farm_labor(crew, 10.0, 10.0)).abs() < 1e-5);
         assert_eq!(e.slot_output[1], e.woodcut_output);
@@ -3163,10 +3222,11 @@ mod workshop_owned_tests {
         let hybrid = HybridDeliveryInput::from_buffer(&buf, 1);
         let rows = owned.map(|v| vec![v]);
         match rows {
-            None => tick_economy_core_with_inputs(&[r], &agents, &[], &[0.0], &[0], 1, &[0u8],
-                &EconomyConfig::default(), 1.0, false, Some(&hybrid), &[], None, None),
+            None => tick_economy_core_full(&[r], &agents, &[], &[0.0], &[0], 1, &[0u8],
+                &EconomyConfig::default(), 1.0, false, Some(&hybrid), &EconomyExtras::default()),
             Some(rows) => tick_economy_core_full(&[r], &agents, &[], &[0.0], &[0], 1, &[0u8],
-                &EconomyConfig::default(), 1.0, false, Some(&hybrid), &[], None, None, Some(&rows)),
+                &EconomyConfig::default(), 1.0, false, Some(&hybrid),
+                &EconomyExtras { workshop_owned: Some(&rows), ..Default::default() }),
         }
     }
 
@@ -3213,5 +3273,103 @@ mod workshop_owned_tests {
     #[should_panic(expected = "a firm's inventory must be finite and nonnegative")]
     fn a_negative_inventory_is_refused() {
         run(Some(Some(-1.0)));
+    }
+}
+
+#[cfg(test)]
+mod derivation_tests {
+    //! The FFI's agent-pool derivations against a hand-built pool.
+    use super::*;
+    use crate::agent::{Occupation, TRIP_PHASE_TRANSIT};
+    use crate::enlisted_service::EnlistedService;
+    use crate::pool::AgentPool;
+    use crate::region::RegionState;
+
+    fn spawn(pool: &mut AgentPool, region: u16, civ: u8, occ: Occupation, wealth: f32) -> usize {
+        let slot = pool.spawn(region, civ, occ, 30, 0.5, 0.5, 0.5, 0, 1, 2, 255);
+        pool.wealth[slot] = wealth;
+        slot
+    }
+
+    fn transit(pool: &mut AgentPool, slot: usize, origin: u16) {
+        pool.trip_phase[slot] = TRIP_PHASE_TRANSIT;
+        pool.trip_origin_region[slot] = origin;
+    }
+
+    /// Region 0 (civ 1): two farmers, an enlisted farmer, a soldier, a
+    /// resident merchant, a priest, and a dead merchant.
+    /// Region 1 (civ 3): a transit merchant from region 0, a wealthy farmer,
+    /// two priests, a merchant of the inactive civ 2, a wealthy soldier.
+    /// Region 2 (no controller): a transit merchant whose origin is out of
+    /// range, a scholar of civ 5 (beyond the active civs).
+    fn pool() -> AgentPool {
+        let mut pool = AgentPool::new(4);
+        spawn(&mut pool, 0, 1, Occupation::Farmer, 1.0);
+        spawn(&mut pool, 0, 1, Occupation::Farmer, 1.0);
+        let enlisted = spawn(&mut pool, 0, 1, Occupation::Farmer, 1.0);
+        spawn(&mut pool, 0, 1, Occupation::Soldier, 1.0);
+        spawn(&mut pool, 0, 1, Occupation::Merchant, 10.0);
+        spawn(&mut pool, 0, 1, Occupation::Priest, 1.0);
+        let dead = spawn(&mut pool, 0, 1, Occupation::Merchant, 40.0);
+        let mover = spawn(&mut pool, 1, 3, Occupation::Merchant, 2.5);
+        transit(&mut pool, mover, 0);
+        spawn(&mut pool, 1, 3, Occupation::Farmer, 50.0);
+        spawn(&mut pool, 1, 3, Occupation::Priest, 1.0);
+        spawn(&mut pool, 1, 3, Occupation::Priest, 1.0);
+        spawn(&mut pool, 1, 2, Occupation::Merchant, 7.0);
+        spawn(&mut pool, 1, 3, Occupation::Soldier, 30.0);
+        let lost = spawn(&mut pool, 2, 3, Occupation::Merchant, 4.0);
+        transit(&mut pool, lost, 7);
+        spawn(&mut pool, 2, 5, Occupation::Scholar, 1.0);
+        pool.kill(dead);
+        pool.enlisted_service = Some(EnlistedService {
+            turn: 0, rows: vec![(pool.ids[enlisted], 0.5)], suppress_war_mortality: false });
+        pool
+    }
+
+    fn counts(c: &RegionAgentCounts) -> [u32; 5] {
+        [c.population, c.farmer_count, c.soldier_count, c.merchant_count, c.wealthy_count]
+    }
+
+    #[test]
+    fn region_agent_counts_skip_enlisted_and_anchor_transit_merchants() {
+        let rows = derive_region_agent_counts(&pool(), 3, 20.0);
+        let got: Vec<[u32; 5]> = rows.iter().map(counts).collect();
+        // [population, farmers, soldiers, merchants, wealthy]
+        assert_eq!(got, vec![
+            [5, 2, 1, 2, 0], // resident + transit-origin merchant; enlisted farmer excluded
+            [6, 1, 1, 1, 2], // the transit merchant counts at its origin, not here
+            [2, 0, 0, 0, 0], // the out-of-range origin is not counted anywhere
+        ]);
+    }
+
+    #[test]
+    fn region_agent_counts_cover_only_the_requested_regions() {
+        let rows = derive_region_agent_counts(&pool(), 1, 0.0);
+        assert_eq!(rows.iter().map(counts).collect::<Vec<_>>(), vec![[5, 2, 1, 2, 6]]);
+        assert!(derive_region_agent_counts(&pool(), 0, 0.0).is_empty());
+    }
+
+    #[test]
+    fn civ_fiscal_inputs_are_keyed_to_controlling_civs() {
+        let mut regions: Vec<RegionState> = (0..4).map(RegionState::new).collect();
+        regions[0].controller_civ = 3;
+        regions[1].controller_civ = 1;
+        regions[3].controller_civ = 3;
+        let fiscal = derive_civ_fiscal_inputs(&pool(), &regions);
+        assert_eq!(fiscal.active_civ_ids, vec![1, 3]);
+        assert_eq!(fiscal.n_civs, 4);
+        // Civ 2's merchant and civ 5's scholar are not active; the dead merchant is gone.
+        assert_eq!(fiscal.merchant_wealth, vec![0.0, 10.0, 0.0, 6.5]);
+        assert_eq!(fiscal.priest_count, vec![0, 1, 0, 2]);
+    }
+
+    #[test]
+    fn civ_fiscal_inputs_are_empty_without_controllers() {
+        let regions: Vec<RegionState> = (0..2).map(RegionState::new).collect();
+        let fiscal = derive_civ_fiscal_inputs(&pool(), &regions);
+        assert!(fiscal.active_civ_ids.is_empty());
+        assert_eq!(fiscal.n_civs, 0);
+        assert!(fiscal.merchant_wealth.is_empty() && fiscal.priest_count.is_empty());
     }
 }

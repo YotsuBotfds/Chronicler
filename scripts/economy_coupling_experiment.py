@@ -26,9 +26,10 @@ from chronicler.ecology import _check_famine_yield, harvest_normal_index, refres
 from chronicler.experimental.fisheries import economy_yield
 from chronicler.economy import (
     CATEGORIES, FIXED_GOODS, build_economy_region_input_batch,
-    build_economy_trade_route_batch, compute_allocated_production, compute_economy,
+    build_economy_trade_route_batch, compute_allocated_production,
     reconstruct_economy_result,
 )
+from chronicler.economy_oracle import compute_economy
 from chronicler.models import (
     Civilization, ClimatePhase, Leader, Region, RegionEcology, RegionStockpile,
     WorldState,

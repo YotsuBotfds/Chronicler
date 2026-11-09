@@ -13,8 +13,9 @@ import pyarrow as pa
 
 from chronicler.economy import (
     FOOD_GOODS, build_economy_region_input_batch, build_economy_trade_route_batch,
-    compute_economy, reconstruct_economy_result,
+    reconstruct_economy_result,
 )
+from chronicler.economy_oracle import compute_economy
 from chronicler.models import Civilization, Leader, Region, WorldState
 from chronicler.mutual_aid import dispatch_mutual_aid, observe_mutual_aid, read_stockpile_commitments
 

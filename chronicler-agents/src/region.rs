@@ -12,6 +12,7 @@ pub enum Terrain {
 
 #[allow(dead_code)]
 impl Terrain {
+    #[cfg(test)]
     pub fn from_u8(v: u8) -> Option<Self> {
         match v {
             0 => Some(Self::Plains), 1 => Some(Self::Mountains), 2 => Some(Self::Coast),
@@ -252,6 +253,7 @@ impl RegionState {
     }
 
     /// True when `region_id` is in the adjacency list.
+    #[cfg(test)]
     #[inline]
     pub fn is_adjacent_to(&self, region_id: u16) -> bool {
         self.adjacency.binary_search(&region_id).is_ok()

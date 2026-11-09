@@ -78,6 +78,7 @@ from __future__ import annotations
 import math
 from typing import TYPE_CHECKING
 
+from chronicler.economy import _SUPPLY_FLOOR as PRICE_SUPPLY_FLOOR  # the economy's food-price supply floor
 from chronicler.grain_reserves_state import (
     ABANDONED, ARRIVED, BOUGHT, CAPTURED, CONVOY_ARRIVED, COUNTER_KEYS, DISPATCHED, FLOW_KINDS, RELEASED, SEIZED, SPOILED, STORAGE_RETURNED, GrainReserveState, Granary,
     ReserveFlow, grain_reserves_on,
@@ -107,7 +108,6 @@ BUDGET_SHARE = 0.10        # share of the treasury above the floor spent in a tu
 TREASURY_FLOOR = 20        # a ruler with less buys nothing
 RELEASE_TO = 1.0           # a release covers the need up to this food sufficiency
 EVENT_SHARE = 0.1          # an opening is an event once a turn's release feeds this share of the need
-PRICE_SUPPLY_FLOOR = 0.1   # the economy's SUPPLY_FLOOR in its food price
 EPS = 1e-9
 DUST = 1e-6                # grain below this spoils at once (no endless crumbs)
 GRAIN = "grain"
