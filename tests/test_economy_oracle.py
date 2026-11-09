@@ -15,8 +15,8 @@ from chronicler.economy import (
     FIXED_GOODS,
     build_economy_region_input_batch,
     build_economy_trade_route_batch,
-    compute_economy,
 )
+from chronicler.economy_oracle import compute_economy
 from chronicler.models import Region, RegionStockpile
 
 
@@ -314,3 +314,35 @@ def test_economy_result_overwrites_each_turn():
     # The stashed result should be t2, not accumulated from t1
     assert world._economy_result is result_t2
     assert world._economy_result is not result_t1
+
+
+# ---------------------------------------------------------------------------
+# Module boundary (CON-7)
+# ---------------------------------------------------------------------------
+
+def test_oracle_module_exposes_every_oracle_name():
+    """Every oracle name resolves, and only the oracle module imports compute_economy."""
+    import ast
+    from pathlib import Path
+
+    from chronicler import economy_oracle
+
+    assert economy_oracle.__all__
+    for name in economy_oracle.__all__:
+        assert callable(getattr(economy_oracle, name)), name
+
+    src_root = Path(__file__).resolve().parents[1] / "src" / "chronicler"
+    importers = []
+    for path in sorted(src_root.rglob("*.py")):
+        rel = path.relative_to(src_root).as_posix()
+        if rel == "economy_oracle.py":
+            continue
+        tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+        for node in ast.walk(tree):
+            if isinstance(node, ast.ImportFrom) and any(
+                alias.name == "compute_economy" for alias in node.names
+            ):
+                importers.append(f"{rel}:{node.lineno}")
+            elif isinstance(node, ast.Attribute) and node.attr == "compute_economy":
+                importers.append(f"{rel}:{node.lineno}")
+    assert importers == []
