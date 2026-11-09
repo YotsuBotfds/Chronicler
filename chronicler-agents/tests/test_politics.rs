@@ -1,6 +1,6 @@
 //! Integration tests for the pure Rust politics core.
 //!
-//! Covers the 11-step Phase 10 political consequence pass,
+//! Covers the 10-step Phase 10 political consequence pass,
 //! matching the Python oracle behavior in `src/chronicler/politics.py`.
 
 use chronicler_agents::politics::*;
@@ -1144,78 +1144,44 @@ fn test_twilight_absorption_updates_absorber_viability_same_step() {
 }
 
 // ---------------------------------------------------------------------------
-// Step 11: Forced collapse
+// Forced collapse is not computed in Rust (COR-7)
 // ---------------------------------------------------------------------------
 
+/// The forced collapse runs in Python after `apply_asabiya_dynamics`; the
+/// Rust pass must not emit any step-11 op, strip op or collapse event, even
+/// for a civ that meets the collapse condition (asabiya < 0.1, stability <= 20,
+/// more than one region).
 #[test]
-fn test_forced_collapse_regions_first_and_integer_division() {
+fn test_forced_collapse_not_computed_in_rust() {
     let regions = make_3_regions([0, 0, 0]);
-
-    let mut civ0 = make_civ(0, vec![0, 1, 2]);
-    civ0.asabiya = 0.05; // < 0.1
-    civ0.stability = 15; // <= 20
-    civ0.military = 51; // 51 // 2 = 25
-    civ0.economy = 33; // 33 // 2 = 16
-
     let config = default_config();
     let topo = default_topology();
 
-    let result = run_politics_pass(&[civ0], &regions, &topo, &config, 100, 42, false);
+    for hybrid_mode in [false, true] {
+        for seed in 0..20u64 {
+            let mut civ0 = make_civ(0, vec![0, 1, 2]);
+            civ0.asabiya = 0.05;
+            civ0.stability = 15;
+            civ0.military = 51;
+            civ0.economy = 33;
 
-    // Should strip to first region
-    let strip_op = result.civ_ops.iter().find(|op| op.op_type == CivOpType::StripToFirstRegion);
-    assert!(strip_op.is_some(), "Should have StripToFirstRegion op");
-
-    let strip = strip_op.unwrap();
-    assert_eq!(strip.regions, vec![0], "Should keep regions[:1] = first listed region");
-
-    // Verify integer division (not severity multiplier)
-    // military goes from 51 to 25 (51//2), delta = -26
-    // economy goes from 33 to 16 (33//2), delta = -17
-    let mil_effect = result.civ_effects.iter().find(|e| e.field == "military" && e.step == 11);
-    assert!(mil_effect.is_some(), "Should have military effect");
-    let mil = mil_effect.unwrap();
-    assert_eq!(mil.delta_i, 25 - 51, "Military should use integer division: 51//2=25, delta=-26");
-
-    let eco_effect = result.civ_effects.iter().find(|e| e.field == "economy" && e.step == 11);
-    assert!(eco_effect.is_some(), "Should have economy effect");
-    let eco = eco_effect.unwrap();
-    assert_eq!(eco.delta_i, 16 - 33, "Economy should use integer division: 33//2=16, delta=-17");
-
-    // Verify lost regions get nullified controllers
-    assert!(
-        result.region_ops.iter().filter(|op| op.op_type == RegionOpType::NullifyController).count() == 2,
-        "Should nullify 2 lost regions"
-    );
-
-    // Verify collapse event
-    assert!(
-        result.events.iter().any(|e| e.event_type == "collapse"),
-        "Should emit collapse event"
-    );
-}
-
-#[test]
-fn test_forced_collapse_hybrid_mode_shocks() {
-    let regions = make_3_regions([0, 0, 0]);
-
-    let mut civ0 = make_civ(0, vec![0, 1, 2]);
-    civ0.asabiya = 0.05;
-    civ0.stability = 15;
-    civ0.military = 50;
-    civ0.economy = 30;
-
-    let config = default_config();
-    let topo = default_topology();
-
-    let result = run_politics_pass(&[civ0], &regions, &topo, &config, 100, 42, true);
-
-    // In hybrid mode, should use HybridShock with -0.5
-    let mil_effect = result.civ_effects.iter().find(|e| e.field == "military" && e.step == 11);
-    assert!(mil_effect.is_some());
-    let mil = mil_effect.unwrap();
-    assert_eq!(mil.routing, EffectRouting::HybridShock);
-    assert!((mil.delta_f - (-0.5)).abs() < 0.001, "Hybrid shock should be -0.5");
+            let result = run_politics_pass(&[civ0], &regions, &topo, &config, 100, seed, hybrid_mode);
+            let ctx = format!("hybrid={} seed={}", hybrid_mode, seed);
+            assert!(result.civ_ops.iter().all(|op| op.step <= 10), "{}: civ op after step 10", ctx);
+            assert!(result.region_ops.iter().all(|op| op.step <= 10), "{}: region op after step 10", ctx);
+            assert!(result.civ_effects.iter().all(|e| e.step <= 10), "{}: civ effect after step 10", ctx);
+            assert!(result.events.iter().all(|e| e.step <= 10), "{}: event after step 10", ctx);
+            assert!(result.bookkeeping.iter().all(|b| b.step <= 10), "{}: bookkeeping after step 10", ctx);
+            assert!(
+                !result.civ_ops.iter().any(|op| op.op_type == CivOpType::StripToFirstRegion),
+                "{}: StripToFirstRegion must not be emitted", ctx
+            );
+            assert!(
+                !result.events.iter().any(|e| e.event_type == "collapse"),
+                "{}: collapse event must not be emitted", ctx
+            );
+        }
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -1304,7 +1270,7 @@ fn test_step_ordering_monotonic() {
     civ0.military = 100;
     civ0.economy = 100;
     civ0.treasury = 100;
-    civ0.asabiya = 0.05; // triggers forced collapse too
+    civ0.asabiya = 0.05; // collapse condition: Rust must not emit the collapse (Python runs it)
 
     let config = default_config();
     let topo = default_topology();
@@ -1529,7 +1495,7 @@ fn test_result_ops_all_have_step_seq() {
     civ0.military = 100;
     civ0.economy = 100;
     civ0.treasury = 100;
-    civ0.asabiya = 0.05; // triggers forced collapse
+    civ0.asabiya = 0.05; // collapse condition: Rust must not emit the collapse (Python runs it)
 
     let config = default_config();
     let topo = default_topology();
@@ -1538,27 +1504,27 @@ fn test_result_ops_all_have_step_seq() {
     for s in 0..50u64 {
         let result = run_politics_pass(&[civ0.clone()], &regions, &topo, &config, 100, s, false);
 
-        // All op families should have step fields that are 1..=11
+        // All op families should have step fields that are 1..=10
         for op in &result.civ_ops {
-            assert!((1..=11).contains(&op.step), "CivOp step out of range: {}", op.step);
+            assert!((1..=10).contains(&op.step), "CivOp step out of range: {}", op.step);
         }
         for op in &result.region_ops {
-            assert!((1..=11).contains(&op.step), "RegionOp step out of range: {}", op.step);
+            assert!((1..=10).contains(&op.step), "RegionOp step out of range: {}", op.step);
         }
         for op in &result.relationship_ops {
-            assert!((1..=11).contains(&op.step), "RelOp step out of range: {}", op.step);
+            assert!((1..=10).contains(&op.step), "RelOp step out of range: {}", op.step);
         }
         for op in &result.federation_ops {
-            assert!((1..=11).contains(&op.step), "FedOp step out of range: {}", op.step);
+            assert!((1..=10).contains(&op.step), "FedOp step out of range: {}", op.step);
         }
         for op in &result.civ_effects {
-            assert!((1..=11).contains(&op.step), "CivEffect step out of range: {}", op.step);
+            assert!((1..=10).contains(&op.step), "CivEffect step out of range: {}", op.step);
         }
         for bk in &result.bookkeeping {
-            assert!((1..=11).contains(&bk.step), "Bookkeeping step out of range: {}", bk.step);
+            assert!((1..=10).contains(&bk.step), "Bookkeeping step out of range: {}", bk.step);
         }
         for ev in &result.events {
-            assert!((1..=11).contains(&ev.step), "Event step out of range: {}", ev.step);
+            assert!((1..=10).contains(&ev.step), "Event step out of range: {}", ev.step);
         }
     }
 }
@@ -1593,11 +1559,8 @@ fn test_different_turns_produce_different_rng() {
 #[test]
 fn test_hybrid_mode_flag_changes_routing() {
     let regions = make_3_regions([0, 0, 0]);
-    let mut civ0 = make_civ(0, vec![0, 1, 2]);
-    civ0.asabiya = 0.05;
-    civ0.stability = 15;
-    civ0.military = 50;
-    civ0.economy = 30;
+    let mut civ0 = make_civ(0, vec![1, 2]);
+    civ0.capital_region = 0; // lost capital: step 1 emits a stability effect
 
     let config = default_config();
     let topo = default_topology();
@@ -1605,23 +1568,24 @@ fn test_hybrid_mode_flag_changes_routing() {
     let r_off = run_politics_pass(&[civ0.clone()], &regions, &topo, &config, 100, 42, false);
     let r_hybrid = run_politics_pass(&[civ0.clone()], &regions, &topo, &config, 100, 42, true);
 
-    // In off mode, forced collapse uses DirectOnly routing
     let off_routings: Vec<_> = r_off.civ_effects.iter()
-        .filter(|e| e.step == 11)
+        .filter(|e| e.step == 1)
         .map(|e| &e.routing)
         .collect();
     let hybrid_routings: Vec<_> = r_hybrid.civ_effects.iter()
-        .filter(|e| e.step == 11)
+        .filter(|e| e.step == 1)
         .map(|e| &e.routing)
         .collect();
+    assert!(!off_routings.is_empty(), "Off mode should have capital-loss effects");
+    assert!(!hybrid_routings.is_empty(), "Hybrid mode should have capital-loss effects");
 
-    // off mode: DirectOnly for step 11 effects
+    // off mode: DirectOnly for capital-loss effects
     for r in &off_routings {
-        assert_eq!(**r, EffectRouting::DirectOnly, "Off-mode step 11 should use DirectOnly");
+        assert_eq!(**r, EffectRouting::DirectOnly, "Off-mode capital loss should use DirectOnly");
     }
-    // hybrid mode: HybridShock for step 11 effects
+    // hybrid mode: HybridShock for capital-loss effects
     for r in &hybrid_routings {
-        assert_eq!(**r, EffectRouting::HybridShock, "Hybrid step 11 should use HybridShock");
+        assert_eq!(**r, EffectRouting::HybridShock, "Hybrid capital loss should use HybridShock");
     }
 }
 
@@ -1757,13 +1721,16 @@ fn test_determinism_with_complex_topology() {
 fn test_event_merge_order_stable_across_runs() {
     // Verify event merge ordering is identical across 10 runs
     let regions = make_5_regions_star(0);
-    let mut civ0 = make_civ(0, vec![0, 1, 2, 3, 4]);
+    // Lost capital (step 1 event) plus low stability (secession). The forced
+    // collapse used to supply events here; it now runs in Python only.
+    let mut civ0 = make_civ(0, vec![1, 2, 3, 4]);
+    civ0.capital_region = 0;
     civ0.stability = 3;
     civ0.founded_turn = 0;
     civ0.military = 100;
     civ0.economy = 100;
     civ0.treasury = 100;
-    civ0.asabiya = 0.05; // triggers forced collapse + possibly secession
+    civ0.asabiya = 0.05;
 
     let config = default_config();
     let topo = default_topology();
@@ -1780,10 +1747,7 @@ fn test_event_merge_order_stable_across_runs() {
         }
     }
 
-    if baseline_event_count < 2 {
-        // At minimum, forced collapse alone produces events
-        return;
-    }
+    assert!(baseline_event_count >= 2, "No seed produced at least two events");
 
     let baseline = run_politics_pass(&[civ0.clone()], &regions, &topo, &config, 100, test_seed, false);
 
@@ -1803,17 +1767,14 @@ fn test_event_merge_order_stable_across_runs() {
 fn test_civ_effect_ordering_deterministic() {
     // Verify civ effect deltas appear in the same order across runs
     let regions = make_3_regions([0, 0, 0]);
-    let mut civ0 = make_civ(0, vec![0, 1, 2]);
-    civ0.asabiya = 0.05;
-    civ0.stability = 15;
-    civ0.military = 51;
-    civ0.economy = 33;
+    let mut civ0 = make_civ(0, vec![1, 2]);
+    civ0.capital_region = 0; // lost capital: step 1 emits a stability effect
 
     let config = default_config();
     let topo = default_topology();
 
     let baseline = run_politics_pass(&[civ0.clone()], &regions, &topo, &config, 100, 42, false);
-    assert!(!baseline.civ_effects.is_empty(), "Should have civ effects from forced collapse");
+    assert!(!baseline.civ_effects.is_empty(), "Should have civ effects from capital loss");
 
     for _ in 0..5 {
         let result = run_politics_pass(&[civ0.clone()], &regions, &topo, &config, 100, 42, false);
@@ -1829,30 +1790,6 @@ fn test_civ_effect_ordering_deterministic() {
 // ---------------------------------------------------------------------------
 // Forced outcome scenarios (no RNG variance)
 // ---------------------------------------------------------------------------
-
-#[test]
-fn test_forced_collapse_always_fires_deterministically() {
-    // With asabiya=0.05 and stability=15 and >1 region, forced collapse
-    // ALWAYS fires — no RNG involved. Verify across 20 seeds.
-    let regions = make_3_regions([0, 0, 0]);
-
-    let config = default_config();
-    let topo = default_topology();
-
-    for seed in 0..20u64 {
-        let mut civ0 = make_civ(0, vec![0, 1, 2]);
-        civ0.asabiya = 0.05;
-        civ0.stability = 15;
-        civ0.military = 50;
-        civ0.economy = 30;
-
-        let result = run_politics_pass(&[civ0], &regions, &topo, &config, 100, seed, false);
-        assert!(
-            result.civ_ops.iter().any(|op| op.op_type == CivOpType::StripToFirstRegion),
-            "Seed {}: forced collapse must always fire", seed
-        );
-    }
-}
 
 #[test]
 fn test_capital_loss_always_fires_deterministically() {

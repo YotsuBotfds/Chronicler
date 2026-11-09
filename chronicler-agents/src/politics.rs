@@ -1,8 +1,9 @@
-//! Pure Rust Phase 10 politics core — 11-step ordered consequence pass.
+//! Pure Rust Phase 10 politics core — 10-step ordered consequence pass.
 //! No PyO3 — FFI wrappers live in ffi/politics_sim.rs.
 //!
-//! Mirrors the Python oracle in `src/chronicler/politics.py` and the inline
-//! forced collapse in `src/chronicler/simulation.py:1020-1041`.
+//! Mirrors the Python oracle in `src/chronicler/politics.py`. The forced
+//! collapse is not computed here: `src/chronicler/simulation.py` runs it after
+//! `apply_asabiya_dynamics` (post-aggregation asabiya, severity-scaled loss).
 
 use std::collections::{HashMap, HashSet, VecDeque};
 
@@ -312,6 +313,8 @@ pub enum CivOpType {
     Restore,
     Absorb,
     ReassignCapital,
+    /// No longer emitted (the Rust forced collapse was removed); kept so the
+    /// FFI op code 4 and enum declaration order stay stable.
     StripToFirstRegion,
 }
 
@@ -2919,150 +2922,11 @@ fn step_decline_tracking(
     }
 }
 
-/// Step 11: Forced collapse.
-/// Preserves `regions[:1]` (first listed, NOT capital), integer division,
-/// NO severity multiplier, NO sync_civ_population().
-fn step_forced_collapse(
-    civs: &[CivInput],
-    live_civs: &mut [LiveCiv],
-    live_regions: &mut [LiveRegion],
-    hybrid_mode: bool,
-    result: &mut PoliticsResult,
-) {
-    let step: u8 = 11;
-    let mut seq = SeqCounter::new();
-
-    for (ci, civ) in civs.iter().enumerate() {
-        // Extract values before mutable borrow
-        let asabiya = live_civs[ci].asabiya;
-        let stability = live_civs[ci].stability;
-        let military = live_civs[ci].military;
-        let economy = live_civs[ci].economy;
-        let regions_snapshot = live_civs[ci].regions.clone();
-
-        if asabiya >= 0.1 || stability > 20 {
-            continue;
-        }
-        if regions_snapshot.len() <= 1 {
-            continue;
-        }
-
-        // Keep first listed region (regions[:1])
-        let kept_region = regions_snapshot[0];
-        let lost_regions: Vec<u16> = regions_snapshot[1..].to_vec();
-
-        // Strip to first region
-        result.civ_ops.push(CivOp {
-            step,
-            seq: seq.next(),
-            op_type: CivOpType::StripToFirstRegion,
-            source_civ: CivRef::Existing(civ.civ_idx),
-            target_civ: CivRef::Existing(civ.civ_idx),
-            regions: vec![kept_region],
-            stat_military: 0,
-            stat_economy: 0,
-            stat_culture: 0,
-            stat_stability: 0,
-            stat_treasury: 0,
-            stat_population: 0,
-            stat_asabiya: 0.0,
-            founded_turn: 0,
-        });
-
-        // Nullify controllers of lost regions
-        for &r_idx in &lost_regions {
-            result.region_ops.push(RegionOp {
-                step,
-                seq: seq.next(),
-                op_type: RegionOpType::NullifyController,
-                region: r_idx,
-                controller: CivRef::Existing(CIV_NONE),
-            });
-        }
-
-        // Stat effects: integer division (military // 2, economy // 2)
-        // In hybrid mode: pending_shocks with -0.5 each
-        // In non-hybrid: direct integer division
-        if hybrid_mode {
-            result.civ_effects.push(CivEffectOp {
-                step,
-                seq: seq.next(),
-                civ: CivRef::Existing(civ.civ_idx),
-                field: "military",
-                delta_i: -(military / 2),
-                delta_f: -0.5,
-                routing: EffectRouting::HybridShock,
-            });
-            result.civ_effects.push(CivEffectOp {
-                step,
-                seq: seq.next(),
-                civ: CivRef::Existing(civ.civ_idx),
-                field: "economy",
-                delta_i: -(economy / 2),
-                delta_f: -0.5,
-                routing: EffectRouting::HybridShock,
-            });
-        } else {
-            // Integer division: military // 2, clamped to floor 0
-            let new_mil = (military / 2).max(0);
-            let new_eco = (economy / 2).max(0);
-            result.civ_effects.push(CivEffectOp {
-                step,
-                seq: seq.next(),
-                civ: CivRef::Existing(civ.civ_idx),
-                field: "military",
-                delta_i: new_mil - military, // negative delta
-                delta_f: 0.0,
-                routing: EffectRouting::DirectOnly,
-            });
-            result.civ_effects.push(CivEffectOp {
-                step,
-                seq: seq.next(),
-                civ: CivRef::Existing(civ.civ_idx),
-                field: "economy",
-                delta_i: new_eco - economy,
-                delta_f: 0.0,
-                routing: EffectRouting::DirectOnly,
-            });
-        }
-
-        // Event
-        result.events.push(EventTrigger {
-            step,
-            seq: seq.next(),
-            event_type: "collapse",
-            actors: vec![CivRef::Existing(civ.civ_idx)],
-            importance: 10,
-            context_regions: lost_regions.clone(),
-            context_seed: 0,
-        });
-
-        // Update live state
-        live_civs[ci].regions = vec![kept_region];
-        live_civs[ci].military = if hybrid_mode {
-            military
-        } else {
-            (military / 2).max(0)
-        };
-        live_civs[ci].economy = if hybrid_mode {
-            economy
-        } else {
-            (economy / 2).max(0)
-        };
-        for &r_idx in &lost_regions {
-            if (r_idx as usize) < live_regions.len() {
-                live_regions[r_idx as usize].controller = CIV_NONE;
-            }
-        }
-        // NOTE: No sync_civ_population() — this is intentional existing behavior
-    }
-}
-
 // ---------------------------------------------------------------------------
 // Main entry point
 // ---------------------------------------------------------------------------
 
-/// Execute the full 11-step Phase 10 political consequence pass.
+/// Execute the full 10-step Phase 10 political consequence pass.
 ///
 /// Returns a `PoliticsResult` containing all ops in `step + seq` order.
 /// Python applies these ops onto the world state.
@@ -3219,15 +3083,6 @@ pub fn run_politics_pass(
 
     // Step 10: Decline tracking
     step_decline_tracking(civs, &mut live_civs, &mut result);
-
-    // Step 11: Forced collapse
-    step_forced_collapse(
-        civs,
-        &mut live_civs,
-        &mut live_regions,
-        hybrid_mode,
-        &mut result,
-    );
 
     result
 }
