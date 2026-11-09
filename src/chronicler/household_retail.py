@@ -2322,6 +2322,19 @@ def settled_provisioning(world) -> dict[int, dict] | None:
     return out or None
 
 
+def provisioning_rows(world) -> dict[int, dict] | None:
+    """DEP-7's reading (``chronicler.household_access``) of this turn's settled
+    provisioning, between the agent tick and retail's Phase 10: region -> a copy
+    of the native provisioning row (every column, as settled) for each pilot
+    region settled this turn; None when this turn settled none. Reads only."""
+    state = _state(world)
+    t = state._turn if state is not None else None
+    if t is None or t.turn != world.turn:
+        return None
+    out = {rid: dict(book.provisioning) for rid, book in sorted(t.books.items()) if book.provisioning is not None}
+    return out or None
+
+
 def owned_milli(world, rid: int) -> int:
     """Owned food held in pilot region ``rid`` now (milli-food; 0 outside the pilot)."""
     state = _state(world)

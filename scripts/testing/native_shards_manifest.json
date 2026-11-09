@@ -108,6 +108,7 @@
       "tests/test_historical_parity.py",
       "tests/test_history_index.py",
       "tests/test_hostage_intelligence_lifecycle.py",
+      "tests/test_household_access.py",
       "tests/test_household_mobility_adapter.py",
       "tests/test_household_mobility_witness.py",
       "tests/test_household_retail.py",

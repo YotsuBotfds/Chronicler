@@ -200,12 +200,31 @@ def test_prerequisites_read_saved_state_when_a_switch_is_omitted(world):
         configure_livelihoods(world, parse("--no-workshops", "--repair-projects"), agent_mode="hybrid")
     assert world.livelihoods.workshops.enabled and world.livelihoods.workshops.mode == "operate"
     # Veterans need one consumer: a saved apprenticeship or repair switch is enough.
+    from chronicler.grain_reserves import set_grain_reserves_enabled
+    from chronicler.grain_storage import enable_storage
+    from chronicler.livelihoods import LivelihoodsRefusal
     other = generate_world(seed=5, num_regions=6, num_civs=2)
     other.cities = CityState()
     configure_livelihoods(other, parse("--workshops", "--repair-projects"), agent_mode="hybrid")
+    # FIX-7: a saved switch meets its prerequisites too. Ending workshops under
+    # a saved repair switch with nothing else to repair is refused ...
+    saved = other.livelihoods.model_dump_json()
+    with pytest.raises(LivelihoodsRefusal) as refused:
+        configure_livelihoods(other, parse("--no-workshops"), agent_mode="hybrid")
+    assert str(refused.value) == ("--repair-projects requires --agents hybrid and --workshops or "
+                                  "--grain-storage; this world has it on: pass --no-repair-projects to end it")
+    assert other.livelihoods.model_dump_json() == saved
+    # ... so the saved repair switch keeps its other prerequisite, grain storage.
+    other.agent_mode = "hybrid"
+    set_grain_reserves_enabled(other, True)
+    enable_storage(other)
     configure_livelihoods(other, parse("--no-workshops"), agent_mode="hybrid")
     configure_livelihoods(other, parse("--veteran-reintegration"), agent_mode="hybrid")
-    configure_livelihoods(other, parse("--no-repair-projects"), agent_mode="hybrid")
+    # Ending the last consumer under saved veterans is refused the same way;
+    # ending veterans with it is accepted.
+    with pytest.raises(LivelihoodsRefusal, match="pass --no-veteran-reintegration to end it"):
+        configure_livelihoods(other, parse("--no-repair-projects"), agent_mode="hybrid")
+    configure_livelihoods(other, parse("--no-repair-projects", "--no-veteran-reintegration"), agent_mode="hybrid")
     with pytest.raises(ValueError, match="one of --workshops"):
         configure_livelihoods(other, parse("--no-veteran-reintegration", "--veteran-reintegration"),
                               agent_mode="hybrid")

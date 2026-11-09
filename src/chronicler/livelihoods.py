@@ -704,6 +704,90 @@ def _grain_storage_on(world: Any) -> bool:
     return grain_reserves_on(world) and getattr(world.grain_reserves, "storage", None) is not None
 
 
+def _refuse(values: dict, name: str, message: str) -> None:
+    """Refuse switch ``name``: an explicit request gets ``message`` unchanged; a
+    switch on only in the saved world gets a :class:`LivelihoodsRefusal` that
+    names the option ending it."""
+    saved = values[name] is not True
+    text = message + (f"; this world has it on: pass --no-{name.replace('_', '-')} to end it" if saved else "")
+    raise (LivelihoodsRefusal if saved else ValueError)(text)
+
+
+def _check_switch_gates(world: Any, values: dict, agent_mode: str, args: Any, active) -> None:
+    """The prerequisites of the switches ``active(name)`` selects (FIX-7: run
+    once for explicit requests and once, last, for switches only saved on)."""
+    if active("workshops"):
+        if agent_mode != "hybrid":
+            _refuse(values, "workshops", "--workshops requires --agents hybrid")
+        if getattr(world, "cities", None) is None:
+            _refuse(values, "workshops", "--workshops requires cities")
+    if active("food_allocation") and agent_mode != "hybrid":
+        _refuse(values, "food_allocation", "--food-allocation requires --agents hybrid")
+    if active("timber_stock") and agent_mode not in _AGENT_ECONOMY:
+        _refuse(values, "timber_stock", "--timber-stock requires an agent-backed economy")
+    if active("grain_convoys"):
+        reserves = getattr(world, "grain_reserves", None)
+        if reserves is None or getattr(reserves, "shipments", None) is None:
+            _refuse(values, "grain_convoys", "--grain-convoys requires --public-grain-shipments")
+    if active("commons_rules"):
+        if not _on(world, values, "timber_stock"):
+            _refuse(values, "commons_rules", "--commons-rules requires --timber-stock")
+    if active("learning_cohorts"):
+        if agent_mode != "hybrid":
+            _refuse(values, "learning_cohorts", "--learning-cohorts requires --agents hybrid")
+        services = getattr(getattr(world, "scholarship", None), "learning_services", None)
+        if services is None or not getattr(services, "enabled", True):
+            _refuse(values, "learning_cohorts", "--learning-cohorts requires --academy-services")
+    if active("workshop_payroll"):
+        saved = getattr(livelihoods_state(world), "workshops", None)
+        on = _on(world, values, "workshops")
+        mode = getattr(args, "workshop_mode", None) or (saved.mode if saved is not None else "operate")
+        if not on or mode != "operate" or agent_mode != "hybrid":
+            _refuse(values, "workshop_payroll",
+                    "--workshop-payroll requires --workshops in operate mode (--agents hybrid)")
+    if active("relocation_costs"):
+        if agent_mode != "hybrid":
+            _refuse(values, "relocation_costs", "--relocation-costs requires --agents hybrid")
+        from chronicler.household_mobility_state import liquid_requirement
+        if liquid_requirement(world) > 0:
+            _refuse(values, "relocation_costs",
+                    "--relocation-costs cannot run with a household-mobility liquid requirement")
+    if active("local_budgets"):
+        from chronicler.grain_reserves_state import grain_reserves_on
+        if agent_mode != "hybrid" or not grain_reserves_on(world):
+            _refuse(values, "local_budgets", "--local-budgets requires --agents hybrid and --grain-reserves")
+    if active("apprenticeship"):
+        if agent_mode != "hybrid" or not _workshops_operate(world, values, args):
+            _refuse(values, "apprenticeship",
+                    "--apprenticeship requires --workshops in operate mode (--agents hybrid)")
+    if active("repair_projects"):
+        # Workshops in any mode (only built sites have anything to repair:
+        # observe mode builds none) or grain storage.
+        if agent_mode != "hybrid" or not (_on(world, values, "workshops") or _grain_storage_on(world)):
+            _refuse(values, "repair_projects",
+                    "--repair-projects requires --agents hybrid and --workshops or --grain-storage")
+    if active("veteran_reintegration"):
+        if agent_mode != "hybrid" or not any(_on(world, values, name) for name in
+                                             ("workshops", "apprenticeship", "repair_projects")):
+            _refuse(values, "veteran_reintegration",
+                    "--veteran-reintegration requires --agents hybrid and one of --workshops, "
+                    "--apprenticeship or --repair-projects")
+    if active("remittances") and agent_mode != "hybrid":
+        _refuse(values, "remittances", "--remittances requires --agents hybrid")
+    if active("recovery_crews"):
+        if agent_mode != "hybrid" or not _on(world, values, "repair_projects"):
+            _refuse(values, "recovery_crews", "--recovery-crews requires --agents hybrid and --repair-projects")
+    if active("maintenance_obligation"):
+        if not (_on(world, values, "local_budgets") and _on(world, values, "repair_projects")):
+            _refuse(values, "maintenance_obligation",
+                    "--maintenance-obligation requires --local-budgets and --repair-projects")
+    # --clearing-protection has no prerequisite (it works in every ecology path).
+    if active("operating_wear"):
+        if agent_mode != "hybrid" or not _workshops_operate(world, values, args):
+            _refuse(values, "operating_wear",
+                    "--operating-wear requires --workshops in operate mode (--agents hybrid)")
+
+
 def _check_prerequisites(world: Any, values: dict, agent_mode: str, args: Any = None) -> None:
     # These completion options belong to a requested or saved enabled switch.
     # Check before any setter can mutate the world. The existing resume-field
@@ -726,71 +810,10 @@ def _check_prerequisites(world: Any, values: dict, agent_mode: str, args: Any = 
         # or change its mode (chronicler.watershed.check_request).
         from chronicler.watershed import check_request
         check_request(world, values["watershed"], args)
-    if values["workshops"] is True:
-        if agent_mode != "hybrid":
-            raise ValueError("--workshops requires --agents hybrid")
-        if getattr(world, "cities", None) is None:
-            raise ValueError("--workshops requires cities")
-    if values["food_allocation"] is True and agent_mode != "hybrid":
-        raise ValueError("--food-allocation requires --agents hybrid")
-    if values["timber_stock"] is True and agent_mode not in _AGENT_ECONOMY:
-        raise ValueError("--timber-stock requires an agent-backed economy")
-    if values["grain_convoys"] is True:
-        reserves = getattr(world, "grain_reserves", None)
-        if reserves is None or getattr(reserves, "shipments", None) is None:
-            raise ValueError("--grain-convoys requires --public-grain-shipments")
-    if values["commons_rules"] is True:
-        saved = getattr(livelihoods_state(world), "timber_stock", None)
-        if values["timber_stock"] is False or (values["timber_stock"] is None
-                                               and not getattr(saved, "enabled", False)):
-            raise ValueError("--commons-rules requires --timber-stock")
-    if values["learning_cohorts"] is True:
-        if agent_mode != "hybrid":
-            raise ValueError("--learning-cohorts requires --agents hybrid")
-        services = getattr(getattr(world, "scholarship", None), "learning_services", None)
-        if services is None or not getattr(services, "enabled", True):
-            raise ValueError("--learning-cohorts requires --academy-services")
-    if values["workshop_payroll"] is True:
-        saved = getattr(livelihoods_state(world), "workshops", None)
-        on = values["workshops"] is True or (values["workshops"] is None and saved is not None and saved.enabled)
-        mode = getattr(args, "workshop_mode", None) or (saved.mode if saved is not None else "operate")
-        if not on or mode != "operate" or agent_mode != "hybrid":
-            raise ValueError("--workshop-payroll requires --workshops in operate mode (--agents hybrid)")
-    if values["relocation_costs"] is True:
-        if agent_mode != "hybrid":
-            raise ValueError("--relocation-costs requires --agents hybrid")
-        from chronicler.household_mobility_state import liquid_requirement
-        if liquid_requirement(world) > 0:
-            raise ValueError("--relocation-costs cannot run with a household-mobility liquid requirement")
-    if values["local_budgets"] is True:
-        from chronicler.grain_reserves_state import grain_reserves_on
-        if agent_mode != "hybrid" or not grain_reserves_on(world):
-            raise ValueError("--local-budgets requires --agents hybrid and --grain-reserves")
-    if values["apprenticeship"] is True:
-        if agent_mode != "hybrid" or not _workshops_operate(world, values, args):
-            raise ValueError("--apprenticeship requires --workshops in operate mode (--agents hybrid)")
-    if values["repair_projects"] is True:
-        # Workshops in any mode (only built sites have anything to repair:
-        # observe mode builds none) or grain storage.
-        if agent_mode != "hybrid" or not (_on(world, values, "workshops") or _grain_storage_on(world)):
-            raise ValueError("--repair-projects requires --agents hybrid and --workshops or --grain-storage")
-    if values["veteran_reintegration"] is True:
-        if agent_mode != "hybrid" or not any(_on(world, values, name) for name in
-                                             ("workshops", "apprenticeship", "repair_projects")):
-            raise ValueError("--veteran-reintegration requires --agents hybrid and one of --workshops, "
-                             "--apprenticeship or --repair-projects")
-    if values["remittances"] is True and agent_mode != "hybrid":
-        raise ValueError("--remittances requires --agents hybrid")
-    if values["recovery_crews"] is True:
-        if agent_mode != "hybrid" or not _on(world, values, "repair_projects"):
-            raise ValueError("--recovery-crews requires --agents hybrid and --repair-projects")
-    if values["maintenance_obligation"] is True:
-        if not (_on(world, values, "local_budgets") and _on(world, values, "repair_projects")):
-            raise ValueError("--maintenance-obligation requires --local-budgets and --repair-projects")
-    # --clearing-protection has no prerequisite (it works in every ecology path).
-    if values["operating_wear"] is True:
-        if agent_mode != "hybrid" or not _workshops_operate(world, values, args):
-            raise ValueError("--operating-wear requires --workshops in operate mode (--agents hybrid)")
+    # Explicit requests here (their refusal texts are unchanged); switches on
+    # only in the saved world are checked last, so every earlier refusal of a
+    # saved world keeps its message.
+    _check_switch_gates(world, values, agent_mode, args, lambda name: values[name] is True)
     if _on(world, values, "timber_supply"):
         # Also when only saved (review A, 2026-11-06): a resume that turns RS2 or
         # L3 off would otherwise freeze the store and the live cargo unseen;
@@ -956,6 +979,10 @@ def _check_prerequisites(world: Any, values: dict, agent_mode: str, args: Any = 
         # bridge, no hooks) while the world still says it is on.
         raise LivelihoodsRefusal("--food-allocation requires --agents hybrid; this world has it on: resume with "
                                  "--agents hybrid, or pass --no-food-allocation to end it")
+    # FIX-7: a switch on only in the saved world (a state-file resume) meets the
+    # same prerequisites as a request, refused with the option that ends it.
+    _check_switch_gates(world, values, agent_mode, args,
+                        lambda name: values[name] is None and _on(world, values, name))
 
 
 def configure_livelihoods(world: Any, args: Any, *, agent_mode: str) -> None:

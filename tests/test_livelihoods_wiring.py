@@ -98,8 +98,12 @@ def _saved_checkpoint(world, flags):
 
 
 def _world_with_workshops_and_fares(world):
+    # A realistic saved workshops world has cities (``--workshops requires
+    # cities``); FIX-7 checks the saved switches' prerequisites on resume.
+    from chronicler.cities_state import CityState
     from chronicler.relocation_costs_state import RelocationCostsState
     from chronicler.workshops_state import WorkshopState
+    world.cities = CityState()
     world.livelihoods = LivelihoodsState()
     world.livelihoods.workshops = WorkshopState(mode="operate")
     world.livelihoods.relocation_costs = RelocationCostsState(mode="paid")
@@ -224,3 +228,160 @@ def test_feature_on_checkpoint_keeps_every_switch_when_resumed_with_flags_omitte
     for flags in (["--relocation-costs"], ["--relocation-mode", "assisted"], ["--workshop-mode", "observe"]):
         assert len(_adopt_checkpoint_args(_build_parser(), parse(flags), loaded)) == 1, flags
     assert loaded.state.world.livelihoods.model_dump_json() == saved
+
+
+# --- FIX-7: saved prerequisites ---------------------------------------------
+# (Lead scope ruling 2026-11-09: a mode given without its switch, and a mode
+# that differs from the saved one, stay accepted; see the household-retail,
+# recovery-crews and recovery-skills resume tests.)
+
+def _saved_workshops(world, mode="operate"):
+    from chronicler.cities_state import CityState
+    from chronicler.workshops_state import WorkshopState
+    world.cities = CityState()
+    world.livelihoods = LivelihoodsState()
+    world.livelihoods.workshops = WorkshopState(mode=mode)
+    return world
+
+
+def test_a_saved_switch_outside_its_prerequisites_is_refused_with_the_way_to_end_it(world):
+    from chronicler.livelihoods import LivelihoodsRefusal
+    parse = _build_parser().parse_args
+    _saved_workshops(world)
+    saved = world.livelihoods.model_dump_json()
+    with pytest.raises(LivelihoodsRefusal) as refused:
+        configure_livelihoods(world, parse([]), agent_mode="off")
+    assert str(refused.value) == ("--workshops requires --agents hybrid; this world has it on: "
+                                  "pass --no-workshops to end it")
+    assert world.livelihoods.model_dump_json() == saved
+    # The explicit request keeps its text; resuming in hybrid is accepted;
+    # --no-workshops ends the saved switch outside hybrid.
+    with pytest.raises(ValueError) as explicit:
+        configure_livelihoods(world, parse(["--workshops"]), agent_mode="off")
+    assert str(explicit.value) == "--workshops requires --agents hybrid"
+    assert not isinstance(explicit.value, LivelihoodsRefusal)
+    configure_livelihoods(world, parse([]), agent_mode="hybrid")
+    assert world.livelihoods.model_dump_json() == saved
+    configure_livelihoods(world, parse(["--no-workshops"]), agent_mode="off")
+    assert world.livelihoods.workshops.enabled is False
+
+
+def _differential_keys():
+    """Switches whose prerequisites ``_check_prerequisites`` itself checks
+    (not a module's own ``check_request``) over terms a generated world with
+    cities can meet (no world setting other than cities and the mobility
+    requirement, no exclusion)."""
+    from chronicler import feature_catalog as fc
+    module_owned = {"watershed", "infrastructure_condition", "harvest_cover", "epidemic_care",
+                    "public_health", "movement_branches"}
+    world_settings = {"cities", "no_household_mobility_liquid_requirement"}
+
+    def plain(condition):
+        if "setting" in condition:
+            return condition["setting"] in world_settings
+        if "any" in condition:
+            return all(plain(part) for part in condition["any"])
+        return "not" not in condition
+
+    entries = fc._by_key()
+    return [key for key in LIVELIHOODS_SWITCHES if key not in module_owned and entries[key]["requires"]
+            and all(plain(condition) for condition in entries[key]["requires"])]
+
+
+def _differential_selections(key):
+    """The smallest catalog selection with ``key`` on (livelihoods switches
+    only: other prerequisites stay off), then each prerequisite dropped."""
+    from chronicler import feature_catalog as fc
+    entries = fc._by_key()
+    selection, stack = {key: True}, [key]
+
+    def walk(condition):
+        if "feature" in condition:
+            if condition["feature"] in LIVELIHOODS_SWITCHES and condition["feature"] not in selection:
+                selection[condition["feature"]] = True
+                stack.append(condition["feature"])
+        elif "choice" in condition:
+            if entries[condition["choice"]]["choices"][0] not in condition["values"]:
+                selection[condition["choice"]] = condition["values"][0]
+        elif "any" in condition:
+            walk(next((part for part in condition["any"] if part.get("feature") in LIVELIHOODS_SWITCHES),
+                      condition["any"][0]))
+
+    while stack:
+        for condition in entries[stack.pop()]["requires"]:
+            walk(condition)
+    yield selection
+    for other in selection:
+        if other != key and other in LIVELIHOODS_SWITCHES:
+            yield {k: v for k, v in selection.items() if k != other and entries[k]["parent"] != other}
+
+
+def _saved_sub_state(name, selection):
+    """A saved enabled sub-state holding the selection's choices (else each
+    choice's catalog default, the value the catalog assumes)."""
+    import typing
+    from chronicler import feature_catalog as fc
+    from chronicler.livelihoods import _CHOICE_FIELDS
+    entries = fc._by_key()
+    annotation = LivelihoodsState.model_fields[name].annotation
+    cls = next(arg for arg in typing.get_args(annotation) if arg is not type(None))
+    fields = {}
+    for key, (switch, field) in _CHOICE_FIELDS.items():
+        if switch != name:
+            continue
+        value = selection.get(key, entries[key]["choices"][0])
+        if field in cls.model_fields:
+            fields[field] = value
+        elif field == "rules" and "rules_version" in cls.model_fields:
+            fields["rules_version"] = int(value)
+    return cls.model_construct(enabled=True, **fields)
+
+
+def test_saved_and_requested_switches_meet_the_catalog_requirements():
+    """FIX-7 differential: for each switch with declared requirements, the
+    run's check accepts the same selections whether they are requested or
+    only saved, and agrees with ``feature_catalog.unmet_requirements``
+    (agents off and hybrid)."""
+    from chronicler import feature_catalog as fc
+    from chronicler.cities_state import CityState
+    from chronicler.livelihoods import _check_prerequisites
+    parse = _build_parser().parse_args
+
+    def fresh():
+        world = generate_world(seed=42, num_regions=6, num_civs=2)
+        world.cities = CityState()
+        return world
+
+    def verdict(world, values, args, agents):
+        try:
+            _check_prerequisites(world, values, agents, args)
+        except ValueError as exc:
+            return exc
+        return None
+
+    keys = _differential_keys()
+    assert {"workshops", "food_allocation", "timber_stock", "grain_convoys", "commons_rules",
+            "learning_cohorts", "workshop_payroll", "relocation_costs", "local_budgets", "apprenticeship",
+            "repair_projects", "veteran_reintegration", "remittances", "recovery_crews",
+            "maintenance_obligation", "operating_wear"} <= set(keys)
+    problems, accepted, refused = [], 0, 0
+    for key in keys:
+        for selection in _differential_selections(key):
+            switches = [k for k in selection if k in LIVELIHOODS_SWITCHES]
+            choices = {k: v for k, v in selection.items() if k not in LIVELIHOODS_SWITCHES}
+            for agents in ("off", "hybrid"):
+                catalog = fc.unmet_requirements(selection, fc.live_surface(parse(["--agents", agents])))
+                values = {name: (True if name in switches else None) for name in LIVELIHOODS_SWITCHES}
+                requested = verdict(fresh(), values,
+                                    parse(["--agents", agents, *fc.feature_cli_arguments(choices)]), agents)
+                world = fresh()
+                world.livelihoods = LivelihoodsState()
+                for name in switches:
+                    setattr(world.livelihoods, name, _saved_sub_state(name, selection))
+                saved = verdict(world, dict.fromkeys(LIVELIHOODS_SWITCHES), parse(["--agents", agents]), agents)
+                if not ((not catalog) == (requested is None) == (saved is None)):
+                    problems.append((key, agents, selection, catalog, str(requested), str(saved)))
+                accepted += saved is None
+                refused += saved is not None
+    assert problems == []
+    assert accepted and refused
