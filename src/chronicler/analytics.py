@@ -1454,6 +1454,12 @@ def generate_report(
     credit_metrics = extract_domestic_credit_metrics(bundles)
     if credit_metrics.get("runs"):
         report["domestic_credit"] = credit_metrics
+    # Household access (DEP-7): present only for runs whose bundles carry
+    # history[n].livelihoods.household_access.
+    from chronicler.household_access import extract_household_access_metrics
+    access_metrics = extract_household_access_metrics(bundles)
+    if access_metrics.get("runs"):
+        report["household_access"] = access_metrics
 
     report["anomalies"] = detect_anomalies(report)
     return report
