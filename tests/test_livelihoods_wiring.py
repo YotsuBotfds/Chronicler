@@ -98,8 +98,12 @@ def _saved_checkpoint(world, flags):
 
 
 def _world_with_workshops_and_fares(world):
+    # A realistic saved workshops world has cities (``--workshops requires
+    # cities``); FIX-7 checks the saved switches' prerequisites on resume.
+    from chronicler.cities_state import CityState
     from chronicler.relocation_costs_state import RelocationCostsState
     from chronicler.workshops_state import WorkshopState
+    world.cities = CityState()
     world.livelihoods = LivelihoodsState()
     world.livelihoods.workshops = WorkshopState(mode="operate")
     world.livelihoods.relocation_costs = RelocationCostsState(mode="paid")
@@ -226,7 +230,10 @@ def test_feature_on_checkpoint_keeps_every_switch_when_resumed_with_flags_omitte
     assert loaded.state.world.livelihoods.model_dump_json() == saved
 
 
-# --- FIX-7: saved prerequisites, orphan modes and saved modes ----------------
+# --- FIX-7: saved prerequisites ---------------------------------------------
+# (Lead scope ruling 2026-11-09: a mode given without its switch, and a mode
+# that differs from the saved one, stay accepted; see the household-retail,
+# recovery-crews and recovery-skills resume tests.)
 
 def _saved_workshops(world, mode="operate"):
     from chronicler.cities_state import CityState
@@ -235,20 +242,6 @@ def _saved_workshops(world, mode="operate"):
     world.livelihoods = LivelihoodsState()
     world.livelihoods.workshops = WorkshopState(mode=mode)
     return world
-
-
-@pytest.mark.parametrize("flags, message", [
-    (["--workshop-mode", "cost_only"], "--workshop-mode requires --workshops"),
-    (["--repair-mode", "cost_only"], "--repair-mode requires --repair-projects"),
-    (["--commons-rule-mode", "cost_only"], "--commons-rule-mode requires --commons-rules"),
-])
-def test_a_mode_without_its_switch_is_refused_on_a_fresh_world(world, flags, message):
-    from chronicler.livelihoods import LivelihoodsRefusal
-    for agent_mode in ("off", "hybrid"):
-        with pytest.raises(ValueError) as refused:
-            configure_livelihoods(world, _build_parser().parse_args(flags), agent_mode=agent_mode)
-        assert str(refused.value) == message and not isinstance(refused.value, LivelihoodsRefusal)
-    assert world.livelihoods is None
 
 
 def test_a_saved_switch_outside_its_prerequisites_is_refused_with_the_way_to_end_it(world):
@@ -271,20 +264,6 @@ def test_a_saved_switch_outside_its_prerequisites_is_refused_with_the_way_to_end
     assert world.livelihoods.model_dump_json() == saved
     configure_livelihoods(world, parse(["--no-workshops"]), agent_mode="off")
     assert world.livelihoods.workshops.enabled is False
-
-
-def test_a_saved_mode_is_kept_on_a_state_file_resume(world):
-    parse = _build_parser().parse_args
-    _saved_workshops(world, mode="operate")
-    saved = world.livelihoods.model_dump_json()
-    for flags in (["--workshop-mode", "cost_only"], ["--workshops", "--workshop-mode", "cost_only"]):
-        with pytest.raises(ValueError) as refused:
-            configure_livelihoods(world, parse(flags), agent_mode="hybrid")
-        assert str(refused.value) == ("--workshop-mode 'cost_only' conflicts with the saved world "
-                                      "(mode: 'operate')"), flags
-        assert world.livelihoods.model_dump_json() == saved
-    configure_livelihoods(world, parse(["--workshop-mode", "operate"]), agent_mode="hybrid")
-    assert world.livelihoods.model_dump_json() == saved
 
 
 def _differential_keys():
