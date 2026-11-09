@@ -48,6 +48,14 @@ use crate::agent::AGE_ADULT;
 use crate::pool::AgentPool;
 use crate::region::RegionState;
 
+/// Total order on `f64` keys that agrees with `partial_cmp` on every non-NaN
+/// pair: adding `+0.0` maps `-0.0` to `+0.0`, so the two zeros stay `Equal`
+/// and a tie-break key still applies; NaN gets a fixed place instead of a
+/// panic or an inconsistent sort.
+fn cmp_f64(a: f64, b: f64) -> std::cmp::Ordering {
+    (a + 0.0).total_cmp(&(b + 0.0))
+}
+
 pub const REGIME_EQUAL: u8 = 0;
 pub const REGIME_FLOOR_MEANS: u8 = 1;
 pub const REGIME_TARGETED_RELIEF: u8 = 2;
@@ -272,7 +280,7 @@ pub fn allocate(pool: &AgentPool, regions: &[RegionState], cfg: &ProvisionConfig
         let per_capita = |h: u32| { let (w, n) = hh[&h]; w / n.max(1) as f64 };
         // Households by means, poorest first (ties by key).
         let mut order: Vec<u32> = hh.keys().copied().collect();
-        order.sort_by(|a, b| per_capita(*a).partial_cmp(&per_capita(*b)).unwrap().then(a.cmp(b)));
+        order.sort_by(|a, b| cmp_f64(per_capita(*a), per_capita(*b)).then(a.cmp(b)));
         let poorer: std::collections::HashSet<u32> = order.iter().take(order.len() / 2).copied().collect();
         let targeted_n = ((order.len() as f64) * cfg.target_share as f64).ceil() as usize;
         let targeted: std::collections::HashSet<u32> = order.iter().take(targeted_n).copied().collect();
@@ -844,7 +852,7 @@ pub fn retail(pool: &mut AgentPool, regions: &[RegionState], l2: &ProvisionConfi
                         };
                         let (base, left_market) = fill((free_living - relief).max(0.0), &ones, &caps);
                         let mut order: Vec<usize> = (0..hhs.len()).collect();
-                        order.sort_by(|&a, &b| per_capita(&hhs[a]).partial_cmp(&per_capita(&hhs[b])).unwrap()
+                        order.sort_by(|&a, &b| cmp_f64(per_capita(&hhs[a]), per_capita(&hhs[b]))
                             .then(hhs[a].key.cmp(&hhs[b].key)));
                         let targeted_n = ((order.len() as f64) * l2.target_share as f64).ceil() as usize;
                         let targeted: std::collections::HashSet<usize> = order.iter().take(targeted_n).copied().collect();
@@ -1020,6 +1028,32 @@ pub fn retail(pool: &mut AgentPool, regions: &[RegionState], l2: &ProvisionConfi
 mod tests {
     use super::*;
     use crate::agent::Occupation;
+
+    #[test]
+    fn cmp_f64_is_total_and_keeps_the_zeros_equal() {
+        use std::cmp::Ordering;
+        assert_eq!(cmp_f64(-0.0, 0.0), Ordering::Equal);
+        assert_eq!(cmp_f64(0.0, -0.0), Ordering::Equal);
+        assert_ne!(cmp_f64(f64::NAN, 1.0), Ordering::Equal);
+        assert_ne!(cmp_f64(1.0, f64::NAN), Ordering::Equal);
+        // A finite list with both zeros and ties sorts as `partial_cmp` sorted it,
+        // so the tie-break key still decides between -0.0 and 0.0.
+        let keys: [f64; 10] = [3.5, -0.0, 1.0, 0.0, -2.25, 1.0, f64::INFINITY, -0.0, f64::NEG_INFINITY, 7.0];
+        let mut before: Vec<usize> = (0..keys.len()).collect();
+        before.sort_by(|&a, &b| keys[a].partial_cmp(&keys[b]).unwrap().then(a.cmp(&b)));
+        let mut after: Vec<usize> = (0..keys.len()).collect();
+        after.sort_by(|&a, &b| cmp_f64(keys[a], keys[b]).then(a.cmp(&b)));
+        assert_eq!(after, before);
+        let mut descending: Vec<usize> = (0..keys.len()).collect();
+        descending.sort_by(|&a, &b| cmp_f64(keys[b], keys[a]));
+        let mut descending_before: Vec<usize> = (0..keys.len()).collect();
+        descending_before.sort_by(|&a, &b| keys[b].partial_cmp(&keys[a]).unwrap());
+        assert_eq!(descending, descending_before);
+        // NaN keys sort without a panic.
+        let mut with_nan: Vec<f64> = vec![1.0, f64::NAN, -0.0, 0.0, -f64::NAN, 2.0];
+        with_nan.sort_by(|a, b| cmp_f64(*a, *b));
+        assert_eq!(with_nan.iter().filter(|x| x.is_nan()).count(), 2);
+    }
 
     fn world(people: &[(u16, u16, f32)], fs: &[f32]) -> (AgentPool, Vec<RegionState>) {
         // (region, age, wealth)

@@ -23,6 +23,14 @@ use crate::memory::{MemoryEventType, MemoryIntent};
 use crate::pool::AgentPool;
 use crate::region::RegionState;
 
+/// Total order on `f32` keys that agrees with `partial_cmp` on every non-NaN
+/// pair: adding `+0.0` maps `-0.0` to `+0.0`, so the two zeros stay `Equal`
+/// and a tie-break key still applies; NaN gets a fixed place instead of a
+/// panic or an inconsistent sort.
+fn cmp_f32(a: f32, b: f32) -> std::cmp::Ordering {
+    (a + 0.0).total_cmp(&(b + 0.0))
+}
+
 // ---------------------------------------------------------------------------
 // Declaration orders (append-only; Python `agent_movements_state` mirrors them)
 // ---------------------------------------------------------------------------
@@ -450,9 +458,8 @@ fn seed_candidates(
         }
     }
     ranked.sort_by(|a, b| {
-        b.0.partial_cmp(&a.0)
-            .unwrap()
-            .then(b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal))
+        cmp_f32(b.0, a.0)
+            .then(cmp_f32(b.1, a.1))
             .then(a.2.cmp(&b.2))
     });
     ranked.into_iter().map(|(_, _, _, slot)| slot).collect()
@@ -1063,6 +1070,32 @@ pub fn movement_stats_batches(stats: &MovementStats) -> Result<(RecordBatch, Rec
 mod tests {
     use super::*;
     use crate::agent::Occupation;
+
+    #[test]
+    fn cmp_f32_is_total_and_keeps_the_zeros_equal() {
+        use std::cmp::Ordering;
+        assert_eq!(cmp_f32(-0.0, 0.0), Ordering::Equal);
+        assert_eq!(cmp_f32(0.0, -0.0), Ordering::Equal);
+        assert_ne!(cmp_f32(f32::NAN, 1.0), Ordering::Equal);
+        assert_ne!(cmp_f32(1.0, f32::NAN), Ordering::Equal);
+        // A finite list with both zeros and ties sorts as `partial_cmp` sorted it,
+        // so the tie-break key still decides between -0.0 and 0.0.
+        let keys: [f32; 10] = [3.5, -0.0, 1.0, 0.0, -2.25, 1.0, f32::INFINITY, -0.0, f32::NEG_INFINITY, 7.0];
+        let mut before: Vec<usize> = (0..keys.len()).collect();
+        before.sort_by(|&a, &b| keys[a].partial_cmp(&keys[b]).unwrap().then(a.cmp(&b)));
+        let mut after: Vec<usize> = (0..keys.len()).collect();
+        after.sort_by(|&a, &b| cmp_f32(keys[a], keys[b]).then(a.cmp(&b)));
+        assert_eq!(after, before);
+        let mut descending: Vec<usize> = (0..keys.len()).collect();
+        descending.sort_by(|&a, &b| cmp_f32(keys[b], keys[a]));
+        let mut descending_before: Vec<usize> = (0..keys.len()).collect();
+        descending_before.sort_by(|&a, &b| keys[b].partial_cmp(&keys[a]).unwrap());
+        assert_eq!(descending, descending_before);
+        // NaN keys sort without a panic.
+        let mut with_nan: Vec<f32> = vec![1.0, f32::NAN, -0.0, 0.0, -f32::NAN, 2.0];
+        with_nan.sort_by(|a, b| cmp_f32(*a, *b));
+        assert_eq!(with_nan.iter().filter(|x| x.is_nan()).count(), 2);
+    }
 
     fn region(id: u16, controller: u8) -> RegionState {
         let mut r = RegionState::new(id);

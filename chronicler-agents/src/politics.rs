@@ -6,6 +6,14 @@
 
 use std::collections::{HashMap, HashSet, VecDeque};
 
+/// Total order on `f64` keys that agrees with `partial_cmp` on every non-NaN
+/// pair: adding `+0.0` maps `-0.0` to `+0.0`, so the two zeros stay `Equal`
+/// and a tie-break key still applies; NaN gets a fixed place instead of a
+/// panic or an inconsistent sort.
+fn cmp_f64(a: f64, b: f64) -> std::cmp::Ordering {
+    (a + 0.0).total_cmp(&(b + 0.0))
+}
+
 // ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------
@@ -1404,7 +1412,7 @@ fn step_secession(
                 (r_idx, dist as f64 * 0.7 + cap as f64 * 0.3)
             })
             .collect();
-        scored.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
+        scored.sort_by(|a, b| cmp_f64(b.1, a.1));
 
         let breakaway_count = ((lc_regions.len() as f64 / 3.0).ceil() as usize)
             .max(1)
@@ -3205,6 +3213,32 @@ pub fn run_politics_pass(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn cmp_f64_is_total_and_keeps_the_zeros_equal() {
+        use std::cmp::Ordering;
+        assert_eq!(cmp_f64(-0.0, 0.0), Ordering::Equal);
+        assert_eq!(cmp_f64(0.0, -0.0), Ordering::Equal);
+        assert_ne!(cmp_f64(f64::NAN, 1.0), Ordering::Equal);
+        assert_ne!(cmp_f64(1.0, f64::NAN), Ordering::Equal);
+        // A finite list with both zeros and ties sorts as `partial_cmp` sorted it,
+        // so the tie-break key still decides between -0.0 and 0.0.
+        let keys: [f64; 10] = [3.5, -0.0, 1.0, 0.0, -2.25, 1.0, f64::INFINITY, -0.0, f64::NEG_INFINITY, 7.0];
+        let mut before: Vec<usize> = (0..keys.len()).collect();
+        before.sort_by(|&a, &b| keys[a].partial_cmp(&keys[b]).unwrap().then(a.cmp(&b)));
+        let mut after: Vec<usize> = (0..keys.len()).collect();
+        after.sort_by(|&a, &b| cmp_f64(keys[a], keys[b]).then(a.cmp(&b)));
+        assert_eq!(after, before);
+        let mut descending: Vec<usize> = (0..keys.len()).collect();
+        descending.sort_by(|&a, &b| cmp_f64(keys[b], keys[a]));
+        let mut descending_before: Vec<usize> = (0..keys.len()).collect();
+        descending_before.sort_by(|&a, &b| keys[b].partial_cmp(&keys[a]).unwrap());
+        assert_eq!(descending, descending_before);
+        // NaN keys sort without a panic.
+        let mut with_nan: Vec<f64> = vec![1.0, f64::NAN, -0.0, 0.0, -f64::NAN, 2.0];
+        with_nan.sort_by(|a, b| cmp_f64(*a, *b));
+        assert_eq!(with_nan.iter().filter(|x| x.is_nan()).count(), 2);
+    }
 
     fn make_config() -> PoliticsConfig {
         PoliticsConfig::default()

@@ -24,6 +24,14 @@ use crate::signals::TickSignals;
 use rand::Rng;
 use rand_chacha::ChaCha8Rng;
 
+/// Total order on `f32` keys that agrees with `partial_cmp` on every non-NaN
+/// pair: adding `+0.0` maps `-0.0` to `+0.0`, so the two zeros stay `Equal`
+/// and a tie still resolves as before; NaN gets a fixed place instead of
+/// comparing `Equal` to everything.
+fn cmp_f32(a: f32, b: f32) -> std::cmp::Ordering {
+    (a + 0.0).total_cmp(&(b + 0.0))
+}
+
 // ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------
@@ -88,7 +96,7 @@ pub fn personality_modifier(dimension: f32, weight: f32) -> f32 {
 fn gumbel_argmax(utilities: &[f32], rng: &mut ChaCha8Rng, temperature: f32) -> usize {
     if temperature <= 0.0 {
         return utilities.iter().enumerate()
-            .max_by(|(_, a), (_, b)| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal))
+            .max_by(|(_, a), (_, b)| cmp_f32(**a, **b))
             .map(|(i, _)| i)
             .unwrap_or(0);
     }
@@ -1282,6 +1290,39 @@ mod tests {
     use crate::pool::AgentPool;
     use crate::region::RegionState;
     use crate::signals::TickSignals;
+
+    #[test]
+    fn cmp_f32_is_total_and_keeps_the_zeros_equal() {
+        use std::cmp::Ordering;
+        assert_eq!(cmp_f32(-0.0, 0.0), Ordering::Equal);
+        assert_eq!(cmp_f32(0.0, -0.0), Ordering::Equal);
+        assert_ne!(cmp_f32(f32::NAN, 1.0), Ordering::Equal);
+        assert_ne!(cmp_f32(1.0, f32::NAN), Ordering::Equal);
+        // A finite list with both zeros and ties sorts as `partial_cmp` sorted it,
+        // so the tie-break key still decides between -0.0 and 0.0.
+        let keys: [f32; 10] = [3.5, -0.0, 1.0, 0.0, -2.25, 1.0, f32::INFINITY, -0.0, f32::NEG_INFINITY, 7.0];
+        let mut before: Vec<usize> = (0..keys.len()).collect();
+        before.sort_by(|&a, &b| keys[a].partial_cmp(&keys[b]).unwrap().then(a.cmp(&b)));
+        let mut after: Vec<usize> = (0..keys.len()).collect();
+        after.sort_by(|&a, &b| cmp_f32(keys[a], keys[b]).then(a.cmp(&b)));
+        assert_eq!(after, before);
+        let mut descending: Vec<usize> = (0..keys.len()).collect();
+        descending.sort_by(|&a, &b| cmp_f32(keys[b], keys[a]));
+        let mut descending_before: Vec<usize> = (0..keys.len()).collect();
+        descending_before.sort_by(|&a, &b| keys[b].partial_cmp(&keys[a]).unwrap());
+        assert_eq!(descending, descending_before);
+        // `max_by` keeps its direction and picks the same (last) maximum.
+        let max_before = keys.iter().enumerate()
+            .max_by(|(_, a), (_, b)| a.partial_cmp(b).unwrap_or(Ordering::Equal)).map(|(i, _)| i);
+        let max_after = keys.iter().enumerate().max_by(|(_, a), (_, b)| cmp_f32(**a, **b)).map(|(i, _)| i);
+        assert_eq!(max_after, max_before);
+        let zeros: [f32; 3] = [0.0, -0.0, -1.0];
+        assert_eq!(zeros.iter().enumerate().max_by(|(_, a), (_, b)| cmp_f32(**a, **b)).map(|(i, _)| i), Some(1));
+        // NaN keys sort without a panic.
+        let mut with_nan: Vec<f32> = vec![1.0, f32::NAN, -0.0, 0.0, -f32::NAN, 2.0];
+        with_nan.sort_by(|a, b| cmp_f32(*a, *b));
+        assert_eq!(with_nan.iter().filter(|x| x.is_nan()).count(), 2);
+    }
 
     fn default_signals(num_regions: usize) -> TickSignals {
         TickSignals {
