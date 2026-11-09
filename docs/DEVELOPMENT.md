@@ -286,35 +286,42 @@ fail far from the file you touched. Run the read-only preflight first:
 It reports four levels per path (`--json` for tooling, `--fail-on-enforced`
 to exit 1 on a pin):
 
-- **enforced:** a known check fails when the bytes change or the path moves.
+- **enforced:** a known check fails when the bytes change or the path moves
+  (workflow byte copies, shard and oracle-chunk ownership, the frozen witness
+  snapshot). Source witnesses are no longer enforced pins on the working tree.
 - **digest:** the file's current SHA-256 or Git blob id appears in test data;
   treat it as pinned until you have read the test.
 - **reference:** tests, witnesses, workflows, importers or docs name the path
   or module; read each hit.
 - **historical:** an older recorded hash (performance and reference-baseline
-  provenance). The current file already differs, so it is not a pin; never
-  rewrite it to match.
+  provenance), or a source witness verified against the file's frozen copy
+  ("frozen source witness"). Neither pins the current file; never rewrite it
+  to match.
+
+Each report also prints `identity gate:` with the cases that execute the path
+(from `tests/fixtures/identity/coverage.json`), or `NO IDENTITY CASE` when only
+tests, or nothing, guard it.
 
 It always prints what it cannot see (runtime-built paths, `inspect.getsource`,
 whole-tree digests, behavioral goldens, TypeScript and Rust module graphs). "No
-known pins" is not a safety proof; run the lanes above. On 2026-11-04 it found
-83 tracked source, script, viewer and workflow files with enforced pins and 25
-more with a recorded current digest, including `main.py`, `simulation.py`,
-`models.py`, `agent_bridge.py`, twelve Rust files and 26 viewer files. `utils.py`,
-the `validation_*` modules and `AppShell.tsx` have none. An earlier version of
-this section listed `utils.py` among about 150 pinned files; that list counted
-historical provenance hashes as pins.
+known pins" is not a safety proof; run the lanes above.
 
 The mechanisms it checks:
 
-- **Source witnesses.** `scripts/testing/*_witness.py` project current source
-  back through each reviewed candidate's patches
+- **Source witnesses (frozen history).** `scripts/testing/*_witness.py` project
+  source back through each reviewed candidate's patches
   (`tests/fixtures/*_source_inverse.json`; `grain_release_witness.py` embeds its
-  own layers) and compare hashes at every step. Editing a pinned file breaks the
-  chain. Do not rewrite a fixture's hashes to match new source: either leave the
-  file alone or add a reviewed exact-inverse layer, as
-  `scripts/testing/reviewed_main_witness.py` does for `main.py`, and review it
-  like source.
+  own layers) and compare hashes at every step. Since DEC-1 option A
+  (2026-11-08) the witness tests read the 91 witnessed files from
+  `tests/fixtures/frozen_pin_sources/` (via `scripts/testing/frozen_sources.py`),
+  byte copies of `main` c3d752fa (tag `pin-freeze-2026-11`), not from the
+  working tree. Editing a witnessed source no longer breaks a chain and needs no
+  inverse layer; `reviewed_main_witness.py` and the livelihoods layers are now
+  history. Never edit, re-hash or regenerate the fixtures, the copies or their
+  `MANIFEST.json`: `tests/test_refactor_preflight.py` checks every copy against
+  the manifest, and `scripts/testing/freeze_pin_sources.py --verify` (full
+  clone) checks the copies against the freeze commit. Behaviour is guarded by
+  the identity gate below instead.
 - **Workflows.** `docs/workflows/native-two-shards*.yml.in` must stay
   byte-identical to `.github/workflows/`, and `tests/test_native_ci_shards.py`
   records the workflow's SHA-256. `tests/test_native_build_lanes.py` reads
@@ -336,6 +343,39 @@ The mechanisms it checks:
 
 Evidence JSON under `docs/` records hashes and paths as they were; leave it
 byte-for-byte unchanged when moving the files it names.
+
+### Identity gate
+
+`.github/workflows/identity-gate.yml` runs on pull requests that touch
+`src/chronicler/`, `chronicler-agents/src/`, `scripts/turn_speed_identity.py`
+or `tests/fixtures/identity/`, and weekly. Each lane runs its cases with
+`scripts/turn_speed_identity.py run`, then `check` compares the output digests
+with the committed goldens in `tests/fixtures/identity/`:
+
+| Lane | Case | Switches |
+| --- | --- | --- |
+| python | `g_off_s42` | seed 42, 120 turns, `--agents off` |
+| python | `g_off_proc_s7` | seed 7, 100 turns, 48 regions, 10 civs, `--agents off` |
+| python | `g_batch_off` | `--batch 3`, seed 100, 40 turns, `--agents off` |
+| native | `g_hybrid_s42` | seed 42, 100 turns, hybrid, validation sidecar |
+| native | `g_grain_s7` | seed 7, 120 turns, hybrid, grain reserves and storage (`maintain`, work budget 1), public grain shipments, harvest forecasts, transaction receipts |
+| native | `g_learning_s42` | seed 42, 120 turns, 24 regions, 6 civs, hybrid, scholarship, academy services |
+| native | `g_mobility_s1234` | seed 1234, 100 turns, hybrid, household mobility (liquid requirement 25), community anchoring, capacity-aware refugees |
+| native | `g_scaled_s42` | seed 42, 30 turns, 12 regions, 4 civs, hybrid, validation sidecar, scaled to 18,800 starting agents |
+| native | `g_off_s42` | as the python case, with the native ecology simulator |
+
+`check` refuses a native build that is not the checkout's (build receipt) and a
+runtime whose Python minor version, platform or Rust channel differs from the
+goldens'; a rebuilt extension with identical outputs passes. Locally, gate a
+refactor with `check` against the goldens or with `compare` between two
+checkouts' `run` directories, plus the oracle lane. The cases run only their
+listed switches: the preflight's `identity gate:` line shows which cases reach a
+file, and code reached only through other flags still needs its tests.
+
+An intended outcome change (a correction) updates the goldens in its own PR:
+capture them with the workflow's `capture` input, commit them unmodified, and
+record the before/after differences and a CONTINUATION entry. Never edit a
+golden by hand, and never mix a golden update into a refactor.
 
 ## Claude Code cloud sessions
 
