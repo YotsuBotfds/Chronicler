@@ -262,3 +262,54 @@ def test_real_titled_dispatch_waits_for_carriers_own_trade_packet():
     h.turn({VERDANT: {"grain": 30.0}})
     assert state.trade_experience[0]["outcome"] == "delivered"
     assert state.trade_experience[0]["id"] == 90
+
+
+# Expected rows and ``unshuffled`` counts were produced by the inline shuffle
+# blocks before ``_shuffle_rows`` was extracted (CON-14); both control paths
+# (rules 1/2 and rules 3) must keep producing them.
+_SHUFFLE_ADJ = {"a": ["b", "c", "d"], "b": ["a"], "c": ["a", "d", "e", "x"], "d": ["c", "a", "e"],
+                "e": ["d", "c"], "f": []}
+_SHUFFLE_HOMES = {1: 0, 2: 1, 3: 2, 4: 3, 5: 5, 6: 4}  # id 7 has no home
+_SHUFFLE_MEMORY = [(1, 1, 1, "refused"), (1, 2, 2, "left_soon"), (1, 3, 1, "refused"),
+                   (2, 0, 1, "refused"), (2, 4, 3, "refused"), (3, 0, 2, "left_soon"),
+                   (3, 3, 1, "refused"), (3, 5, 1, "refused"), (4, 2, 1, "refused"),
+                   (5, 0, 1, "refused"), (6, 3, 2, "left_soon"), (7, 1, 1, "refused")]
+_SHUFFLE_TURN5 = [(1, 1, -0.135), (1, 2, -0.18), (1, 3, -0.18), (2, 0, -0.18), (2, 4, -0.14),
+                  (3, 3, -0.135), (3, 4, -0.18), (3, 5, -0.18), (4, 0, -0.18), (5, 0, -0.18),
+                  (6, 2, -0.135), (7, 1, -0.18)]
+_SHUFFLE_TURN9 = [(1, 1, -0.18), (1, 2, -0.18), (1, 3, -0.135), (2, 0, -0.18), (2, 4, -0.14),
+                  (3, 0, -0.18), (3, 4, -0.135), (3, 5, -0.18), (4, 0, -0.18), (5, 0, -0.18),
+                  (6, 2, -0.135), (7, 1, -0.18)]
+
+
+class _ShuffleSim:
+    installed = None
+
+    def get_snapshot(self):
+        return pa.record_batch({"id": list(_SHUFFLE_HOMES), "region": list(_SHUFFLE_HOMES.values())})
+
+    def set_adaptive_information(self, turn, rows):
+        return []
+
+    def cancel_adaptive_information(self):
+        pass
+
+    def set_adaptive_migration(self, turn, rows):
+        self.installed = (turn, rows)
+
+
+@pytest.mark.parametrize("rules", ["1", "3"])
+@pytest.mark.parametrize("turn, expected", [(5, _SHUFFLE_TURN5), (9, _SHUFFLE_TURN9), (23, _SHUFFLE_TURN5)])
+def test_shuffled_control_rows_match_base_on_both_paths(monkeypatch, rules, turn, expected):
+    state = AdaptiveLivelihoodsState(mode="shuffled", rules=rules)
+    state.last_turn = turn - 1
+    state.memory = [{"id": aid, "region": region, "turn": turn - age, "kind": kind}
+                    for aid, region, age, kind in _SHUFFLE_MEMORY]
+    w = NS(seed=11, turn=turn, agent_mode="hybrid", agent_events_raw=[],
+           regions=[NS(name=n, adjacencies=adj) for n, adj in _SHUFFLE_ADJ.items()],
+           livelihoods=NS(adaptive_livelihoods=state))
+    monkeypatch.setattr(a6, "_known_residences", lambda world, homes: ({aid: None for aid in homes}, []))
+    sim = _ShuffleSim()
+    a6.before_agent_tick(w, NS(_sim=sim))
+    assert [(a, t, round(v, 12)) for a, t, v in sim.installed[1]] == expected
+    assert state.counters["unshuffled"] == 5
