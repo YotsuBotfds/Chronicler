@@ -63,6 +63,19 @@ def _write_batch_report(batch_dir: Path, report: dict[str, Any]) -> Path:
     return report_path
 
 
+def _coerce_set_value(value: Any) -> int | None:
+    """The integer a paused ``set`` command applies, or None when it has none.
+
+    ``int()`` truncates booleans and finite floats as before; infinities,
+    NaN, oversized or non-numeric values (JSON accepts ``Infinity``) are
+    refused instead of escaping the pause loop.
+    """
+    try:
+        return int(value)
+    except (TypeError, ValueError, OverflowError):
+        return None
+
+
 def _normalize_narrator(value: Any, default: str = "local") -> str:
     if isinstance(value, str) and value in _SUPPORTED_NARRATORS:
         return value
@@ -1110,7 +1123,8 @@ def make_live_pause(
                     continue
 
                 # Validate civ
-                civ_obj = next((c for c in world.civilizations if c.name == civ_name), None)
+                civ_obj = (next((c for c in world.civilizations if c.name == civ_name), None)
+                           if isinstance(civ_name, str) else None)
                 if civ_obj is None:
                     status_queue.put({
                         "type": "error",
@@ -1118,8 +1132,8 @@ def make_live_pause(
                     })
                     continue
 
-                # Validate stat
-                if stat not in VALID_STATS:
+                # Validate stat (an unhashable stat cannot be a set member)
+                if not isinstance(stat, str) or stat not in VALID_STATS:
                     status_queue.put({
                         "type": "error",
                         "message": f"Invalid stat: '{stat}'. Valid stats: {sorted(VALID_STATS)}",
@@ -1127,14 +1141,14 @@ def make_live_pause(
                     continue
 
                 # Validate value range
-                try:
-                    value = int(value)
-                except (TypeError, ValueError):
+                coerced = _coerce_set_value(value)
+                if coerced is None:
                     status_queue.put({
                         "type": "error",
                         "message": f"Value must be an integer, got '{value}'",
                     })
                     continue
+                value = coerced
 
                 if stat in CORE_STATS and not (1 <= value <= 100):
                     status_queue.put({

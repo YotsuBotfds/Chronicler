@@ -501,3 +501,90 @@ def test_resolve_start_seed_passes_through_int():
 
     assert resolve_start_seed(42) == 42
     assert resolve_start_seed(0) == 0
+
+
+def _run_paused_commands(commands):
+    """Drive one real live pause with queued commands ending in ``continue``."""
+    from chronicler.live import make_live_pause
+    from chronicler.memory import MemoryStream
+
+    command_q = queue.Queue()
+    status_q = queue.Queue()
+    world = _make_world()
+    memories = {c.name: MemoryStream(civilization_name=c.name) for c in world.civilizations}
+    pause_fn = make_live_pause(command_q, status_q)
+    for command in commands(world):
+        command_q.put(command)
+    command_q.put({"type": "continue"})
+    assert pause_fn(world, memories, []) is True
+    statuses = []
+    while not status_q.empty():
+        statuses.append(status_q.get_nowait())
+    assert statuses[0]["type"] == "paused"
+    assert statuses[-1] == {"type": "ack", "command": "continue", "still_paused": False}
+    return world, statuses[1:-1]
+
+
+@pytest.mark.parametrize("value", [
+    float("inf"), float("-inf"), float("nan"), 1e999, "Infinity", "NaN", [1], {}, None, "abc",
+])
+def test_live_pause_set_refuses_non_integer_value_and_stays_paused(value):
+    """A value int() cannot represent is one error; the pause loop keeps serving."""
+    def commands(world):
+        civ = world.civilizations[0]
+        return [
+            {"type": "set", "civ": civ.name, "stat": "military", "value": value},
+            {"type": "set", "civ": civ.name, "stat": "military", "value": 77},
+        ]
+
+    world, statuses = _run_paused_commands(commands)
+    assert [s["type"] for s in statuses] == ["error", "ack"]
+    assert statuses[0]["message"].startswith("Value must be an integer, got ")
+    assert world.civilizations[0].military == 77
+
+
+@pytest.mark.parametrize(("value", "applied"), [(True, 1), (3.7, 3), ("12", 12), (55, 55)])
+def test_live_pause_set_keeps_existing_integer_coercion(value, applied):
+    """Values int() accepted before are still truncated and applied unchanged."""
+    def commands(world):
+        return [{"type": "set", "civ": world.civilizations[0].name, "stat": "military",
+                 "value": value}]
+
+    world, statuses = _run_paused_commands(commands)
+    assert [s["type"] for s in statuses] == ["ack"]
+    assert statuses[0]["value"] == applied
+    assert world.civilizations[0].military == applied
+
+
+@pytest.mark.parametrize("stat", [["x"], {"a": 1}, ["military"], 5, None])
+def test_live_pause_set_refuses_non_string_stat(stat):
+    """An unhashable or non-string stat is answered as an invalid stat (FIX-11)."""
+    def commands(world):
+        return [{"type": "set", "civ": world.civilizations[0].name, "stat": stat, "value": 5}]
+
+    _, statuses = _run_paused_commands(commands)
+    assert [s["type"] for s in statuses] == ["error"]
+    assert statuses[0]["message"].startswith("Invalid stat: ")
+
+
+@pytest.mark.parametrize("civ", [["x"], {"a": 1}, 0, None])
+def test_live_pause_set_refuses_non_string_civ(civ):
+    """A non-string civ name is answered as an unknown civilization (FIX-11)."""
+    def commands(world):
+        return [{"type": "set", "civ": civ, "stat": "military", "value": 5}]
+
+    _, statuses = _run_paused_commands(commands)
+    assert [s["type"] for s in statuses] == ["error"]
+    assert statuses[0]["message"].startswith("Unknown civilization: ")
+
+
+def test_coerce_set_value_without_a_thread():
+    """The coercion is reachable directly: int or None, never an exception."""
+    from chronicler.live import _coerce_set_value
+
+    assert _coerce_set_value(7) == 7
+    assert _coerce_set_value(True) == 1
+    assert _coerce_set_value(-3.9) == -3
+    assert _coerce_set_value("42") == 42
+    for bad in (float("inf"), float("nan"), 1e999, "Infinity", [1], {}, None, "4.5"):
+        assert _coerce_set_value(bad) is None
