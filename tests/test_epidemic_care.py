@@ -617,7 +617,14 @@ def test_a_saved_world_outside_hybrid_is_refused_with_the_way_to_end_it():
     w.livelihoods.epidemic_care.tick_turn = 3
     with pytest.raises(ValueError, match="keeps its epidemic care mode"):
         LV.configure_livelihoods(w, _args(epidemic_care_mode="care"), agent_mode="hybrid")
-    LV.configure_livelihoods(w, _args(epidemic_care=False), agent_mode="off")      # ending it is allowed
+    # FIX-7: the saved local budgets need hybrid too, so ending epidemic care
+    # alone outside hybrid is refused with the way to end them as well.
+    with pytest.raises(LV.LivelihoodsRefusal) as refused:
+        LV.configure_livelihoods(w, _args(epidemic_care=False), agent_mode="off")
+    assert str(refused.value) == ("--local-budgets requires --agents hybrid and --grain-reserves; "
+                                  "this world has it on: pass --no-local-budgets to end it")
+    assert w.livelihoods.epidemic_care.enabled is True
+    LV.configure_livelihoods(w, _args(epidemic_care=False, local_budgets=False), agent_mode="off")  # allowed
     assert w.livelihoods.epidemic_care.enabled is False and w.livelihoods.epidemic_care.capacity == []
 
 
