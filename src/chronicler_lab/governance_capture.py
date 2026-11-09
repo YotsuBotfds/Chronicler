@@ -7,8 +7,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from . import governance_kernel_harness as harness
-from . import governance_measurements as measurements
+from chronicler import governance_kernel_harness as harness
+from chronicler_lab import governance_measurements as measurements
 
 CAPTURE_CONTRACT = "chronicler-governance-capture-v1"
 

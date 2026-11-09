@@ -8,8 +8,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 import json
 
-from . import governance_capture as capture
-from . import governance_measurements as gm
+from chronicler_lab import governance_capture as capture
+from chronicler_lab import governance_measurements as gm
 
 SEQUENCE_CONTRACT = "chronicler-governance-sequence-v1"
 SUMMARY_METRICS = ("institution_count", "enact_count", "repeal_count",

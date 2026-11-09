@@ -45,11 +45,11 @@ import json
 import math
 import re
 
-from . import elite_metrics as g02
-from . import governance_capital as g03
-from . import governance_kernel_harness as harness
-from . import institutions as g01
-from . import ruler_ambitions as g04
+from chronicler import elite_metrics as g02
+from chronicler import governance_capital as g03
+from chronicler import governance_kernel_harness as harness
+from chronicler import institutions as g01
+from chronicler import ruler_ambitions as g04
 
 __all__ = [
     "MEASUREMENT_SCHEMA",
