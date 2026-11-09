@@ -4,9 +4,10 @@ Food is milli-food; army kits are whole rations (one food = two rations).
 No second spendable balance: liabilities are promises, paid only by money.py.
 """
 from __future__ import annotations
-from typing import Any, Literal
+from typing import Any, ClassVar, Literal
 from pydantic import BaseModel, Field, PrivateAttr
 from chronicler.money import MoneyBook
+from chronicler.switch_state import SwitchStateMixin
 
 MODES = ("transfer", "cost_only")
 MAX_ROWS = 256
@@ -28,7 +29,7 @@ class RestitutionClaim(BaseModel):
     source: str
     status: str = "open"
 
-class WarRequisitionState(BaseModel):
+class WarRequisitionState(SwitchStateMixin, BaseModel):
     _sim: Any = PrivateAttr(default=None)
     schema_version: Literal[1] = 1
     enabled: bool = True
@@ -52,8 +53,5 @@ class WarRequisitionState(BaseModel):
     census_turn: int | None = None
     census_ids: list[int] = Field(default_factory=list)
 
-    def __setstate__(self, state):
-        super().__setstate__(state)
-        for name, field in type(self).model_fields.items():
-            if name not in self.__dict__:
-                self.__dict__[name] = field.get_default(call_default_factory=True)
+    _FILL_DEFAULTS: ClassVar[bool] = True
+    _BUMP: ClassVar[dict] = {"allowed": COUNTERS, "coerce": int}

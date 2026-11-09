@@ -17,9 +17,11 @@ never reorder (stored values, native codes and counters are keyed by them).
 """
 from __future__ import annotations
 
-from typing import Literal
+from typing import ClassVar, Literal
 
 from pydantic import BaseModel, Field, PrivateAttr
+
+from chronicler.switch_state import SwitchStateMixin
 
 #: Modes (first: the default when enabled). ``liquidity_only`` is the
 #: control: the same fare gate, nothing paid.
@@ -111,7 +113,7 @@ class AssistanceCharge(BaseModel):
     status: str
 
 
-class RelocationCostsState(BaseModel):
+class RelocationCostsState(SwitchStateMixin, BaseModel):
     schema_version: Literal[1] = 1
     enabled: bool = True
     mode: Literal["paid", "assisted", "liquidity_only"] = "paid"
@@ -131,3 +133,4 @@ class RelocationCostsState(BaseModel):
     counters: dict[str, int] = Field(default_factory=dict)
     _pending: object | None = PrivateAttr(default=None)
     _assist: object | None = PrivateAttr(default=None)
+    _BUMP: ClassVar[dict] = {"allowed": COUNTERS, "coerce": int}

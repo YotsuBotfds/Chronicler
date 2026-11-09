@@ -168,9 +168,7 @@ _state = sub_state_getter("workshop_economics")
 
 
 def _bump(state: WorkshopEconomicsState, key: str, amount: int = 1) -> None:
-    if key not in COUNTERS:
-        raise KeyError(f"undeclared workshop economics counter {key!r}")
-    state.counters[key] = state.counters.get(key, 0) + int(amount)
+    state.bump(key, amount)
 
 
 def _log(state: WorkshopEconomicsState, turn: int, kind: str, firm: int | None = None, **detail) -> None:

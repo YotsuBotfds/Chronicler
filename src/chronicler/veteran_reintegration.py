@@ -75,7 +75,7 @@ from __future__ import annotations
 from bisect import insort
 
 from chronicler.veteran_reintegration_state import (
-    CAUSES, CLOSING, COUNTERS, MAX_ARCHIVE, MAX_FRAME_ROWS, MAX_OPEN, MAX_OUTCOMES, MAX_PLACED_IDS,
+    CAUSES, CLOSING, MAX_ARCHIVE, MAX_FRAME_ROWS, MAX_OPEN, MAX_OUTCOMES, MAX_PLACED_IDS,
     MAX_SPELLS, MODES, OUTCOMES, PLACEMENTS, CaptureRow, FrameOutcome, FramePlacement, FrameWaiting,
     PlacementSpell, VeteranFrame, VeteranOutcome, VeteranRecord, VeteranReintegrationState,
 )
@@ -104,10 +104,7 @@ _state = sub_state_getter("veteran_reintegration")
 
 
 def _bump(state: VeteranReintegrationState, key: str, amount: int = 1) -> None:
-    if key not in COUNTERS:
-        raise KeyError(key)
-    if amount:
-        state.counters[key] = state.counters.get(key, 0) + int(amount)
+    state.bump(key, amount)
 
 
 def set_veteran_reintegration_enabled(world, value: bool, *, args=None, agent_mode=None) -> None:

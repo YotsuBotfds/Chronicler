@@ -102,9 +102,7 @@ _state = sub_state_getter("reform_services")
 
 
 def _bump(state: ReformServicesState, key: str, amount: int = 1) -> None:
-    if key not in COUNTERS:
-        raise KeyError(key)
-    state.counters[key] = state.counters.get(key, 0) + int(amount)
+    state.bump(key, amount)
 
 
 def _log(state: ReformServicesState, record: ReliefRecord) -> None:

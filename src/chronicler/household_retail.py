@@ -154,9 +154,7 @@ _state = sub_state_getter("household_retail")
 
 
 def _bump(state: HouseholdRetailState, key: str, amount: int = 1) -> None:
-    if key not in COUNTERS:
-        raise KeyError(key)
-    state.counters[key] = state.counters.get(key, 0) + int(amount)
+    state.bump(key, amount)
 
 
 def _log(state: HouseholdRetailState, record: RetailRecord) -> None:

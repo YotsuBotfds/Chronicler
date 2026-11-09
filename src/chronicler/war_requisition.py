@@ -41,9 +41,7 @@ def set_war_requisition_enabled(world, value, *, args=None, agent_mode=None):
 
 
 def _bump(state, key, value=1):
-    if key not in COUNTERS:
-        raise KeyError(key)
-    state.counters[key] = state.counters.get(key, 0) + int(value)
+    state.bump(key, value)
 
 
 def _event(world, state, **row):

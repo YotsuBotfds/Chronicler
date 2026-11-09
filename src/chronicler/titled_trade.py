@@ -132,9 +132,7 @@ _state = sub_state_getter("titled_trade")
 
 
 def _bump(state: TitledTradeState, key: str, amount: int = 1) -> None:
-    if key not in COUNTERS:
-        raise KeyError(f"undeclared titled trade counter {key!r}")
-    state.counters[key] = state.counters.get(key, 0) + int(amount)
+    state.bump(key, amount)
 
 
 def _log(state: TitledTradeState, turn: int, kind: str, shipment: int | None = None, **detail) -> None:

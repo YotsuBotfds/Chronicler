@@ -93,9 +93,7 @@ _state = sub_state_getter("remittances")
 
 
 def _bump(state: RemittancesState, key: str, amount: int = 1) -> None:
-    if key not in COUNTERS:
-        raise KeyError(key)
-    state.counters[key] = state.counters.get(key, 0) + int(amount)
+    state.bump(key, amount)
 
 
 def set_remittances_enabled(world, value: bool, *, args=None, agent_mode=None) -> None:

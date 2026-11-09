@@ -22,9 +22,11 @@ never reorder.
 """
 from __future__ import annotations
 
-from typing import Literal
+from typing import ClassVar, Literal
 
 from pydantic import BaseModel, Field
+
+from chronicler.switch_state import SwitchStateMixin
 
 #: Modes (first: the default when enabled).
 MODES: tuple[str, ...] = ("send", "record_only")
@@ -155,7 +157,7 @@ class PoolReset(BaseModel):
     reason: str
 
 
-class RemittancesState(BaseModel):
+class RemittancesState(SwitchStateMixin, BaseModel):
     schema_version: Literal[1] = 1
     enabled: bool = True
     mode: Literal["send", "record_only"] = "send"
@@ -178,3 +180,4 @@ class RemittancesState(BaseModel):
     last_pool_reset: PoolReset | None = None
     #: Scalar lifetime counters (bounded: the fixed ``COUNTERS`` key set).
     counters: dict[str, int] = Field(default_factory=dict)
+    _BUMP: ClassVar[dict] = {"allowed": COUNTERS, "coerce": int}
