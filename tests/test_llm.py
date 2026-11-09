@@ -623,3 +623,158 @@ class TestClientSafeguards:
         assert sleeps == [10.0, 10.0, 10.0, 10.0]
         mock_sdk.messages.batches.results.assert_not_called()
         assert "batch-slow" in capsys.readouterr().out
+
+
+class TestBatchBudget:
+    """FIX-9b: batch_complete honours the shared usage budget (SDK stub, no network)."""
+
+    @staticmethod
+    def _batch_sdk(tokens=(10, 5)):
+        """An SDK stub whose batches succeed for every request submitted."""
+        sdk = MagicMock()
+        submitted: list[list[dict]] = []
+
+        def create(requests):
+            submitted.append(list(requests))
+            return MagicMock(id=f"batch-{len(submitted)}", processing_status="ended")
+
+        def results(batch_id):
+            batch = submitted[int(batch_id.split("-")[1]) - 1]
+            return [
+                MagicMock(
+                    custom_id=r["custom_id"],
+                    result=MagicMock(
+                        type="succeeded",
+                        message=MagicMock(
+                            content=[MagicMock(text=f"text {r['custom_id']}")],
+                            usage=MagicMock(input_tokens=tokens[0], output_tokens=tokens[1]),
+                        ),
+                    ),
+                )
+                for r in batch
+            ]
+
+        sdk.messages.batches.create.side_effect = create
+        sdk.messages.batches.results.side_effect = results
+        sdk.messages.create.return_value = MagicMock(
+            content=[MagicMock(text="seq")],
+            usage=MagicMock(input_tokens=tokens[0], output_tokens=tokens[1]),
+            stop_reason="end_turn",
+        )
+        return sdk, submitted
+
+    @staticmethod
+    def _requests(n):
+        return [{"prompt": f"p{i}", "max_tokens": 50} for i in range(n)]
+
+    def test_zero_budgets_refuse_like_complete(self):
+        from chronicler.llm import LLMBudgetExceeded
+
+        sdk, _ = self._batch_sdk()
+        client = AnthropicClient(client=sdk, max_calls=0, max_total_tokens=0)
+        with pytest.raises(LLMBudgetExceeded):
+            client.complete("one")
+        with pytest.raises(LLMBudgetExceeded):
+            client.batch_complete(self._requests(2), poll_interval=0)
+        sdk.messages.create.assert_not_called()
+        sdk.messages.batches.create.assert_not_called()
+
+    def test_exhausted_call_budget_refuses_before_batches_create(self):
+        from chronicler.llm import LLMBudgetExceeded
+
+        sdk, _ = self._batch_sdk()
+        client = AnthropicClient(client=sdk, max_calls=1)
+        client.complete("one")
+        with pytest.raises(LLMBudgetExceeded, match="call budget"):
+            client.batch_complete(self._requests(3), poll_interval=0)
+        sdk.messages.batches.create.assert_not_called()
+        assert client.call_count == 1
+
+    def test_exhausted_token_budget_refuses_before_batches_create(self):
+        from chronicler.llm import LLMBudgetExceeded
+
+        sdk, _ = self._batch_sdk(tokens=(60, 40))
+        client = AnthropicClient(client=sdk, max_total_tokens=100)
+        client.complete("one")  # 100 used: the threshold is reached
+        with pytest.raises(LLMBudgetExceeded, match="token budget"):
+            client.batch_complete(self._requests(2), poll_interval=0)
+        sdk.messages.batches.create.assert_not_called()
+
+    def test_token_threshold_admits_batch_that_then_overshoots(self):
+        from chronicler.llm import LLMBudgetExceeded
+
+        sdk, submitted = self._batch_sdk(tokens=(60, 40))
+        client = AnthropicClient(client=sdk, max_total_tokens=150)
+        client.complete("one")  # 100 used, under the threshold
+        assert client.batch_complete(self._requests(3), poll_interval=0) == [
+            "text moment-0", "text moment-1", "text moment-2"]
+        assert len(submitted[0]) == 3
+        # Admitted under the threshold, counted from the results: 400 > 150.
+        assert client.total_input_tokens + client.total_output_tokens == 400
+        with pytest.raises(LLMBudgetExceeded, match="token budget"):
+            client.complete("two")
+
+    def test_batch_larger_than_remaining_calls_submits_prefix(self, caplog):
+        import logging
+
+        sdk, submitted = self._batch_sdk()
+        client = AnthropicClient(client=sdk, max_calls=3)
+        client.complete("one")
+        with caplog.at_level(logging.WARNING, logger="chronicler.llm"):
+            result = client.batch_complete(self._requests(5), poll_interval=0)
+        assert [r["custom_id"] for r in submitted[0]] == ["moment-0", "moment-1"]
+        assert [r["params"]["messages"][0]["content"] for r in submitted[0]] == ["p0", "p1"]
+        assert result == ["text moment-0", "text moment-1", None, None, None]
+        assert client.call_count == 3
+        budget_warnings = [r for r in caplog.records if "call budget allows" in r.getMessage()]
+        assert len(budget_warnings) == 1
+        assert "2 of 5" in budget_warnings[0].getMessage()
+
+    def test_usage_shared_complete_then_batch(self):
+        from chronicler.llm import LLMBudgetExceeded
+
+        sdk, submitted = self._batch_sdk()
+        client = AnthropicClient(client=sdk, max_calls=4)
+        client.complete("one")
+        client.complete("two")
+        assert client.batch_complete(self._requests(3), poll_interval=0) == [
+            "text moment-0", "text moment-1", None]
+        assert len(submitted[0]) == 2
+        assert client.call_count == 4
+        assert (client.total_input_tokens, client.total_output_tokens) == (40, 20)
+        with pytest.raises(LLMBudgetExceeded, match="call budget"):
+            client.complete("three")
+
+    def test_usage_shared_batch_then_complete(self):
+        from chronicler.llm import LLMBudgetExceeded
+
+        sdk, _ = self._batch_sdk()
+        client = AnthropicClient(client=sdk, max_calls=3)
+        assert client.batch_complete(self._requests(2), poll_interval=0) == [
+            "text moment-0", "text moment-1"]
+        assert client.call_count == 2
+        assert client.complete("one") == "seq"
+        assert (client.total_input_tokens, client.total_output_tokens) == (30, 15)
+        with pytest.raises(LLMBudgetExceeded, match="call budget"):
+            client.complete("two")
+        with pytest.raises(LLMBudgetExceeded, match="call budget"):
+            client.batch_complete(self._requests(1), poll_interval=0)
+        assert sdk.messages.batches.create.call_count == 1
+
+    def test_default_unlimited_batch_unchanged(self, caplog):
+        import logging
+
+        sdk, submitted = self._batch_sdk(tokens=(10**6, 10**6))
+        client = AnthropicClient(client=sdk)
+        for _ in range(3):
+            client.complete("again")
+        with caplog.at_level(logging.WARNING, logger="chronicler.llm"):
+            result = client.batch_complete(self._requests(4), poll_interval=0)
+        assert result == [f"text moment-{i}" for i in range(4)]
+        assert [r["custom_id"] for r in submitted[0]] == [f"moment-{i}" for i in range(4)]
+        assert client.call_count == 7
+        assert not [r for r in caplog.records if "budget" in r.getMessage()]
+
+    def test_gemini_has_no_batch_path(self):
+        # Every Gemini request goes through complete(), which checks the budget.
+        assert not hasattr(GeminiClient, "batch_complete")

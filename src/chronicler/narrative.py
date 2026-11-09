@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 from chronicler import narration_context as nc
 from chronicler import narration_provenance as npv
 from chronicler.historical_context import AsOf, HistoricalRecord, HistoricalView, snapshot_as_of
-from chronicler.llm import AnthropicClient, GeminiClient, LLMClient
+from chronicler.llm import AnthropicClient, GeminiClient, LLMBudgetExceeded, LLMClient
 from chronicler.models import (
     AgentContext,
     CausalChain,
@@ -1645,13 +1645,24 @@ Respond only with the chronicle prose. No preamble, no markdown formatting."""
         prepared: list[dict],
         on_progress: Callable[[int, int, float | None], None] | None = None,
     ) -> list[ChronicleEntry]:
-        """Narrate via Anthropic Batch API — all prompts submitted at once."""
+        """Narrate via Anthropic Batch API — all prompts submitted at once.
+
+        Moments the client's budget does not admit (a None result, or every
+        moment when ``LLMBudgetExceeded`` is raised) are rendered mechanically,
+        as the sequential path does.
+        """
         requests = [
             {"prompt": p["prompt"], "system": p["system"], "max_tokens": 1000}
             for p in prepared
         ]
 
-        results = self.narrative_client.batch_complete(requests)
+        try:
+            results = self.narrative_client.batch_complete(requests)
+        except LLMBudgetExceeded as exc:
+            # As on the sequential path: an exhausted budget renders every
+            # moment mechanically (one warning) instead of stopping the run.
+            logger.warning("Narration failed (falling back to mechanical summary): %s", exc)
+            results = [None] * len(requests)
 
         entries: list[ChronicleEntry] = []
         names = getattr(self, "_names", None)

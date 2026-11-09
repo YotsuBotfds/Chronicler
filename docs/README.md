@@ -120,7 +120,8 @@ and the [parent-extra archive](integration/parent-extra-archive.md).
 [world laboratory](integration/exploring-world-laboratory.md), and the
 narration notes ([coverage](integration/narration-coverage.md),
 [provenance](integration/narration-provenance.md),
-[system expansion](integration/narration-system-expansion.md)).
+[system expansion](integration/narration-system-expansion.md),
+[API narrator budgets](integration/llm-narration-budgets.md)).
 
 ## Viewer
 

@@ -89,7 +89,25 @@ class LLMBudgetExceeded(RuntimeError):
 
 
 class _UsageBudget:
-    """Shared token/call budget and truncation counting for API clients."""
+    """Shared token/call budget and truncation counting for API clients.
+
+    One policy for every submission path (``complete`` and, where a client has
+    one, ``batch_complete``), over one set of counters, so sequential calls and
+    batches draw on the same budget in either order.
+
+    ``max_calls`` limits the number of completions counted in ``call_count``
+    (successful responses). A submission never asks for more completions than
+    ``max_calls - call_count``.
+
+    ``max_total_tokens`` is a threshold checked at admission, before each call
+    or batch is submitted: once ``total_input_tokens + total_output_tokens``
+    has reached it, no further call or batch is admitted. It is not a hard
+    spending ceiling. Usage is only known from responses, so a call or batch
+    admitted under the threshold can overshoot it by its own usage.
+
+    ``None`` (the default) means unlimited. An exhausted budget raises
+    :class:`LLMBudgetExceeded` before any SDK call.
+    """
 
     total_input_tokens: int
     total_output_tokens: int
@@ -109,6 +127,19 @@ class _UsageBudget:
             raise LLMBudgetExceeded(
                 f"call budget reached: {self.call_count} of {self.max_calls} calls made"
             )
+
+    def _admit_batch(self, requested: int) -> int:
+        """How many of ``requested`` completions a batch may submit now.
+
+        Applies :meth:`_check_budget` first (an exhausted token or call
+        budget raises ``LLMBudgetExceeded`` before any SDK call), then caps
+        the count at the remaining call allowance. The token threshold is
+        checked once for the whole batch, at admission.
+        """
+        self._check_budget()
+        if self.max_calls is None:
+            return requested
+        return min(requested, self.max_calls - self.call_count)
 
     def _note_truncation(self, max_tokens: int) -> None:
         self.truncated_count += 1
@@ -196,6 +227,12 @@ class AnthropicClient(_UsageBudget):
     """Anthropic SDK client for Claude API calls.
 
     Optional — requires `pip install chronicler[api]`.
+
+    ``max_total_tokens`` and ``max_calls`` (default unlimited) are the shared
+    :class:`_UsageBudget`: ``complete`` and ``batch_complete`` both check them
+    before submitting and both count usage from responses. The token limit is
+    a threshold checked before each call or batch, not a hard spending
+    ceiling: a call or batch admitted under it can overshoot by its own usage.
     """
 
     def __init__(
@@ -248,11 +285,42 @@ class AnthropicClient(_UsageBudget):
         Each request dict has keys: prompt, max_tokens, system (optional).
         Returns list of response texts in the same order, None for failures.
         Polling stops after ``deadline_s`` seconds; every result is then None.
+
+        Budgets (the shared :class:`_UsageBudget`, as in :meth:`complete`):
+
+        - An exhausted token or call budget raises ``LLMBudgetExceeded``
+          before ``messages.batches.create`` is called, exactly like
+          ``complete``.
+        - Otherwise only the first ``max_calls - call_count`` requests are
+          submitted; the rest are not sent, return None, and one warning is
+          logged. This matches the sequential narrator, where ``complete``
+          succeeds for the moments inside the allowance and the later
+          moments fall back to mechanical text (a None result here), rather
+          than refusing moments the budget still allows.
+        - ``max_total_tokens`` is checked once, at admission, before the
+          batch is submitted; usage is counted from the returned results. It
+          is a threshold, not a hard spending ceiling: a batch admitted under
+          it can overshoot by its own usage.
+
+        With no budget set (the default) every request is submitted as before.
         """
         sleep_fn = time.sleep if sleep is None else sleep
         clock_fn = time.monotonic if clock is None else clock
+        admitted = self._admit_batch(len(requests))
+        if admitted < len(requests):
+            logger.warning(
+                "%s: call budget allows %d of %d batch requests "
+                "(%d of %d calls made); the other %d are not submitted and "
+                "return None",
+                type(self).__name__,
+                admitted,
+                len(requests),
+                self.call_count,
+                self.max_calls,
+                len(requests) - admitted,
+            )
         batch_requests = []
-        for i, req in enumerate(requests):
+        for i, req in enumerate(requests[:admitted]):
             params: dict[str, Any] = {
                 "model": self.model,
                 "max_tokens": req.get("max_tokens", 500),
@@ -316,6 +384,11 @@ class GeminiClient(_UsageBudget):
     """Google Gemini SDK client for Gemini API calls.
 
     Optional — requires `pip install -e ".[gemini]"` or `pip install google-genai`.
+
+    No batch path: every request goes through ``complete``, which checks the
+    shared :class:`_UsageBudget` first. The token limit is a threshold checked
+    before each call, not a hard spending ceiling: a call admitted under it
+    can overshoot by its own usage.
     """
 
     def __init__(
@@ -390,7 +463,9 @@ def create_clients(
 
     sim_client always routes to local LM Studio (free, high volume).
     narrative_client routes to local or Anthropic API based on narrator mode.
-    ``max_total_tokens`` and ``max_calls`` cap the API narrators only.
+    ``max_total_tokens`` and ``max_calls`` budget the API narrators only
+    (see :class:`_UsageBudget`: the token limit is a threshold checked before
+    each call or batch, not a hard spending ceiling).
     """
     sim_client: LLMClient = LocalClient(
         base_url=local_url,
