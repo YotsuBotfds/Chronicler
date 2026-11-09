@@ -216,12 +216,11 @@ def test_release_option_never_feeds_agents_from_pending_cargo(world, monkeypatch
 
 def test_source_inverse_preserves_frozen_parent_and_rejects_changed_policy_and_unrelated_edits():
     import hashlib
-    from pathlib import Path
+    from scripts.testing.frozen_sources import frozen_text
     from scripts.testing.grain_release_witness import _LAYERS, before_grain_release
     from scripts.testing.food_accounting_witness import before_food_accounting
-    root = Path(__file__).resolve().parents[1]
     for path, row in _LAYERS.items():
-        source = (root / path).read_text()
+        source = frozen_text(path)
         assert hashlib.sha256(before_grain_release(source, path).encode()).hexdigest() == row["sha256"]
         source = before_food_accounting(source, path, allow_parent=True)
         for patch in row["patches"]:
@@ -231,6 +230,6 @@ def test_source_inverse_preserves_frozen_parent_and_rejects_changed_policy_and_u
                 before_grain_release(source + patch["new"], path)
         with pytest.raises(AssertionError):
             before_grain_release(source + "\n# unrelated source mutation\n", path)
-    source = (root / "src/chronicler/grain_reserves.py").read_text()
+    source = frozen_text("src/chronicler/grain_reserves.py")
     with pytest.raises(AssertionError):
         before_grain_release(source.replace("full or full_meal_release", "full"), "src/chronicler/grain_reserves.py")

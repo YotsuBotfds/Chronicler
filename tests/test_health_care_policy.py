@@ -1012,8 +1012,8 @@ def test_care_codec_source_binding_preserves_reviewed_native_and_python_phase_wi
         before_reviewed_artifact_repairs, before_public_grain_configuration,
         before_public_grain_turn_admission,
     )
+    from scripts.testing.frozen_sources import frozen_text
 
-    root = _care_codec_Path(__file__).resolve().parents[1]
     pins = {
         "chronicler-agents/src/health_care.rs": "d853edb7b7d4b584e22aa919dde02696580ffaa5b10f49127007102cc7aabac7",
         "chronicler-agents/src/health_care_observation.rs": "9c617fa6a252db0d2367053c466ee77560727af90825c16cab4b58b2e6791ed9",
@@ -1028,15 +1028,15 @@ def test_care_codec_source_binding_preserves_reviewed_native_and_python_phase_wi
     }
     from scripts.testing.regional_population_witness import before_regional_population
     for path, digest in pins.items():
-        source = before_regional_population((root / path).read_bytes().decode("utf-8"), path).encode("utf-8")
+        source = before_regional_population(frozen_text(path), path).encode("utf-8")
         if path == "src/chronicler/main.py":
             source = before_reviewed_artifact_repairs(
                 before_public_grain_configuration(source.decode("utf-8"))).encode("utf-8")
         elif path == "src/chronicler/simulation.py":
             source = before_public_grain_turn_admission(source.decode("utf-8")).encode("utf-8")
         assert _care_codec_hashlib.sha256(source).hexdigest() == digest
-    native = (root / "chronicler-agents/src/health_care_observation.rs").read_text(encoding="utf-8")
-    pool = (root / "chronicler-agents/src/pool.rs").read_text(encoding="utf-8")
+    native = frozen_text("chronicler-agents/src/health_care_observation.rs")
+    pool = frozen_text("chronicler-agents/src/pool.rs")
     assert "health_work_loss /* CAREOBS_TRANSIENT_BEGIN */, health_care_observation" in pool
     assert "health_care_observation: None" in pool
     assert "saved_bytes(&self)" in native and "sort_unstable" in native
@@ -1058,9 +1058,9 @@ def test_care_main_source_inverse_refuses_unreviewed_mutations(old, new):
     from scripts.testing.reviewed_main_witness import (
         before_reviewed_artifact_repairs, before_public_grain_configuration,
     )
+    from scripts.testing.frozen_sources import frozen_text
 
-    root = _care_codec_Path(__file__).resolve().parents[1]
-    source = (root / "src/chronicler/main.py").read_bytes().decode("utf-8")
+    source = frozen_text("src/chronicler/main.py")
     assert source.count(old) == 1
     changed = source.replace(old, new, 1)
     from scripts.testing.regional_population_witness import before_regional_population
