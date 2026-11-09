@@ -1,0 +1,213 @@
+import { useEffect, useState } from "react";
+import type { PauseContext } from "../types";
+import { checkPreparedRecipe, createWhatIfRecipe, granaryPolicyValue, portableWhatIfManifest, readWhatIfRecipe,
+  recipeLiveMismatch, restorationContext, transportRegions, validTransportDuration, whatIfActive, whatIfInterventionLabel,
+  type WhatIfControls, type WhatIfManifest, type WhatIfPair, type WhatIfRecipe } from "../lib/whatIf";
+import "./what-if.css";
+
+export function WhatIfPanel({ context, controls, onCompare }: {
+  context: PauseContext; controls: WhatIfControls; onCompare: (pair: WhatIfPair) => void;
+}) {
+  const [civ, setCiv] = useState(context.civs[0] ?? "");
+  const [value, setValue] = useState(50);
+  const [turns, setTurns] = useState(5);
+  const [control, setControl] = useState<"stability" | "granary_shortfall_priority" | "regional_transport_disruption" | "academy_restoration">("stability");
+  const [regionId, setRegionId] = useState(0);
+  const [seatId, setSeatId] = useState<number | null>(null);
+  const restoration = restorationContext(context);
+  const selectedSeat = restoration?.candidates.find((row) => row.fallen_seat_id === seatId) ?? restoration?.candidates[0];
+  const [duration, setDuration] = useState(2);
+  const regions = transportRegions(controls.bundle);
+  const [policy, setPolicy] = useState<0 | 1>(1);
+  const policyBefore = granaryPolicyValue(controls.bundle);
+  const [recipe, setRecipe] = useState<WhatIfRecipe | null>(null);
+  const [recipeMessage, setRecipeMessage] = useState("");
+  const [recipeError, setRecipeError] = useState("");
+  const [verification, setVerification] = useState<{ recipe: WhatIfRecipe; manifest: WhatIfManifest;
+    error: string | null; current: WhatIfRecipe | null; sourceMismatch: boolean } | null>(null);
+  const [adoption, setAdoption] = useState<{ recipe: WhatIfRecipe; manifest: WhatIfManifest; requestId: string } | null>(null);
+  const status = controls.status;
+  const active = whatIfActive(status);
+  const manifest = status?.manifest;
+  if (adoption && status?.state === "preparing") setAdoption(null);
+  useEffect(() => {
+    if (!recipe || !manifest) return;
+    let cancelled = false;
+    void checkPreparedRecipe(recipe, manifest).then((checked) => {
+      if (!cancelled) setVerification({ recipe, manifest, error: checked.message,
+        current: checked.current, sourceMismatch: checked.mismatch === "source" });
+    }).catch((error: unknown) => {
+      if (!cancelled) setVerification({ recipe, manifest,
+        current: null, sourceMismatch: false,
+        error: error instanceof Error ? error.message : "Recipe identity could not be verified." });
+    });
+    return () => { cancelled = true; };
+  }, [recipe, manifest]);
+  const verified = !!recipe && verification?.recipe === recipe && verification.manifest === manifest;
+  const liveMismatch = recipe ? recipeLiveMismatch(recipe, controls.bundle, context.turn, context.civs, context) : null;
+  const adoptedRequest = !!recipe && adoption?.recipe === recipe && adoption.requestId === status?.request_id;
+  const adoptedManifest = adoptedRequest && adoption?.manifest === manifest;
+  const adoptedCase = adoptedRequest && (status?.state !== "prepared" || adoptedManifest);
+  const recipeRunReady = !recipe || !liveMismatch && verified
+    && (verification?.error === null || adoptedManifest && verification?.sourceMismatch === true);
+  const valid = (control === "stability" ? context.civs.includes(civ) && Number.isInteger(value) && value >= 1 && value <= 100
+    : control === "granary_shortfall_priority" ? policyBefore !== null
+      : control === "regional_transport_disruption" ? regions.some((row) => row.id === regionId) && validTransportDuration(duration)
+      : !!restoration?.supported && !!selectedSeat?.eligible)
+    && Number.isInteger(turns) && turns >= 1 && turns <= 20;
+
+  async function importRecipe(file: File) {
+    setRecipeError("");
+    try {
+      if (file.size > 1024 * 1024) throw new Error("Recipe exceeds the 1 MiB limit.");
+      const parsed = readWhatIfRecipe(JSON.parse(new TextDecoder().decode(await file.arrayBuffer())));
+      if (!parsed) throw new Error("Unsupported or malformed recipe. Only supported stability, granary priority, regional transport and academy restoration recipes are accepted.");
+      const mismatch = recipeLiveMismatch(parsed, controls.bundle, context.turn, context.civs, context);
+      if (mismatch) throw new Error(mismatch);
+      setAdoption(null);
+      setRecipe(parsed);
+      setTurns(parsed.turns);
+      setControl(parsed.control.kind);
+      if (parsed.control.kind === "stability") { setCiv(parsed.control.civ); setValue(parsed.control.value); }
+      else if (parsed.control.kind === "granary_shortfall_priority") setPolicy(parsed.control.value);
+      else if (parsed.control.kind === "regional_transport_disruption") { setRegionId(parsed.control.region_id); setDuration(parsed.control.duration); }
+      else { setRegionId(parsed.control.region_id); setSeatId(parsed.control.fallen_seat_id); }
+      setRecipeMessage("Recipe loaded into the preparation form. No command was sent. Prepare to verify its exact checkpoint, source and settings.");
+    } catch (error) {
+      setRecipeError(error instanceof Error ? error.message : "Could not read this recipe.");
+    }
+  }
+
+  async function exportRecipe() {
+    if (!manifest) return;
+    setRecipeError("");
+    try {
+      const exported = await createWhatIfRecipe(manifest, status?.pair);
+      const url = URL.createObjectURL(new Blob([JSON.stringify(exported, null, 2) + "\n"], { type: "application/json" }));
+      const anchor = document.createElement("a");
+      anchor.href = url; anchor.download = "chronicler-what-if-recipe.json"; anchor.click();
+      setTimeout(() => URL.revokeObjectURL(url), 0);
+      setRecipeMessage("Recipe downloaded with basename-only artifact identities and supported settings.");
+    } catch (error) {
+      setRecipeError(error instanceof Error ? error.message : "Could not export this recipe.");
+    }
+  }
+
+  function prepare() {
+    if (recipe) {
+      const mismatch = recipeLiveMismatch(recipe, controls.bundle, context.turn, context.civs, context);
+      if (mismatch) { setRecipeError(mismatch); return; }
+    }
+    setAdoption(null);
+    if (control === "stability") controls.prepare(civ, value, turns);
+    else if (control === "granary_shortfall_priority") controls.preparePolicy(policy, turns);
+    else if (control === "regional_transport_disruption") controls.prepareTransport(regionId, duration, turns);
+    else if (selectedSeat) controls.prepareRestoration(selectedSeat.region_id, selectedSeat.fallen_seat_id, turns);
+  }
+  return <section className="what-if-panel" aria-label="Bounded what-if">
+    <h3>Try a bounded what-if</h3>
+    <p>Compare an unchanged continuation with one supported intervention from the same exact checkpoint.
+      Both runs are simulate-only. Your original world stays paused.</p>
+    <p>A saved world state is a fork, which cannot preserve the entire runtime. This workflow requires
+      a compatible exact checkpoint and a simulate-only live session launched with PYTHONHASHSEED=0.</p>
+    <div className="what-if-recipes" aria-label="Saved comparison recipe">
+      <label>Import recipe<input type="file" accept=".json,application/json" aria-label="Import what-if recipe"
+        disabled={active || !controls.connected} onChange={(event) => {
+          const file = event.target.files?.[0]; event.target.value = ""; if (file) void importRecipe(file);
+        }} /></label>
+      {manifest && <button type="button" onClick={() => void exportRecipe()}>Download recipe</button>}
+      {recipe && <button type="button" disabled={active} onClick={() => {
+        setRecipe(null); setAdoption(null); setRecipeError(""); setRecipeMessage("Imported recipe cleared; the form is a new preparation.");
+      }}>Clear imported recipe</button>}
+      {recipeMessage && <p role="status">{recipeMessage}</p>}
+      {recipeError && <p role="alert">{recipeError}</p>}
+      {recipe && <details><summary>Imported recipe preview</summary>
+        <p>Seed {recipe.source.seed} · {recipe.source.mode} · turn {recipe.source.start_turn} → {recipe.end_turn}.
+          Saved output identities are references to the exported result, not commands to load or execute it.</p>
+        <pre>{JSON.stringify(recipe, null, 2)}</pre>
+      </details>}
+    </div>
+    <fieldset disabled={active || !controls.connected}>
+      <legend>Label the intervention before running</legend>
+      <label>Control<select aria-label="What-if control" value={control} onChange={(e) => setControl(e.target.value as typeof control)}>
+        <option value="stability">Civilization stability</option>
+        <option value="granary_shortfall_priority" disabled={policyBefore === null}>Global granary procurement priority</option>
+        <option value="regional_transport_disruption" disabled={regions.length === 0}>Regional transport disruption</option>
+        <option value="academy_restoration" disabled={!restoration?.supported || !restoration.candidates.length}>Paid academy re-founding</option>
+      </select></label>
+      {control === "stability" ? <><label>Civilization<select aria-label="What-if civilization" value={civ} onChange={(e) => setCiv(e.target.value)}>
+        {context.civs.map((name) => <option key={name}>{name}</option>)}
+      </select></label>
+      <label>Set stability to<input aria-label="What-if stability" type="number" min={1} max={100}
+        value={value} onChange={(e) => setValue(Number(e.target.value))} /></label></>
+        : control === "granary_shortfall_priority" ? <><label>Priority<select aria-label="What-if granary priority" value={policy} onChange={(e) => setPolicy(Number(e.target.value) as 0 | 1)}>
+          <option value={0}>Reserve fill first (0)</option><option value={1}>Food shortfall first (1)</option>
+        </select></label>
+        <p>World scope: every existing public granary. Baseline priority {policyBefore}; intervention priority {policy}.
+          Purchase ordering changes within domestic and foreign passes. This does not enable granaries or create grain or money.
+          {policyBefore === policy && " The selected value is unchanged; this is a no-op control."}</p></>
+        : control === "academy_restoration" ? <><label>Fallen academy<select aria-label="What-if fallen academy" value={selectedSeat?.fallen_seat_id ?? ""} onChange={(e) => setSeatId(Number(e.target.value))}>
+          {restoration?.candidates.map((row) => <option key={row.fallen_seat_id} value={row.fallen_seat_id}>{row.fallen_seat_name} (#{row.fallen_seat_id}), {row.region_name} — {row.current_lord_name ?? "Uncontrolled"}{row.eligible ? "" : " (ineligible)"}</option>)}
+        </select></label>
+        <p>Current paused turn {context.turn}; backend eligibility is checked again during preparation. {selectedSeat?.eligible ? `Recorded fee ${selectedSeat.fee} treasury coins.` : selectedSeat?.reason}</p>
+        {!!restoration?.omitted && <p>{restoration.omitted} additional candidates omitted from this bounded list.</p>}
+        <p>This deliberate paid re-founding bypasses the spontaneous founding lottery; construction labor and materials are not modeled. Subsequent service requires paid crafts, upkeep and actual Scholar work.</p></>
+        : <><label>Region<select aria-label="What-if transport region" value={regionId} onChange={(e) => setRegionId(Number(e.target.value))}>
+          {regions.map((row) => <option key={row.id} value={row.id}>{row.name} (#{row.id})</option>)}
+        </select></label>
+        <label>Disruption duration (turns)<input aria-label="What-if transport duration" type="number" min={1} max={6}
+          value={Number.isNaN(duration) ? "" : duration} onChange={(e) => setDuration(e.target.valueAsNumber)} /></label>
+        <p>Closes every trade route incident to the selected region for the requested future simulation turns. An existing longer disruption can remain in effect. Preparation reports the actual prior and effective window; hybrid mode is required.</p></>}
+      {!restoration?.supported && <p>Academy re-founding requires current paused candidate information and enabled hybrid cities, scholarship and academy services. {restoration?.unavailable_reason}</p>}
+      {policyBefore === null && <p>Global granary priority requires hybrid mode and already-enabled public granaries with a binary saved priority.</p>}
+      <label>Additional turns<input aria-label="What-if horizon" type="number" min={1} max={20}
+        value={turns} onChange={(e) => setTurns(Number(e.target.value))} /></label>
+      <button type="button" disabled={!valid} onClick={prepare}>Prepare comparison</button>
+    </fieldset>
+    {manifest && <div className="what-if-manifest" aria-label="Prepared what-if">
+      <p><strong>{whatIfInterventionLabel(manifest)}</strong></p>
+      <p>Seed {manifest.seed} · {manifest.mode} · starting at turn {manifest.start_turn},
+        continuing {manifest.turns} turns through {manifest.end_turn}.</p>
+      <p>Both arms restore the same exact runtime. One deterministic pair describes this case;
+        it does not establish a general benefit. The override applies after the starting snapshot.</p>
+      <details><summary>Source and runtime identity</summary><pre>{JSON.stringify(portableWhatIfManifest(manifest).source, null, 2)}</pre></details>
+      {recipe && (liveMismatch || !adoptedCase) && <p role={liveMismatch || verified && verification?.error ? "alert" : "status"}>
+        {liveMismatch ?? (verified ? verification?.error ?? "Imported recipe checkpoint, source, runtime, settings, control and horizon match this preparation."
+          : "Verifying imported recipe identity; running remains disabled.")}
+      </p>}
+      {recipe && verified && verification?.current && <div aria-label="Recipe source comparison">
+        <p><strong>Imported recipe reference:</strong> {recipe.source.checkpoint.name}
+          <br />Checkpoint SHA-256: <code>{recipe.source.checkpoint.sha256}</code>
+          <br />Source identifiers: <code>{JSON.stringify(recipe.source.runtime.source)}</code></p>
+        <p><strong>Current prepared checkpoint:</strong> {verification.current.source.checkpoint.name}
+          <br />Checkpoint SHA-256: <code>{verification.current.source.checkpoint.sha256}</code>
+          <br />Source identifiers: <code>{JSON.stringify(verification.current.source.runtime.source)}</code></p>
+        {status?.state === "prepared" && verification.sourceMismatch && !liveMismatch && !adoptedManifest && <>
+          <p>You can select this prepared checkpoint for a new case. The original recipe is not reproduced, and equivalent state is unproven.
+            This choice sends no command; running remains a separate action.</p>
+          <button type="button" disabled={!controls.connected} onClick={() => {
+            if (manifest && verified && verification.sourceMismatch && !liveMismatch) {
+              setAdoption({ recipe, manifest, requestId: status.request_id });
+            }
+          }}>Use this prepared checkpoint as a new case</button>
+        </>}
+      </div>}
+      {adoptedCase && !liveMismatch && <p role="status">New case selected for this preparation. The original recipe is not reproduced; equivalent state is unproven.
+        Its imported reference remains above. New recipe exports describe the current checkpoint and leave the original recipe file unchanged.</p>}
+    </div>}
+    {status && <p role={status.state === "error" ? "alert" : "status"}>
+      {status.state === "preparing" ? "Preparing exact checkpoint…" : status.state === "prepared" ? "Ready. Review the intervention, then run both continuations."
+        : status.state === "running" ? `Running ${status.arm ?? "paired continuations"}…`
+        : status.state === "completed" ? "Both continuations completed. Your original world is still paused."
+        : status.state === "cancelled" ? "Comparison cancelled. Partial outputs are retained on the server." : "Comparison could not finish."}
+      {status.message && ` ${status.message}`}
+    </p>}
+    {!controls.connected && <p role="status">Connection lost. Reconnecting; server runs remain bounded. Cancel when connected.</p>}
+    <div className="what-if-actions">
+      {status?.state === "prepared" && <button type="button" disabled={!controls.connected || !recipeRunReady}
+        onClick={() => { if (recipeRunReady) controls.run(); }}>Run both continuations</button>}
+      {active && <button type="button" disabled={!controls.connected} onClick={controls.cancel}>Cancel comparison</button>}
+      {status?.pair && <button type="button" onClick={() => onCompare(status.pair!)}>Compare what-if results</button>}
+    </div>
+  </section>;
+}

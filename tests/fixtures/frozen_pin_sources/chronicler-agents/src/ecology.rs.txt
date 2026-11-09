@@ -1,0 +1,1462 @@
+//! Pure Rust ecology core — Phase 9 soil/water/forest tick, disease, depletion,
+//! river cascade, and yield computation.  No PyO3 — FFI wrappers live in ffi.rs.
+
+use crate::region::RegionState;
+
+// ---------------------------------------------------------------------------
+// Constants
+// ---------------------------------------------------------------------------
+
+/// Uncontrolled region sentinel.
+const UNCONTROLLED: u8 = 255;
+/// Empty resource slot sentinel.
+const EMPTY_SLOT: u8 = 255;
+
+// TechFocus encoding — must match Python _get_active_focus() TECH_FOCUS_MAP in agent_bridge.py.
+// Python map: navigation=1, metallurgy=2, agriculture=3, fortification=4, commerce=5,
+//   scholarship=6, exploration=7, banking=8, printing=9, mechanization=10, railways=11,
+//   naval_power=12, networks=13, surveillance=14, media=15.
+#[allow(dead_code)]
+const FOCUS_NONE: u8 = 0;
+const FOCUS_AGRICULTURE: u8 = 3;
+const FOCUS_METALLURGY: u8 = 2;
+const FOCUS_MECHANIZATION: u8 = 10;
+
+// Terrain encoding — matches region::Terrain.
+const TERRAIN_PLAINS: u8 = 0;
+#[allow(dead_code)]
+const TERRAIN_MOUNTAINS: u8 = 1;
+#[allow(dead_code)]
+const TERRAIN_COAST: u8 = 2;
+#[allow(dead_code)]
+const TERRAIN_FOREST: u8 = 3;
+const TERRAIN_DESERT: u8 = 4;
+const TERRAIN_TUNDRA: u8 = 5;
+
+// ResourceType encoding — matches Python ResourceType(int, Enum).
+const RT_GRAIN: u8 = 0;
+const RT_TIMBER: u8 = 1;
+const RT_BOTANICALS: u8 = 2;
+const RT_FISH: u8 = 3;
+const RT_SALT: u8 = 4;
+const RT_ORE: u8 = 5;
+const RT_PRECIOUS: u8 = 6;
+const RT_EXOTIC: u8 = 7;
+
+// Resource classes for CLIMATE_CLASS_MOD indexing.
+const CLASS_CROP: usize = 0;
+const CLASS_FORESTRY: usize = 1;
+const CLASS_MARINE: usize = 2;
+const CLASS_MINERAL: usize = 3;
+const CLASS_EVAPORITE: usize = 4;
+
+/// Per-resource-type season modifier.  SEASON_MOD[resource_type][season_id]
+/// Season IDs: 0=spring, 1=summer, 2=autumn, 3=winter
+const SEASON_MOD: [[f32; 4]; 8] = [
+    [0.8, 1.2, 1.5, 0.3],   // GRAIN
+    [0.6, 1.0, 1.2, 0.8],   // TIMBER
+    [1.2, 0.8, 0.6, 0.2],   // BOTANICALS
+    [1.0, 1.0, 0.8, 0.6],   // FISH
+    [0.8, 1.2, 1.0, 1.0],   // SALT
+    [0.9, 1.0, 1.0, 0.9],   // ORE
+    [0.9, 1.0, 1.0, 1.0],   // PRECIOUS
+    [1.0, 0.8, 1.2, 0.6],   // EXOTIC
+];
+
+/// Per-resource-class climate modifier.  CLIMATE_CLASS_MOD[class][climate_phase]
+/// Classes: 0=Crop, 1=Forestry, 2=Marine, 3=Mineral, 4=Evaporite
+/// Phases:  0=TEMPERATE, 1=WARMING, 2=DROUGHT, 3=COOLING
+const CLIMATE_CLASS_MOD: [[f32; 4]; 5] = [
+    [1.0, 0.9, 0.5, 0.7],   // Crop
+    [1.0, 0.9, 0.7, 0.8],   // Forestry
+    [1.0, 1.0, 0.8, 0.9],   // Marine
+    [1.0, 1.0, 1.0, 1.0],   // Mineral
+    [1.0, 1.1, 1.2, 0.9],   // Evaporite
+];
+
+// Climate phase encoding.
+const CLIMATE_TEMPERATE: u8 = 0;
+const CLIMATE_WARMING: u8 = 1;
+const CLIMATE_DROUGHT: u8 = 2;
+const CLIMATE_COOLING: u8 = 3;
+
+/// Terrain ecology caps: [soil_cap, water_cap, forest_cap].
+/// Index matches Terrain enum.  Sourced from Python TERRAIN_ECOLOGY_CAPS.
+const TERRAIN_CAPS: [[f32; 3]; 9] = [
+    [0.95, 0.70, 0.40],  // Plains
+    [0.50, 0.90, 0.40],  // Mountains
+    [0.80, 0.90, 0.40],  // Coast
+    [0.80, 0.80, 0.95],  // Forest
+    [0.30, 0.20, 0.10],  // Desert
+    [0.20, 0.60, 0.15],  // Tundra
+    [0.75, 0.50, 0.25],  // Steppe (Geography 2.0)
+    [0.70, 0.95, 0.98],  // Jungle
+    [0.70, 0.95, 0.50],  // Marsh
+];
+
+/// Terrain ecology floors.
+/// Matches Python _FLOOR_SOIL=0.05, _FLOOR_WATER=0.10, _FLOOR_FOREST=0.00.
+const TERRAIN_FLOORS: [f32; 3] = [0.05, 0.10, 0.00];
+
+// ---------------------------------------------------------------------------
+// Config
+// ---------------------------------------------------------------------------
+
+/// All ecology tuning knobs.  Constructed Python-side from YAML overrides,
+/// passed to Rust once.  No YAML parsing on the Rust side.
+#[derive(Clone, Debug)]
+pub struct EcologyConfig {
+    // Soil
+    pub soil_degradation: f32,
+    pub soil_recovery: f32,
+    pub mine_soil_degradation: f32,
+    pub soil_recovery_pop_ratio: f32,
+    pub agriculture_soil_bonus: f32,
+    pub metallurgy_mine_reduction: f32,
+    pub mechanization_mine_mult: f32,
+    pub soil_pressure_threshold: f32,
+    pub soil_pressure_streak_limit: i32,
+    pub soil_pressure_degradation_mult: f32,
+    // Water
+    pub water_drought: f32,
+    pub water_recovery: f32,
+    pub irrigation_water_bonus: f32,
+    pub irrigation_drought_mult: f32,
+    pub cooling_water_loss: f32,
+    pub warming_tundra_water_gain: f32,
+    pub water_factor_denominator: f32,
+    // Forest
+    pub forest_clearing: f32,
+    pub forest_regrowth: f32,
+    pub cooling_forest_damage: f32,
+    pub forest_pop_ratio: f32,
+    pub forest_regrowth_water_gate: f32,
+    pub cross_effect_forest_soil: f32,
+    pub cross_effect_forest_threshold: f32,
+    // Disease
+    pub disease_severity_cap: f32,
+    pub disease_decay_rate: f32,
+    pub flare_overcrowding_threshold: f32,
+    pub flare_overcrowding_spike: f32,
+    pub flare_army_spike: f32,
+    pub flare_water_spike: f32,
+    pub flare_season_spike: f32,
+    // Depletion & yields
+    pub depletion_rate: f32,
+    pub exhausted_trickle_fraction: f32,
+    pub reserve_ramp_threshold: f32,
+    pub resource_abundance_multiplier: f32,
+    pub overextraction_streak_limit: i32,
+    pub overextraction_yield_penalty: f32,
+    pub workers_per_yield_unit: i32,
+    // River cascade
+    pub deforestation_threshold: f32,
+    pub deforestation_water_loss: f32,
+    // Regional climate (2026-10): the global phase's share of the crop and
+    // water effects, and the water a unit of harvest shock takes per turn.
+    // 1.0 and 0.0 are the global schedule alone (`set_climate_config`).
+    pub climate_trend_share: f32,
+    pub harvest_shock_water_loss: f32,
+    // Production ledger (2026-10, docs/integration/production-ledger.md):
+    // where the economy reported what each slot produced this turn
+    // (`RegionState::realized_extraction`), the overextraction streak and the
+    // soil the mines take follow that output, and the overextraction yield
+    // penalty reaches the yields the economy works with. `false` restores the
+    // earlier rule (`set_extraction_config`, tuning keys
+    // `ecology.overextraction_realized`, `ecology.mine_soil_realized`,
+    // `ecology.yield_penalty_reaches_goods` set to 0).
+    pub overextraction_realized: bool,
+    pub mine_soil_realized: bool,
+    pub yield_penalty_reaches_goods: bool,
+}
+
+impl Default for EcologyConfig {
+    fn default() -> Self {
+        Self {
+            soil_degradation: 0.005,
+            soil_recovery: 0.05,
+            mine_soil_degradation: 0.03,
+            soil_recovery_pop_ratio: 0.75,
+            agriculture_soil_bonus: 0.02,
+            metallurgy_mine_reduction: 0.5,
+            mechanization_mine_mult: 2.0,
+            soil_pressure_threshold: 0.7,
+            soil_pressure_streak_limit: 30,
+            soil_pressure_degradation_mult: 2.0,
+            water_drought: 0.04,
+            water_recovery: 0.03,
+            irrigation_water_bonus: 0.03,
+            irrigation_drought_mult: 1.5,
+            cooling_water_loss: 0.02,
+            warming_tundra_water_gain: 0.05,
+            water_factor_denominator: 0.5,
+            forest_clearing: 0.02,
+            forest_regrowth: 0.01,
+            cooling_forest_damage: 0.01,
+            forest_pop_ratio: 0.5,
+            forest_regrowth_water_gate: 0.3,
+            cross_effect_forest_soil: 0.01,
+            cross_effect_forest_threshold: 0.5,
+            disease_severity_cap: 0.15,
+            disease_decay_rate: 0.25,
+            flare_overcrowding_threshold: 0.8,
+            flare_overcrowding_spike: 0.04,
+            flare_army_spike: 0.03,
+            flare_water_spike: 0.02,
+            flare_season_spike: 0.02,
+            depletion_rate: 0.009,
+            exhausted_trickle_fraction: 0.04,
+            reserve_ramp_threshold: 0.25,
+            resource_abundance_multiplier: 1.0,
+            overextraction_streak_limit: 35,
+            overextraction_yield_penalty: 0.10,
+            workers_per_yield_unit: 200,
+            deforestation_threshold: 0.2,
+            deforestation_water_loss: 0.05,
+            climate_trend_share: 1.0,
+            harvest_shock_water_loss: 0.0,
+            overextraction_realized: true,
+            mine_soil_realized: true,
+            yield_penalty_reaches_goods: true,
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Production ledger
+// ---------------------------------------------------------------------------
+
+/// What one region's ecology tick took from its resources, for the
+/// production ledger (`chronicler.production_ledger`). Computed alongside the
+/// tick from the same state; it changes nothing. Transient: rebuilt by every
+/// `tick_ecology_with_ledger` and only written to that tick's batch.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct ExtractionLedger {
+    /// The tick read the economy's output (`realized_extraction` was set).
+    pub realized: bool,
+    /// Reserve each mineral slot lost this tick.
+    pub mineral_drawn: [f32; 3],
+    /// What the aggregate labour proxy (population / 5 workers against the
+    /// deposit's target crew) would have drawn from the same reserves.
+    pub proxy_mineral_draw: [f32; 3],
+    /// The deposit's target crew in the depletion (a third of effective
+    /// capacity after this tick's soil and water); 0 without a mineral slot.
+    pub target_crew: f32,
+    /// What each slot's overextraction streak compared with its sustainable
+    /// workers this tick: worker equivalents of its output (realized) or
+    /// population / 5 (proxy). 0 for a slot the streak does not track.
+    pub overextraction_take: [f32; 3],
+    /// Soil the region's active mines took this tick, and what the flat
+    /// per-mine rule takes from the same region (equal under that rule).
+    pub mine_soil: f32,
+    pub proxy_mine_soil: f32,
+    /// Mineral output over the target crew's (the sum over mineral slots of
+    /// output / (base yield x target crew), with the crew from the effective
+    /// capacity before this tick's soil change); 0 without output. The
+    /// mines' soil charge is `proxy_mine_soil` times this ratio.
+    pub mine_crew_ratio: f32,
+    /// Clearing protection (RS5): the region's batch carried a
+    /// `clearing_protection` value this tick (`RegionState::clearing_protection`
+    /// was `Some`). Only then are the two receipts below returned
+    /// (`ffi::batch::build_ecology_batches`).
+    pub protection_input: bool,
+    /// Population-driven clearing fired this tick: a controlled region whose
+    /// population was above `forest_pop_ratio` of its carrying capacity.
+    pub clearing_active: bool,
+    /// Forest cover the protection kept from that clearing this tick:
+    /// `forest_clearing x p` (nominal, before the tick's clamp); 0 when the
+    /// clearing did not fire or p is 0.
+    pub cover_not_cleared: f32,
+}
+
+/// Relative shortfall below the base yield that counts as degradation (the
+/// same as Python's `ecology.YIELD_PENALTY_TOLERANCE`; a penalty takes 10%).
+pub const YIELD_PENALTY_TOLERANCE: f32 = 1e-6;
+
+/// A slot's share of its undegraded yield after overextraction penalties:
+/// `effective / base`, 1.0 for an undegraded slot (within
+/// `YIELD_PENALTY_TOLERANCE`, so single and double precision copies of one
+/// yield agree) and for a slot whose effective yield was never initialized
+/// (0 with a base yield, as scenario worlds wrote before 2026-10). Never
+/// above 1. Mirrors Python `ecology.yield_penalty_factor`.
+#[inline]
+pub fn yield_penalty_factor(region: &RegionState, slot: usize) -> f32 {
+    let base = region.resource_base_yield[slot];
+    let effective = region.resource_effective_yield[slot];
+    if effective > 0.0 && effective < base * (1.0 - YIELD_PENALTY_TOLERANCE) {
+        effective / base
+    } else {
+        1.0
+    }
+}
+
+// ---------------------------------------------------------------------------
+// River topology
+// ---------------------------------------------------------------------------
+
+/// Rivers as lists of region-id indices (upstream to downstream order).
+#[derive(Clone, Debug, Default)]
+pub struct RiverTopology {
+    pub rivers: Vec<Vec<u16>>,
+}
+
+// ---------------------------------------------------------------------------
+// Ecology event
+// ---------------------------------------------------------------------------
+
+/// Lightweight ecology trigger — Python materializes into full Event objects.
+#[derive(Clone, Debug, PartialEq)]
+pub struct EcologyEvent {
+    /// 0 = soil_exhaustion, 1 = resource_depletion
+    pub event_type: u8,
+    pub region_id: u16,
+    /// Resource slot index (255 = N/A for soil_exhaustion)
+    pub slot: u8,
+    /// Severity / penalty magnitude
+    pub magnitude: f32,
+}
+
+// ---------------------------------------------------------------------------
+// Helper functions
+// ---------------------------------------------------------------------------
+
+/// Compute effective capacity for a region.
+/// Mirrors Python: max(int(carrying_capacity * capacity_modifier * soil * water_factor), 1)
+#[inline]
+pub fn effective_capacity(region: &RegionState, config: &EcologyConfig) -> u16 {
+    let water_factor = (region.water / config.water_factor_denominator).min(1.0);
+    let raw = region.carrying_capacity as f32
+        * region.capacity_modifier
+        * region.soil
+        * water_factor;
+    (raw as u16).max(1)
+}
+
+/// Undegraded capacity of the land (carrying capacity x disaster modifier).
+/// Mirrors Python ecology.potential_capacity: max(1.0, carrying_capacity * capacity_modifier).
+#[inline]
+pub fn potential_capacity(region: &RegionState) -> f32 {
+    (region.carrying_capacity as f32 * region.capacity_modifier).max(1.0)
+}
+
+/// Pressure multiplier used for recovery rate scaling.
+/// Mirrors Python: max(0.1, 1.0 - population / potential_capacity).
+///
+/// Correction (2026-10): pressure used to be measured against the *degraded*
+/// effective capacity, so depletion suppressed its own recovery and every
+/// populated region ratcheted to the soil/water floors in the first global
+/// drought.  `config` is kept for signature stability.
+#[inline]
+pub fn pressure_multiplier(region: &RegionState, _config: &EcologyConfig) -> f32 {
+    (1.0 - region.population as f32 / potential_capacity(region)).max(0.1)
+}
+
+/// Map ResourceType u8 to class index for CLIMATE_CLASS_MOD.
+#[inline]
+fn resource_class_index(rtype: u8) -> usize {
+    match rtype {
+        RT_GRAIN | RT_BOTANICALS | RT_EXOTIC => CLASS_CROP,
+        RT_TIMBER => CLASS_FORESTRY,
+        RT_FISH => CLASS_MARINE,
+        RT_ORE | RT_PRECIOUS => CLASS_MINERAL,
+        RT_SALT => CLASS_EVAPORITE,
+        _ => CLASS_CROP,
+    }
+}
+
+/// A slot's yield over a year as the land stands: base yield x the mean
+/// season modifier x the ecology modifier (soil x water for crops, forest
+/// cover for forestry), with no climate phase, reserve ramp or abundance
+/// multiplier. Zero for an empty or suspended slot. Read by the frontier
+/// settlement gate (what settlers could grow); the ecology tick does not use it.
+pub fn annual_yield_potential(region: &RegionState, slot: usize) -> f32 {
+    let rtype = region.resource_types[slot];
+    if rtype == EMPTY_SLOT || region.resource_suspension[slot] {
+        return 0.0;
+    }
+    let seasons = SEASON_MOD[(rtype as usize).min(7)];
+    let mean_season = (seasons[0] + seasons[1] + seasons[2] + seasons[3]) / 4.0;
+    let ecology_mod = match resource_class_index(rtype) {
+        CLASS_CROP => region.soil * region.water,
+        CLASS_FORESTRY => region.forest_cover,
+        _ => 1.0,
+    };
+    region.resource_base_yield[slot] * mean_season * ecology_mod
+}
+
+/// Is this resource type a mineral (depletable reserves)?
+#[inline]
+fn is_mineral(rtype: u8) -> bool {
+    rtype == RT_ORE || rtype == RT_PRECIOUS
+}
+
+/// Is this resource type depletable (for overextraction tracking)?
+/// Matches Python DEPLETABLE = {GRAIN, BOTANICALS, FISH, ORE, PRECIOUS}
+#[inline]
+fn is_depletable(rtype: u8) -> bool {
+    matches!(rtype, RT_GRAIN | RT_BOTANICALS | RT_FISH | RT_ORE | RT_PRECIOUS)
+}
+
+/// Is this resource type a crop for soil pressure tracking?
+/// Matches Python: ResourceType.GRAIN, ResourceType.BOTANICALS
+#[inline]
+fn is_crop_for_soil_pressure(rtype: u8) -> bool {
+    rtype == RT_GRAIN || rtype == RT_BOTANICALS
+}
+
+/// Round to 4 decimal places, matching Python's round(x, 4).
+#[inline]
+fn round4(x: f32) -> f32 {
+    (x * 10000.0).round() / 10000.0
+}
+
+/// Clamp ecology values to terrain caps/floors with round(x,4) quantization.
+#[inline]
+fn clamp_ecology(region: &mut RegionState) {
+    let t = region.terrain as usize;
+    let caps = if t < TERRAIN_CAPS.len() {
+        &TERRAIN_CAPS[t]
+    } else {
+        &TERRAIN_CAPS[TERRAIN_PLAINS as usize]
+    };
+    region.soil = round4(region.soil).clamp(TERRAIN_FLOORS[0], caps[0]);
+    region.water = round4(region.water).clamp(TERRAIN_FLOORS[1], caps[1]);
+    region.forest_cover = round4(region.forest_cover).clamp(TERRAIN_FLOORS[2], caps[2]);
+}
+
+/// Derive season_id from turn: (turn % 12) / 3
+#[inline]
+pub fn season_id_from_turn(turn: u32) -> u8 {
+    ((turn % 12) / 3) as u8
+}
+
+// ---------------------------------------------------------------------------
+// Step 1: Disease severity
+// ---------------------------------------------------------------------------
+
+fn tick_disease(
+    region: &mut RegionState,
+    config: &EcologyConfig,
+    pandemic_suppressed: bool,
+    army_arrived: bool,
+    season_id: u8,
+) {
+    let baseline = region.disease_baseline;
+    let mut severity = region.endemic_severity;
+    let mut triggered = false;
+
+    // Overcrowding
+    if region.carrying_capacity > 0
+        && region.population as f32
+            > config.flare_overcrowding_threshold * region.carrying_capacity as f32
+    {
+        severity += config.flare_overcrowding_spike;
+        triggered = true;
+    }
+
+    // Army passage (mask pre-computed by Python)
+    if army_arrived {
+        severity += config.flare_army_spike;
+        triggered = true;
+    }
+
+    // Water quality: low water on non-desert terrain
+    let pre_water = region.water;
+    if region.terrain != TERRAIN_DESERT && pre_water < 0.3 {
+        severity += config.flare_water_spike;
+        triggered = true;
+    }
+
+    // Water quality: inter-turn water drop > 0.1 (don't double-count with low-water)
+    if region.terrain != TERRAIN_DESERT && region.prev_turn_water >= 0.0 {
+        let water_delta = region.prev_turn_water - pre_water;
+        if water_delta > 0.1 && !(pre_water < 0.3) {
+            severity += config.flare_water_spike;
+            triggered = true;
+        }
+    }
+
+    // Seasonal peak (disease vector based on baseline + terrain)
+    let is_cholera = region.terrain == TERRAIN_DESERT;
+    let is_fever = region.disease_baseline >= 0.02;
+    if is_fever && !is_cholera && season_id == 1 {
+        // Summer peak for Fever
+        severity += config.flare_season_spike;
+        triggered = true;
+    } else if !is_fever && !is_cholera && region.disease_baseline <= 0.01 && season_id == 3 {
+        // Winter peak for Plague
+        severity += config.flare_season_spike;
+        triggered = true;
+    }
+
+    // Pandemic suppression: reset to pre-trigger value
+    if pandemic_suppressed {
+        severity = region.endemic_severity;
+        triggered = false;
+    }
+
+    if triggered {
+        region.endemic_severity = severity.min(config.disease_severity_cap);
+    } else {
+        // Exponential decay toward baseline
+        region.endemic_severity -=
+            config.disease_decay_rate * (region.endemic_severity - baseline);
+    }
+
+    // Floor at baseline
+    if region.endemic_severity < baseline {
+        region.endemic_severity = baseline;
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Step 2: Depletion feedback / streak updates (controlled only)
+// ---------------------------------------------------------------------------
+
+/// Worker equivalents a slot's overextraction streak compares with its
+/// sustainable workers (`effective yield x workers_per_yield_unit`).
+///
+/// Correction (2026-10, production ledger): the streak read `population / 5`
+/// workers for every depletable slot, whatever the economy did with them (a
+/// suspended slot, an exhausted mine or a fishery held to its catch counted
+/// in full). Where the economy reported this turn's output, the take is that
+/// output in worker equivalents at the slot's undegraded productivity
+/// (`output / base yield`; goods per worker average the base yield on
+/// healthy land, so a crew of N at the normal yield takes N). Without an
+/// economy tick (`--agents off`, `EcologySimulator`, a tick before any
+/// economy tick) or with `overextraction_realized` off, the proxy is kept bit
+/// for bit.
+#[inline]
+pub fn overextraction_take(region: &RegionState, config: &EcologyConfig, slot: usize) -> f32 {
+    match region.realized_extraction {
+        Some(output) if config.overextraction_realized => {
+            let base = region.resource_base_yield[slot];
+            if base > 0.0 { output[slot].max(0.0) / base } else { 0.0 }
+        }
+        _ => {
+            let pop = region.population;
+            (if pop > 0 { pop as i32 / 5 } else { 0 }) as f32
+        }
+    }
+}
+
+fn tick_depletion_feedback(
+    region: &mut RegionState,
+    config: &EcologyConfig,
+    events: &mut Vec<EcologyEvent>,
+    ledger: &mut ExtractionLedger,
+) {
+    // --- Soil exhaustion (population pressure) ---
+    let has_crop = region.resource_types.iter().any(|&rt| {
+        rt != EMPTY_SLOT && is_crop_for_soil_pressure(rt)
+    });
+
+    if has_crop
+        && region.carrying_capacity > 0
+        && region.population as f32
+            > config.soil_pressure_threshold * region.carrying_capacity as f32
+    {
+        region.soil_pressure_streak += 1;
+        if region.soil_pressure_streak >= config.soil_pressure_streak_limit {
+            events.push(EcologyEvent {
+                event_type: 0, // soil_exhaustion
+                region_id: region.region_id,
+                slot: 255,
+                magnitude: config.soil_pressure_degradation_mult,
+            });
+        }
+    } else {
+        region.soil_pressure_streak = 0;
+    }
+
+    // --- Overextraction (per-resource) ---
+    let workers_per_unit = config.workers_per_yield_unit;
+
+    for slot in 0..3_usize {
+        let rtype = region.resource_types[slot];
+        if rtype == EMPTY_SLOT || !is_depletable(rtype) {
+            continue;
+        }
+        let eff_yield = region.resource_effective_yield[slot];
+        let sustainable = eff_yield * workers_per_unit as f32;
+        let take = overextraction_take(region, config, slot);
+        ledger.overextraction_take[slot] = take;
+        if sustainable > 0.0 && take > sustainable {
+            region.overextraction_streak[slot] += 1;
+            if region.overextraction_streak[slot] >= config.overextraction_streak_limit {
+                region.resource_effective_yield[slot] *= 1.0 - config.overextraction_yield_penalty;
+                region.overextraction_streak[slot] = 0;
+                events.push(EcologyEvent {
+                    event_type: 1, // resource_depletion
+                    region_id: region.region_id,
+                    slot: slot as u8,
+                    magnitude: config.overextraction_yield_penalty,
+                });
+            }
+        } else {
+            region.overextraction_streak[slot] = 0;
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Step 3: Soil / Water / Forest tick
+// ---------------------------------------------------------------------------
+
+/// Mineral output this turn over what the deposit's target crew (a third of
+/// effective capacity) produces at the base yield: the sum over the region's
+/// mineral slots of `output / (base yield x target crew)`. None without an
+/// economy tick this turn (`realized_extraction` unset).
+pub fn mine_crew_ratio(region: &RegionState, config: &EcologyConfig) -> Option<f32> {
+    let output = region.realized_extraction?;
+    let crew = (effective_capacity(region, config) / 3).max(1) as f32;
+    let mut ratio = 0.0f32;
+    for slot in 0..3_usize {
+        let base = region.resource_base_yield[slot];
+        if is_mineral(region.resource_types[slot]) && base > 0.0 {
+            ratio += output[slot].max(0.0) / (base * crew);
+        }
+    }
+    Some(ratio)
+}
+
+#[cfg(test)]
+fn tick_soil_controlled(
+    region: &mut RegionState,
+    config: &EcologyConfig,
+    degradation_mult: f32,
+) {
+    tick_soil_controlled_ledger(region, config, degradation_mult, &mut ExtractionLedger::default());
+}
+
+/// [`tick_soil_controlled`] that also records the mines' soil charge.
+///
+/// Correction (2026-10, production ledger): an active mine took
+/// `mine_soil_degradation` of soil every turn whether or not any ore was
+/// mined. Where the economy reported this turn's output, the charge scales
+/// with the ore taken against the deposit's target crew
+/// (`mine_crew_ratio`): a target crew at the base yield takes the old rate,
+/// an idle mine takes nothing. Without an economy tick, or with
+/// `mine_soil_realized` off, the flat rule is kept bit for bit.
+///
+/// Correction (2026-10-27, mine-soil ordering): the ratio is taken once, from
+/// the land the economy's miners worked this turn, before this step changes
+/// the soil, and both the charge and the ledger's `mine_crew_ratio` read it.
+/// The charge used to recompute the crew after the overpopulation loss below,
+/// so where that loss took the effective capacity across a multiple of three
+/// the crew fell by one (12 -> 11) and the mines took 12/11 of what their ore
+/// warranted, more soil for the region being crowded, not for more ore.
+fn tick_soil_controlled_ledger(
+    region: &mut RegionState,
+    config: &EcologyConfig,
+    degradation_mult: f32,
+    ledger: &mut ExtractionLedger,
+) {
+    let crew_ratio = mine_crew_ratio(region, config);
+    ledger.mine_crew_ratio = crew_ratio.unwrap_or(0.0);
+
+    // Degradation: overpopulation of the undegraded land. Correction (2026-10,
+    // food balance): this compared population with the *effective* capacity,
+    // which already contains the degraded soil and drought-depressed water, so
+    // one dip started a ratchet (lower soil -> lower threshold -> further
+    // degradation, no recovery above 0.75 x potential). Mirrors Python
+    // ecology._tick_soil; recovery already uses potential capacity.
+    if region.population as f32 > potential_capacity(region) {
+        region.soil -= config.soil_degradation * degradation_mult;
+    }
+
+    // Degradation: active mines
+    if region.has_mines {
+        let mut mine_rate = config.mine_soil_degradation;
+        if region.active_focus == FOCUS_METALLURGY {
+            mine_rate *= config.metallurgy_mine_reduction;
+        } else if region.active_focus == FOCUS_MECHANIZATION {
+            mine_rate *= config.mechanization_mine_mult;
+        }
+        ledger.proxy_mine_soil = mine_rate;
+        if config.mine_soil_realized {
+            if let Some(ratio) = crew_ratio {
+                mine_rate *= ratio;
+            }
+        }
+        ledger.mine_soil = mine_rate;
+        region.soil -= mine_rate;
+    }
+
+    // Recovery: pressure-gated (against the land's undegraded potential)
+    if (region.population as f32) < potential_capacity(region) * config.soil_recovery_pop_ratio {
+        let mut rate = config.soil_recovery;
+        rate *= pressure_multiplier(region, config);
+        if region.active_focus == FOCUS_AGRICULTURE {
+            rate += config.agriculture_soil_bonus;
+        }
+        region.soil += rate;
+    }
+}
+
+fn tick_soil_uncontrolled(region: &mut RegionState, config: &EcologyConfig) {
+    if (region.population as f32) < potential_capacity(region) * config.soil_recovery_pop_ratio {
+        let rate = config.soil_recovery * pressure_multiplier(region, config);
+        region.soil += rate;
+    }
+}
+
+/// Regional climate (2026-10, docs/integration/farmland-climate.md): a
+/// region's crop climate factor from the global phase's crop modifier, the
+/// trend share and its harvest shock; the modifier itself (bit for bit) at
+/// share 1.0 without a shock. Mirrors Python `climate.regional_crop_climate`.
+#[inline]
+pub fn regional_crop_climate(crop_mod: f32, trend_share: f32, shock: f32) -> f32 {
+    if trend_share >= 1.0 && shock == 0.0 {
+        return crop_mod;
+    }
+    (1.0 - trend_share * (1.0 - crop_mod) - shock).max(0.0)
+}
+
+fn tick_water_controlled(
+    region: &mut RegionState,
+    config: &EcologyConfig,
+    climate_phase: u8,
+) {
+    // Degradation / phase effects (Geography 2.0: scaled by latitude exposure)
+    if climate_phase == CLIMATE_DROUGHT {
+        let mut rate = config.water_drought * region.climate_exposure;
+        if region.has_irrigation {
+            rate *= config.irrigation_drought_mult;
+        }
+        region.water -= rate * config.climate_trend_share;
+    } else if climate_phase == CLIMATE_COOLING {
+        region.water -= config.cooling_water_loss * region.climate_exposure * config.climate_trend_share;
+    } else if climate_phase == CLIMATE_WARMING && region.terrain == TERRAIN_TUNDRA {
+        region.water += config.warming_tundra_water_gain;
+    }
+    // Regional climate: a bad harvest year dries the land.
+    if region.harvest_shock > 0.0 {
+        region.water -= region.harvest_shock * config.harvest_shock_water_loss;
+    }
+
+    // Recovery (temperate only), climatic like the losses. Correction (2026-10,
+    // food balance): scaling it by the population pressure multiplier left the
+    // climate cycle's water budget (drought + cooling losses 0.9, temperate
+    // gain 30 x 0.03) balanced only for an empty region, so populated regions
+    // ratcheted to the water floor. Mirrors Python ecology._tick_water.
+    if climate_phase == CLIMATE_TEMPERATE {
+        region.water += config.water_recovery;
+    }
+
+    // Irrigation bonus (always except drought)
+    if region.has_irrigation && climate_phase != CLIMATE_DROUGHT {
+        let bonus = config.irrigation_water_bonus * pressure_multiplier(region, config);
+        region.water += bonus;
+    }
+}
+
+fn tick_water_uncontrolled(
+    region: &mut RegionState,
+    config: &EcologyConfig,
+    climate_phase: u8,
+) {
+    if region.harvest_shock > 0.0 {
+        region.water -= region.harvest_shock * config.harvest_shock_water_loss;
+    }
+    if climate_phase == CLIMATE_DROUGHT {
+        region.water -= config.water_drought * region.climate_exposure * config.climate_trend_share;
+    } else if climate_phase == CLIMATE_COOLING {
+        region.water -= config.cooling_water_loss * region.climate_exposure * config.climate_trend_share;
+    } else if climate_phase == CLIMATE_WARMING && region.terrain == TERRAIN_TUNDRA {
+        region.water += config.warming_tundra_water_gain;
+    } else if climate_phase == CLIMATE_TEMPERATE {
+        // Climatic recovery, not population-gated (see tick_water_controlled).
+        region.water += config.water_recovery;
+    }
+}
+
+/// The controlled forest step without a protection column (unit tests).
+#[cfg(test)]
+fn tick_forest_controlled(
+    region: &mut RegionState,
+    config: &EcologyConfig,
+    climate_phase: u8,
+) {
+    tick_forest_controlled_protected(region, config, climate_phase, None);
+}
+
+/// Clearing receipt of one controlled forest step: (clearing fired, cover
+/// the protection kept from it).
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct ClearingReceipt {
+    pub active: bool,
+    pub cover_not_cleared: f32,
+}
+
+/// [`tick_forest_controlled`] under a clearing protection p in [0, 1]
+/// (RS5, `--clearing-protection`): the authoritative clearing decision
+/// removes `forest_clearing x (1 - p)` instead of `forest_clearing`. `None`
+/// (no column) is the unchanged flat loss, bit for bit. Cooling and regrowth
+/// are untouched: regrowth stays blocked while the population is above the
+/// threshold, so a full protection freezes cover against clearing; it never
+/// restores cover.
+pub fn tick_forest_controlled_protected(
+    region: &mut RegionState,
+    config: &EcologyConfig,
+    climate_phase: u8,
+    protection: Option<f32>,
+) -> ClearingReceipt {
+    let pop_threshold = region.carrying_capacity as f32 * config.forest_pop_ratio;
+    let mut receipt = ClearingReceipt::default();
+
+    if region.population as f32 > pop_threshold {
+        receipt.active = true;
+        match protection {
+            None => region.forest_cover -= config.forest_clearing,
+            Some(p) => {
+                region.forest_cover -= config.forest_clearing * (1.0 - p);
+                receipt.cover_not_cleared = config.forest_clearing * p;
+            }
+        }
+    }
+
+    if climate_phase == CLIMATE_COOLING {
+        region.forest_cover -= config.cooling_forest_damage * region.climate_exposure;
+    }
+
+    if (region.population as f32) < pop_threshold
+        && region.water >= config.forest_regrowth_water_gate
+    {
+        let rate = config.forest_regrowth * pressure_multiplier(region, config);
+        region.forest_cover += rate;
+    }
+    receipt
+}
+
+fn tick_forest_uncontrolled(
+    region: &mut RegionState,
+    config: &EcologyConfig,
+    climate_phase: u8,
+) {
+    let pop_threshold = region.carrying_capacity as f32 * config.forest_pop_ratio;
+
+    if (region.population as f32) < pop_threshold
+        && region.water >= config.forest_regrowth_water_gate
+    {
+        let rate = config.forest_regrowth * pressure_multiplier(region, config);
+        region.forest_cover += rate;
+    }
+
+    if climate_phase == CLIMATE_COOLING {
+        region.forest_cover -= config.cooling_forest_damage * region.climate_exposure;
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Step 4: Cross-effects
+// ---------------------------------------------------------------------------
+
+#[inline]
+fn apply_cross_effects(region: &mut RegionState, config: &EcologyConfig) {
+    if region.forest_cover > config.cross_effect_forest_threshold {
+        region.soil += config.cross_effect_forest_soil;
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Step 6: River cascade
+// ---------------------------------------------------------------------------
+
+fn river_cascade(
+    regions: &mut [RegionState],
+    config: &EcologyConfig,
+    river_topology: &RiverTopology,
+) {
+    let n = regions.len();
+    let mut affected = vec![false; n];
+
+    // Deduplicate (source, downstream) pairs across rivers.
+    let mut seen: Vec<(u16, u16)> = Vec::new();
+
+    for river in &river_topology.rivers {
+        for (i, &upstream_id) in river.iter().enumerate() {
+            let uid = upstream_id as usize;
+            if uid >= n {
+                continue;
+            }
+            if regions[uid].forest_cover < config.deforestation_threshold {
+                for &downstream_id in &river[i + 1..] {
+                    let did = downstream_id as usize;
+                    if did >= n {
+                        continue;
+                    }
+                    let pair = (upstream_id, downstream_id);
+                    if seen.contains(&pair) {
+                        continue;
+                    }
+                    seen.push(pair);
+                    regions[did].water -= config.deforestation_water_loss;
+                    affected[did] = true;
+                }
+            }
+        }
+    }
+
+    // Second clamp pass for cascade-affected regions.
+    for (i, &was_affected) in affected.iter().enumerate() {
+        if was_affected {
+            clamp_ecology(&mut regions[i]);
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Step 7: Resource yield computation
+// ---------------------------------------------------------------------------
+
+/// Phase 9 yield computation: extracts mineral reserves once, then computes
+/// yields from the depleted reserves. Use [`refresh_yields`] to recompute after
+/// a same-turn post-pass without extracting again.
+pub fn compute_yields(
+    region: &mut RegionState,
+    config: &EcologyConfig,
+    season_id: u8,
+    climate_phase: u8,
+) -> [f32; 3] {
+    compute_yields_inner(region, config, season_id, climate_phase, true, &mut ExtractionLedger::default())
+}
+
+/// Recompute yields from current ecology/reserve state without mineral
+/// extraction. The post-pass patch can change soil/water/forest/terrain after
+/// this turn's ecology tick already depleted reserves; refreshing must not
+/// deplete them a second time (mirrors Python's `deplete_reserves=False`).
+pub fn refresh_yields(
+    region: &mut RegionState,
+    config: &EcologyConfig,
+    season_id: u8,
+    climate_phase: u8,
+) -> [f32; 3] {
+    compute_yields_inner(region, config, season_id, climate_phase, false, &mut ExtractionLedger::default())
+}
+
+/// A mineral slot's extraction this turn, relative to the deposit's target
+/// crew (a third of effective capacity); None when nothing was extracted.
+///
+/// Correction (2026-10, population-entities): depletion read
+/// `population / 5` workers whatever the economy did, so a region with no
+/// miners and no ore output still lost reserves (60 people: 1.0 to 0.9136
+/// in eight turns). Where a goods economy owns the labour
+/// (`realized_extraction` set, agent modes) the extraction is the goods the
+/// slot actually produced: a target crew of miners at the base yield
+/// depletes at the old rate on average (goods per miner average the base
+/// yield), no miners deplete nothing, and output and depletion fall
+/// together as the reserve ramp lowers yields. Without one (`--agents off`,
+/// or no economy tick this turn) the aggregate model's labour proxy is
+/// kept, bit for bit.
+fn mineral_extraction(region: &RegionState, config: &EcologyConfig, slot: usize, base: f32) -> Option<f32> {
+    let eff = effective_capacity(region, config);
+    let target_workers = (eff / 3).max(1) as f32;
+    let extraction = match region.realized_extraction {
+        Some(output) => output[slot].max(0.0) / target_workers,
+        None => {
+            if region.population == 0 {
+                return None;
+            }
+            base * ((region.population / 5) as f32 / target_workers)
+        }
+    };
+    (extraction > 0.0).then_some(extraction)
+}
+
+/// The aggregate labour proxy's extraction of a mineral slot (population / 5
+/// workers against the target crew), whatever the economy did: what
+/// `mineral_extraction` uses without an economy tick. The production ledger
+/// records the reserve it would have drawn beside the realized draw.
+fn proxy_mineral_extraction(region: &RegionState, config: &EcologyConfig, base: f32) -> Option<f32> {
+    if region.population == 0 {
+        return None;
+    }
+    let target_workers = (effective_capacity(region, config) / 3).max(1) as f32;
+    let extraction = base * ((region.population / 5) as f32 / target_workers);
+    (extraction > 0.0).then_some(extraction)
+}
+
+fn compute_yields_inner(
+    region: &mut RegionState,
+    config: &EcologyConfig,
+    season_id: u8,
+    climate_phase: u8,
+    deplete_reserves: bool,
+    ledger: &mut ExtractionLedger,
+) -> [f32; 3] {
+    let mut yields = [0.0_f32; 3];
+    let phase_idx = (climate_phase as usize).min(3);
+
+    for slot in 0..3_usize {
+        let rtype = region.resource_types[slot];
+        if rtype == EMPTY_SLOT {
+            continue;
+        }
+
+        // Suspension check
+        if region.resource_suspension[slot] {
+            continue;
+        }
+
+        let base = region.resource_base_yield[slot];
+        let sid = (season_id as usize).min(3);
+        let rt_idx = (rtype as usize).min(7);
+        let season_mod = SEASON_MOD[rt_idx][sid];
+        let class_idx = resource_class_index(rtype);
+        let mut climate_mod = CLIMATE_CLASS_MOD[class_idx][phase_idx];
+        if class_idx == CLASS_CROP {
+            climate_mod = regional_crop_climate(climate_mod, config.climate_trend_share, region.harvest_shock);
+        }
+
+        // Ecology mod by class
+        let ecology_mod = match class_idx {
+            CLASS_CROP => region.soil * region.water,
+            CLASS_FORESTRY => region.forest_cover,
+            _ => 1.0,
+        };
+
+        // Overextraction's permanent yield penalty (production ledger,
+        // 2026-10): 1.0 for an undegraded slot, so its yield keeps its bits.
+        let penalty = if config.yield_penalty_reaches_goods {
+            yield_penalty_factor(region, slot)
+        } else {
+            1.0
+        };
+
+        // Reserve ramp (minerals only)
+        let mut reserve_ramp = 1.0_f32;
+        if is_mineral(rtype) {
+            let reserves = region.resource_reserves[slot];
+            // Depletion — only if something was extracted and reserves remain
+            if deplete_reserves && reserves > 0.01 {
+                ledger.target_crew = (effective_capacity(region, config) / 3).max(1) as f32;
+                if let Some(proxy) = proxy_mineral_extraction(region, config, base) {
+                    ledger.proxy_mineral_draw[slot] =
+                        reserves - (reserves - proxy * config.depletion_rate).max(0.0);
+                }
+                if let Some(extraction) = mineral_extraction(region, config, slot, base) {
+                    region.resource_reserves[slot] =
+                        (reserves - extraction * config.depletion_rate).max(0.0);
+                }
+                ledger.mineral_drawn[slot] = reserves - region.resource_reserves[slot];
+            }
+
+            let reserves = region.resource_reserves[slot];
+            if reserves < 0.01 {
+                // Exhausted trickle
+                yields[slot] = base * config.exhausted_trickle_fraction * penalty;
+                region.resource_yields[slot] = yields[slot];
+                continue;
+            }
+
+            reserve_ramp = (reserves / config.reserve_ramp_threshold).min(1.0);
+        }
+
+        let y = base * season_mod * climate_mod * ecology_mod * reserve_ramp
+            * config.resource_abundance_multiplier * penalty;
+
+        yields[slot] = y;
+        region.resource_yields[slot] = y;
+    }
+
+    yields
+}
+
+// ---------------------------------------------------------------------------
+// Main entry point
+// ---------------------------------------------------------------------------
+
+/// Execute a full ecology tick.  Mutates `regions` in-place and returns:
+///   - `Vec<[f32; 3]>`: per-region current-turn yields
+///   - `Vec<EcologyEvent>`: ecology trigger events (sorted by region_id, event_type, slot)
+pub fn tick_ecology(
+    regions: &mut [RegionState],
+    config: &EcologyConfig,
+    turn: u32,
+    climate_phase: u8,
+    pandemic_mask: &[bool],
+    army_arrived_mask: &[bool],
+    river_topology: &RiverTopology,
+) -> (Vec<[f32; 3]>, Vec<EcologyEvent>) {
+    let (yields, events, _) = tick_ecology_with_ledger(
+        regions, config, turn, climate_phase, pandemic_mask, army_arrived_mask, river_topology,
+    );
+    (yields, events)
+}
+
+/// [`tick_ecology`] that also returns each region's [`ExtractionLedger`]
+/// (what the tick took; the same state changes and events).
+pub fn tick_ecology_with_ledger(
+    regions: &mut [RegionState],
+    config: &EcologyConfig,
+    turn: u32,
+    climate_phase: u8,
+    pandemic_mask: &[bool],
+    army_arrived_mask: &[bool],
+    river_topology: &RiverTopology,
+) -> (Vec<[f32; 3]>, Vec<EcologyEvent>, Vec<ExtractionLedger>) {
+    let n = regions.len();
+    let season_id = season_id_from_turn(turn);
+    let mut all_events: Vec<EcologyEvent> = Vec::new();
+    let mut all_yields: Vec<[f32; 3]> = vec![[0.0; 3]; n];
+    let mut ledgers: Vec<ExtractionLedger> = vec![ExtractionLedger::default(); n];
+
+    // -----------------------------------------------------------------------
+    // Steps 1-5: Per-region, independent (ready for par_iter_mut later)
+    // -----------------------------------------------------------------------
+    for i in 0..n {
+        let region = &mut regions[i];
+        let pandemic = pandemic_mask.get(i).copied().unwrap_or(false);
+        let army = army_arrived_mask.get(i).copied().unwrap_or(false);
+        let controlled = region.controller_civ != UNCONTROLLED;
+        let ledger = &mut ledgers[i];
+        ledger.realized = region.realized_extraction.is_some();
+        // RS5: the batch's clearing protection is consumed by this tick.
+        let protection = region.clearing_protection.take();
+        ledger.protection_input = protection.is_some();
+
+        // Step 1: Disease (both controlled and uncontrolled)
+        tick_disease(region, config, pandemic, army, season_id);
+
+        if controlled {
+            // Step 2a: Compute soil_mult from CURRENT streak (before this turn's
+            // depletion feedback modifies it).  Matches Python ordering where
+            // soil_mult is read before update_depletion_feedback runs.
+            let soil_mult = if region.soil_pressure_streak >= config.soil_pressure_streak_limit {
+                config.soil_pressure_degradation_mult
+            } else {
+                1.0
+            };
+
+            // Step 2b: Depletion feedback (may increment/reset streak, emit events)
+            tick_depletion_feedback(region, config, &mut all_events, ledger);
+
+            // Step 3: Soil/water/forest (controlled path)
+            tick_soil_controlled_ledger(region, config, soil_mult, ledger);
+            tick_water_controlled(region, config, climate_phase);
+            let clearing = tick_forest_controlled_protected(region, config, climate_phase, protection);
+            ledger.clearing_active = clearing.active;
+            ledger.cover_not_cleared = clearing.cover_not_cleared;
+        } else {
+            // Step 3: Soil/water/forest (uncontrolled — natural recovery only)
+            tick_soil_uncontrolled(region, config);
+            tick_water_uncontrolled(region, config, climate_phase);
+            tick_forest_uncontrolled(region, config, climate_phase);
+        }
+
+        // Step 4: Cross-effects (both)
+        apply_cross_effects(region, config);
+
+        // Step 5: Clamp (both)
+        clamp_ecology(region);
+    }
+
+    // -----------------------------------------------------------------------
+    // Step 6: River cascade (sequential, cross-region)
+    // -----------------------------------------------------------------------
+    river_cascade(regions, config, river_topology);
+
+    // -----------------------------------------------------------------------
+    // Step 7: Resource yield computation (per-region)
+    // -----------------------------------------------------------------------
+    for i in 0..n {
+        let region = &mut regions[i];
+        all_yields[i] = compute_yields_inner(region, config, season_id, climate_phase, true, &mut ledgers[i]);
+    }
+
+    // -----------------------------------------------------------------------
+    // Step 8: Finalize — set prev_turn_water
+    // -----------------------------------------------------------------------
+    for region in regions.iter_mut() {
+        region.prev_turn_water = region.water;
+    }
+
+    // Sort events deterministically by (region_id, event_type, slot).
+    all_events.sort_by(|a, b| {
+        a.region_id
+            .cmp(&b.region_id)
+            .then(a.event_type.cmp(&b.event_type))
+            .then(a.slot.cmp(&b.slot))
+    });
+
+    (all_yields, all_events, ledgers)
+}
+
+// ---------------------------------------------------------------------------
+// Unit tests
+// ---------------------------------------------------------------------------
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn make_plains_region(id: u16) -> RegionState {
+        let mut r = RegionState::new(id);
+        r.terrain = TERRAIN_PLAINS;
+        r.soil = 0.80;
+        r.water = 0.60;
+        r.forest_cover = 0.20;
+        r.carrying_capacity = 60;
+        r.population = 30;
+        r.controller_civ = 0;
+        r.capacity_modifier = 1.0;
+        r.prev_turn_water = 0.60;
+        r
+    }
+
+    #[test]
+    fn test_climate_exposure_scales_climate_losses_only() {
+        let config = EcologyConfig::default();
+        for &controlled in &[true, false] {
+            for &(phase, base_water_loss, base_forest_loss) in &[
+                (CLIMATE_DROUGHT, config.water_drought, 0.0f32),
+                (CLIMATE_COOLING, config.cooling_water_loss, config.cooling_forest_damage),
+            ] {
+                let mut unit = make_plains_region(0);
+                let mut scaled = make_plains_region(1);
+                if !controlled {
+                    unit.controller_civ = UNCONTROLLED;
+                    scaled.controller_civ = UNCONTROLLED;
+                }
+                scaled.climate_exposure = 1.5;
+                let w0 = unit.water;
+                if controlled {
+                    tick_water_controlled(&mut unit, &config, phase);
+                    tick_water_controlled(&mut scaled, &config, phase);
+                    tick_forest_controlled(&mut unit, &config, phase);
+                    tick_forest_controlled(&mut scaled, &config, phase);
+                } else {
+                    tick_water_uncontrolled(&mut unit, &config, phase);
+                    tick_water_uncontrolled(&mut scaled, &config, phase);
+                    tick_forest_uncontrolled(&mut unit, &config, phase);
+                    tick_forest_uncontrolled(&mut scaled, &config, phase);
+                }
+                // Exposure 1.0 is the legacy arithmetic exactly.
+                assert_eq!(unit.water, w0 - base_water_loss);
+                let extra_water = (unit.water - scaled.water) - 0.5 * base_water_loss;
+                assert!(extra_water.abs() < 1e-6, "phase {phase} water {extra_water}");
+                let extra_forest = (unit.forest_cover - scaled.forest_cover) - 0.5 * base_forest_loss;
+                assert!(extra_forest.abs() < 1e-6, "phase {phase} forest {extra_forest}");
+            }
+        }
+        // Temperate recovery ignores exposure.
+        let mut unit = make_plains_region(0);
+        let mut scaled = make_plains_region(1);
+        scaled.climate_exposure = 1.8;
+        tick_water_controlled(&mut unit, &config, CLIMATE_TEMPERATE);
+        tick_water_controlled(&mut scaled, &config, CLIMATE_TEMPERATE);
+        assert_eq!(unit.water, scaled.water);
+    }
+
+    #[test]
+    fn test_regional_crop_climate_is_the_phase_modifier_at_full_trend() {
+        for &m in &[1.0f32, 0.9, 0.5, 0.7] {
+            assert_eq!(regional_crop_climate(m, 1.0, 0.0).to_bits(), m.to_bits());
+        }
+        assert!((regional_crop_climate(0.5, 0.5, 0.0) - 0.75).abs() < 1e-6);
+        assert!((regional_crop_climate(1.0, 0.5, 0.4) - 0.6).abs() < 1e-6);
+        assert_eq!(regional_crop_climate(0.5, 0.5, 0.9), 0.0);
+    }
+
+    #[test]
+    fn test_harvest_shock_cuts_crops_and_dries_the_land() {
+        let mut config = EcologyConfig::default();
+        config.climate_trend_share = 0.5;
+        config.harvest_shock_water_loss = 0.0667;
+        let mut good = make_plains_region(0);
+        good.resource_types = [RT_GRAIN, EMPTY_SLOT, EMPTY_SLOT];
+        good.resource_base_yield = [1.0, 0.0, 0.0];
+        let mut bad = good.clone();
+        bad.harvest_shock = 0.4;
+        let yg = compute_yields(&mut good, &config, 2, CLIMATE_DROUGHT);
+        let yb = compute_yields(&mut bad, &config, 2, CLIMATE_DROUGHT);
+        // Trend: drought crop 1 - 0.5 x 0.5 = 0.75; the bad year takes 0.4 more.
+        assert!((yb[0] / yg[0] - 0.35 / 0.75).abs() < 1e-5);
+        for &controlled in &[true, false] {
+            let mut g = make_plains_region(0);
+            let mut b = make_plains_region(1);
+            b.harvest_shock = 0.4;
+            if !controlled {
+                g.controller_civ = UNCONTROLLED;
+                b.controller_civ = UNCONTROLLED;
+            }
+            let w0 = g.water;
+            if controlled {
+                tick_water_controlled(&mut g, &config, CLIMATE_DROUGHT);
+                tick_water_controlled(&mut b, &config, CLIMATE_DROUGHT);
+            } else {
+                tick_water_uncontrolled(&mut g, &config, CLIMATE_DROUGHT);
+                tick_water_uncontrolled(&mut b, &config, CLIMATE_DROUGHT);
+            }
+            // The trend takes half the drought's loss; the shock 0.4 x 0.0667.
+            assert!((w0 - g.water - 0.5 * config.water_drought).abs() < 1e-6);
+            assert!((g.water - b.water - 0.4 * 0.0667).abs() < 1e-6);
+        }
+    }
+
+    #[test]
+    fn test_default_climate_config_is_the_global_schedule() {
+        let config = EcologyConfig::default();
+        assert_eq!(config.climate_trend_share, 1.0);
+        assert_eq!(config.harvest_shock_water_loss, 0.0);
+        let mut r = make_plains_region(0);
+        r.resource_types = [RT_GRAIN, EMPTY_SLOT, EMPTY_SLOT];
+        r.resource_base_yield = [1.0, 0.0, 0.0];
+        let ecology_mod = r.soil * r.water;
+        let y = compute_yields(&mut r, &config, 2, CLIMATE_COOLING);
+        let expected = 1.0f32 * SEASON_MOD[RT_GRAIN as usize][2]
+            * CLIMATE_CLASS_MOD[CLASS_CROP][CLIMATE_COOLING as usize]
+            * ecology_mod * 1.0 * config.resource_abundance_multiplier;
+        assert_eq!(y[0].to_bits(), expected.to_bits());
+    }
+
+    #[test]
+    fn test_new_terrain_caps_clamp() {
+        for (terrain, caps) in [(6u8, [0.75f32, 0.50, 0.25]), (7, [0.70, 0.95, 0.98]), (8, [0.70, 0.95, 0.50])] {
+            let mut r = make_plains_region(0);
+            r.terrain = terrain;
+            r.soil = 1.0;
+            r.water = 1.0;
+            r.forest_cover = 1.0;
+            clamp_ecology(&mut r);
+            assert_eq!([r.soil, r.water, r.forest_cover], caps);
+        }
+    }
+
+    #[test]
+    fn test_effective_capacity_basic() {
+        let config = EcologyConfig::default();
+        let r = make_plains_region(0);
+        let eff = effective_capacity(&r, &config);
+        // 60 * 1.0 * 0.80 * min(1.0, 0.60/0.50) = 60 * 0.80 * 1.0 = 48
+        assert_eq!(eff, 48);
+    }
+
+    #[test]
+    fn test_pressure_multiplier_basic() {
+        let config = EcologyConfig::default();
+        let r = make_plains_region(0);
+        let pm = pressure_multiplier(&r, &config);
+        // Pressure is measured against the undegraded potential (60 * 1.0),
+        // not the degraded effective capacity (48): 1.0 - 30/60 = 0.5
+        assert!((pm - 0.5).abs() < 0.001);
+    }
+
+    #[test]
+    fn test_depleted_soil_recovers_when_population_is_below_potential() {
+        // Regression: with pressure measured against effective capacity, a
+        // region whose soil and water had collapsed while population sat at
+        // that (collapsed) capacity could never recover.
+        let config = EcologyConfig::default();
+        let mut r = make_plains_region(0);
+        r.soil = 0.25;
+        r.water = 0.10;
+        r.population = effective_capacity(&r, &config); // at degraded capacity
+        let before = r.soil;
+        tick_soil_controlled(&mut r, &config, 1.0);
+        assert!(r.soil > before, "soil should recover: {} -> {}", before, r.soil);
+        assert!(pressure_multiplier(&r, &config) > 0.5);
+    }
+
+    #[test]
+    fn test_degraded_soil_below_potential_capacity_does_not_degrade() {
+        // Food-balance correction: degradation compares population with the
+        // undegraded potential, so a dip in soil cannot start a ratchet.
+        let config = EcologyConfig::default();
+        let mut r = make_plains_region(0);
+        r.soil = 0.5;
+        r.water = 0.6;
+        r.population = 55; // effective capacity 30 < 55 < potential 60; above 0.75 x 60
+        assert!(r.population > effective_capacity(&r, &config));
+        tick_soil_controlled(&mut r, &config, 1.0);
+        assert_eq!(r.soil, 0.5);
+        r.population = 61; // above potential: overpopulated
+        tick_soil_controlled(&mut r, &config, 1.0);
+        assert!((r.soil - (0.5 - config.soil_degradation)).abs() < 1e-6);
+    }
+
+    #[test]
+    fn test_temperate_water_recovery_does_not_depend_on_population() {
+        // Food-balance correction: recovery is climatic, like the drought and
+        // cooling losses it balances over a climate cycle.
+        let config = EcologyConfig::default();
+        for &pop in &[0u16, 30, 60, 120] {
+            for &controlled in &[true, false] {
+                let mut r = make_plains_region(0);
+                r.water = 0.3;
+                r.population = pop;
+                if controlled {
+                    tick_water_controlled(&mut r, &config, CLIMATE_TEMPERATE);
+                } else {
+                    r.controller_civ = UNCONTROLLED;
+                    tick_water_uncontrolled(&mut r, &config, CLIMATE_TEMPERATE);
+                }
+                assert!((r.water - (0.3 + config.water_recovery)).abs() < 1e-6, "pop {pop}");
+            }
+        }
+    }
+
+    #[test]
+    fn test_round4() {
+        assert!((round4(0.12345) - 0.1235).abs() < f32::EPSILON);
+        assert!((round4(0.0) - 0.0).abs() < f32::EPSILON);
+    }
+
+    #[test]
+    fn test_clamp_ecology_plains() {
+        let mut r = make_plains_region(0);
+        r.soil = 1.5;
+        r.water = -0.1;
+        r.forest_cover = 0.6;
+        clamp_ecology(&mut r);
+        assert!((r.soil - 0.95).abs() < f32::EPSILON);
+        assert!((r.water - 0.10).abs() < f32::EPSILON);
+        assert!((r.forest_cover - 0.40).abs() < f32::EPSILON);
+    }
+
+    #[test]
+    fn test_season_id_from_turn() {
+        assert_eq!(season_id_from_turn(0), 0);
+        assert_eq!(season_id_from_turn(3), 1);
+        assert_eq!(season_id_from_turn(6), 2);
+        assert_eq!(season_id_from_turn(9), 3);
+        assert_eq!(season_id_from_turn(12), 0);
+    }
+
+    #[test]
+    fn test_resource_class_index_mapping() {
+        assert_eq!(resource_class_index(RT_GRAIN), CLASS_CROP);
+        assert_eq!(resource_class_index(RT_BOTANICALS), CLASS_CROP);
+        assert_eq!(resource_class_index(RT_EXOTIC), CLASS_CROP);
+        assert_eq!(resource_class_index(RT_TIMBER), CLASS_FORESTRY);
+        assert_eq!(resource_class_index(RT_FISH), CLASS_MARINE);
+        assert_eq!(resource_class_index(RT_ORE), CLASS_MINERAL);
+        assert_eq!(resource_class_index(RT_PRECIOUS), CLASS_MINERAL);
+        assert_eq!(resource_class_index(RT_SALT), CLASS_EVAPORITE);
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Exact checkpoint state (`crate::persist`): every field, in declaration order.
+// ---------------------------------------------------------------------------
+
+crate::persist_struct!(EcologyConfig {
+    soil_degradation, soil_recovery, mine_soil_degradation, soil_recovery_pop_ratio,
+    agriculture_soil_bonus, metallurgy_mine_reduction, mechanization_mine_mult,
+    soil_pressure_threshold, soil_pressure_streak_limit, soil_pressure_degradation_mult,
+    water_drought, water_recovery, irrigation_water_bonus, irrigation_drought_mult,
+    cooling_water_loss, warming_tundra_water_gain, water_factor_denominator, forest_clearing,
+    forest_regrowth, cooling_forest_damage, forest_pop_ratio, forest_regrowth_water_gate,
+    cross_effect_forest_soil, cross_effect_forest_threshold, disease_severity_cap,
+    disease_decay_rate, flare_overcrowding_threshold, flare_overcrowding_spike,
+    flare_army_spike, flare_water_spike, flare_season_spike, depletion_rate,
+    exhausted_trickle_fraction, reserve_ramp_threshold, resource_abundance_multiplier,
+    overextraction_streak_limit, overextraction_yield_penalty, workers_per_yield_unit,
+    deforestation_threshold, deforestation_water_loss, climate_trend_share,
+    harvest_shock_water_loss, overextraction_realized, mine_soil_realized,
+    yield_penalty_reaches_goods,
+});
+crate::persist_struct!(RiverTopology {
+    rivers,
+});
