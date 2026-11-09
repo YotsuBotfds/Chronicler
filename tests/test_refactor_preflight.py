@@ -49,10 +49,31 @@ def _kinds(report, level=None):
 
 
 def test_witness_listed_file_is_enforced(repo):
+    # A checkout without the frozen snapshot keeps the working-tree witness level.
     report = pf.analyse(repo, "src/chronicler/pinned.py")
     assert ("enforced", "source witness") in _kinds(report)
     assert "matches the current file" in report.findings[0].detail
     assert report.verdict.startswith("enforced pins found")
+
+
+def test_frozen_snapshot_makes_witness_history_and_pins_the_copies(repo):
+    pinned = (repo.root / "src/chronicler/pinned.py").read_text(encoding="utf-8")
+    copy = f"{pf.FROZEN_DIR}/src/chronicler/pinned.py.txt"
+    digest = _write(repo.root, copy, pinned)
+    _write(repo.root, pf.FROZEN_MANIFEST, json.dumps(
+        {"freeze_commit": "4" * 40, "files": {"src/chronicler/pinned.py": digest}}))
+    _write(repo.root, pf.IDENTITY_COVERAGE, json.dumps({"paths": {
+        "src/chronicler/pinned.py": {"identity": ["python:g_off_s42"]},
+        "src/chronicler/older.py": {"identity": "none"}}}))
+    report = pf.analyse(repo, "src/chronicler/pinned.py")
+    assert _kinds(report) - _kinds(report, "reference") == {("historical", "frozen source witness")}
+    assert "does not break it" in report.findings[0].detail
+    assert report.identity == "python:g_off_s42"
+    assert report.verdict.startswith("references found")
+    assert pf.analyse(repo, "src/chronicler/older.py").identity == "NO IDENTITY CASE"
+    for path in (copy, pf.FROZEN_MANIFEST):
+        frozen = pf.analyse(repo, path)
+        assert _kinds(frozen) == {("enforced", "frozen snapshot")}, path
 
 
 def test_literal_current_digest_is_a_digest_pin(repo):
@@ -124,10 +145,14 @@ def test_preflight_never_writes(repo):
 
 def test_real_checkout_pinned_and_unpinned_files():
     repo = pf.Repo(pf.ROOT)
-    witness = json.loads((pf.ROOT / "tests/fixtures/household_candidate_source_inverse.json").read_text())
-    pinned = next(path for path, row in witness["files"].items()
-                  if hashlib.sha256((pf.ROOT / path).read_bytes()).hexdigest() == row["current_sha256"])
-    assert ("enforced", "source witness") in _kinds(pf.analyse(repo, pinned))
+    # Witnesses verify the frozen snapshot, so a witnessed file is history and
+    # its frozen copy is what an edit would break.
+    witnessed = pf.analyse(repo, "src/chronicler/simulation.py")
+    assert ("historical", "frozen source witness") in _kinds(witnessed)
+    assert not _kinds(witnessed, "enforced")
+    assert witnessed.identity and "python:g_off_s42" in witnessed.identity
+    copy = pf.analyse(repo, f"{pf.FROZEN_DIR}/src/chronicler/simulation.py.txt")
+    assert ("enforced", "frozen snapshot") in _kinds(copy)
     skipped = pf.analyse(repo, "tests/test_m38b_regression.py")
     assert ("enforced", "expected skips") in _kinds(skipped)
     unpinned = pf.analyse(repo, "docs/README.md")
