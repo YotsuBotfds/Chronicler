@@ -30,6 +30,8 @@ Flush semantics:
                  _applied flag).
   to_shock_signals()  — Extract "signal" + "guard-shock" as normalized shocks.
   to_demand_signals() — Extract "guard-action" as demand signals.
+  queued_changes()    — Read recorded changes (after the keep watermark by
+                        default) for projections such as queued treasury.
 """
 from __future__ import annotations
 from typing import TYPE_CHECKING
@@ -142,18 +144,24 @@ class StatAccumulator:
                 if remaining_reduction <= 0:
                     break
 
+    def _apply_change(self, world: WorldState, c: StatChange) -> None:
+        """Apply one change: unbounded stats floor at zero, the others clamp
+        to [STAT_FLOOR, 100]; the result keeps the stat's current type."""
+        civ = world.civilizations[c.civ_id]
+        current = getattr(civ, c.stat)
+        new_val = current + c.delta
+        if c.stat in UNBOUNDED_STATS:
+            new_val = max(new_val, 0)
+        else:
+            floor = STAT_FLOOR.get(c.stat, 0)
+            new_val = max(floor, min(100, new_val))
+        setattr(civ, c.stat, type(current)(new_val))
+
     def apply(self, world: WorldState) -> None:
         """Aggregate mode: apply all changes in insertion order. Bit-identical."""
+        apply_change = self._apply_change
         for c in self._changes:
-            civ = world.civilizations[c.civ_id]
-            current = getattr(civ, c.stat)
-            new_val = current + c.delta
-            if c.stat in UNBOUNDED_STATS:
-                new_val = max(new_val, 0)
-            else:
-                floor = STAT_FLOOR.get(c.stat, 0)
-                new_val = max(floor, min(100, new_val))
-            setattr(civ, c.stat, type(current)(new_val))
+            apply_change(world, c)
 
     def apply_keep(self, world: WorldState) -> None:
         """Agent mode: apply only keep-category changes.
@@ -164,20 +172,32 @@ class StatAccumulator:
         keep mutations like stability drains and faction effects).
         """
         start = self._keep_applied_up_to
+        apply_change = self._apply_change
         for i in range(start, len(self._changes)):
             c = self._changes[i]
             if c.category != "keep":
                 continue
-            civ = world.civilizations[c.civ_id]
-            current = getattr(civ, c.stat)
-            new_val = current + c.delta
-            if c.stat in UNBOUNDED_STATS:
-                new_val = max(new_val, 0)
-            else:
-                floor = STAT_FLOOR.get(c.stat, 0)
-                new_val = max(floor, min(100, new_val))
-            setattr(civ, c.stat, type(current)(new_val))
+            apply_change(world, c)
         self._keep_applied_up_to = len(self._changes)
+
+    def queued_changes(self, civ_idx: int | None, stat: str, category: str | None = "keep", *,
+                       unapplied_only: bool = True):
+        """Yield the recorded changes of ``civ_idx`` (None: every civ) to
+        ``stat`` in ``category`` (None: every category), in insertion order.
+
+        ``unapplied_only`` starts at the keep watermark (changes before it are
+        already in the civ's stats after :meth:`apply_keep`); otherwise at the
+        first change. The public reader for projections such as "treasury after
+        the changes queued so far"; each caller keeps its own floor and cast.
+        The list is read when iteration starts: consume the generator before
+        recording further changes.
+        """
+        start = self._keep_applied_up_to if unapplied_only else 0
+        for change in self._changes[start:]:
+            if (change.stat == stat
+                    and (civ_idx is None or change.civ_id == civ_idx)
+                    and (category is None or change.category == category)):
+                yield change
 
     def to_shock_signals(self, since: int = 0) -> list[CivShock]:
         """Convert signal + guard-shock changes to normalized shocks.
