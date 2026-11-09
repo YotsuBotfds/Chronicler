@@ -325,6 +325,42 @@ def test_identity_gate_cases_and_native_source_digest():
         assert sorted(golden["cases"]) == sorted(cases)
 
 
+def test_identity_coverage_map_names_every_witnessed_path():
+    import json
+    from pathlib import Path
+    M = _identity_script()
+    repo = Path(__file__).resolve().parents[1]
+    witnessed = set()
+
+    def walk(node):
+        if isinstance(node, dict):
+            for key in ("files", "new_files"):
+                if isinstance(node.get(key), dict):
+                    witnessed.update(node[key])
+            for value in node.values():
+                walk(value)
+        elif isinstance(node, list):
+            for value in node:
+                walk(value)
+
+    for fixture in sorted((repo / "tests" / "fixtures").glob("*inverse*.json")):
+        walk(json.loads(fixture.read_text(encoding="utf-8")))
+    witnessed |= {"chronicler-agents/src/health_care.rs", "chronicler-agents/src/health_care_observation.rs",
+                  "src/chronicler/health_care.py", "src/chronicler/health_care_state.py"}
+    paths = json.loads((repo / "tests" / "fixtures" / "identity" / "coverage.json").read_text())["paths"]
+    assert set(paths) == witnessed and len(paths) == 91
+    lanes = {f"python:{c}" for c in M.GATE_PYTHON} | {f"native:{c}" for c in M.GATE_NATIVE}
+    for path, entry in paths.items():
+        assert (repo / path).is_file(), path
+        if isinstance(entry["identity"], list):
+            assert entry["identity"] and set(entry["identity"]) <= lanes, path
+        else:
+            assert entry["identity"] in ("tests", "none"), path
+            for test in entry.get("tests", []):
+                name = test.split(" ")[0]
+                assert name in ("npm", "cargo") or (repo / name).is_file(), (path, test)
+
+
 def test_identity_batch_manifest_drops_clock_machine_and_commit(tmp_path):
     import hashlib
     import json
