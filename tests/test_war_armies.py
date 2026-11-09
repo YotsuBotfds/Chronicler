@@ -67,6 +67,22 @@ def test_aggregate_casualties_drain_population_permanently():
     assert apply_casualties(ctx, army, 99, cause="battle") == 6 and army.soldiers == 0
 
 
+def test_aggregate_casualties_follow_the_population_drain():
+    # COR-6b: without a roster, soldiers die only for people actually drained.
+    world = war_world()
+    ctx, war = start_war(world)
+    army = place_army(world, "A", "Brook", 10, war.war_key)
+    for region in world.regions:
+        if region.controller == "A":
+            region.population = 0
+    assert apply_casualties(ctx, army, 4, cause="attrition") == 0
+    assert army.soldiers == 10 and army.casualties == 0 and army.attrition == 0
+    world.region_map["Brook"].population = 3
+    assert apply_casualties(ctx, army, 4, cause="attrition") == 3
+    assert army.soldiers == 7 and army.casualties == 3 and army.attrition == 3
+    assert world.region_map["Brook"].population == 0
+
+
 def test_desertion_releases_without_killing():
     world = war_world()
     ctx, war = start_war(world)
