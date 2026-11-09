@@ -301,7 +301,10 @@ export function AppShell({
   const currentSnapshot = findCurrentSnapshot(bundle, currentTurn);
   // Every world civ at the snapshot; only those founded by then rank, show
   // chips and summaries and can be the default focus.
-  const civilizationEntries = buildCivilizationViews(bundle, currentSnapshot);
+  // Per-render work is memoised on its real inputs: a live turn publishes a new
+  // bundle object with new history and timeline arrays (it never mutates them
+  // in place), so the bundle's identity changes with every recorded turn.
+  const civilizationEntries = useMemo(() => buildCivilizationViews(bundle, currentSnapshot), [bundle, currentSnapshot]);
   const civilizations = sortCivilizations(civilizationEntries.filter(isFounded));
   const leadCivilization = dominantCivilization(civilizations);
   const totalTurns = totalTurnsFor(bundle);
@@ -310,7 +313,7 @@ export function AppShell({
   const eraBands = useMemo(() => buildEraBands(bundleHistory ?? [], totalTurns), [bundleHistory, totalTurns]);
   const chronicleEntries = bundle?.chronicle_entries;
   const narratedSpans = useMemo(() => buildNarratedSpans(chronicleEntries), [chronicleEntries]);
-  const chronicleFeed = buildChronicleFeed(bundle, currentTurn);
+  const chronicleFeed = useMemo(() => buildChronicleFeed(bundle, currentTurn), [bundle, currentTurn]);
   const selectedScenario = scenarios.find((entry) => entry.file === scenario) ?? null;
   const civsDisabled = resumeState !== null || (selectedScenario?.civs?.length ?? 0) > 0;
   const regionsDisabled = resumeState !== null || (selectedScenario?.regions?.length ?? 0) > 0;
@@ -328,9 +331,6 @@ export function AppShell({
       resources: undefined,
       carrying_capacity: undefined,
     })) ?? [];
-  const previewControllers = resumeState
-    ? Object.fromEntries(resumeState.regions.map((region) => [region.name, region.controller]))
-    : {};
   const previewCivilizations = resumeState
     ? resumeState.civilizations.map((civilization) => ({
       name: civilization.name,
@@ -342,12 +342,15 @@ export function AppShell({
   // recorded history no controller is known.
   const worldIsPresent = !!bundle && bundle.history.length === 0;
   const mapSnapshot = bundle ? snapshotAtTurn(bundle.history, currentTurn) : null;
-  const regionControllers = mapSnapshot?.region_control
+  // Stable between renders (the atlas layout below is memoised on it).
+  const regionControllers = useMemo<Record<string, string | null>>(() => mapSnapshot?.region_control
     ?? (bundle
       ? (worldIsPresent
         ? Object.fromEntries(bundle.world_state.regions.map((region) => [region.name, region.controller]))
         : {})
-      : previewControllers);
+      : (resumeState
+        ? Object.fromEntries(resumeState.regions.map((region) => [region.name, region.controller]))
+        : {})), [mapSnapshot, bundle, worldIsPresent, resumeState]);
   const atlasRegions: RegionLike[] = bundle
     ? bundle.world_state.regions
     : previewRegions;
@@ -357,7 +360,10 @@ export function AppShell({
     ...atlasRegions.filter((region) => region.x !== null && region.y !== null),
     ...(seaZones ?? []),
   ]), [atlasRegions, seaZones]);
-  const atlasNodes = computeAtlasLayout(atlasRegions, regionControllers, atlasFrame);
+  const atlasNodes = useMemo(
+    () => computeAtlasLayout(atlasRegions, regionControllers, atlasFrame),
+    [atlasRegions, regionControllers, atlasFrame],
+  );
   const mapLayers = useMemo(() => availableMapLayers(bundle), [bundle]);
   const mapLayer: MapLayerKey = bundle && mapLayers.includes(mapLayerSelection) ? mapLayerSelection : "control";
   const famine = useMemo(() => (bundle ? foodCrisisSpans(bundle.events_timeline) : []), [bundle]);
@@ -394,11 +400,11 @@ export function AppShell({
     civilizations.map((civilization) => civilization.name),
   );
   const observationSourceTurn = (currentSnapshot?.turn ?? currentTurn) - 1;
-  const eventFeed = buildEventFeed(
-    bundle?.events_timeline ?? NO_EVENTS,
-    currentTurn,
-    selectedEntity?.kind === "civilization" ? selectedEntity.id : null,
-    observationSourceTurn,
+  const eventsTimeline = bundle?.events_timeline ?? NO_EVENTS;
+  const feedCivilization = selectedEntity?.kind === "civilization" ? selectedEntity.id : null;
+  const eventFeed = useMemo(
+    () => buildEventFeed(eventsTimeline, currentTurn, feedCivilization, observationSourceTurn),
+    [eventsTimeline, currentTurn, feedCivilization, observationSourceTurn],
   );
   const batchSummaries = batchReport?.run_summaries ?? [];
   const leftRailTab = surface === "setup"
