@@ -2269,3 +2269,125 @@ reservedforclosure. Continue existingoutput/identity, never launchfresh; no
 automaticrestart/containerretention promise. Main125a6906 and codehead4502fdc1
 passedallnineCIjobs. Remaining:144-row evaluation, templateexactresume, independent
 resultsreview, finalheadCI/merge/mainverification.
+
+---
+
+## Entries summarised in the 2026-11-08 status block (verbatim)
+
+HYG-1 summarised the four entries that stood above "Historical checkpoints" into the short `docs/CONTINUATION.md`. Their full text, with every evidence caveat, follows unchanged from `4e8e76b7:docs/CONTINUATION.md` lines 1–116. As above, relative links resolve from `docs/`.
+
+# 2026-11-08 — external review response (branch `claude/relaxed-brown-4ozgeg`)
+
+The external review of `b0811a73` requested changes, all at P2. All are addressed on the branch.
+
+1. **Oracle `--jobs` and Ctrl-C.** The scheduler now publishes results into caller-owned storage. On an exceptional exit, the executor waits for the running chunks, and those that finished normally are published too. The runner builds the receipt from them in `finally`, records `error: interrupted`, and keeps `passed: false`. Regression tests interrupt after a success at both the scheduler and the runner level. The runner tests run the real script in process with child processes stubbed, and both fail on `b0811a73`.
+2. **COR-1 hash-seed sweep plan.** The child no longer runs with `-I` (which ignores `PYTHONHASHSEED` and `PYTHONPATH`). It gets an absolute `PYTHONPATH`, an explicit `cwd` and the platform variables it needs. It checks that it imported this checkout, that the seeds took effect, and that seed 0 still reproduces the pre-fix output.
+3. **PIN-2 gate plan.** The native SHA-256 is provenance, not an equality condition. Builds must match their own source digest, and identity is judged by output digests within a compatibility class. A different binary with identical outputs is accepted.
+4. **DEP-6 tax plan.** `money.pay` is the only settlement step, with its `MoneyBook` kept in `ClosedMoneyState`. There is no second treasury credit and no separate carry.
+5. **DEP-6 tithe plan.** One funded collection pays both the treasury and the priest parts. The priest signal comes from the collected amount, and zero priests, insufficient funds, refusals and the escrow residual are specified.
+
+The guide also creates `output/` before writing receipts and saves a native receipt. It gives the same-source reproduction steps for the reference CI gate run, separates a local PASS from a reproduction, and states the Python patch requirement (3.13.5 fails the argparse golden on untouched `main`). The plan's `--machine --json` usage is corrected.
+
+The full bounded oracle lane passed on the code of `567571f`, both ways:
+
+| Run | Tests | Lane time | Slowest chunk |
+|---|---|---|---|
+| `--jobs 4` | 8,139 passed, 69 skipped, 0 failed | 96.9 s | 37.7 s of 110 s |
+| serial | the same per-chunk counts, in the same chunk order | 339.6 s | 33.0 s |
+
+The `--jobs 4` receipt records HEAD `b0811a7` because it started before the commit; the working tree held the same code. Exact-head CI has still not run: `tests.yml` does not run on pushes to this branch, so a PR or a dispatch is needed.
+
+# 2026-11-08 — workstation tooling (Linux 9950X / 3950X)
+
+Both workstations run Linux (owner, 2026-11-08). Setup is in
+[workstations.md](workstations.md); tasks are ENV-1 to ENV-8 on the streamline-and-deepen board.
+
+Implemented on branch `claude/relaxed-brown-4ozgeg` (no PR yet):
+- **ENV-2.** `scripts/check_python_env.py --machine` (with `--json`): a workstation receipt
+  covering CPU, cores and threads, AVX2/AVX-512, batch CPU budget, memory, distribution,
+  governor, tool versions, run variables and git state. It never changes the result.
+- **ENV-3.** `scripts/run_python_oracle_checks.py --jobs N`. The default 1 keeps the serial
+  loop CI runs. N > 1 uses `scripts/testing/chunk_scheduler.py`: chunks start in order,
+  nothing new starts after a failure, and the receipt lists chunks in order.
+- **Tests.** `tests/test_oracle_chunk_scheduler.py` is registered in shard 1, the
+  `build-provenance` chunk and the additions map; the module count is 461.
+
+Verified in the 4-core cloud container:
+- the focused tests (255 passed);
+- the full oracle lane serially (PASS, 76 chunks, 8,135 passed, 69 skipped, 0 failed,
+  324.6 s);
+- the full lane with `--jobs 4` (PASS, same chunk order and per-chunk counts, 85.2 s;
+  slowest chunk 33.7 s of 110 s).
+
+Not run: native tests, viewer tests, the 200-seed gate, and anything on the workstations
+themselves (ENV-5 to ENV-7). ENV-4 (spawned batch workers with hash seed 0) is lower
+priority on Linux, where forked workers inherit the parent's seed. Set `PYTHONHASHSEED=0`.
+
+# 2026-11-08 — repository scout and streamlining plan (docs only)
+
+[Repository scout and streamlining plan](superpowers/audits/2026-11-08-streamlining-scout.md)
+records a read-only audit of `main` at `c3d752fa`. Thirty-two area scouts did the
+audit and the lead spot-checked their claims; the per-area reports are in
+`superpowers/audits/2026-11-08-scout/`. It changes no runtime, default, RNG,
+serialization or pin.
+
+It ran:
+- `pytest --collect-only` (11,972 tests)
+- `cargo check` (0 warnings)
+- the app `tsc --noEmit` (0 errors)
+- four aggregate 150-turn runs
+- `refactor_preflight.py` over all tracked sources
+
+It did not run the oracle lane, native tests, viewer tests/lint/build,
+`turn_speed_identity.py` or the 200-seed gate.
+
+It lists ten lead-verified bugs or contract breaches. Among them:
+- the EXPAND draw ignores the world seed;
+- new live worlds miss the governance default;
+- a food debit's order depends on PYTHONHASHSEED;
+- live integer parsing overflows on `Infinity`;
+- four default-path provenance decision reads.
+
+It also lists eight owner decisions (D1–D8) that gate the streamlining waves. D1 is
+whether source-witness pins keep enforcing current source. Its section 8 records the
+errata found while writing the specs, including one retracted bug, the food residual.
+
+The [streamline-and-deepen roadmap](superpowers/roadmaps/streamline-and-deepen.md)
+turns the audit into eight phases (R0–R7) and six milestones. Its task board,
+`superpowers/progress/streamline-and-deepen.json`, holds 81 tasks, all `proposed`. There are
+13 design specs (`superpowers/specs/2026-11-08-*-design.md`) and 13 implementation plans
+(`superpowers/plans/2026-11-08-*.md`). Each plan gives its PR sequence, verification
+commands and pin handling.
+
+No wave has started. The plans were written without running any gate, so their commands
+are untested. The connected-world rework entry below is still the current runtime state.
+
+# Connected World rework — runtime integrated and verified
+
+The focused correctness, causal evaluation and performance rework is implemented,
+independently reviewed and evaluated. PR #99 merged at
+`a5ccbbf528de82d8a4fa19dbebe7d6ab805b2b96`, tree equal to reviewed `72d89dde`.
+Premerge Tests `42426724513` and exact main Tests `42428257952` each passed
+all nine jobs. PR #98's formatter improvement and exact main CI also passed.
+
+Read the [report](superpowers/progress/connected-world-rework-report.md),
+[coverage](superpowers/progress/connected-world-rework-coverage.md),
+[machine board](superpowers/progress/connected-world.json) and
+[ledger](superpowers/progress/connected-world-rework.md). They supersede all
+historical next-task entries below. No implementation/evaluation task remains
+in this focused rework. Ports, owned wares and constructed-story scope remain
+explicitly limited; no broader completion or qualification is implied.
+
+All 144 fresh held cases passed under the fixed two-core-hour cap. Seeds
+4101–4106 and 4201–4206 are recorded used once: do not rerun as fresh.
+Adverse/null/mixed results, demographic/access limits, capped traces, unrecorded
+famine/war causes and the raw-report heading erratum remain explicit. Existing
+feature/version defaults are unchanged; corrected use selects explicit rules 3
+and density_only. No restricted qualification or default promotion occurred.
+
+The final `codex/cwr-closeout` ledger/audit PR changes no runtime. It follows
+independent actual-diff review, all nine exact-head Tests, authorized merge and
+all nine exact final main Tests. Its verification is linked in that PR and the
+final handoff; query GitHub's Tests push run for current main HEAD to verify a
+later documentation commit. Do not infer an unrun gate from historical reports.
+No automatic restart after reclamation is promised.

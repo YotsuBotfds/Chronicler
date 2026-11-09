@@ -8,9 +8,11 @@
 - **200-seed gate:** not run.
 - **Unmerged work:** the streamline-and-deepen roadmap lives at
   [superpowers/roadmaps/streamline-and-deepen.md](superpowers/roadmaps/streamline-and-deepen.md)
-  with its board `superpowers/progress/streamline-and-deepen.json`. It and its tooling
-  commits are on branch `claude/relaxed-brown-4ozgeg` (and the `sd/*` task branches built on
-  it) and are **not merged to `main`**.
+  with its board `superpowers/progress/streamline-and-deepen.json`, the owner's
+  [decisions](superpowers/progress/streamline-and-deepen-decisions.md) (DEC-1–DEC-8, 2026-11-08)
+  and the lead's [integration ledger](superpowers/progress/streamline-and-deepen-ledger.md).
+  Reviewed tasks are integrated on branch `claude/exciting-mayer-nolksw` (built on the plan
+  branch `claude/relaxed-brown-4ozgeg`) and are **not merged to `main`**; no PR is open.
 - **History split (HYG-1):** the dated checkpoints that followed this block moved byte-for-byte
   to [superpowers/progress/continuation-history.md](superpowers/progress/continuation-history.md).
 - Update this block in the ledger commit after each merge.

@@ -151,7 +151,7 @@ Use fetched `main` for new work. The entries below are historical source identit
 
 Every livelihoods, recovery-skills and productive-recovery switch is off by default. These merges do not complete the 200-seed or
 procedural qualification gates. What landed, the review and the evidence are in the
-[continuation ledger](CONTINUATION.md) and the PR descriptions.
+[continuation history](superpowers/progress/continuation-history.md) and the PR descriptions.
 
 The previous checkpoint follows. [PR #69](https://github.com/YotsuBotfds/Chronicler/pull/69)
 merged on 2026-11-04 at `cc4f70e29166c6bf083abdcd99b0fb5acc3d6594`.
@@ -174,7 +174,7 @@ For what changed and why, read the [integration ledger](integration/integration-
 [release qualification](integration/release-qualification-20261103.md),
 [crisis roadmap](integration/crisis-recovery-roadmap.md) and
 [held results](integration/crisis-held-results-2026-11-03.md).
-The [continuation ledger](CONTINUATION.md) retains older recovery history;
+The [continuation history](superpowers/progress/continuation-history.md) retains older recovery history;
 [development setup](DEVELOPMENT.md) supplies portable setup commands.
 
 ## Private external archives
