@@ -4,9 +4,17 @@
 # Each step warns instead of aborting so a transient network failure does not
 # block the session; look for "!!" in the log. See docs/DEVELOPMENT.md.
 set -uo pipefail
-cd "$(dirname "${BASH_SOURCE[0]}")/.." || exit 0
+# Resolve the script directory with builtins so a broken PATH cannot land us elsewhere.
+SCRIPT_DIR=.; case "${BASH_SOURCE[0]}" in */*) SCRIPT_DIR=${BASH_SOURCE[0]%/*} ;; esac
+cd "$SCRIPT_DIR/.." || { echo "!! cannot enter repo root"; exit 1; }
 
-step() { local name=$1; shift; echo "== $name"; "$@" || echo "!! setup step failed (continuing): $name"; }
+FAILED=()
+step() { local name=$1; shift; echo "== $name"; "$@" || { echo "!! setup step failed (continuing): $name"; FAILED+=("$name"); }; }
+
+# Record missing tools before use; the steps that need them fail as well.
+for tool in uv npm cargo; do
+    command -v "$tool" >/dev/null 2>&1 || { echo "!! required tool not on PATH: $tool"; FAILED+=("command -v $tool"); }
+done
 
 # Default .venv from uv.lock: the offline/no-Rust lane. It must never contain
 # chronicler_agents (CI asserts it is absent).
@@ -30,4 +38,14 @@ step "maturin" uv pip install -q --python "$NATIVE/bin/python" "maturin>=1.5,<2"
 step "check .venv (no native)" .venv/bin/python scripts/check_python_env.py --expect no-native
 step "check native venv" "$NATIVE/bin/python" scripts/check_python_env.py
 
+# Summary. The default exit is 0 so a failed step never stops a cloud session
+# from starting; CHRONICLER_SETUP_STRICT=1 exits 1 when any step failed.
+echo "== setup summary"
+if [ ${#FAILED[@]} -eq 0 ]; then
+    echo "all setup steps passed"
+else
+    for name in "${FAILED[@]}"; do echo "!! failed: $name"; done
+fi
+[ "${CHRONICLER_SETUP_STRICT:-0}" = 1 ] && [ ${#FAILED[@]} -gt 0 ] && exit 1
 echo "== Chronicler setup done"
+exit 0

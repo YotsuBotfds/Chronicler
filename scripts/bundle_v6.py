@@ -3,7 +3,7 @@
 
     convert BATCH_OR_BUNDLE...  rewrite each chronicle_bundle.json in place as
                                 version 6 (version 4 is pruned first, as
-                                scripts/prune_dead_civ_snapshots.py does); the
+                                scripts/archive/prune_dead_civ_snapshots.py does); the
                                 written file is decoded and checked against
                                 the source before the next one
     decode BUNDLE OUT           write the decoded bundle (the version-5 layout,

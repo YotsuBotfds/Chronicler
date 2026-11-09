@@ -1,7 +1,7 @@
 """L7 relocation costs: development funnel on template seeds.
 
-    python scripts/relocation_costs_funnel.py run OUT_DIR [--seeds 1,2,3] [--turns 200] [--jobs 2]
-    python scripts/relocation_costs_funnel.py report OUT_DIR/funnel.jsonl
+    python scripts/archive/relocation_costs_funnel.py run OUT_DIR [--seeds 1,2,3] [--turns 200] [--jobs 2]
+    python scripts/archive/relocation_costs_funnel.py report OUT_DIR/funnel.jsonl
 
 Run with the native interpreter whose extension matches the source under
 test. Arms per world: ``off``, ``paid``, ``assisted``, ``liquidity_only``
@@ -18,7 +18,7 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 PY = sys.executable
-REPO = str(Path(__file__).resolve().parents[1])
+REPO = str(Path(__file__).resolve().parents[2])
 BASE = ["--civs", "4", "--regions", "8", "--agents", "hybrid", "--simulate-only"]
 ARMS = {
     "off": [],

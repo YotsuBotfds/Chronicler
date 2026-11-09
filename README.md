@@ -19,15 +19,12 @@ The LLM **only narrates** — it never makes simulation decisions. You can run w
 
 ## Current Status
 
-Start from **`main`**. [PR #69](https://github.com/YotsuBotfds/Chronicler/pull/69)
-merged the consolidated development history and bounded crisis/recovery work on
-2026-11-04 at `cc4f70e29166c6bf083abdcd99b0fb5acc3d6594`.
-Its [main CI run](https://github.com/YotsuBotfds/Chronicler/actions/runs/41783128849)
-passed all nine jobs on attempt 1. This is scoped integration evidence;
-the 200-seed scientific/default-promotion gate remains unfinished.
+Start from **`main`**. The [current status block](docs/CONTINUATION.md#current-status)
+records the latest verified `main` commit, merged pull request, Tests run and gate state.
 
 Start with the [recovery and archive index](docs/RECOVERY.md),
-[continuation status and historical locations](docs/CONTINUATION.md),
+[current status](docs/CONTINUATION.md) (its dated history is in
+[continuation-history.md](docs/superpowers/progress/continuation-history.md)),
 [Windows/Mac/Linux setup](docs/DEVELOPMENT.md), and [agent instructions](AGENTS.md).
 The [documentation map](docs/README.md) lists the per-system references,
 validation notes, viewer guides and where the dated milestone history lives
@@ -240,7 +237,7 @@ python scripts/m53b_run_validation.py --profile subset --worldgen procedural --o
 python scripts/m53b_run_validation.py --profile full --worldgen procedural --output-root output/m53/procedural-full
 
 # Per-system activity of batches (from their bundles), side by side.
-python scripts/world_systems_report.py template=output/m53/full/full_gate/batch_42 \
+python scripts/archive/world_systems_report.py template=output/m53/full/full_gate/batch_42 \
   procedural=output/m53/procedural-full/full_gate/batch_42
 ```
 

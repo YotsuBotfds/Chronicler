@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Find natural success and failure examples of the recovery-skills packages.
 
-    python scripts/recovery_skills_examples.py BUNDLE [BUNDLE ...]
+    python scripts/archive/recovery_skills_examples.py BUNDLE [BUNDLE ...]
 
 Scans each run's dated livelihoods records (``history[i]["livelihoods"]``; never
 the final world state) and prints, per package, the first natural instance of
@@ -17,7 +17,7 @@ import json
 import sys
 from pathlib import Path
 
-REPO = Path(__file__).resolve().parents[1]
+REPO = Path(__file__).resolve().parents[2]
 
 
 def _records(hist, name):

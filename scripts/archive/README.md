@@ -1,21 +1,33 @@
 # Archived scripts
 
-Moved here on 2026-11-04 from `scripts/`. Only dated records under `docs/`
+Moved here from `scripts/` on 2026-11-04, and 15 more doc-only scripts on
+2026-11-09 (repo hygiene HYG-6: `benchmark_perception`, `cw_program_profile`,
+`diplomacy_identity`, `epidemiology_identity`, `guilds_identity`,
+`learning_cohorts_funnel`, `m53_baseline`, `provenance_identity`,
+`prune_dead_civ_snapshots`, `recovery_skills_examples`,
+`relocation_costs_funnel`, `watershed_activation`, `watershed_calibration`,
+`watershed_replay`, `world_systems_report`). Only dated records under `docs/`
 cite these scripts (milestone probes, one-off comparisons and earlier
-reports). No test or CI workflow runs them. Their documented commands were
+reports). No CI workflow runs them. `scripts/testing/script_smoke.py` runs
+the manifest entries marked safe to run (on request, not in CI), and
+`tests/test_script_smoke_manifest.py` checks the manifest statically. Their documented commands were
 updated to the new paths, and their repository-root lookups now go up two
-levels, so they still run from the repository root.
+levels, so they still run from the repository root. `benchmark_perception.py`
+and `guilds_identity.py` import `benchmark_headless` and
+`agent_movements_identity` from `scripts/`.
 
 Read a script before running it. Their command lines predate the archive and
 are not uniform. [`../testing/script_smoke_manifest.json`](../testing/script_smoke_manifest.json)
 records, per script, a smoke invocation and its exit status, whether it
 writes files, and what real use needs (native extension, network, inputs).
-Without the native extension, 23 of the 35 Python scripts here print usage
-for `--help` and exit 0. `curator_spread.py`, `epidemiology_stats.py`,
-`finance_identity.py`, `narration_coverage.py`, `scholarship_probe.py` and
-`viewer_systems_identity.py` print their docstring and exit 2.
-`agent_movements_report.py`, `guilds_report.py`, `m_af1_compare.py` and
-`scholarship_report.py` treat `--help` as a path and exit 1. `guilds_probe.py`
+Without the native extension, 33 of the 50 Python scripts here print usage
+for `--help` and exit 0. `curator_spread.py`, `diplomacy_identity.py`,
+`epidemiology_identity.py`, `epidemiology_stats.py`, `finance_identity.py`,
+`guilds_identity.py`, `narration_coverage.py`, `provenance_identity.py`,
+`scholarship_probe.py` and `viewer_systems_identity.py` print a docstring and
+exit 2. `agent_movements_report.py`, `guilds_report.py`, `m_af1_compare.py`,
+`recovery_skills_examples.py` and `scholarship_report.py` treat `--help` as a
+path and exit 1. `guilds_probe.py`
 treats it as a batch directory, prints an empty table and exits 0.
 `mutual_aid_control_snapshot.py` imports the native extension and exits 1
 without it. `world-laboratory-example.sh` prints usage and exits 2.

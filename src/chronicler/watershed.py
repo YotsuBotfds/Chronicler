@@ -187,7 +187,7 @@ class Parameters:
 B1_PARAMETERS = Parameters()
 #: The constants in force (B2, refit after review): three fitted in ``record_only``
 #: on the procedural development worlds 7, 11, 13, 17, 21, 31, 302 and 303 (32x10,
-#: 400 turns, hybrid) by ``scripts/watershed_replay.py fit --form core``
+#: 400 turns, hybrid) by ``scripts/archive/watershed_replay.py fit --form core``
 #: (precipitation_base, baseflow, cooling precipitation); every other constant is
 #: fixed with a stated reason (docs/integration/watershed.md, "Calibration"):
 #: evaporation 0.03 (only the precipitation/evaporation ratio is identified),
@@ -542,7 +542,7 @@ def coastal_flood_gain(world, region) -> float | None:
 
 class RegionInput(NamedTuple):
     """What the account reads of one region before the tick (pure data, so
-    the account can be replayed: scripts/watershed_calibration.py)."""
+    the account can be replayed: scripts/archive/watershed_calibration.py)."""
     terrain: str
     moisture: float
     cover: float

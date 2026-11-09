@@ -4,7 +4,7 @@
 ``compare BASE_DIR NEW_DIR``
     Every file of two run directories (one run, or a batch of ``seed_*``
     runs) byte for byte; ``chronicle_bundle.json`` without
-    ``metadata.generated_at``. As ``scripts/diplomacy_identity.py``.
+    ``metadata.generated_at``. As ``scripts/archive/diplomacy_identity.py``.
 
 ``compare-inert BASE_DIR NEW_DIR``
     The same after removing the cities layer's own fields: ``cities`` from

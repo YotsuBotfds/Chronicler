@@ -3,7 +3,7 @@
 
 ``compare BASE_DIR NEW_DIR``
     Every file must match byte for byte (``chronicle_bundle.json`` after
-    dropping ``metadata.generated_at``), as in ``scripts/diplomacy_identity.py``.
+    dropping ``metadata.generated_at``), as in ``scripts/archive/diplomacy_identity.py``.
     Use it for runs with the systems switched off.
 
 ``compare-additive BASE_DIR NEW_DIR``

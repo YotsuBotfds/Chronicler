@@ -10,7 +10,7 @@ procedural development seed (docs/superpowers/roadmaps/connected-world-program.m
 section 7). The constants are declared and uncalibrated; this report
 describes them, it does not tune them.
 
-    python scripts/watershed_calibration.py BUNDLE [BUNDLE ...] [--json OUT]
+    python scripts/archive/watershed_calibration.py BUNDLE [BUNDLE ...] [--json OUT]
 """
 from __future__ import annotations
 

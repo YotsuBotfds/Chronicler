@@ -1,8 +1,8 @@
 """L5 learning cohorts: development activation funnel on template seeds.
 
-    python scripts/learning_cohorts_funnel.py run OUT_DIR [--seeds 1,2,3] [--turns 200] [--jobs 2]
-    python scripts/learning_cohorts_funnel.py report OUT_DIR/funnel.jsonl
-    python scripts/learning_cohorts_funnel.py constructed [--turns 30]
+    python scripts/archive/learning_cohorts_funnel.py run OUT_DIR [--seeds 1,2,3] [--turns 200] [--jobs 2]
+    python scripts/archive/learning_cohorts_funnel.py report OUT_DIR/funnel.jsonl
+    python scripts/archive/learning_cohorts_funnel.py constructed [--turns 30]
 
 Run with the native interpreter whose extension matches the source under test.
 Arms per world: ``services`` (academy services only), ``learn`` and
@@ -25,7 +25,7 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 PY = sys.executable
-REPO = str(Path(__file__).resolve().parents[1])
+REPO = str(Path(__file__).resolve().parents[2])
 BASE = ["--civs", "4", "--regions", "8", "--agents", "hybrid", "--simulate-only",
         "--cities", "--scholarship", "--techniques", "--academy-services"]
 ARMS = {"services": [], "learn": ["--learning-cohorts"],
