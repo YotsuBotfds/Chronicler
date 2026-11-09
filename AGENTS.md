@@ -22,6 +22,9 @@ dated evidence describes the source and platform it actually tested.
 
 - `src/chronicler/`: deterministic simulation, CLI, narration, analytics and
   detached experiments. The simulation chooses outcomes; narration describes them.
+- `src/chronicler_lab/`: detached harnesses (sessions, receipts, audits, capture
+  and replay tools) being moved out of `src/chronicler/`; production never imports
+  it. Old `chronicler.<name>` paths of moved modules are shims until removed.
 - `chronicler-agents/`: optional Rust/PyO3 agent, ecology and politics runtimes.
 - `viewer/`: React/TypeScript viewer. Synthetic demonstration pages are distinct
   from production data loading and supported features.
