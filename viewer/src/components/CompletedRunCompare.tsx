@@ -3,6 +3,7 @@ import { CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, X
 import type { Bundle } from "../types";
 import type { ArtifactIdentity } from "../lib/artifactIdentity";
 import { decodeBundleBytes } from "../lib/bundleFile";
+import { downloadText } from "../lib/download";
 import {
   alignCompletedRuns, COMPARISON_LIMITS, completedComparisonSummary, completedRunIdentity, comparisonMarkdown,
   RUN_METRICS, type AlignedRunPoint, type CompletedRun, type RunMetric,
@@ -114,14 +115,9 @@ export function CompletedRunCompare({ initialBundle, initialIdentity, initialPai
 
   function download(format: "json" | "markdown") {
     if (!summary) return;
-    const blob = new Blob([format === "json" ? JSON.stringify(shareSummary, null, 2) + "\n" : shareMarkdown()],
-      { type: format === "json" ? "application/json" : "text/markdown;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `completed-run-comparison.${format === "json" ? "json" : "md"}`;
-    link.click();
-    setTimeout(() => URL.revokeObjectURL(url), 0);
+    downloadText(`completed-run-comparison.${format === "json" ? "json" : "md"}`,
+      format === "json" ? JSON.stringify(shareSummary, null, 2) + "\n" : shareMarkdown(),
+      format === "json" ? "application/json" : "text/markdown;charset=utf-8", 0);
   }
 
   async function copy() {
