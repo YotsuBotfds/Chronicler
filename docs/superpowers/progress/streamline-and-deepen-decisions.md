@@ -31,6 +31,13 @@ Each runs one at a time in its own PR, with a before/after baseline, two indepen
   - **Dropped.** (1) Refusing a mode that differs from the saved one: changing a mode on resume stays supported, as the household-retail, recovery-crews and recovery-skills tests document (for example record_only to retail). (2) Refusing a mode given without its switch: "a mode alone does nothing" stays the documented protocol.
   - The owner can ask for either dropped part later. Each is a separate small change.
 
+- **Wave-4 implementer questions (2026-11-09).**
+  - **CON-6cd, `tick_economy` keyword.** The unused third parameter keeps its Python keyword name `season_id`. PyO3 exposes Rust parameter names as keywords, so a rename would break `season_id=` callers (lead fix `b07777d9`).
+  - **FIX-10 follow-ups (new task FIX-15).** (1) When the live server cannot start, `main` exits with a non-zero status. (2) A live `batch_start` scenario name is resolved under `scenarios/` as the lobby resolves it, refusing names outside it. Both are fixes to the live entry points; no simulation outcome changes. The deferred reconnect-state merge and `client_lock` items stay deferred.
+  - **CON-1, import guards (follow-up CON-1g).** The AST guards in `test_languages.py` and `test_historiography.py` are widened to also flag by-name module access through `importlib`. `switch_defaults.py` is the one allowed registry.
+  - **COR-5.2, famine onset predicate.** The plan's rule applies: a crisis report counts as an onset when the region is not already in `famine_cooldown`. COR-5.5 reuses it.
+  - **Out of scope.** Inlining `DEMAND_SCALE_FACTOR` (scout 01 finding 11) has no decision and is not done.
+
 ## Not decided here
 
 - Promotion of any default-off feature still needs the 200-seed gate and a separate owner approval.

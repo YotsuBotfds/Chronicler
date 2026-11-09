@@ -23,7 +23,8 @@ Owner decisions DEC-1–DEC-8 (2026-11-08) are in the
 [decision record](superpowers/progress/streamline-and-deepen-decisions.md); every merge, its
 reviewed heads and its gates are in the [integration ledger](superpowers/progress/streamline-and-deepen-ledger.md).
 Behaviour-neutral work (R1/R2 hygiene, dead code, neutral fixes, tooling, PIN-2 and PIN-1 under
-DEC-1 option A) compared identical on all nine identity cases. Corrections (owner go-ahead
+DEC-1 option A, the Rust consolidation CON-5/6/7, the CON-1 switch registry and the live fixes
+FIX-1/3/10/11) compared identical on all nine identity cases. Corrections (owner go-ahead
 2026-11-08), each with a [baseline report](superpowers/progress/streamline-and-deepen-baselines/):
 COR-9 (Rust `stable_hash_int` repr parity) and COR-7 (Rust politics step 11 deleted) give 0
 differences; COR-6a/6b (war early-return flush, drained-only soldier deaths) give 0 differences

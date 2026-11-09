@@ -441,10 +441,10 @@
       ],
       "risk": "med",
       "size": "~-135",
-      "status": "active",
+      "status": "review",
       "spec": "docs/superpowers/specs/2026-11-08-dead-code-removal-design.md",
       "plan": "docs/superpowers/plans/2026-11-08-dead-code-removal.md",
-      "note": "DEAD-5b (Rust) integrated in integration 9, reviewed head 430deecd; DEAD-5a (Python) reviewed, awaiting integration."
+      "integrated": "lead branch, DEAD-5b integration 9 (reviewed head 430deecd), DEAD-5a integration 10 (reviewed head b078c579); see progress/streamline-and-deepen-ledger.md"
     },
     {
       "id": "FIX-1",
@@ -456,9 +456,10 @@
       ],
       "risk": "low",
       "size": "small",
-      "status": "ready",
+      "status": "review",
       "spec": "docs/superpowers/specs/2026-11-08-behaviour-neutral-fixes-design.md",
-      "plan": "docs/superpowers/plans/2026-11-08-behaviour-neutral-fixes.md"
+      "plan": "docs/superpowers/plans/2026-11-08-behaviour-neutral-fixes.md",
+      "integrated": "lead branch, integration 10 (2026-11-09), FIX-PR5 reviewed head 3d06b1e6; see progress/streamline-and-deepen-ledger.md"
     },
     {
       "id": "FIX-2",
@@ -483,9 +484,10 @@
       ],
       "risk": "low",
       "size": "small",
-      "status": "ready",
+      "status": "review",
       "spec": "docs/superpowers/specs/2026-11-08-behaviour-neutral-fixes-design.md",
-      "plan": "docs/superpowers/plans/2026-11-08-behaviour-neutral-fixes.md"
+      "plan": "docs/superpowers/plans/2026-11-08-behaviour-neutral-fixes.md",
+      "integrated": "lead branch, integration 10 (2026-11-09), FIX-PR5 reviewed head 3d06b1e6; see progress/streamline-and-deepen-ledger.md"
     },
     {
       "id": "FIX-4",
@@ -577,9 +579,10 @@
       ],
       "risk": "med",
       "size": "small",
-      "status": "ready",
+      "status": "review",
       "spec": "docs/superpowers/specs/2026-11-08-behaviour-neutral-fixes-design.md",
-      "plan": "docs/superpowers/plans/2026-11-08-behaviour-neutral-fixes.md"
+      "plan": "docs/superpowers/plans/2026-11-08-behaviour-neutral-fixes.md",
+      "integrated": "lead branch, integration 10 (2026-11-09), FIX-PR5 reviewed head 3d06b1e6; see progress/streamline-and-deepen-ledger.md"
     },
     {
       "id": "FIX-11",
@@ -591,9 +594,10 @@
       ],
       "risk": "low",
       "size": "small",
-      "status": "ready",
+      "status": "review",
       "spec": "docs/superpowers/specs/2026-11-08-behaviour-neutral-fixes-design.md",
-      "plan": "docs/superpowers/plans/2026-11-08-behaviour-neutral-fixes.md"
+      "plan": "docs/superpowers/plans/2026-11-08-behaviour-neutral-fixes.md",
+      "integrated": "lead branch, integration 10 (2026-11-09), FIX-PR5 reviewed head 3d06b1e6; see progress/streamline-and-deepen-ledger.md"
     },
     {
       "id": "FIX-12",
@@ -633,6 +637,21 @@
       "spec": null,
       "plan": null,
       "note": "Found during COR-8b (2026-11-09): off_s42 with a tuning file setting multiplier.aggression_bias: 1.0 (its default) diverges from the run without --tuning from the action history onward. Predates COR-8. Diagnose first; a fix that changes outcomes is a correction and needs a baseline report and owner go-ahead."
+    },
+    {
+      "id": "FIX-15",
+      "title": "Live: non-zero exit when the server cannot start; batch scenario names resolved under scenarios/",
+      "phase": "R2",
+      "class": "fix",
+      "depends_on": [
+        "FIX-10"
+      ],
+      "risk": "low",
+      "size": "small",
+      "status": "ready",
+      "spec": "docs/superpowers/specs/2026-11-08-behaviour-neutral-fixes-design.md",
+      "plan": null,
+      "note": "From the FIX-PR5 implementer's questions; lead ruling 2026-11-09 in the decision record. No simulation outcome change."
     },
     {
       "id": "PIN-2",
@@ -691,9 +710,10 @@
       ],
       "risk": "med",
       "size": "small",
-      "status": "blocked",
+      "status": "ready",
       "spec": "docs/superpowers/specs/2026-11-08-rng-and-defaults-design.md",
-      "plan": "docs/superpowers/plans/2026-11-08-rng-and-defaults.md"
+      "plan": "docs/superpowers/plans/2026-11-08-rng-and-defaults.md",
+      "note": "CON-1 integrated (integration 10); scheduled in wave 5."
     },
     {
       "id": "COR-3",
@@ -835,9 +855,11 @@
       ],
       "risk": "med",
       "size": "~-170",
-      "status": "ready",
+      "status": "review",
       "spec": "docs/superpowers/specs/2026-11-08-rng-and-defaults-design.md",
-      "plan": "docs/superpowers/plans/2026-11-08-rng-and-defaults.md"
+      "plan": "docs/superpowers/plans/2026-11-08-rng-and-defaults.md",
+      "integrated": "lead branch, integration 10 (2026-11-09), reviewed head 2437c973; see progress/streamline-and-deepen-ledger.md",
+      "note": "Follow-up CON-1g (import guards see switch_defaults by-name access) is a wave-5 task; lead ruling in the decision record."
     },
     {
       "id": "CON-2",
@@ -862,9 +884,10 @@
       ],
       "risk": "med",
       "size": "~-100",
-      "status": "ready",
+      "status": "active",
       "spec": "docs/superpowers/specs/2026-11-08-turn-loop-consolidation-design.md",
-      "plan": "docs/superpowers/plans/2026-11-08-turn-loop-consolidation.md"
+      "plan": "docs/superpowers/plans/2026-11-08-turn-loop-consolidation.md",
+      "note": "CON-3a (treasury_delta seam, accumulator golden trace) integrated in integration 10, reviewed head bed9cfed; batches CON-3b/3c in progress."
     },
     {
       "id": "CON-4",
@@ -876,9 +899,10 @@
       ],
       "risk": "high",
       "size": "~-150",
-      "status": "ready",
+      "status": "active",
       "spec": "docs/superpowers/specs/2026-11-08-turn-loop-consolidation-design.md",
-      "plan": "docs/superpowers/plans/2026-11-08-turn-loop-consolidation.md"
+      "plan": "docs/superpowers/plans/2026-11-08-turn-loop-consolidation.md",
+      "note": "CON-4a (hook-order golden) integrated in integration 10, reviewed head bed9cfed; the hook table (plan PR 5) is in progress."
     },
     {
       "id": "CON-5",
@@ -1049,7 +1073,7 @@
       ],
       "risk": "low",
       "size": "small",
-      "status": "blocked",
+      "status": "ready",
       "spec": "docs/superpowers/specs/2026-11-08-economy-depth-and-measurement-design.md",
       "plan": "docs/superpowers/plans/2026-11-08-economy-depth-and-measurement.md"
     },

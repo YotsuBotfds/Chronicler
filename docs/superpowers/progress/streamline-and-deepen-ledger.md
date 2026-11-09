@@ -233,3 +233,30 @@ Gates on the merged head `b07777d9`:
 New board item **FIX-14**, from the COR-8b work. Any `--tuning` file, even one that sets a key to its default, makes `off_s42` diverge from a run without `--tuning`. This predates COR-8. The first step is a diagnosis; any fix is a correction and needs a baseline report.
 
 Not run: the native Python shards in full, the 200-seed gate, and GitHub CI.
+
+## 2026-11-09 — integration 10 (Python core lane, first half)
+
+Merged `sd/CON-3a_4a` as `99b71b5b`. These are the first four approved tasks of the wave-4 Python-core lane; the lane continues with CON-3b, CON-11, CON-3c, CON-4 and CON-10.
+
+| Task | Reviewed head | Review | Notes |
+|---|---|---|---|
+| DEAD-5a | `b078c579` | 1 reviewer; approved after one fix round | Removed `main.run_chronicle` (moved to the test helper `tests/run_chronicle_compat.py`), `harvest_forecasts_enabled`, `sidecar.SidecarReader` (moved into its tests), and `economy.classify_upstream_source`, `compute_production` and `derive_farmer_income_modifier`. The review blocker: the exec'd A01 reference baseline imports `events.roll_for_event` and `apply_probability_cascade`, so both stay. The spec and plan now count `tests/fixtures/reference_baselines/` sources as live callers. A `compute_economy` test keeps the H-4 zero-farmer rule covered |
+| FIX-PR5 (FIX-1, FIX-11, FIX-10, FIX-3) | `3d06b1e6` | 2 reviewers; approved after one fix round | A paused live `set` with Infinity, NaN, `1e999` or a non-string stat or civ is refused, and the loop keeps running. `LiveServerStartError` is reported to stderr; a start that times out stops the server. Report and bundle reads run off the event loop. `utils.clear_region_transients` is shared by the bridge and the bridgeless turn end. Review major: the batch scenario refusal checked a different path from the one the batch loads, so it was removed and the batch pass-through is unchanged |
+| CON-1 | `2437c973` | 2 reviewers | `chronicler.switch_defaults`: one new-world registry, 21 rows, 17 of them default-on (DEC-2), each with its qualification status. It is used by `main._configure_run`, `live._live_world` (governance `live_exempt` until COR-2), `feature_catalog` and `batch_manifest`. Proof: live and CLI world dumps over 56 argv sets, 225 files byte-identical. Seven live.py source-grep tests became behavioural checks |
+| CON-3a, CON-4a | `bed9cfed` | 1 reviewer | Golden traces recorded on unmodified source: `tests/fixtures/turn_loop/accumulator_trace.json` (3,416 adds, identical under hash seeds 0/1/5/7) and `hook_order.json`. `treasury.treasury_delta` seam and `StatAccumulator.queued_changes()`, checked against the private projection folds. No call-site change |
+
+Conflict resolution by the lead:
+- `economy.py`: DEAD-5a deletes `derive_farmer_income_modifier`; CON-7b had moved the merchant derivations and extraction helpers to `economy_oracle.py`. Both removals are kept. `economy_oracle` no longer re-exports the deleted names; the integration-9 entry asked for this.
+- `test_audit_batch_d.py` and `test_economy.py`: DEAD-5a's test removals sit on top of CON-7b's oracle imports.
+- Registrations were added together, so the module count is now 474. The shard list was re-sorted, because the manifest reader requires order.
+
+Gates on the merged head `99b71b5b`. Rust is unchanged since integration 9, so these runs used native `d2956542…`:
+- Oracle lane `--jobs 2`: PASS in 165.4 s. 80 chunks; 8,629 passed, 70 skipped, 0 failed.
+- Native focused tests (economy, economy bridge, live integration, switch defaults, treasury seam, turn hooks, agent bridge): 450 passed.
+- Identity, all 9 cases against the post-correction baseline (integration 5): **399 files, 0 differences**.
+- Identity gate: Python lane 53 files and native lane 133 files, 0 differences each.
+- Preflight: no source pin. It reports only the known lab-module literal digests, the pickle corpus and the frozen copies.
+
+Lead rulings on the implementers' questions are in the [decision record](streamline-and-deepen-decisions.md), under "Wave-4 implementer questions". They create FIX-15 (live exit status and batch scenario path) and the CON-1g guard follow-up, both in wave 5.
+
+Not run: the 200-seed gate and GitHub CI.
