@@ -292,9 +292,10 @@
       "depends_on": [],
       "risk": "low",
       "size": "small",
-      "status": "active",
+      "status": "review",
       "spec": "docs/superpowers/specs/2026-11-08-repo-hygiene-design.md",
-      "plan": "docs/superpowers/plans/2026-11-08-repo-hygiene.md"
+      "plan": "docs/superpowers/plans/2026-11-08-repo-hygiene.md",
+      "integrated": "lead branch claude/exciting-mayer-nolksw, integration 1 (2026-11-09), reviewed head a00ada41; see progress/streamline-and-deepen-ledger.md"
     },
     {
       "id": "HYG-3",
@@ -393,7 +394,8 @@
       "size": "~-300 (+216 analytics, owner call)",
       "status": "active",
       "spec": "docs/superpowers/specs/2026-11-08-dead-code-removal-design.md",
-      "plan": "docs/superpowers/plans/2026-11-08-dead-code-removal.md"
+      "plan": "docs/superpowers/plans/2026-11-08-dead-code-removal.md",
+      "note": "DEAD-2a integrated (reviewed head a457aab5, integration 1); DEAD-2b in progress."
     },
     {
       "id": "DEAD-3",
@@ -403,9 +405,10 @@
       "depends_on": [],
       "risk": "low",
       "size": "~-230",
-      "status": "active",
+      "status": "review",
       "spec": "docs/superpowers/specs/2026-11-08-dead-code-removal-design.md",
-      "plan": "docs/superpowers/plans/2026-11-08-dead-code-removal.md"
+      "plan": "docs/superpowers/plans/2026-11-08-dead-code-removal.md",
+      "integrated": "lead branch claude/exciting-mayer-nolksw, integration 1 (2026-11-09), reviewed head 48108143; see progress/streamline-and-deepen-ledger.md"
     },
     {
       "id": "DEAD-4",
@@ -455,9 +458,10 @@
       "depends_on": [],
       "risk": "low",
       "size": "small",
-      "status": "active",
+      "status": "review",
       "spec": "docs/superpowers/specs/2026-11-08-behaviour-neutral-fixes-design.md",
-      "plan": "docs/superpowers/plans/2026-11-08-behaviour-neutral-fixes.md"
+      "plan": "docs/superpowers/plans/2026-11-08-behaviour-neutral-fixes.md",
+      "integrated": "lead branch claude/exciting-mayer-nolksw, integration 1 (2026-11-09), reviewed head e54095ca; see progress/streamline-and-deepen-ledger.md"
     },
     {
       "id": "FIX-3",
@@ -481,9 +485,10 @@
       "depends_on": [],
       "risk": "low",
       "size": "small",
-      "status": "active",
+      "status": "review",
       "spec": "docs/superpowers/specs/2026-11-08-behaviour-neutral-fixes-design.md",
-      "plan": "docs/superpowers/plans/2026-11-08-behaviour-neutral-fixes.md"
+      "plan": "docs/superpowers/plans/2026-11-08-behaviour-neutral-fixes.md",
+      "integrated": "lead branch claude/exciting-mayer-nolksw, integration 1 (2026-11-09), reviewed head e54095ca; see progress/streamline-and-deepen-ledger.md"
     },
     {
       "id": "FIX-5",
@@ -493,9 +498,10 @@
       "depends_on": [],
       "risk": "low",
       "size": "small",
-      "status": "active",
+      "status": "review",
       "spec": "docs/superpowers/specs/2026-11-08-behaviour-neutral-fixes-design.md",
-      "plan": "docs/superpowers/plans/2026-11-08-behaviour-neutral-fixes.md"
+      "plan": "docs/superpowers/plans/2026-11-08-behaviour-neutral-fixes.md",
+      "integrated": "lead branch claude/exciting-mayer-nolksw, integration 1 (2026-11-09), reviewed head e54095ca; see progress/streamline-and-deepen-ledger.md"
     },
     {
       "id": "FIX-6",
@@ -505,9 +511,10 @@
       "depends_on": [],
       "risk": "low",
       "size": "small",
-      "status": "active",
+      "status": "review",
       "spec": "docs/superpowers/specs/2026-11-08-behaviour-neutral-fixes-design.md",
-      "plan": "docs/superpowers/plans/2026-11-08-behaviour-neutral-fixes.md"
+      "plan": "docs/superpowers/plans/2026-11-08-behaviour-neutral-fixes.md",
+      "integrated": "lead branch claude/exciting-mayer-nolksw, integration 1 (2026-11-09), reviewed head a4e37a63; see progress/streamline-and-deepen-ledger.md"
     },
     {
       "id": "FIX-7",
@@ -541,9 +548,10 @@
       "depends_on": [],
       "risk": "low",
       "size": "small",
-      "status": "active",
+      "status": "review",
       "spec": "docs/superpowers/specs/2026-11-08-behaviour-neutral-fixes-design.md",
-      "plan": "docs/superpowers/plans/2026-11-08-behaviour-neutral-fixes.md"
+      "plan": "docs/superpowers/plans/2026-11-08-behaviour-neutral-fixes.md",
+      "integrated": "lead branch claude/exciting-mayer-nolksw, integration 1 (2026-11-09), reviewed head 686c1224; see progress/streamline-and-deepen-ledger.md"
     },
     {
       "id": "FIX-10",
@@ -581,9 +589,10 @@
       "depends_on": [],
       "risk": "low",
       "size": "small",
-      "status": "active",
+      "status": "review",
       "spec": "docs/superpowers/specs/2026-11-08-behaviour-neutral-fixes-design.md",
-      "plan": "docs/superpowers/plans/2026-11-08-behaviour-neutral-fixes.md"
+      "plan": "docs/superpowers/plans/2026-11-08-behaviour-neutral-fixes.md",
+      "integrated": "lead branch claude/exciting-mayer-nolksw, integration 1 (2026-11-09), reviewed head e54095ca; see progress/streamline-and-deepen-ledger.md"
     },
     {
       "id": "FIX-13",
@@ -593,9 +602,10 @@
       "depends_on": [],
       "risk": "low",
       "size": "small",
-      "status": "active",
+      "status": "review",
       "spec": "docs/superpowers/specs/2026-11-08-behaviour-neutral-fixes-design.md",
-      "plan": "docs/superpowers/plans/2026-11-08-behaviour-neutral-fixes.md"
+      "plan": "docs/superpowers/plans/2026-11-08-behaviour-neutral-fixes.md",
+      "integrated": "lead branch claude/exciting-mayer-nolksw, integration 1 (2026-11-09), reviewed head a4e37a63; see progress/streamline-and-deepen-ledger.md"
     },
     {
       "id": "PIN-2",
