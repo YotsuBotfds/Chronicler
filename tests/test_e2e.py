@@ -2,7 +2,7 @@
 import pytest
 from unittest.mock import MagicMock
 from pathlib import Path
-from chronicler.main import run_chronicle
+from run_chronicle_compat import run_chronicle
 from chronicler.models import TechEra, ActionType, WorldState
 
 

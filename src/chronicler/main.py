@@ -2010,45 +2010,6 @@ def _fork_ablation(args: argparse.Namespace, run_config: dict, agent_bridge: "An
                                      "decision_ablation": ablation[0], "ablation_start_turn": ablation[1]}
 
 
-def run_chronicle(
-    seed: int = 42,
-    num_turns: int = 50,
-    num_civs: int = 4,
-    num_regions: int = 8,
-    output_path: Path = Path("output/chronicle.md"),
-    state_path: Path | None = None,
-    sim_client: LLMClient | None = None,
-    narrative_client: LLMClient | None = None,
-    reflection_interval: int = 10,
-    resume_path: Path | None = None,
-    use_llm_actions: bool = False,
-    scenario_config: "ScenarioConfig | None" = None,
-) -> None:
-    """Legacy wrapper — delegates to execute_run().
-
-    Preserves the original API for backward compatibility.
-    """
-    args = argparse.Namespace(
-        seed=seed,
-        turns=num_turns,
-        civs=num_civs,
-        regions=num_regions,
-        output=str(output_path),
-        state=str(state_path) if state_path else None,
-        resume=str(resume_path) if resume_path else None,
-        reflection_interval=reflection_interval,
-        llm_actions=use_llm_actions,
-        scenario=None,  # Pass scenario_config directly
-        pause_every=None,
-    )
-    execute_run(
-        args,
-        sim_client=sim_client,
-        narrative_client=narrative_client,
-        scenario_config=scenario_config,
-    )
-
-
 def _build_parser() -> argparse.ArgumentParser:
     """Build the CLI argument parser."""
     parser = argparse.ArgumentParser(
