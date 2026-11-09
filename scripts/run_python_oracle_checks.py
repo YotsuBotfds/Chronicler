@@ -117,6 +117,7 @@ CHUNKS = {
         "tests/test_utils_civ_helpers.py",
         "tests/test_climate.py",
         "tests/test_ecology.py",
+        "tests/test_ffi_constants.py",
         "tests/test_intelligence.py",
         "tests/test_hostage_intelligence_lifecycle.py",
         "tests/test_performance_equivalence.py",
