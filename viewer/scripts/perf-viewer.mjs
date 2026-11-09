@@ -42,13 +42,11 @@
  * pattern, the median over the runs of each run's median (or 95th
  * percentile) step.
  */
-import { createRequire } from "node:module";
+import { loadPlaywright } from "./lib/playwright.mjs";
 import { createServer } from "node:http";
 import { readFile, readdir, stat, writeFile } from "node:fs/promises";
 import { gzipSync } from "node:zlib";
 import path from "node:path";
-
-const require = createRequire(import.meta.url);
 
 const MIME = {
   ".html": "text/html; charset=utf-8",
@@ -501,7 +499,7 @@ async function main() {
     return;
   }
 
-  const { chromium } = require("playwright");
+  const { chromium } = loadPlaywright();
   const servers = [];
   const urls = {};
   for (const build of options.builds) {

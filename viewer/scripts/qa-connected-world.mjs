@@ -6,14 +6,13 @@
  * Uses actual file upload, keyboard timeline seek, desktop and phone/touch viewports.
  * Bundle expectations are decoded independently by the Python bundle codec.
  */
-import { createRequire } from "node:module";
+import { loadPlaywright } from "./lib/playwright.mjs";
 import { createServer } from "node:http";
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import {fileURLToPath} from "node:url";
-const require = createRequire(import.meta.url);
 const options = { build: "viewer/dist", python: "python", journey: "history", out: null, bundle: null, turns: null };
 for (let i = 2; i < process.argv.length; i += 2) {
   const key = process.argv[i].replace(/^--/, "");
@@ -65,7 +64,7 @@ const server = createServer((request,response) => {
   } catch { response.writeHead(404).end(); }
 });
 await new Promise((resolve) => server.listen(0,"127.0.0.1",resolve));
-const { chromium } = require("playwright");
+const { chromium } = loadPlaywright();
 const browser = await chromium.launch(process.env.CHROMIUM_EXECUTABLE ? { executablePath: process.env.CHROMIUM_EXECUTABLE } : {});
 const url = `http://127.0.0.1:${server.address().port}`;
 async function seek(page, turn) {

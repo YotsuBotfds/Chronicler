@@ -32,14 +32,13 @@
  * `--out` (default: `chronicler-live-checkpoint-qa` in the temporary
  * directory). Exits 1 when a check fails.
  */
-import { createRequire } from "node:module";
+import { loadPlaywright } from "./lib/playwright.mjs";
 import { spawn } from "node:child_process";
 import { existsSync, mkdirSync, rmSync, createWriteStream, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
-const require = createRequire(import.meta.url);
-const { chromium } = require("playwright");
+const { chromium } = loadPlaywright();
 
 const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1", "[::1]"]);
 const DEFAULT_ORIGINS = new Set(["http://localhost:5173", "http://127.0.0.1:5173", "http://[::1]:5173",

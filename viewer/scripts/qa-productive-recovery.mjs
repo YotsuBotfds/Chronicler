@@ -65,14 +65,13 @@
  * `report.json`, screenshots (JPEG), the variant, the sessions' logs and
  * outputs go there. Exits 1 when a check fails.
  */
-import { createRequire } from "node:module";
+import { loadPlaywright } from "./lib/playwright.mjs";
 import { createServer } from "node:http";
 import { spawn, spawnSync } from "node:child_process";
 import { createWriteStream, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-const require = createRequire(import.meta.url);
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 
 const MIME = {
@@ -889,7 +888,7 @@ function firstDifference(a, b) {
 async function main() {
   rmSync(options.out, { recursive: true, force: true });
   mkdirSync(options.out, { recursive: true });
-  const { chromium } = require("playwright");
+  const { chromium } = loadPlaywright();
   const server = await serve(options.build);
   const origin = `http://127.0.0.1:${server.address().port}`;
   const browser = await chromium.launch();

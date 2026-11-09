@@ -24,9 +24,15 @@ See [domestic-credit.md](../docs/integration/domestic-credit.md), section 14.
 
 ## Live checkpoint browser QA (opt-in, not CI)
 
+The browser QA and performance scripts (`scripts/qa-*.mjs`,
+`scripts/perf-viewer.mjs`, `scripts/viewer-equivalence.mjs`) need Playwright;
+cloud containers have it globally. It is an optional peer dependency in
+`package.json`, so `npm ci` does not install it; elsewhere install it outside
+the lockfile (`npm i --no-save playwright`). The scripts load it through
+`scripts/lib/playwright.mjs`, which explains a missing install.
+
 `scripts/qa-live-checkpoint.mjs` drives the live pause panel's **Save
-checkpoint** and `--live --resume` in headless Chromium (Playwright,
-`require("playwright")`). Start the viewer (`npm run dev`, or `npm run build`
+checkpoint** and `--live --resume` in headless Chromium. Start the viewer (`npm run dev`, or `npm run build`
 and `npm run preview`), then from `viewer/`:
 
 ```sh

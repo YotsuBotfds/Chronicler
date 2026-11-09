@@ -20,12 +20,10 @@
  * failed step or a console error. Screenshots and `report.json` go to
  * `--out`.
  */
-import { createRequire } from "node:module";
+import { loadPlaywright } from "./lib/playwright.mjs";
 import { createServer } from "node:http";
 import { mkdir, readFile, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
-
-const require = createRequire(import.meta.url);
 
 const MIME = {
   ".html": "text/html; charset=utf-8",
@@ -230,7 +228,7 @@ async function drive(browser, url, viewportName, bundles, outDir, buildLabel) {
 
 async function main() {
   const options = parseArgs(process.argv.slice(2));
-  const { chromium } = require("playwright");
+  const { chromium } = loadPlaywright();
   await mkdir(options.out, { recursive: true });
   const servers = await Promise.all(options.builds.map((build) => serve(build.path)));
   const urls = servers.map((server) => `http://127.0.0.1:${server.address().port}/`);
