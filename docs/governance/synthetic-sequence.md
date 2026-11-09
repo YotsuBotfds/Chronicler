@@ -8,7 +8,7 @@ manually, and source revision, tree, label and origin remain caller declarations
 Execution replay or verified provenance would require a separate contract.
 
 ```python
-from chronicler.governance_sequence import inspect_sequence, sequence_json
+from chronicler_lab.governance_sequence import inspect_sequence, sequence_json
 
 off = inspect_sequence()  # disabled_no_evidence; reads no optional input
 receipt = inspect_sequence(enabled=True, captures=my_capture_tuple, max_frames=2)
