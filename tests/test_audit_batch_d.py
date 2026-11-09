@@ -1,6 +1,6 @@
 """Regression tests for audit Batch D fixes.
 
-Covers: economy tithe gating, conservation tracking, zero-farmer bounds,
+Covers: economy tithe gating, conservation tracking,
 trade route side effects, terrain transition clamping, ecology write-back
 validation, tech focus baseline restoration, scenario consistency,
 batch parallel mode guard, live narrate_range guard, and disconnect logging.
@@ -114,48 +114,6 @@ class TestConservationTreasuryTracking:
         assert "treasury_tithe" in result.conservation
         assert result.conservation["treasury_tax"] == 0.0
         assert result.conservation["treasury_tithe"] == 0.0
-
-
-# ---------------------------------------------------------------------------
-# H-4: Zero-farmer regions return neutral farmer income modifier
-# ---------------------------------------------------------------------------
-
-class TestZeroFarmerIncomeModifier:
-    """H-4: derive_farmer_income_modifier returns 1.0 for zero-farmer regions."""
-
-    def test_zero_farmers_returns_neutral(self):
-        from chronicler.economy_oracle import derive_farmer_income_modifier
-        result = derive_farmer_income_modifier(
-            resource_type=0,  # GRAIN
-            post_trade_supply={"food": 0.0, "raw_material": 0.0, "luxury": 0.0},
-            demand={"food": 5.0, "raw_material": 0.0, "luxury": 0.0},
-            farmer_count=0,
-        )
-        assert result == 1.0
-
-    def test_nonzero_farmers_computes_normally(self):
-        from chronicler.economy import FARMER_INCOME_MODIFIER_FLOOR
-        from chronicler.economy_oracle import derive_farmer_income_modifier
-        result = derive_farmer_income_modifier(
-            resource_type=0,
-            post_trade_supply={"food": 5.0, "raw_material": 0.0, "luxury": 0.0},
-            demand={"food": 5.0, "raw_material": 0.0, "luxury": 0.0},
-            farmer_count=10,
-        )
-        # d/s = 5.0/5.0 = 1.0 -> clamped between floor and cap
-        assert result >= FARMER_INCOME_MODIFIER_FLOOR
-        assert result == pytest.approx(1.0)
-
-    def test_backward_compatible_default(self):
-        """When farmer_count is not passed (default -1), should compute normally."""
-        from chronicler.economy_oracle import derive_farmer_income_modifier
-        result = derive_farmer_income_modifier(
-            resource_type=0,
-            post_trade_supply={"food": 5.0, "raw_material": 0.0, "luxury": 0.0},
-            demand={"food": 5.0, "raw_material": 0.0, "luxury": 0.0},
-        )
-        # Default farmer_count=-1, should not return 1.0 from zero-guard
-        assert result == pytest.approx(1.0)
 
 
 # ---------------------------------------------------------------------------
@@ -640,33 +598,3 @@ class TestDisconnectLogging:
         server = LiveServer(port=0)
         assert hasattr(server, '_init_data')
         assert server._init_data is None
-
-
-# ---------------------------------------------------------------------------
-# Integration: compute_economy with zero farmers
-# ---------------------------------------------------------------------------
-
-class TestComputeEconomyZeroFarmers:
-    """Integration test: compute_economy returns neutral modifier for zero-farmer regions."""
-
-    def test_zero_farmer_region_gets_neutral_modifier(self):
-        """A region with zero farmers should get farmer_income_modifier = 1.0."""
-        from chronicler.economy_oracle import derive_farmer_income_modifier
-        # Zero-farmer region
-        mod = derive_farmer_income_modifier(
-            resource_type=0,
-            post_trade_supply={"food": 0.0, "raw_material": 0.0, "luxury": 0.0},
-            demand={"food": 10.0, "raw_material": 0.0, "luxury": 0.0},
-            farmer_count=0,
-        )
-        assert mod == 1.0
-
-        # Previously this would return 3.0 (the cap), since d/s = 10/0.1 = 100
-        mod_old_behavior = derive_farmer_income_modifier(
-            resource_type=0,
-            post_trade_supply={"food": 0.0, "raw_material": 0.0, "luxury": 0.0},
-            demand={"food": 10.0, "raw_material": 0.0, "luxury": 0.0},
-            farmer_count=5,  # Non-zero
-        )
-        # With nonzero farmers and zero supply, should hit the cap
-        assert mod_old_behavior == 3.0

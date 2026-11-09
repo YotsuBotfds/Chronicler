@@ -9,8 +9,9 @@ from types import SimpleNamespace as NS
 from chronicler.bundle_codec import load_bundle
 from chronicler.main import (
     DEFAULT_CONFIG, _build_parser, _require_artifact_budget_admission,
-    execute_run, run_chronicle,
+    execute_run,
 )
+from run_chronicle_compat import run_chronicle
 from chronicler.llm import AnthropicClient
 from chronicler.types import RunResult
 from chronicler.turn_artifacts import TurnObservation, TurnResult

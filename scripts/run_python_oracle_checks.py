@@ -505,6 +505,8 @@ CHUNKS = {
     "connected-world-readers": ["tests/test_connected_world_examples.py", "tests/test_cw_integrated_screen.py", "tests/test_connected_world_startup_guards.py"],
     "household-access": ["tests/test_household_access.py"],
     "switch-state": ["tests/test_switch_state.py", "tests/test_switch_state_pickles.py"],
+    "switch-defaults": ["tests/test_switch_defaults.py"],
+    "turn-loop-goldens": ["tests/test_treasury_seam.py", "tests/test_turn_hooks.py"],
 }
 TESTS = [node for nodes in CHUNKS.values() for node in nodes]
 if len(set(TESTS)) != len(TESTS):

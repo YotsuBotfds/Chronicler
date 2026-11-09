@@ -16,6 +16,7 @@ import hmac
 import json
 import queue
 import secrets
+import sys
 import threading
 import time
 from pathlib import Path
@@ -61,6 +62,48 @@ def _write_batch_report(batch_dir: Path, report: dict[str, Any]) -> Path:
     report_path = batch_dir / "batch_report.json"
     atomic_write_text(report_path, json.dumps(report, indent=2))
     return report_path
+
+
+class LiveServerStartError(RuntimeError):
+    """The live WebSocket server did not start (for example, its port is in use)."""
+
+
+#: How long ``LiveServer.start`` waits for the server thread to listen.
+_START_TIMEOUT_SECONDS = 5
+
+
+def _scenario_file(name: str) -> Path:
+    """The lobby scenario ``name`` under ``scenarios/``, as the live session
+    has always joined it; a name that resolves outside that directory (``..``
+    segments, an absolute path, a symlink out) is refused."""
+    path = Path("scenarios") / name
+    if not path.resolve().is_relative_to(Path("scenarios").resolve()):
+        raise ValueError("Scenario must be within scenarios/")
+    return path
+
+
+def _narration_snapshot(init_data: dict[str, Any]) -> dict[str, Any]:
+    """The reconnect data's top level with its containers copied, taken on the
+    event loop. The loop extends those containers in place
+    (``apply_turn_message``) and replaces top-level values
+    (``apply_completed_message``), never the items already in them, so a
+    worker thread can deep-copy the result while the loop goes on."""
+    return {key: list(value) if isinstance(value, list)
+            else dict(value) if isinstance(value, dict) else value
+            for key, value in init_data.items()}
+
+
+def _coerce_set_value(value: Any) -> int | None:
+    """The integer a paused ``set`` command applies, or None when it has none.
+
+    ``int()`` truncates booleans and finite floats as before; infinities,
+    NaN, oversized or non-numeric values (JSON accepts ``Infinity``) are
+    refused instead of escaping the pause loop.
+    """
+    try:
+        return int(value)
+    except (TypeError, ValueError, OverflowError):
+        return None
 
 
 def _normalize_narrator(value: Any, default: str = "local") -> str:
@@ -188,6 +231,10 @@ class LiveServer:
         self._speed: float = 1.0
         self._speed_lock = threading.Lock()
         self.thread: threading.Thread | None = None
+        # Why the server thread failed before it was listening (see start()).
+        self._start_error: BaseException | None = None
+        # Set when start() gave up waiting, so a late bind closes at once.
+        self._start_abandoned = threading.Event()
         self._loop: asyncio.AbstractEventLoop | None = None
         self._stop_event: asyncio.Event | None = None
         self._actual_port: int | None = None
@@ -365,6 +412,12 @@ class LiveServer:
                 value = config.get(field)
                 if value is not None and not isinstance(value, str):
                     return f"batch_start config '{field}' must be a string or null"
+        # The batch scenario is not confined to scenarios/: batch_start passes
+        # the name on unchanged and execute_run loads it relative to the
+        # working directory, unlike the lobby's scenarios/ join
+        # (_scenario_file). A check against scenarios/ here would test a
+        # different path from the one loaded, so none is made; confining
+        # the batch load is a separate follow-up.
 
         if "narrator" in config:
             narrator = config.get("narrator")
@@ -478,17 +531,48 @@ class LiveServer:
         return entries[0].model_dump()
 
     def start(self) -> None:
-        """Start the WebSocket server in a daemon thread."""
+        """Start the WebSocket server in a daemon thread.
+
+        Raises ``LiveServerStartError`` when the server fails before it is
+        listening (a bind error, for example) or is not listening in time.
+        On a timeout the server thread is told to stop, so a server that
+        binds later closes instead of listening with no caller.
+        """
         ready = threading.Event()
+        self._start_error = None
+        self._start_abandoned.clear()
         self.thread = threading.Thread(target=self._run_loop, args=(ready,), daemon=True)
         self.thread.start()
-        ready.wait(timeout=5)
+        if not ready.wait(timeout=_START_TIMEOUT_SECONDS):
+            # Either the thread sees the flag after binding, or its stop
+            # event already exists and stop() sets it.
+            self._start_abandoned.set()
+            try:
+                self.stop()
+            except RuntimeError:  # the loop closed between the check and the call
+                pass
+            raise LiveServerStartError(
+                f"the server was not listening after {_START_TIMEOUT_SECONDS} seconds")
+        if self._start_error is not None:
+            raise LiveServerStartError(str(self._start_error) or type(self._start_error).__name__)
+
+    def _narrate_range_copy(
+        self,
+        snapshot: dict[str, Any],
+        client_config: dict[str, Any],
+        start_turn: int,
+        end_turn: int,
+    ) -> dict[str, Any] | None:
+        """``_narrate_range_sync`` on a private deep copy, made in the worker thread."""
+        return self._narrate_range_sync(copy.deepcopy(snapshot), client_config, start_turn, end_turn)
 
     def stop(self) -> None:
         """Signal the server to stop."""
         if self.what_if is not None:
             self.what_if.close()
-        if self._loop is not None and self._stop_event is not None:
+        # A server that failed to start has a closed loop and nothing to stop.
+        if (self._loop is not None and self._stop_event is not None
+                and not self._loop.is_closed()):
             self._loop.call_soon_threadsafe(self._stop_event.set)
 
     def _handle_start(self, msg: dict) -> dict | None:
@@ -509,6 +593,12 @@ class LiveServer:
         narrator = msg.get("narrator")
         if narrator is not None and narrator not in _SUPPORTED_NARRATORS:
             return {"type": "error", "message": "Start field 'narrator' must be one of local, api, gemini"}
+        scenario = msg.get("scenario")
+        if scenario:
+            try:
+                _scenario_file(scenario)
+            except ValueError as exc:
+                return {"type": "error", "message": f"Start field 'scenario': {exc}"}
         resume_state = msg.get("resume_state")
         if resume_state is not None and not isinstance(resume_state, dict):
             return {"type": "error", "message": "Start field 'resume_state' must be an object or null"}
@@ -646,14 +736,24 @@ class LiveServer:
         return None
 
     def _run_loop(self, ready: threading.Event) -> None:
-        """Entry point for the server thread — creates and runs the event loop."""
-        self._loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(self._loop)
-        self._stop_event = asyncio.Event()
+        """Entry point for the server thread — creates and runs the event loop.
+
+        A failure before the server is listening is kept for ``start()``,
+        which raises it in the caller; a later failure propagates as before.
+        """
         try:
-            self._loop.run_until_complete(self._serve(ready))
-        finally:
-            self._loop.close()
+            self._loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(self._loop)
+            self._stop_event = asyncio.Event()
+            try:
+                self._loop.run_until_complete(self._serve(ready))
+            finally:
+                self._loop.close()
+        except BaseException as exc:
+            if ready.is_set():
+                raise
+            self._start_error = exc
+            ready.set()
 
     async def _serve(self, ready: threading.Event) -> None:
         """Run the async WebSocket server."""
@@ -758,7 +858,8 @@ class LiveServer:
                             allowed = Path("output").resolve()
                             if not resolved.is_relative_to(allowed):
                                 raise ValueError(f"Path must be within output/: {report_path}")
-                            report = json.loads(resolved.read_text(encoding="utf-8"))
+                            report = await asyncio.to_thread(
+                                lambda: json.loads(resolved.read_text(encoding="utf-8")))
                             await websocket.send(json.dumps({
                                 "type": "batch_report_loaded",
                                 "report": report,
@@ -781,9 +882,9 @@ class LiveServer:
                             allowed = Path("output").resolve()
                             if not resolved.is_relative_to(allowed):
                                 raise ValueError(f"Path must be within output/: {bundle_path}")
-                            bundle = _validate_legacy_live_bundle(
-                                json.loads(resolved.read_text(encoding="utf-8"))
-                            )
+                            bundle = await asyncio.to_thread(
+                                lambda: _validate_legacy_live_bundle(
+                                    json.loads(resolved.read_text(encoding="utf-8"))))
                             self._init_data = _build_init_data_from_bundle(bundle)
                             await websocket.send(json.dumps({
                                 "type": "bundle_loaded",
@@ -819,7 +920,8 @@ class LiveServer:
                         if not self._init_data:
                             await self._send_error(websocket, "narrate_range requires initialized history")
                             continue
-                        init_data = copy.deepcopy(self._init_data)
+                        # The deep copy is made in the worker thread (_narrate_range_copy).
+                        init_data = _narration_snapshot(self._init_data)
                         history_turns = [
                             snap.get("turn")
                             for snap in init_data.get("history", [])
@@ -846,7 +948,7 @@ class LiveServer:
                             metadata if isinstance(metadata, dict) else None
                         )
                         entry = await asyncio.to_thread(
-                            self._narrate_range_sync,
+                            self._narrate_range_copy,
                             init_data,
                             client_config,
                             start_turn,
@@ -946,6 +1048,12 @@ class LiveServer:
             addr = sock.getsockname()
             self._actual_port = addr[1]
             break
+
+        if self._start_abandoned.is_set():
+            # start() timed out before this bind; nobody owns the server.
+            server.close()
+            await server.wait_closed()
+            return
 
         ready.set()
 
@@ -1110,7 +1218,8 @@ def make_live_pause(
                     continue
 
                 # Validate civ
-                civ_obj = next((c for c in world.civilizations if c.name == civ_name), None)
+                civ_obj = (next((c for c in world.civilizations if c.name == civ_name), None)
+                           if isinstance(civ_name, str) else None)
                 if civ_obj is None:
                     status_queue.put({
                         "type": "error",
@@ -1118,8 +1227,8 @@ def make_live_pause(
                     })
                     continue
 
-                # Validate stat
-                if stat not in VALID_STATS:
+                # Validate stat (an unhashable stat cannot be a set member)
+                if not isinstance(stat, str) or stat not in VALID_STATS:
                     status_queue.put({
                         "type": "error",
                         "message": f"Invalid stat: '{stat}'. Valid stats: {sorted(VALID_STATS)}",
@@ -1127,14 +1236,14 @@ def make_live_pause(
                     continue
 
                 # Validate value range
-                try:
-                    value = int(value)
-                except (TypeError, ValueError):
+                coerced = _coerce_set_value(value)
+                if coerced is None:
                     status_queue.put({
                         "type": "error",
                         "message": f"Value must be an integer, got '{value}'",
                     })
                     continue
+                value = coerced
 
                 if stat in CORE_STATS and not (1 <= value <= 100):
                     status_queue.put({
@@ -1305,138 +1414,16 @@ def _live_world(args: Any, params: dict) -> tuple[WorldState, Any]:
         )
         if params.get("scenario"):
             from chronicler.scenario import load_scenario, apply_scenario
-            scenario_config = load_scenario(Path("scenarios") / params["scenario"])
+            scenario_config = load_scenario(_scenario_file(params["scenario"]))
             apply_scenario(world, scenario_config)
-        # M60: new live worlds default to campaigns (--no-campaigns opts out).
-        from chronicler.war.params import CAMPAIGNS_DEFAULT_FOR_NEW_WORLDS
-        _campaigns = getattr(args, "campaigns", None)
-        world.campaigns_enabled = (CAMPAIGNS_DEFAULT_FOR_NEW_WORLDS
-                                   if _campaigns is None else bool(_campaigns))
-        # Contact ledger: new live worlds follow the CLI default (--contact-ledger opts in/out).
-        from chronicler.contact_ledger import (
-            DEFAULT_ENABLED_FOR_NEW_WORLDS as _LEDGER_DEFAULT, set_contact_ledger_enabled,
-        )
-        _ledger = getattr(args, "contact_ledger", None)
-        set_contact_ledger_enabled(world, _LEDGER_DEFAULT if _ledger is None else bool(_ledger))
-        # Finance: new live worlds follow the CLI default (--finance opts in).
-        from chronicler.finance import (
-            DEFAULT_ENABLED_FOR_NEW_WORLDS as _FINANCE_DEFAULT, set_finance_enabled,
-        )
-        _finance = getattr(args, "finance", None)
-        set_finance_enabled(world, _FINANCE_DEFAULT if _finance is None else bool(_finance))
-        # Diplomacy: new live worlds follow the CLI default (--diplomacy opts in).
-        from chronicler.diplomacy import (
-            DEFAULT_ENABLED_FOR_NEW_WORLDS as _DIPLOMACY_DEFAULT, set_diplomacy_enabled,
-        )
-        _diplomacy = getattr(args, "diplomacy", None)
-        set_diplomacy_enabled(world, _DIPLOMACY_DEFAULT if _diplomacy is None else bool(_diplomacy))
-        # Techniques: new live worlds follow the CLI default (--no-techniques opts out).
-        from chronicler.techniques import (
-            DEFAULT_ENABLED_FOR_NEW_WORLDS as _TECHNIQUES_DEFAULT, set_techniques_enabled,
-        )
-        _techniques = getattr(args, "techniques", None)
-        set_techniques_enabled(world, _TECHNIQUES_DEFAULT if _techniques is None else bool(_techniques))
-        # Maritime: new live worlds follow the CLI default (--no-maritime opts out).
-        from chronicler.maritime import (
-            DEFAULT_ENABLED_FOR_NEW_WORLDS as _MARITIME_DEFAULT, set_maritime_enabled,
-        )
-        _maritime = getattr(args, "maritime", None)
-        set_maritime_enabled(world, _MARITIME_DEFAULT if _maritime is None else bool(_maritime))
-        # Great-person agendas: new live worlds follow the CLI default (--no-gp-agendas opts out).
-        from chronicler.gp_agendas import (
-            DEFAULT_ENABLED_FOR_NEW_WORLDS as _GP_AGENDAS_DEFAULT, set_gp_agendas_enabled,
-        )
-        _gp_agendas = getattr(args, "gp_agendas", None)
-        set_gp_agendas_enabled(world, _GP_AGENDAS_DEFAULT if _gp_agendas is None else bool(_gp_agendas))
-        # Nomads: new live worlds follow the CLI default (--no-nomads opts out).
-        from chronicler.nomads import (
-            DEFAULT_ENABLED_FOR_NEW_WORLDS as _NOMADS_DEFAULT, set_nomads_enabled,
-        )
-        _nomads = getattr(args, "nomads", None)
-        set_nomads_enabled(world, _NOMADS_DEFAULT if _nomads is None else bool(_nomads))
-        # Cities: new live worlds follow the CLI default (--no-cities opts out).
-        from chronicler.cities import (
-            DEFAULT_ENABLED_FOR_NEW_WORLDS as _CITIES_DEFAULT, set_cities_enabled,
-        )
-        _cities = getattr(args, "cities", None)
-        set_cities_enabled(world, _CITIES_DEFAULT if _cities is None else bool(_cities))
-        # Agent movements: new live worlds follow the CLI default (--no-agent-movements opts out).
-        from chronicler.agent_movements import (
-            DEFAULT_ENABLED_FOR_NEW_WORLDS as _MOVEMENTS_DEFAULT, set_agent_movements_enabled,
-        )
-        _movements = getattr(args, "agent_movements", None)
-        set_agent_movements_enabled(
-            world, _MOVEMENTS_DEFAULT if _movements is None else bool(_movements))
-        # Guilds: new live worlds follow the CLI default (--no-guilds opts out).
-        from chronicler.guilds import (
-            DEFAULT_ENABLED_FOR_NEW_WORLDS as _GUILDS_DEFAULT, set_guilds_enabled,
-        )
-        _guilds = getattr(args, "guilds", None)
-        set_guilds_enabled(world, _GUILDS_DEFAULT if _guilds is None else bool(_guilds))
-        # Seats of learning: new live worlds follow the CLI default (off;
-        # --scholarship opts in).
-        from chronicler.scholarship import (
-            DEFAULT_ENABLED_FOR_NEW_WORLDS as _SCHOLARSHIP_DEFAULT, set_scholarship_enabled,
-        )
-        _scholarship = getattr(args, "scholarship", None)
-        set_scholarship_enabled(
-            world, _SCHOLARSHIP_DEFAULT if _scholarship is None else bool(_scholarship))
-        # Public granaries: new live worlds follow the CLI default (off;
-        # --grain-reserves opts in; dormant without an agent mode).
-        from chronicler.grain_reserves import (
-            DEFAULT_ENABLED_FOR_NEW_WORLDS as _RESERVES_DEFAULT, set_grain_reserves_enabled,
-        )
-        _reserves = getattr(args, "grain_reserves", None)
-        set_grain_reserves_enabled(
-            world, _RESERVES_DEFAULT if _reserves is None else bool(_reserves))
-        # Community anchoring: new live worlds follow the CLI default (off;
-        # --community-anchoring opts in; dormant without an agent pool).
-        from chronicler.community_anchoring import (
-            DEFAULT_ENABLED_FOR_NEW_WORLDS as _ANCHOR_DEFAULT, set_community_anchoring_enabled,
-        )
-        _anchor = getattr(args, "community_anchoring", None)
-        set_community_anchoring_enabled(
-            world, _ANCHOR_DEFAULT if _anchor is None else bool(_anchor))
+        # New live worlds follow the CLI's new-world switch defaults
+        # (chronicler.switch_defaults; each --no-X / --X overrides its
+        # default). Governance is exempt here until COR-2. Epidemiology needs
+        # the ledger and domestic credit needs finance, explicit or not.
+        from chronicler.switch_defaults import apply_switches
+        apply_switches(world, args, fresh_world=True, live=True)
         from chronicler.refugee_routing import set_capacity_aware_refugees_enabled
         set_capacity_aware_refugees_enabled(world, bool(getattr(args, "capacity_aware_refugees", None)))
-        # Domestic credit: new live worlds follow the CLI default (off;
-        # --domestic-credit opts in; merchants lend only with an agent pool).
-        from chronicler.domestic_credit import (
-            DEFAULT_ENABLED_FOR_NEW_WORLDS as _CREDIT_DEFAULT, set_domestic_credit_enabled,
-        )
-        _credit = getattr(args, "domestic_credit", None)
-        set_domestic_credit_enabled(
-            world, (_CREDIT_DEFAULT if _credit is None else bool(_credit)) and world.finance is not None)
-        # Historiography: new live worlds follow the CLI default (observational).
-        from chronicler.historiography import (
-            DEFAULT_ENABLED_FOR_NEW_WORLDS as _HIST_DEFAULT, set_historiography_enabled,
-        )
-        _hist = getattr(args, "historiography", None)
-        set_historiography_enabled(world, _HIST_DEFAULT if _hist is None else bool(_hist))
-        # Languages: new live worlds follow the CLI default (observational).
-        from chronicler.languages import (
-            DEFAULT_ENABLED_FOR_NEW_WORLDS as _LANG_DEFAULT, set_languages_enabled,
-        )
-        _lang = getattr(args, "languages", None)
-        set_languages_enabled(world, _LANG_DEFAULT if _lang is None else bool(_lang))
-        # Fisheries and mutual aid: new live worlds follow the CLI defaults
-        # (execute_run sees a supplied world and keeps these settings).
-        from chronicler.experimental.fisheries import (
-            DEFAULT_ENABLED_FOR_NEW_WORLDS as _FISH_DEFAULT, set_fisheries_enabled,
-        )
-        _fish = getattr(args, "fisheries", None)
-        set_fisheries_enabled(world, _FISH_DEFAULT if _fish is None else bool(_fish), new_world=True)
-        from chronicler.mutual_aid import DEFAULT_ENABLED_FOR_NEW_WORLDS as _AID_DEFAULT
-        _aid = getattr(args, "mutual_aid", None)
-        world.mutual_aid_enabled = _AID_DEFAULT if _aid is None else bool(_aid)
-        # Epidemiology: new live worlds follow the CLI default; it needs the ledger.
-        from chronicler.epidemiology import (
-            DEFAULT_ENABLED_FOR_NEW_WORLDS as _EPI_DEFAULT, set_epidemiology_enabled,
-        )
-        from chronicler.contact_ledger import ledger_enabled as _ledger_on
-        _epi = getattr(args, "epidemiology", None)
-        set_epidemiology_enabled(
-            world, (_EPI_DEFAULT if _epi is None else bool(_epi)) and _ledger_on(world))
     _apply_live_prerequisites(world, args, getattr(args, "agents", "off"))
     from chronicler.expansion_features import configure_expansion_features
     configure_expansion_features(world, args, agent_mode=getattr(args, "agents", "off"))
@@ -1493,7 +1480,7 @@ def _record_live_world_args(args: Any, params: dict) -> None:
     worldgen = params.get("worldgen")
     args.worldgen = worldgen if isinstance(worldgen, str) else None
     scenario = params.get("scenario")
-    args.scenario = str(Path("scenarios") / scenario) if isinstance(scenario, str) and scenario else None
+    args.scenario = str(_scenario_file(scenario)) if isinstance(scenario, str) and scenario else None
 
 
 def run_live(
@@ -1541,7 +1528,11 @@ def run_live(
     if state is None:
         # --- Phase 1: Lobby ---
         server._lobby_init = build_lobby_init(args)
-        server.start()
+        try:
+            server.start()
+        except LiveServerStartError as exc:
+            print(f"Live server could not start: {exc}", file=sys.stderr)
+            return None
         actual_port = server._actual_port or port
         print(f"Lobby ready on ws://localhost:{actual_port} (session token required)")
         print(f"Open viewer: {server.viewer_url()}")
@@ -1637,7 +1628,11 @@ def run_live(
         server._server_state = "running"
         server.checkpoints = LiveCheckpoints(output_dir, server.status_queue, view,
                                              lambda: server.speed, pause_every)
-        server.start()
+        try:
+            server.start()
+        except LiveServerStartError as exc:
+            print(f"Live server could not start: {exc}", file=sys.stderr)
+            return None
         actual_port = server._actual_port or port
         print(f"Resumed live session at turn {world.turn} of {total_turns} on "
               f"ws://localhost:{actual_port} (session token required); viewers see {how}")

@@ -180,7 +180,15 @@ def test_cli_flag_gate_forwarding_and_live_default():
     assert m53b._guilds_args(argparse.Namespace(guilds=True)) == ["--guilds"]
     assert m53b._guilds_args(argparse.Namespace(guilds=False)) == ["--no-guilds"]
     assert m53b._guilds_args(argparse.Namespace(guilds=None)) == []
-    assert "set_guilds_enabled" in (ROOT / "src" / "chronicler" / "live.py").read_text()
+    # New live worlds follow the default; the flag overrides it.
+    from chronicler.live import _live_world
+
+    def live_on(*argv):
+        world = _live_world(parser.parse_args(["--live", *argv]), {"seed": 42, "regions": 8, "civs": 4})[0]
+        return G.guilds_enabled(world)
+
+    assert live_on() is G.DEFAULT_ENABLED_FOR_NEW_WORLDS
+    assert live_on("--guilds") is True and live_on("--no-guilds") is False
 
 
 def test_feature_off_never_runs_guild_code(monkeypatch):

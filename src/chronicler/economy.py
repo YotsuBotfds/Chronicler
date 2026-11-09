@@ -265,21 +265,6 @@ def _get_adjacent_enemy_regions(civ, world) -> list:
     return adjacent_enemy
 
 
-def classify_upstream_source(
-    world,
-    economy_tracker: EconomyTracker,
-    economy_result: "EconomyResult",
-    region_name: str,
-    category: str,
-    region_map: dict,
-) -> str | None:
-    """Find upstream civ if shock is import-driven (see upstream_source_region)."""
-    source = upstream_source_region(
-        world, economy_tracker, economy_result, region_name, category, region_map,
-    )
-    return region_map[source].controller if source is not None else None
-
-
 def upstream_source_region(
     world,
     economy_tracker: EconomyTracker,
@@ -496,22 +481,6 @@ class EconomyResult:
     # Household retail (L6b, opt-in): the native retail result columns by
     # stable region index, present only when the retail inputs were sent.
     household_retail: dict[int, dict[str, float]] = field(default_factory=dict)
-
-
-def compute_production(
-    resource_type: int,
-    resource_yield: float,
-    farmer_count: float,
-) -> tuple[str | None, float]:
-    """Compute goods output for a region.
-
-    Returns (category, amount) for the supplied allocation of farmer labor.
-    """
-    category = map_resource_to_category(resource_type)
-    if category is None:
-        return None, 0.0
-    amount = resource_yield * farmer_count
-    return category, amount
 
 
 def occupied_resource_slot_count(resource_types: list[int]) -> int:
@@ -922,31 +891,7 @@ def filter_goods_trade_routes(
     return filtered
 
 
-# ---------------------------------------------------------------------------
-# Tasks 8-9: Signal derivation (the merchant derivations are in economy_oracle)
-# ---------------------------------------------------------------------------
-
-def derive_farmer_income_modifier(
-    resource_type: int,
-    post_trade_supply: dict[str, float],
-    demand: dict[str, float],
-    farmer_count: int = -1,
-) -> float:
-    """Derive farmer_income_modifier from post-trade price ratio.
-
-    H-4: When farmer_count is 0, return neutral 1.0 — no farmers means the
-    signal is meaningless; the previous code would compute amplified values
-    from zero-production supply floors.
-    """
-    if farmer_count == 0:
-        return 1.0
-    cat = map_resource_to_category(resource_type)
-    if cat is None:
-        return 1.0
-    s = max(post_trade_supply.get(cat, 0.0), _SUPPLY_FLOOR)
-    d = demand.get(cat, 0.0)
-    raw = d / s
-    return max(FARMER_INCOME_MODIFIER_FLOOR, min(raw, FARMER_INCOME_MODIFIER_CAP))
+# Tasks 8-9 (signal derivation): the merchant derivations are in economy_oracle.
 
 
 # ---------------------------------------------------------------------------

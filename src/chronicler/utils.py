@@ -87,6 +87,27 @@ def stage_region_catastrophe_deaths(region, amount: int) -> None:
     region._catastrophe_deaths_this_turn = current + int(amount)
 
 
+def clear_region_transients(world) -> None:
+    """Reset every region's one-turn signals at the end of a turn.
+
+    The agent bridge calls this after reading them into its region batch;
+    without a bridge (``--agents off``) the turn calls it directly, so no
+    signal outlives its turn in any mode: the culture-investment flag is
+    removed, the schism conversion pair returns to ``0xFF``, the M48 memory
+    flags and the raid flag to False and the staged catastrophe deaths to 0.
+    """
+    for region in world.regions:
+        if hasattr(region, '_culture_investment_active'):
+            del region._culture_investment_active
+        region.schism_convert_from = 0xFF
+        region.schism_convert_to = 0xFF
+        region._controller_changed_this_turn = False
+        region._war_won_this_turn = False
+        region._seceded_this_turn = False
+        region._raided_this_turn = False
+        region._catastrophe_deaths_this_turn = 0
+
+
 # --- Python-owned population ---------------------------------------------------------
 #
 # Where Python owns population (``--agents off`` and shadow), a region's

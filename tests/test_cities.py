@@ -666,7 +666,15 @@ def test_cli_flag_gate_forwarding_and_live_default():
     assert m53b._cities_args(argparse.Namespace(cities=True)) == ["--cities"]
     assert m53b._cities_args(argparse.Namespace(cities=False)) == ["--no-cities"]
     assert m53b._cities_args(argparse.Namespace(cities=None)) == []
-    assert "set_cities_enabled" in (ROOT / "src" / "chronicler" / "live.py").read_text()
+    # New live worlds follow the default; the flag overrides it.
+    from chronicler.live import _live_world
+
+    def live_on(*argv):
+        world = _live_world(parser.parse_args(["--live", *argv]), {"seed": 42, "regions": 8, "civs": 4})[0]
+        return C.cities_enabled(world)
+
+    assert live_on() is C.DEFAULT_ENABLED_FOR_NEW_WORLDS
+    assert live_on("--cities") is True and live_on("--no-cities") is False
 
 
 def test_new_worlds_default_on_and_resume_keeps_saved_setting(tmp_path):

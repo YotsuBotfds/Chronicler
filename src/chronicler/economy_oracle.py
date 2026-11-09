@@ -19,8 +19,6 @@ import math
 import numpy as np
 
 from chronicler import economy as _eco
-# Oracle-only names that still live in economy.py; they are re-exported here.
-from chronicler.economy import compute_production, derive_farmer_income_modifier
 
 __all__ = [
     "accumulate_stockpile",
@@ -31,9 +29,7 @@ __all__ = [
     "compute_demand",
     "compute_economy",
     "compute_prices",
-    "compute_production",
     "consume_from_stockpile",
-    "derive_farmer_income_modifier",
     "derive_food_sufficiency_from_stockpile",
     "derive_merchant_margin",
     "derive_merchant_trade_income",

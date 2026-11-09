@@ -1,6 +1,37 @@
-from chronicler.sidecar import SidecarWriter, SidecarReader
+from chronicler.sidecar import SidecarWriter, _turn_str
 import tempfile, pathlib
 import json
+
+
+class _SidecarReader:
+    """Reads back the per-turn JSON snapshots that SidecarWriter writes.
+
+    Test-only round-trip helper; production has no sidecar reader (the
+    validator reads the consolidated artifacts).
+    """
+
+    def __init__(self, base_dir: pathlib.Path) -> None:
+        self._dir = base_dir / "validation_summary"
+
+    def read_graph_snapshot(self, turn: int) -> dict:
+        path = self._dir / f"graph_turn_{_turn_str(turn)}.json"
+        raw = json.loads(path.read_text())
+        return {
+            "turn": raw["turn"],
+            "edges": [tuple(e) for e in raw["edges"]],
+            "memory_signatures": {
+                int(k): [tuple(m) for m in v]
+                for k, v in raw["memory_signatures"].items()
+            },
+        }
+
+    def read_agent_aggregate(self, turn: int) -> dict:
+        path = self._dir / f"aggregate_turn_{_turn_str(turn)}.json"
+        return json.loads(path.read_text())["aggregates"]
+
+    def read_community_summary(self, turn: int) -> dict:
+        path = self._dir / f"community_turn_{_turn_str(turn)}.json"
+        return json.loads(path.read_text())["summary"]
 
 try:
     import pyarrow.ipc as ipc
@@ -18,7 +49,7 @@ def test_graph_snapshot_round_trip():
         writer.write_graph_snapshot(turn=10, edges=edges, memory_signatures=mem_sigs)
         writer.close()
 
-        reader = SidecarReader(pathlib.Path(tmpdir))
+        reader = _SidecarReader(pathlib.Path(tmpdir))
         snapshot = reader.read_graph_snapshot(turn=10)
         assert len(snapshot["edges"]) == 2
         assert snapshot["edges"][0] == (1, 2, 3, 50)
@@ -41,7 +72,7 @@ def test_agent_aggregate_round_trip():
         writer.write_agent_aggregate(turn=10, aggregates=agg)
         writer.close()
 
-        reader = SidecarReader(pathlib.Path(tmpdir))
+        reader = _SidecarReader(pathlib.Path(tmpdir))
         result = reader.read_agent_aggregate(turn=10)
         assert abs(result["civ_0"]["satisfaction_mean"] - 0.55) < 0.001
 
@@ -57,7 +88,7 @@ def test_condensed_community_summary():
         writer.write_community_summary(turn=100, summary=summary)
         writer.close()
 
-        reader = SidecarReader(pathlib.Path(tmpdir))
+        reader = _SidecarReader(pathlib.Path(tmpdir))
         result = reader.read_community_summary(turn=100)
         assert result["region_0"]["cluster_count"] == 3
 

@@ -1608,14 +1608,17 @@ def _configure_run(args: argparse.Namespace, world: WorldState, fresh_world: boo
         if val is not None:
             world.tuning_overrides[key] = val
 
-    # M60: campaign layer switch (persisted on the world for resume). New
-    # worlds default to campaigns; resumed or supplied worlds keep theirs.
-    campaigns = getattr(args, "campaigns", None)
-    if campaigns is None and fresh_world:
-        from chronicler.war.params import CAMPAIGNS_DEFAULT_FOR_NEW_WORLDS
-        campaigns = CAMPAIGNS_DEFAULT_FOR_NEW_WORLDS
-    if campaigns is not None:
-        world.campaigns_enabled = campaigns
+    # New-world switches (persisted on the world; chronicler.switch_defaults):
+    # an explicit flag wins, a new world takes the registry default and a
+    # resumed or supplied world keeps its own setting. They are applied in
+    # registry order, in slices between the validation blocks below.
+    from chronicler.switch_defaults import apply_switches
+
+    def _switches(*names: str) -> None:
+        apply_switches(world, args, fresh_world=fresh_world, names=names)
+
+    # M60: campaign layer switch.
+    _switches("campaigns")
 
     # M28: Agent mode wiring
     agent_mode = getattr(args, "agents", "off")
@@ -1625,147 +1628,37 @@ def _configure_run(args: argparse.Namespace, world: WorldState, fresh_world: boo
     if capacity_aware_refugees is not None:
         from chronicler.refugee_routing import set_capacity_aware_refugees_enabled
         set_capacity_aware_refugees_enabled(world, capacity_aware_refugees)
-    # Adjacent mutual aid (persisted on the world). It moves goods-economy
-    # stocks, so an explicit --mutual-aid needs an agent mode; a default-on or
-    # saved setting is simply dormant under --agents off.
-    mutual_aid = getattr(args, "mutual_aid", None)
-    if mutual_aid is True and agent_mode == "off":
+    # Adjacent mutual aid moves goods-economy stocks, so an explicit
+    # --mutual-aid needs an agent mode; a default-on or saved setting is
+    # simply dormant under --agents off.
+    if getattr(args, "mutual_aid", None) is True and agent_mode == "off":
         raise ValueError("Mutual aid requires an agent-backed goods economy (--agents hybrid, shadow or demographics-only)")
-    if mutual_aid is None and fresh_world:
-        from chronicler.mutual_aid import DEFAULT_ENABLED_FOR_NEW_WORLDS as _AID_DEFAULT
-        mutual_aid = _AID_DEFAULT
-    if mutual_aid is not None:
-        world.mutual_aid_enabled = mutual_aid
-    # Renewable fish stocks (persisted on the world). New worlds also get the
-    # living-world calibration; loaded worlds keep their saved parameters.
-    fisheries = getattr(args, "fisheries", None)
-    if fisheries is None and fresh_world:
-        from chronicler.experimental.fisheries import DEFAULT_ENABLED_FOR_NEW_WORLDS as _FISH_DEFAULT
-        fisheries = _FISH_DEFAULT
-    if fisheries is not None:
-        from chronicler.experimental.fisheries import set_fisheries_enabled
-        set_fisheries_enabled(world, fisheries, new_world=fresh_world)
-    # Phase 8 governance runtime switch (persisted on the world).
-    governance = getattr(args, "governance", None)
-    if governance is None and fresh_world:
-        from chronicler.governance_runtime import DEFAULT_ENABLED_FOR_NEW_WORLDS
-        governance = DEFAULT_ENABLED_FOR_NEW_WORLDS
-    if governance is not None:
-        from chronicler.governance_runtime import set_governance_enabled
-        set_governance_enabled(world, governance)
+    # Mutual aid; renewable fish stocks (a new world also gets the
+    # living-world calibration, a loaded one keeps its saved parameters);
+    # the Phase 8 governance runtime.
+    _switches("mutual_aid", "fisheries", "governance")
     agent_scale_mode = getattr(args, "agent_scale_mode", None) or "exact"
     if agent_scale_mode != "exact" and agent_mode == "off":
         raise ValueError("--agent-scale-mode fast requires an agent pool (--agents hybrid, shadow or demographics-only)")
     decision_ablation = decision_ablation_from_args(args, agent_mode)
-    # Contact & trade-flow ledger switch (persisted on the world).
-    contact_ledger = getattr(args, "contact_ledger", None)
-    if contact_ledger is None and fresh_world:
-        from chronicler.contact_ledger import DEFAULT_ENABLED_FOR_NEW_WORLDS as _LEDGER_DEFAULT
-        contact_ledger = _LEDGER_DEFAULT
-    if contact_ledger is not None:
-        from chronicler.contact_ledger import set_contact_ledger_enabled
-        set_contact_ledger_enabled(world, contact_ledger)
-    # Regional SEIRS epidemiology (persisted on the world). It spreads along
-    # the contact ledger, so an explicit --epidemiology needs the ledger; a
-    # default-on setting stays off on a ledger-less new world.
-    epidemiology = getattr(args, "epidemiology", None)
+    # Contact & trade-flow ledger.
+    _switches("contact_ledger")
+    # Regional SEIRS epidemiology spreads along the contact ledger, so an
+    # explicit --epidemiology needs the ledger; a default-on setting stays
+    # off on a ledger-less new world (its registry ``requires``).
     from chronicler.contact_ledger import ledger_enabled as _ledger_on
-    if epidemiology is True and not _ledger_on(world):
+    if getattr(args, "epidemiology", None) is True and not _ledger_on(world):
         raise ValueError("Epidemiology spreads along the contact ledger (--contact-ledger)")
-    if epidemiology is None and fresh_world:
-        from chronicler.epidemiology import DEFAULT_ENABLED_FOR_NEW_WORLDS as _EPI_DEFAULT
-        epidemiology = _EPI_DEFAULT and _ledger_on(world)
-    if epidemiology is not None:
-        from chronicler.epidemiology import set_epidemiology_enabled
-        set_epidemiology_enabled(world, epidemiology)
-    # Money, credit and public finance switch (persisted on the world).
-    finance = getattr(args, "finance", None)
-    if finance is None and fresh_world:
-        from chronicler.finance import DEFAULT_ENABLED_FOR_NEW_WORLDS as _FINANCE_DEFAULT
-        finance = _FINANCE_DEFAULT
-    if finance is not None:
-        from chronicler.finance import set_finance_enabled
-        set_finance_enabled(world, finance)
-    # Diplomacy switch (persisted on the world): memory, treaties, polity ladder.
-    diplomacy = getattr(args, "diplomacy", None)
-    if diplomacy is None and fresh_world:
-        from chronicler.diplomacy import DEFAULT_ENABLED_FOR_NEW_WORLDS as _DIPLOMACY_DEFAULT
-        diplomacy = _DIPLOMACY_DEFAULT
-    if diplomacy is not None:
-        from chronicler.diplomacy import set_diplomacy_enabled
-        set_diplomacy_enabled(world, diplomacy)
-    # Techniques switch (persisted on the world): per-region practice that
-    # diffuses along contact, inventions, and the era derived from them.
-    techniques = getattr(args, "techniques", None)
-    if techniques is None and fresh_world:
-        from chronicler.techniques import DEFAULT_ENABLED_FOR_NEW_WORLDS as _TECHNIQUES_DEFAULT
-        techniques = _TECHNIQUES_DEFAULT
-    if techniques is not None:
-        from chronicler.techniques import set_techniques_enabled
-        set_techniques_enabled(world, techniques)
-    # Maritime switch (persisted on the world): fleets, sea control, blockade,
-    # piracy, naval campaigns and colonization by sea.
-    maritime = getattr(args, "maritime", None)
-    if maritime is None and fresh_world:
-        from chronicler.maritime import DEFAULT_ENABLED_FOR_NEW_WORLDS as _MARITIME_DEFAULT
-        maritime = _MARITIME_DEFAULT
-    if maritime is not None:
-        from chronicler.maritime import set_maritime_enabled
-        set_maritime_enabled(world, maritime)
-    # Great-person agendas switch (persisted on the world): generals,
-    # merchants, prophets and scientists pursue objectives of their own.
-    gp_agendas = getattr(args, "gp_agendas", None)
-    if gp_agendas is None and fresh_world:
-        from chronicler.gp_agendas import DEFAULT_ENABLED_FOR_NEW_WORLDS as _GP_AGENDAS_DEFAULT
-        gp_agendas = _GP_AGENDAS_DEFAULT
-    if gp_agendas is not None:
-        from chronicler.gp_agendas import set_gp_agendas_enabled
-        set_gp_agendas_enabled(world, gp_agendas)
-    # Nomads switch (persisted on the world): subsistence modes seeded from
-    # terrain, herds, raids and tribute, hordes and sedentarization.
-    nomads = getattr(args, "nomads", None)
-    if nomads is None and fresh_world:
-        from chronicler.nomads import DEFAULT_ENABLED_FOR_NEW_WORLDS as _NOMADS_DEFAULT
-        nomads = _NOMADS_DEFAULT
-    if nomads is not None:
-        from chronicler.nomads import set_nomads_enabled
-        set_nomads_enabled(world, nomads)
-    # Cities switch (persisted on the world): settlements grown into towns
-    # and cities with commerce, dues, charters, revolts, sacks and falls.
-    cities = getattr(args, "cities", None)
-    if cities is None and fresh_world:
-        from chronicler.cities import DEFAULT_ENABLED_FOR_NEW_WORLDS as _CITIES_DEFAULT
-        cities = _CITIES_DEFAULT
-    if cities is not None:
-        from chronicler.cities import set_cities_enabled
-        set_cities_enabled(world, cities)
-    # Agent movements switch (persisted on the world): movements grounded in
-    # people, with demands, reforms, crackdowns, risings, schisms, secession.
-    agent_movements = getattr(args, "agent_movements", None)
-    if agent_movements is None and fresh_world:
-        from chronicler.agent_movements import DEFAULT_ENABLED_FOR_NEW_WORLDS as _MOVEMENTS_DEFAULT
-        agent_movements = _MOVEMENTS_DEFAULT
-    if agent_movements is not None:
-        from chronicler.agent_movements import set_agent_movements_enabled
-        set_agent_movements_enabled(world, agent_movements)
-    # Guilds switch (persisted on the world): city guilds with privileges,
-    # guild movements, the burgher faction and movement news.
-    guilds = getattr(args, "guilds", None)
-    if guilds is None and fresh_world:
-        from chronicler.guilds import DEFAULT_ENABLED_FOR_NEW_WORLDS as _GUILDS_DEFAULT
-        guilds = _GUILDS_DEFAULT
-    if guilds is not None:
-        from chronicler.guilds import set_guilds_enabled
-        set_guilds_enabled(world, guilds)
-    # Seats of learning switch (persisted on the world): academies, temple
-    # schools and libraries, their scholars, patrons and falls.
-    scholarship = getattr(args, "scholarship", None)
-    if scholarship is None and fresh_world:
-        from chronicler.scholarship import DEFAULT_ENABLED_FOR_NEW_WORLDS as _SCHOLARSHIP_DEFAULT
-        scholarship = _SCHOLARSHIP_DEFAULT
-    if scholarship is not None:
-        from chronicler.scholarship import set_scholarship_enabled
-        set_scholarship_enabled(world, scholarship)
+    # Epidemiology; money, credit and public finance; diplomacy (memory,
+    # treaties, polity ladder); techniques (regional practice, inventions and
+    # the era); maritime (fleets, sea control, blockade, piracy, naval
+    # campaigns, colonization by sea); great-person agendas; nomads
+    # (subsistence modes, herds, raids, hordes); cities (towns and cities
+    # with commerce, dues, charters, revolts, sacks and falls); agent
+    # movements; guilds (privileges, guild movements, the burgher faction);
+    # seats of learning (academies, temple schools, libraries).
+    _switches("epidemiology", "finance", "diplomacy", "techniques", "maritime", "gp_agendas",
+              "nomads", "cities", "agent_movements", "guilds", "scholarship")
     services_switch = getattr(args, "academy_services", None)
     if services_switch is True:
         if agent_mode != "hybrid" or world.scholarship is None or world.techniques is None:
@@ -1779,19 +1672,12 @@ def _configure_run(args: argparse.Namespace, world: WorldState, fresh_world: boo
             raise ValueError("saved academy services require hybrid mode (dormant with agents off)")
         if agent_mode == "hybrid" and world.techniques is None:
             raise ValueError("active academy services require techniques; pause services to disable their effect")
-    # Public granaries switch (persisted on the world): stock-target grain
-    # procurement and reserves. They move goods-economy stocks, so an explicit
-    # --grain-reserves needs an agent mode; a saved setting is dormant under
-    # --agents off.
-    grain_reserves = getattr(args, "grain_reserves", None)
-    if grain_reserves is True and agent_mode == "off":
+    # Public granaries (stock-target grain procurement and reserves) move
+    # goods-economy stocks, so an explicit --grain-reserves needs an agent
+    # mode; a saved setting is dormant under --agents off.
+    if getattr(args, "grain_reserves", None) is True and agent_mode == "off":
         raise ValueError("Grain reserves require an agent-backed goods economy (--agents hybrid, shadow or demographics-only)")
-    if grain_reserves is None and fresh_world:
-        from chronicler.grain_reserves import DEFAULT_ENABLED_FOR_NEW_WORLDS as _RESERVES_DEFAULT
-        grain_reserves = _RESERVES_DEFAULT
-    if grain_reserves is not None:
-        from chronicler.grain_reserves import set_grain_reserves_enabled
-        set_grain_reserves_enabled(world, grain_reserves)
+    _switches("grain_reserves")
     storage_switch = getattr(args, "grain_storage", None)
     storage_policy = getattr(args, "grain_storage_policy", None)
     storage_budget = getattr(args, "grain_storage_work_budget", None)
@@ -1832,55 +1718,26 @@ def _configure_run(args: argparse.Namespace, world: WorldState, fresh_world: boo
         world.household_mobility_liquid_requirement = mobility_requirement or None
     if getattr(world, "household_mobility_liquid_requirement", None) and agent_mode not in ("hybrid", "off"):
         raise ValueError("saved household mobility is supported in hybrid mode (dormant with agents off)")
-    community_anchoring = getattr(args, "community_anchoring", None)
-    if community_anchoring is True and agent_mode == "off":
+    if getattr(args, "community_anchoring", None) is True and agent_mode == "off":
         raise ValueError("Community anchoring requires an agent pool (--agents hybrid, shadow or demographics-only)")
-    if community_anchoring is None and fresh_world:
-        from chronicler.community_anchoring import DEFAULT_ENABLED_FOR_NEW_WORLDS as _ANCHOR_DEFAULT
-        community_anchoring = _ANCHOR_DEFAULT
-    if community_anchoring is not None:
-        from chronicler.community_anchoring import set_community_anchoring_enabled
-        set_community_anchoring_enabled(world, community_anchoring)
+    _switches("community_anchoring")
     _check_ablation_term(decision_ablation, world)
-    # Domestic credit switch (persisted on the world): the realm's merchants,
-    # guilds and cities fund the state's domestic loans and receive their
-    # interest, repayments and losses. It changes finance's domestic lender
-    # and its merchants are agents, so an explicit --domestic-credit needs
-    # finance and an agent pool; a saved setting keeps its books either way.
-    domestic_credit = getattr(args, "domestic_credit", None)
-    if domestic_credit is True:
+    # Domestic credit: the realm's merchants, guilds and cities fund the
+    # state's domestic loans and receive their interest, repayments and
+    # losses. It changes finance's domestic lender and its merchants are
+    # agents, so an explicit --domestic-credit needs finance and an agent
+    # pool; a saved setting keeps its books either way.
+    if getattr(args, "domestic_credit", None) is True:
         from chronicler.finance import finance_enabled as _finance_on
         if not _finance_on(world):
             raise ValueError("Domestic credit changes finance's domestic lender (--finance)")
         if agent_mode == "off":
             raise ValueError("Domestic credit lends merchant agents' wealth: it requires an agent pool "
                              "(--agents hybrid, shadow or demographics-only)")
-    if domestic_credit is None and fresh_world:
-        from chronicler.domestic_credit import DEFAULT_ENABLED_FOR_NEW_WORLDS as _CREDIT_DEFAULT
-        domestic_credit = _CREDIT_DEFAULT
-    if domestic_credit is not None:
-        from chronicler.domestic_credit import set_domestic_credit_enabled
-        set_domestic_credit_enabled(world, domestic_credit)
-    # In-world historiography (saved with the world in a state sidecar):
-    # chroniclers and archives that record the run with their own biases.
-    # Observational only; the simulation never reads it.
-    historiography = getattr(args, "historiography", None)
-    if historiography is None and fresh_world:
-        from chronicler.historiography import DEFAULT_ENABLED_FOR_NEW_WORLDS as _HIST_DEFAULT
-        historiography = _HIST_DEFAULT
-    if historiography is not None:
-        from chronicler.historiography import set_historiography_enabled
-        set_historiography_enabled(world, historiography)
-    # In-world languages and names (saved with the world in a state sidecar):
-    # sound systems that drift and split, loanwords and the names each people
-    # gives to the world. Observational only; the simulation never reads it.
-    languages = getattr(args, "languages", None)
-    if languages is None and fresh_world:
-        from chronicler.languages import DEFAULT_ENABLED_FOR_NEW_WORLDS as _LANG_DEFAULT
-        languages = _LANG_DEFAULT
-    if languages is not None:
-        from chronicler.languages import set_languages_enabled
-        set_languages_enabled(world, languages)
+    # Domestic credit; in-world historiography (chroniclers and archives) and
+    # languages (sound systems, loanwords and names), both saved with the
+    # world in state sidecars and observational only.
+    _switches("domestic_credit", "historiography", "languages")
     from chronicler.expansion_features import configure_expansion_features
     configure_expansion_features(world, args, agent_mode=agent_mode)
     report_delay = getattr(args, "harvest_report_delay", None)
@@ -2008,45 +1865,6 @@ def _fork_ablation(args: argparse.Namespace, run_config: dict, agent_bridge: "An
     run_config["decision_ablation"] = {"name": ablation[0], "start_turn": ablation[1], "forked_at": turn}
     run_config["simulation_args"] = {**run_config.get("simulation_args", {}),
                                      "decision_ablation": ablation[0], "ablation_start_turn": ablation[1]}
-
-
-def run_chronicle(
-    seed: int = 42,
-    num_turns: int = 50,
-    num_civs: int = 4,
-    num_regions: int = 8,
-    output_path: Path = Path("output/chronicle.md"),
-    state_path: Path | None = None,
-    sim_client: LLMClient | None = None,
-    narrative_client: LLMClient | None = None,
-    reflection_interval: int = 10,
-    resume_path: Path | None = None,
-    use_llm_actions: bool = False,
-    scenario_config: "ScenarioConfig | None" = None,
-) -> None:
-    """Legacy wrapper — delegates to execute_run().
-
-    Preserves the original API for backward compatibility.
-    """
-    args = argparse.Namespace(
-        seed=seed,
-        turns=num_turns,
-        civs=num_civs,
-        regions=num_regions,
-        output=str(output_path),
-        state=str(state_path) if state_path else None,
-        resume=str(resume_path) if resume_path else None,
-        reflection_interval=reflection_interval,
-        llm_actions=use_llm_actions,
-        scenario=None,  # Pass scenario_config directly
-        pause_every=None,
-    )
-    execute_run(
-        args,
-        sim_client=sim_client,
-        narrative_client=narrative_client,
-        scenario_config=scenario_config,
-    )
 
 
 def _build_parser() -> argparse.ArgumentParser:

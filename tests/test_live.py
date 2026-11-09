@@ -501,3 +501,212 @@ def test_resolve_start_seed_passes_through_int():
 
     assert resolve_start_seed(42) == 42
     assert resolve_start_seed(0) == 0
+
+
+def _run_paused_commands(commands):
+    """Drive one real live pause with queued commands ending in ``continue``."""
+    from chronicler.live import make_live_pause
+    from chronicler.memory import MemoryStream
+
+    command_q = queue.Queue()
+    status_q = queue.Queue()
+    world = _make_world()
+    memories = {c.name: MemoryStream(civilization_name=c.name) for c in world.civilizations}
+    pause_fn = make_live_pause(command_q, status_q)
+    for command in commands(world):
+        command_q.put(command)
+    command_q.put({"type": "continue"})
+    assert pause_fn(world, memories, []) is True
+    statuses = []
+    while not status_q.empty():
+        statuses.append(status_q.get_nowait())
+    assert statuses[0]["type"] == "paused"
+    assert statuses[-1] == {"type": "ack", "command": "continue", "still_paused": False}
+    return world, statuses[1:-1]
+
+
+@pytest.mark.parametrize("value", [
+    float("inf"), float("-inf"), float("nan"), 1e999, "Infinity", "NaN", [1], {}, None, "abc",
+])
+def test_live_pause_set_refuses_non_integer_value_and_stays_paused(value):
+    """A value int() cannot represent is one error; the pause loop keeps serving."""
+    def commands(world):
+        civ = world.civilizations[0]
+        return [
+            {"type": "set", "civ": civ.name, "stat": "military", "value": value},
+            {"type": "set", "civ": civ.name, "stat": "military", "value": 77},
+        ]
+
+    world, statuses = _run_paused_commands(commands)
+    assert [s["type"] for s in statuses] == ["error", "ack"]
+    assert statuses[0]["message"].startswith("Value must be an integer, got ")
+    assert world.civilizations[0].military == 77
+
+
+@pytest.mark.parametrize(("value", "applied"), [(True, 1), (3.7, 3), ("12", 12), (55, 55)])
+def test_live_pause_set_keeps_existing_integer_coercion(value, applied):
+    """Values int() accepted before are still truncated and applied unchanged."""
+    def commands(world):
+        return [{"type": "set", "civ": world.civilizations[0].name, "stat": "military",
+                 "value": value}]
+
+    world, statuses = _run_paused_commands(commands)
+    assert [s["type"] for s in statuses] == ["ack"]
+    assert statuses[0]["value"] == applied
+    assert world.civilizations[0].military == applied
+
+
+@pytest.mark.parametrize("stat", [["x"], {"a": 1}, ["military"], 5, None])
+def test_live_pause_set_refuses_non_string_stat(stat):
+    """An unhashable or non-string stat is answered as an invalid stat (FIX-11)."""
+    def commands(world):
+        return [{"type": "set", "civ": world.civilizations[0].name, "stat": stat, "value": 5}]
+
+    _, statuses = _run_paused_commands(commands)
+    assert [s["type"] for s in statuses] == ["error"]
+    assert statuses[0]["message"].startswith("Invalid stat: ")
+
+
+@pytest.mark.parametrize("civ", [["x"], {"a": 1}, 0, None])
+def test_live_pause_set_refuses_non_string_civ(civ):
+    """A non-string civ name is answered as an unknown civilization (FIX-11)."""
+    def commands(world):
+        return [{"type": "set", "civ": civ, "stat": "military", "value": 5}]
+
+    _, statuses = _run_paused_commands(commands)
+    assert [s["type"] for s in statuses] == ["error"]
+    assert statuses[0]["message"].startswith("Unknown civilization: ")
+
+
+def test_coerce_set_value_without_a_thread():
+    """The coercion is reachable directly: int or None, never an exception."""
+    from chronicler.live import _coerce_set_value
+
+    assert _coerce_set_value(7) == 7
+    assert _coerce_set_value(True) == 1
+    assert _coerce_set_value(-3.9) == -3
+    assert _coerce_set_value("42") == 42
+    for bad in (float("inf"), float("nan"), 1e999, "Infinity", [1], {}, None, "4.5"):
+        assert _coerce_set_value(bad) is None
+
+
+@pytest.fixture
+def held_port():
+    """A localhost port another socket is listening on."""
+    import socket
+
+    holder = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    holder.bind(("localhost", 0))
+    holder.listen()
+    try:
+        yield holder.getsockname()[1]
+    finally:
+        holder.close()
+
+
+def test_live_server_start_raises_when_port_is_taken(held_port):
+    """A bind failure reaches the caller instead of dying in the server thread (FIX-10)."""
+    from chronicler.live import LiveServer, LiveServerStartError
+
+    server = LiveServer(port=held_port)
+    with pytest.raises(LiveServerStartError):
+        server.start()
+    server.thread.join(timeout=5)
+    assert not server.thread.is_alive()
+    assert isinstance(server._start_error, OSError)
+    server.stop()  # nothing to stop; does not raise on the closed loop
+
+
+def test_live_server_start_raises_when_not_listening_in_time(monkeypatch):
+    """start() no longer ignores its wait: a server that never listens is an error."""
+    from chronicler import live
+    from chronicler.live import LiveServer, LiveServerStartError
+
+    gate = threading.Event()
+    monkeypatch.setattr(live, "_START_TIMEOUT_SECONDS", 0.05)
+    monkeypatch.setattr(LiveServer, "_run_loop", lambda self, ready: gate.wait(5))
+    server = LiveServer(port=0)
+    try:
+        with pytest.raises(LiveServerStartError, match="not listening after"):
+            server.start()
+    finally:
+        gate.set()
+        server.thread.join(timeout=5)
+
+
+def test_live_server_that_binds_after_a_timed_out_start_closes(monkeypatch):
+    """A server thread that binds after start() gave up does not keep listening."""
+    import socket
+    from chronicler import live
+    from chronicler.live import LiveServer, LiveServerStartError
+
+    gate = threading.Event()
+    original = LiveServer._run_loop
+
+    def late_run_loop(self, ready):
+        gate.wait(5)
+        original(self, ready)
+
+    monkeypatch.setattr(live, "_START_TIMEOUT_SECONDS", 0.05)
+    monkeypatch.setattr(LiveServer, "_run_loop", late_run_loop)
+    server = LiveServer(port=0)
+    with pytest.raises(LiveServerStartError, match="not listening after"):
+        server.start()
+    gate.set()
+    server.thread.join(timeout=5)
+    assert not server.thread.is_alive()
+    assert server._actual_port is not None
+    with pytest.raises(OSError):
+        socket.create_connection(("localhost", server._actual_port), timeout=1).close()
+
+
+def test_run_live_reports_a_server_that_cannot_start(held_port, tmp_path, capsys):
+    """run_live prints the cause and returns None instead of announcing a lobby."""
+    import argparse
+    from chronicler.live import run_live
+
+    args = argparse.Namespace(
+        seed=42, turns=5, civs=2, regions=3, output=str(tmp_path / "chronicle.md"),
+        state=str(tmp_path / "state.json"), resume=None, reflection_interval=10,
+        llm_actions=False, scenario=None, pause_every=None, live_port=held_port)
+    assert run_live(args) is None
+    captured = capsys.readouterr()
+    assert "Live server could not start: " in captured.err
+    assert "Lobby ready" not in captured.out
+
+
+@pytest.mark.parametrize("name", ["../x.yaml", "../../etc/passwd", "/etc/passwd", "a/../../x.yaml"])
+def test_scenario_names_outside_scenarios_are_refused(name):
+    """A lobby scenario cannot name a file outside scenarios/ (FIX-10).
+
+    The batch scenario is loaded relative to the working directory, not
+    under scenarios/, so the batch check does not apply that rule and the
+    name passes through as before (confinement is a separate follow-up).
+    """
+    from chronicler.live import LiveServer, _scenario_file
+
+    with pytest.raises(ValueError, match="Scenario must be within scenarios/"):
+        _scenario_file(name)
+    server = LiveServer(port=0)
+    err = server._handle_start({"type": "start", "scenario": name, "turns": 5, "civs": 2,
+                                "regions": 3, "seed": 1})
+    assert err == {"type": "error",
+                   "message": "Start field 'scenario': Scenario must be within scenarios/"}
+    assert server._server_state == "lobby" and not server.start_event.is_set()
+    assert server._validate_batch_config({"scenario": name}) is None
+
+
+@pytest.mark.parametrize("name", ["dead_miles.yaml", "sub/x.yaml", "sub/../x.yaml"])
+def test_scenario_names_inside_scenarios_keep_their_path(name):
+    """Accepted lobby names keep the relative path the session always used;
+    the batch check accepts them unchanged."""
+    from pathlib import Path
+    from chronicler.live import LiveServer, _record_live_world_args, _scenario_file
+
+    assert _scenario_file(name) == Path("scenarios") / name
+    server = LiveServer(port=0)
+    assert server._validate_batch_config({"scenario": name}) is None
+    import argparse
+    args = argparse.Namespace()
+    _record_live_world_args(args, {"scenario": name})
+    assert args.scenario == str(Path("scenarios") / name)

@@ -134,3 +134,42 @@ class TestAgentsOffDeterminism:
         assert snap_a == snap_b
         assert snap_a["civ_count"] == 1
         assert len(snap_a["civs"]) == 1
+
+
+def _off_turns_with_staged_signals(seed, num_turns, stage):
+    """Run off-mode turns; ``stage(world)`` sets signals before each turn.
+    Returns the world and each turn's end-of-turn region signal values."""
+    from chronicler.utils import stage_region_catastrophe_deaths
+
+    world = generate_world(seed=seed, num_regions=5, num_civs=2)
+    world.agent_mode = "off"
+    seen = []
+    for turn_num in range(num_turns):
+        if stage:
+            stage_region_catastrophe_deaths(world.regions[0], 9 + turn_num)
+            world.regions[1]._raided_this_turn = True
+        engine = ActionEngine(world)
+        run_turn(world, lambda civ, w, eng=engine: eng.select_action(civ, seed=w.seed + w.turn),
+                 lambda w, events: "Turn narrative.", seed=world.seed + turn_num)
+        seen.append([(r._catastrophe_deaths_this_turn, r._raided_this_turn,
+                      r._controller_changed_this_turn, r._war_won_this_turn,
+                      r._seceded_this_turn, r.schism_convert_from, r.schism_convert_to,
+                      hasattr(r, "_culture_investment_active"))
+                     for r in world.regions])
+    return world, seen
+
+
+class TestAgentsOffTransientSignals:
+    """FIX-3: an --agents off turn clears every one-turn region signal, as the
+    agent bridge does after reading them; nothing in off mode reads them."""
+
+    def test_staged_catastrophe_and_raid_clear_after_each_turn(self):
+        _, seen = _off_turns_with_staged_signals(seed=42, num_turns=3, stage=True)
+        cleared = (0, False, False, False, False, 0xFF, 0xFF, False)
+        for turn_values in seen:
+            assert turn_values == [cleared] * len(turn_values)
+
+    def test_staged_signals_do_not_change_off_mode_outcomes(self):
+        staged, _ = _off_turns_with_staged_signals(seed=42, num_turns=3, stage=True)
+        plain, _ = _off_turns_with_staged_signals(seed=42, num_turns=3, stage=False)
+        assert staged.model_dump(mode="json") == plain.model_dump(mode="json")
