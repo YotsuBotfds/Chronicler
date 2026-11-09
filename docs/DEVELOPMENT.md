@@ -358,7 +358,9 @@ reaches. The rules:
 - Source identities cover `src/chronicler` only: receipts and digests that hash
   that tree (`package_digest` in `batch_manifest.py`, the source globs of
   `scripts/benchmark_headless.py` and `scripts/a01_acceptance.py`, the oracle
-  lane's `source_sha256`) do not include `chronicler_lab`.
+  lane's `source_sha256`) do not include `chronicler_lab`. The relocated
+  `checkpoint_replay` still hashes the production package: its runtime
+  identity is `package_digest(Path(chronicler.__file__).parent)`.
 - The wheel ships both packages (`[tool.hatch.build.targets.wheel]` in
   `pyproject.toml`); the editable install and pytest already put `src` on the
   path. Tests and scripts stay where they are.

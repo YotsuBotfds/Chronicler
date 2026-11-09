@@ -1,6 +1,6 @@
 # Python off-mode checkpoint replay validator
 
-The opt-in `chronicler.checkpoint_replay` module checks whether a particular
+The opt-in `chronicler_lab.checkpoint_replay` module checks whether a particular
 Python-only simulation continues identically after serialization. It compares
 the entire persisted WorldState, event log, and tracked tech-focus deltas at
 the checkpoint boundary and every resumed turn. A PASS applies to that tested
@@ -9,7 +9,7 @@ trace and the exact fingerprinted runtime.
 Run from the repository with the development dependencies installed:
 
 ```sh
-PYTHONPATH=src .venv/bin/python -m chronicler.checkpoint_replay \
+PYTHONPATH=src .venv/bin/python -m chronicler_lab.checkpoint_replay \
   --seed 42 --civs 4 --regions 8 --turns 250 --split 13 \
   --output-dir output/replay-seed42
 ```

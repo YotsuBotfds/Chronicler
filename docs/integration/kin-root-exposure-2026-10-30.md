@@ -33,7 +33,7 @@ historical records are not rewritten to match a later mechanics correction.
 
 ## Existing frames, one bounded reader
 
-`chronicler.kin_root_exposure.summarize_kin_root_exposure` reads existing
+`chronicler_lab.kin_root_exposure.summarize_kin_root_exposure` reads existing
 decision-delivery wire rows. It reuses that module's field descriptors instead
 of introducing another capture schema. It opens no files, imports no Arrow or
 native package, constructs no simulator and draws no random numbers.
@@ -41,7 +41,7 @@ native package, constructs no simulator and draws no random numbers.
 After an explicit observer capture, use the already retained data:
 
 ```python
-from chronicler.kin_root_exposure import summarize_kin_root_exposure
+from chronicler_lab.kin_root_exposure import summarize_kin_root_exposure
 
 readout = observer.read_latest(expected_source_turn=turn)
 if readout.status == "captured":
