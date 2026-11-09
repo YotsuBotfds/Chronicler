@@ -59,3 +59,29 @@ Not run here:
 - The first dispatch of `regression-smoke.yml`, so runner minutes are unmeasured.
 - The shard balance on CI (needs a PR).
 - The 200-seed gate (no outcome change).
+
+## 2026-11-09 — integration 3 (relaunched R1/R2 tasks)
+
+Merged, each approved by an independent reviewer with no blocker or major findings:
+
+| Task | Reviewed head | Class | Notes |
+|---|---|---|---|
+| HYG-1, HYG-3 | `e943525e` | docs | `docs/CONTINUATION.md` opens with `## Current status` and is under 100 lines; history moved byte-for-byte to `progress/continuation-history.md`; README, AGENTS and RECOVERY drop PR chains; new `tests/test_docs_status.py`; audits index; feature-options corrected (42 switches, 861 pairs, 0 refused, dated 2026-11-08) |
+| HYG-5, HYG-6 | `aa9e6a2b` | tooling | `cloud_setup.sh` prints a failure summary and exits non-zero only under `CHRONICLER_SETUP_STRICT=1`; 15 doc-only scripts moved to `scripts/archive/` with smoke-manifest entries; `docs/workflows/README.md` index |
+| DEAD-2b | `8b9973a6` | removal | Test-only narrative wrappers and five analytics extractors removed |
+| FIX-7 | `e01bda87` | fix (CLI acceptance) | Saved-world prerequisite refusals with "pass --no-<x> to end it". Changed-mode and orphan-mode refusals dropped under the lead scope ruling (decision record) |
+| DEP-7 | `751aae7c` | measurement (partial) | `household_access` metrics module, state, analytics section (absent unless present) and viewer reader. **Switch registration deferred:** it needs `batch_manifest.py` (enforced) and waits for PIN-1, so the module is not reachable from the CLI yet |
+
+The lead added commit `abb97f5`. It keeps the four summarised CONTINUATION entries verbatim at the end of the history file, repoints two RECOVERY.md links (minor HYG-1 review findings), and points the status block at the decision record and this ledger. Merge conflicts were only the module-count assertion in `tests/test_native_ci_shards.py` (now 468), resolved by addition.
+
+Gates on the merged head `8ba44078`:
+- Preflight against `4e8e76b` (134 paths): no content pin or digest touched.
+- Oracle lane `--jobs 2`: PASS in 176.8 s. 77 chunks; 8,192 passed, 69 skipped, 0 failed.
+- Focused suite: 414 passed. It covers docs status, household access, livelihoods wiring, epidemic care, recovery-skills wiring, household retail, recovery crews, narrative, batch narration, analytics, check_python_env and the screen runner.
+- `cloud_setup.sh` with `PATH=/nonexistent` and a scratch native venv: exit 1 with `CHRONICLER_SETUP_STRICT=1`, exit 0 without it.
+- Identity, 7 cases (all but the two scaled ones), integration-1 native: 357 files compared, 0 differences.
+
+Open owner questions from DEP-7 (no answer needed until registration):
+- the weights of a joint food-and-care welfare primary;
+- whether P2's denominator is all observed person-turns (as implemented) or retail person-turns only;
+- whether "child shortfall share" means the children's share of total shortfall (as implemented).
