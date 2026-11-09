@@ -140,7 +140,15 @@ def test_cli_flag_gate_forwarding_live_default_and_benchmark_pin(tmp_path):
     assert m53b._grain_reserves_args(argparse.Namespace(grain_reserves=True)) == ["--grain-reserves"]
     assert m53b._grain_reserves_args(argparse.Namespace(grain_reserves=False)) == ["--no-grain-reserves"]
     assert m53b._grain_reserves_args(argparse.Namespace(grain_reserves=None)) == []
-    assert "set_grain_reserves_enabled" in (ROOT / "src" / "chronicler" / "live.py").read_text()
+    # New live worlds follow the default; the flag overrides it.
+    from chronicler.live import _live_world
+
+    def live_on(*argv):
+        world = _live_world(parser.parse_args(["--live", *argv]), {"seed": 42, "regions": 8, "civs": 4})[0]
+        return G.grain_reserves_enabled(world)
+
+    assert live_on() is G.DEFAULT_ENABLED_FOR_NEW_WORLDS
+    assert live_on("--grain-reserves") is True and live_on("--no-grain-reserves") is False
     assert "grain_reserves=False" in (ROOT / "scripts" / "benchmark_headless.py").read_text()
     # An explicit switch needs the goods economy of an agent mode.
     args = parser.parse_args(["--seed", "42", "--turns", "2", "--regions", "8", "--civs", "4",

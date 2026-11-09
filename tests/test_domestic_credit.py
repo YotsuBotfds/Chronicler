@@ -570,8 +570,19 @@ def test_new_worlds_default_off_and_a_resume_keeps_the_saved_setting(tmp_path):
 
 
 def test_live_new_worlds_follow_the_default():
-    text = (ROOT / "src" / "chronicler" / "live.py").read_text()
-    assert "set_domestic_credit_enabled" in text
+    from chronicler.main import _build_parser
+    parser = _build_parser()
+    # New live worlds follow the default; the flag overrides it.
+    from chronicler.live import _live_world
+
+    def live_on(*argv):
+        world = _live_world(parser.parse_args(["--live", *argv]), {"seed": 42, "regions": 8, "civs": 4})[0]
+        return D.domestic_credit_enabled(world)
+
+    assert live_on() is D.DEFAULT_ENABLED_FOR_NEW_WORLDS
+    assert live_on("--domestic-credit") is True and live_on("--no-domestic-credit") is False
+    # Live worlds need finance for domestic credit, explicit or not.
+    assert live_on("--domestic-credit", "--no-finance") is False
 
 
 def _load_runner():

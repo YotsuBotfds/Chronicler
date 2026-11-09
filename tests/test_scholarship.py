@@ -168,7 +168,15 @@ def test_cli_flag_gate_forwarding_live_default_and_benchmark_pin():
     assert m53b._scholarship_args(argparse.Namespace(scholarship=True)) == ["--scholarship"]
     assert m53b._scholarship_args(argparse.Namespace(scholarship=False)) == ["--no-scholarship"]
     assert m53b._scholarship_args(argparse.Namespace(scholarship=None)) == []
-    assert "set_scholarship_enabled" in (ROOT / "src" / "chronicler" / "live.py").read_text()
+    # New live worlds follow the default; the flag overrides it.
+    from chronicler.live import _live_world
+
+    def live_on(*argv):
+        world = _live_world(parser.parse_args(["--live", *argv]), {"seed": 42, "regions": 8, "civs": 4})[0]
+        return S.scholarship_enabled(world)
+
+    assert live_on() is S.DEFAULT_ENABLED_FOR_NEW_WORLDS
+    assert live_on("--scholarship") is True and live_on("--no-scholarship") is False
     assert "scholarship=False" in (ROOT / "scripts" / "benchmark_headless.py").read_text()
 
 

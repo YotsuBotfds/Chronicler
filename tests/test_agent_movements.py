@@ -1107,7 +1107,15 @@ def test_cli_flag_gate_forwarding_and_live_default():
     assert m53b._agent_movements_args(argparse.Namespace(agent_movements=True)) == ["--agent-movements"]
     assert m53b._agent_movements_args(argparse.Namespace(agent_movements=False)) == ["--no-agent-movements"]
     assert m53b._agent_movements_args(argparse.Namespace(agent_movements=None)) == []
-    assert "set_agent_movements_enabled" in (ROOT / "src" / "chronicler" / "live.py").read_text()
+    # New live worlds follow the default; the flag overrides it.
+    from chronicler.live import _live_world
+
+    def live_on(*argv):
+        world = _live_world(parser.parse_args(["--live", *argv]), {"seed": 42, "regions": 8, "civs": 4})[0]
+        return M.agent_movements_enabled(world)
+
+    assert live_on() is M.DEFAULT_ENABLED_FOR_NEW_WORLDS
+    assert live_on("--agent-movements") is True and live_on("--no-agent-movements") is False
 
 
 def test_new_worlds_default_on_and_resume_keeps_saved_setting(tmp_path):
