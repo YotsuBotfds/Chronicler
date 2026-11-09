@@ -116,8 +116,13 @@ class TestTerrainDefaults:
         assert eco.forest_cover == 0.05
 
     def test_all_terrains_present(self):
-        # Geography 2.0 appends steppe/jungle/marsh.
-        assert set(TERRAIN_ECOLOGY_DEFAULTS.keys()) == {"plains", "forest", "mountains", "coast", "desert", "tundra", "steppe", "jungle", "marsh"}
+        # Geography 2.0 appends steppe/jungle/marsh; hills/river are legacy
+        # labels with explicit rows equal to plains (COR-8a).
+        assert set(TERRAIN_ECOLOGY_DEFAULTS.keys()) == {"plains", "forest", "mountains", "coast", "desert", "tundra", "steppe", "jungle", "marsh", "hills", "river"}
+
+    def test_legacy_labels_equal_plains(self):
+        for label in ("hills", "river"):
+            assert TERRAIN_ECOLOGY_DEFAULTS[label] == TERRAIN_ECOLOGY_DEFAULTS["plains"]
 
     def test_effective_capacity_zero_water_denominator_uses_floor(self, monkeypatch):
         region = Region(name="T", terrain="plains", carrying_capacity=100, resources="fertile")
@@ -136,7 +141,50 @@ class TestTerrainCaps:
         assert caps["forest_cover"] == 0.10
 
     def test_all_terrains_present(self):
-        assert set(TERRAIN_ECOLOGY_CAPS.keys()) == {"plains", "forest", "mountains", "coast", "desert", "tundra", "steppe", "jungle", "marsh"}
+        assert set(TERRAIN_ECOLOGY_CAPS.keys()) == {"plains", "forest", "mountains", "coast", "desert", "tundra", "steppe", "jungle", "marsh", "hills", "river"}
+
+    def test_legacy_labels_equal_plains(self):
+        for label in ("hills", "river"):
+            assert TERRAIN_ECOLOGY_CAPS[label] == TERRAIN_ECOLOGY_CAPS["plains"]
+
+
+def _rust_terrain_caps() -> list[tuple[float, float, float]]:
+    """Parse ``TERRAIN_CAPS`` from ``chronicler-agents/src/ecology.rs``.
+
+    No native ecology hook exposes the cap rows, so the Rust source is read
+    directly; this keeps the parity check offline-safe.
+    """
+    import re
+    from pathlib import Path
+
+    rs = (Path(__file__).resolve().parents[1] / "chronicler-agents" / "src" / "ecology.rs").read_text(encoding="utf-8")
+    block = re.search(r"const TERRAIN_CAPS: \[\[f32; 3\]; (\d+)\] = \[(.*?)\];", rs, re.S)
+    assert block is not None, "TERRAIN_CAPS table not found in ecology.rs"
+    num = r"(-?\d+(?:\.\d+)?)"
+    rows = [
+        tuple(float(v) for v in m)
+        for m in re.findall(rf"\[\s*{num}\s*,\s*{num}\s*,\s*{num}\s*\]", block.group(2))
+    ]
+    assert len(rows) == int(block.group(1))
+    return rows
+
+
+class TestTerrainCapsRustParity:
+    def test_every_ffi_terrain_label_matches_rust_cap_row(self):
+        from chronicler.ffi_constants import TERRAIN_MAP
+
+        rust_caps = _rust_terrain_caps()
+        for label, terrain_id in TERRAIN_MAP.items():
+            assert label in TERRAIN_ECOLOGY_CAPS, f"{label!r} has no Python cap row"
+            caps = TERRAIN_ECOLOGY_CAPS[label]
+            assert (caps["soil"], caps["water"], caps["forest_cover"]) == rust_caps[terrain_id], label
+
+    def test_python_cap_labels_are_exactly_ffi_terrain_labels(self):
+        from chronicler.ffi_constants import TERRAIN_MAP
+
+        assert set(TERRAIN_ECOLOGY_CAPS) == set(TERRAIN_MAP)
+        assert set(TERRAIN_ECOLOGY_DEFAULTS) == set(TERRAIN_MAP)
+        assert sorted(set(TERRAIN_MAP.values())) == list(range(len(_rust_terrain_caps())))
 
 
 class TestEffectiveCapacity:
