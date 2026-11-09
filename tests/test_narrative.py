@@ -212,6 +212,60 @@ def test_narrate_batch_warns_on_first_failure(caplog):
     assert "API error" in caplog.text or "narration failed" in caplog.text.lower()
 
 
+def _budget_batch_engine(max_calls):
+    """An engine on a budgeted AnthropicClient over a batch SDK stub (no network)."""
+    from chronicler.llm import AnthropicClient
+    from chronicler.models import NarrativeMoment, NarrativeRole, Event, TurnSnapshot
+
+    sdk = MagicMock()
+    submitted = []
+
+    def create(requests):
+        submitted.append(list(requests))
+        return MagicMock(id="batch-1", processing_status="ended")
+
+    def results(_batch_id):
+        return [MagicMock(custom_id=r["custom_id"], result=MagicMock(
+            type="succeeded",
+            message=MagicMock(content=[MagicMock(text=f"Told {r['custom_id']}")],
+                              usage=MagicMock(input_tokens=1, output_tokens=1))))
+            for r in submitted[-1]]
+
+    sdk.messages.batches.create.side_effect = create
+    sdk.messages.batches.results.side_effect = results
+    client = AnthropicClient(client=sdk, model="fake", max_calls=max_calls)
+    engine = NarrativeEngine(sim_client=MagicMock(model="test"), narrative_client=client)
+    moments = [NarrativeMoment(
+        events=[Event(event_type="war", description=f"A war happened {t}",
+                      actors=["Civ1"], importance=7, turn=t, source="simulation")],
+        named_events=[], turn_range=(t, t), anchor_turn=t, score=7.0,
+        narrative_role=NarrativeRole.CLIMAX, causal_links=[], bonus_applied=0.0,
+    ) for t in (10, 11, 12)]
+    history = [TurnSnapshot(turn=t, civ_stats={}, region_control={}, relationships={})
+               for t in (10, 11, 12)]
+    return engine, sdk, submitted, moments, history
+
+
+def test_narrate_batch_exhausted_budget_falls_back_without_submitting(caplog):
+    """FIX-9b: an exhausted budget refuses the batch; every moment is mechanical."""
+    engine, sdk, _submitted, moments, history = _budget_batch_engine(max_calls=0)
+    with caplog.at_level(logging.WARNING):
+        entries = engine.narrate_batch(moments, history)
+    sdk.messages.batches.create.assert_not_called()
+    assert len(entries) == 3
+    assert not any(e.narrative.startswith("Told ") for e in entries)
+    assert [r for r in caplog.records if "call budget reached" in r.getMessage()]
+
+
+def test_narrate_batch_remaining_allowance_narrates_prefix():
+    """FIX-9b: moments past the call allowance are rendered mechanically."""
+    engine, _sdk, submitted, moments, history = _budget_batch_engine(max_calls=2)
+    entries = engine.narrate_batch(moments, history)
+    assert len(submitted) == 1 and len(submitted[0]) == 2
+    assert [e.narrative for e in entries[:2]] == ["Told moment-0", "Told moment-1"]
+    assert not entries[2].narrative.startswith("Told ")
+
+
 def test_narrate_batch_does_not_mutate_live_arc_summary(sample_world):
     """Narration must not write LLM-generated summaries back onto live GP objects."""
     from chronicler.models import GreatPerson, NarrativeMoment, NarrativeRole, TurnSnapshot
