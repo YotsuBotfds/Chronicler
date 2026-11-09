@@ -173,13 +173,6 @@ def withholds_relief_credit(world) -> bool:
     return reform_services_active(world)
 
 
-def _service(world) -> ReformServicesState | None:
-    state = _state(world)
-    if state is None or not reform_services_active(world) or state.mode != "service":
-        return None
-    return state
-
-
 def _turn(state: ReformServicesState, world) -> _Turn:
     t = state._turn
     if t is None or t.turn != world.turn:

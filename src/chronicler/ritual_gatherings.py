@@ -41,10 +41,6 @@ REL_SLOTS = 8                   # existing native fixed relationship capacity
 EPS = 1e-9
 
 
-def ritual_gatherings_enabled(world) -> bool:
-    return ritual_gatherings_on(world)
-
-
 def ritual_gatherings_active(world) -> bool:
     """Saved state is dormant outside the authoritative hybrid goods/agent mode."""
     return ritual_gatherings_on(world) and getattr(world, "agent_mode", None) == "hybrid"

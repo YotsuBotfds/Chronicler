@@ -1,7 +1,7 @@
 """Tests for region adjacency graph utilities."""
 from chronicler.adjacency import (
     compute_adjacencies, shortest_path, graph_distance,
-    is_chokepoint, connected_components,
+    connected_components,
 )
 from chronicler.models import Region
 from chronicler.world_gen import generate_regions
@@ -72,13 +72,6 @@ def test_graph_distance_matches_shortest_path_for_region_input():
         for target in ("A", "B", "C", "D", "E", "Isolated", "Ghost", "Missing"):
             path = shortest_path(regions, source, target)
             assert graph_distance(regions, source, target) == (-1 if path is None else len(path) - 1)
-
-
-def test_is_chokepoint():
-    # B is the only connection between A and C
-    regions = _make_regions({"A": ["B"], "B": ["A", "C"], "C": ["B"]})
-    assert is_chokepoint(regions, "B") is True
-    assert is_chokepoint(regions, "A") is False
 
 
 def test_connected_components_single():

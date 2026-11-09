@@ -79,32 +79,6 @@ def graph_distances_from(
     return dist
 
 
-def is_chokepoint(regions: list[Region], name: str) -> bool:
-    """True if removing this region disconnects the graph (articulation point).
-
-    Builds adjacency map manually excluding the target — never mutates Region objects.
-    """
-    if len(regions) <= 2:
-        return False
-    # Build adj map without the target node
-    adj: dict[str, set[str]] = {}
-    for r in regions:
-        if r.name == name:
-            continue
-        adj[r.name] = {a for a in r.adjacencies if a != name}
-    # BFS from first remaining node
-    remaining_names = list(adj.keys())
-    visited: set[str] = {remaining_names[0]}
-    queue: deque[str] = deque([remaining_names[0]])
-    while queue:
-        current = queue.popleft()
-        for neighbor in adj.get(current, set()):
-            if neighbor not in visited:
-                visited.add(neighbor)
-                queue.append(neighbor)
-    return len(visited) < len(remaining_names)
-
-
 def connected_components(regions: list[Region]) -> list[list[str]]:
     """Return connected components as lists of region names."""
     adj = _build_adj_map(regions)
