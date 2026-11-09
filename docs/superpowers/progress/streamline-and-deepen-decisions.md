@@ -24,6 +24,13 @@ Each runs one at a time in its own PR, with a before/after baseline, two indepen
 - **COR-9, Rust `stable_hash_int` repr parity with Python.**
 - **COR-10, the `gp_agendas` projected treasury respects the accumulator watermark.**
 
+## Scope rulings made by the lead under the owner's delegation
+
+- **FIX-7, livelihoods CLI acceptance (2026-11-09).** The implementer found that the plan's stricter checks would refuse behaviour that existing tests document as supported (spec section 8 questions).
+  - **Kept.** Saved-world prerequisite checks: a switch that is on only in the saved world is refused when its prerequisites are missing, with the "pass --no-<x> to end it" message. Two fixtures that saved a workshops world without cities are made realistic. Tests that end a prerequisite while a dependent switch stays saved now end the dependent too.
+  - **Dropped.** (1) Refusing a mode that differs from the saved one: changing a mode on resume stays supported, as the household-retail, recovery-crews and recovery-skills tests document (for example record_only to retail). (2) Refusing a mode given without its switch: "a mode alone does nothing" stays the documented protocol.
+  - The owner can ask for either dropped part later. Each is a separate small change.
+
 ## Not decided here
 
 - Promotion of any default-off feature still needs the 200-seed gate and a separate owner approval.
