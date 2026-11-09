@@ -106,10 +106,20 @@ def test_resumed_legacy_world_keeps_its_parameters_when_enabled(fish_world):
 
 
 def test_live_new_worlds_follow_the_defaults():
-    import inspect
-    from chronicler import live
-    source = inspect.getsource(live)
-    assert "set_fisheries_enabled(world" in source and "_AID_DEFAULT" in source
+    from chronicler.live import _live_world
+    from chronicler.main import _build_parser
+
+    def live_world(*argv):
+        args = _build_parser().parse_args(["--live", *argv])
+        return _live_world(args, {"seed": 11, "regions": 8, "civs": 3})[0]
+
+    world = live_world()
+    assert world.fishery_experiment.enabled is fisheries.DEFAULT_ENABLED_FOR_NEW_WORLDS is True
+    assert world.fishery_experiment.reference_workers == NEW_WORLD_REFERENCE_WORKERS
+    assert world.mutual_aid_enabled is mutual_aid.DEFAULT_ENABLED_FOR_NEW_WORLDS is True
+    world = live_world("--no-fisheries", "--no-mutual-aid")
+    assert world.fishery_experiment.enabled is False
+    assert world.mutual_aid_enabled is False
 
 
 def test_gate_runner_forwards_explicit_switches():

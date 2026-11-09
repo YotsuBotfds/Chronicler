@@ -58,6 +58,7 @@ from typing import Any, Mapping
 
 from chronicler.livelihoods import LIVELIHOODS_ARG_KEYS, LIVELIHOODS_CHOICES
 from chronicler.livelihoods_state import LIVELIHOODS_SWITCHES
+from chronicler.switch_defaults import default as _switch_default
 
 CATALOG_SCHEMA_VERSION = 1
 LIVELIHOODS_GROUP = "Livelihoods"
@@ -331,32 +332,16 @@ def _by_key() -> dict[str, dict]:
     return {entry["key"]: entry for entry in _features()}
 
 
-def _cities_default() -> bool:
-    from chronicler.cities import DEFAULT_ENABLED_FOR_NEW_WORLDS
-    return bool(DEFAULT_ENABLED_FOR_NEW_WORLDS)
-
-
-def _techniques_default() -> bool:
-    from chronicler.techniques import DEFAULT_ENABLED_FOR_NEW_WORLDS
-    return bool(DEFAULT_ENABLED_FOR_NEW_WORLDS)
-
-
-def _guilds_default() -> bool:
-    from chronicler.guilds import DEFAULT_ENABLED_FOR_NEW_WORLDS
-    return bool(DEFAULT_ENABLED_FOR_NEW_WORLDS)
-
-
-def _movements_default() -> bool:
-    from chronicler.agent_movements import DEFAULT_ENABLED_FOR_NEW_WORLDS
-    return bool(DEFAULT_ENABLED_FOR_NEW_WORLDS)
+def _new_world_setting(name: str, value: Any = None) -> bool:
+    """A new world's switch ``name``: the explicit value, else the
+    registry default (``chronicler.switch_defaults``)."""
+    return _switch_default(name) if value is None else bool(value)
 
 
 def _epidemiology_setting(epidemiology: Any = None, contact_ledger: Any = None) -> bool:
     """Epidemiology on a new world: its switch (default on) and the ledger it needs."""
-    from chronicler.contact_ledger import DEFAULT_ENABLED_FOR_NEW_WORLDS as ledger_default
-    from chronicler.epidemiology import DEFAULT_ENABLED_FOR_NEW_WORLDS as epi_default
-    ledger = ledger_default if contact_ledger is None else bool(contact_ledger)
-    return bool(epi_default if epidemiology is None else epidemiology) and bool(ledger)
+    return (_new_world_setting("epidemiology", epidemiology)
+            and _new_world_setting("contact_ledger", contact_ledger))
 
 
 def live_surface(args: Any = None) -> dict:
@@ -374,8 +359,8 @@ def live_surface(args: Any = None) -> dict:
         "values": values,
         "settings": {
             "campaigns": getattr(args, "campaigns", None) is not False,
-            "cities": _cities_default() if cities is None else bool(cities),
-            "techniques": _techniques_default() if techniques is None else bool(techniques),
+            "cities": _new_world_setting("cities", cities),
+            "techniques": _new_world_setting("techniques", techniques),
             "no_household_mobility_liquid_requirement": not mobility > 0,
             # The client's start message chooses the world, which this static
             # surface cannot see: on a live lobby the run checks it, and a
@@ -385,9 +370,8 @@ def live_surface(args: Any = None) -> dict:
             "procedural_world": getattr(args, "live", None) is True,
             "epidemiology": _epidemiology_setting(getattr(args, "epidemiology", None),
                                                   getattr(args, "contact_ledger", None)),
-            "agent_movements": (_movements_default() if getattr(args, "agent_movements", None) is None
-                                else bool(args.agent_movements)),
-            "guilds": _guilds_default() if getattr(args, "guilds", None) is None else bool(args.guilds),
+            "agent_movements": _new_world_setting("agent_movements", getattr(args, "agent_movements", None)),
+            "guilds": _new_world_setting("guilds", getattr(args, "guilds", None)),
         },
         "new_worlds_only": True,
     }
@@ -424,8 +408,8 @@ def batch_surface(client_defaults: Mapping[str, Any], config: Mapping[str, Any] 
         "values": values,
         "settings": {
             "campaigns": _batch_value("campaigns", client_defaults, config) is not False,
-            "cities": _cities_default(),
-            "techniques": _techniques_default() if techniques is None else bool(techniques),
+            "cities": _switch_default("cities"),
+            "techniques": _new_world_setting("techniques", techniques),
             "no_household_mobility_liquid_requirement": True,
             "procedural_world": isinstance(regions, int) and regions > 0
             and resolve_worldgen(None, regions) == "procedural",
@@ -434,9 +418,9 @@ def batch_surface(client_defaults: Mapping[str, Any], config: Mapping[str, Any] 
             "epidemiology": _epidemiology_setting(
                 None, _batch_value("contact_ledger", client_defaults, config)),
             # Batch Lab runs are not given --agent-movements (new worlds: the default).
-            "agent_movements": _movements_default(),
+            "agent_movements": _switch_default("agent_movements"),
             # ... nor --guilds.
-            "guilds": _guilds_default(),
+            "guilds": _switch_default("guilds"),
         },
         "new_worlds_only": True,
     }

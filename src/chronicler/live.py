@@ -1416,136 +1416,14 @@ def _live_world(args: Any, params: dict) -> tuple[WorldState, Any]:
             from chronicler.scenario import load_scenario, apply_scenario
             scenario_config = load_scenario(_scenario_file(params["scenario"]))
             apply_scenario(world, scenario_config)
-        # M60: new live worlds default to campaigns (--no-campaigns opts out).
-        from chronicler.war.params import CAMPAIGNS_DEFAULT_FOR_NEW_WORLDS
-        _campaigns = getattr(args, "campaigns", None)
-        world.campaigns_enabled = (CAMPAIGNS_DEFAULT_FOR_NEW_WORLDS
-                                   if _campaigns is None else bool(_campaigns))
-        # Contact ledger: new live worlds follow the CLI default (--contact-ledger opts in/out).
-        from chronicler.contact_ledger import (
-            DEFAULT_ENABLED_FOR_NEW_WORLDS as _LEDGER_DEFAULT, set_contact_ledger_enabled,
-        )
-        _ledger = getattr(args, "contact_ledger", None)
-        set_contact_ledger_enabled(world, _LEDGER_DEFAULT if _ledger is None else bool(_ledger))
-        # Finance: new live worlds follow the CLI default (--finance opts in).
-        from chronicler.finance import (
-            DEFAULT_ENABLED_FOR_NEW_WORLDS as _FINANCE_DEFAULT, set_finance_enabled,
-        )
-        _finance = getattr(args, "finance", None)
-        set_finance_enabled(world, _FINANCE_DEFAULT if _finance is None else bool(_finance))
-        # Diplomacy: new live worlds follow the CLI default (--diplomacy opts in).
-        from chronicler.diplomacy import (
-            DEFAULT_ENABLED_FOR_NEW_WORLDS as _DIPLOMACY_DEFAULT, set_diplomacy_enabled,
-        )
-        _diplomacy = getattr(args, "diplomacy", None)
-        set_diplomacy_enabled(world, _DIPLOMACY_DEFAULT if _diplomacy is None else bool(_diplomacy))
-        # Techniques: new live worlds follow the CLI default (--no-techniques opts out).
-        from chronicler.techniques import (
-            DEFAULT_ENABLED_FOR_NEW_WORLDS as _TECHNIQUES_DEFAULT, set_techniques_enabled,
-        )
-        _techniques = getattr(args, "techniques", None)
-        set_techniques_enabled(world, _TECHNIQUES_DEFAULT if _techniques is None else bool(_techniques))
-        # Maritime: new live worlds follow the CLI default (--no-maritime opts out).
-        from chronicler.maritime import (
-            DEFAULT_ENABLED_FOR_NEW_WORLDS as _MARITIME_DEFAULT, set_maritime_enabled,
-        )
-        _maritime = getattr(args, "maritime", None)
-        set_maritime_enabled(world, _MARITIME_DEFAULT if _maritime is None else bool(_maritime))
-        # Great-person agendas: new live worlds follow the CLI default (--no-gp-agendas opts out).
-        from chronicler.gp_agendas import (
-            DEFAULT_ENABLED_FOR_NEW_WORLDS as _GP_AGENDAS_DEFAULT, set_gp_agendas_enabled,
-        )
-        _gp_agendas = getattr(args, "gp_agendas", None)
-        set_gp_agendas_enabled(world, _GP_AGENDAS_DEFAULT if _gp_agendas is None else bool(_gp_agendas))
-        # Nomads: new live worlds follow the CLI default (--no-nomads opts out).
-        from chronicler.nomads import (
-            DEFAULT_ENABLED_FOR_NEW_WORLDS as _NOMADS_DEFAULT, set_nomads_enabled,
-        )
-        _nomads = getattr(args, "nomads", None)
-        set_nomads_enabled(world, _NOMADS_DEFAULT if _nomads is None else bool(_nomads))
-        # Cities: new live worlds follow the CLI default (--no-cities opts out).
-        from chronicler.cities import (
-            DEFAULT_ENABLED_FOR_NEW_WORLDS as _CITIES_DEFAULT, set_cities_enabled,
-        )
-        _cities = getattr(args, "cities", None)
-        set_cities_enabled(world, _CITIES_DEFAULT if _cities is None else bool(_cities))
-        # Agent movements: new live worlds follow the CLI default (--no-agent-movements opts out).
-        from chronicler.agent_movements import (
-            DEFAULT_ENABLED_FOR_NEW_WORLDS as _MOVEMENTS_DEFAULT, set_agent_movements_enabled,
-        )
-        _movements = getattr(args, "agent_movements", None)
-        set_agent_movements_enabled(
-            world, _MOVEMENTS_DEFAULT if _movements is None else bool(_movements))
-        # Guilds: new live worlds follow the CLI default (--no-guilds opts out).
-        from chronicler.guilds import (
-            DEFAULT_ENABLED_FOR_NEW_WORLDS as _GUILDS_DEFAULT, set_guilds_enabled,
-        )
-        _guilds = getattr(args, "guilds", None)
-        set_guilds_enabled(world, _GUILDS_DEFAULT if _guilds is None else bool(_guilds))
-        # Seats of learning: new live worlds follow the CLI default (off;
-        # --scholarship opts in).
-        from chronicler.scholarship import (
-            DEFAULT_ENABLED_FOR_NEW_WORLDS as _SCHOLARSHIP_DEFAULT, set_scholarship_enabled,
-        )
-        _scholarship = getattr(args, "scholarship", None)
-        set_scholarship_enabled(
-            world, _SCHOLARSHIP_DEFAULT if _scholarship is None else bool(_scholarship))
-        # Public granaries: new live worlds follow the CLI default (off;
-        # --grain-reserves opts in; dormant without an agent mode).
-        from chronicler.grain_reserves import (
-            DEFAULT_ENABLED_FOR_NEW_WORLDS as _RESERVES_DEFAULT, set_grain_reserves_enabled,
-        )
-        _reserves = getattr(args, "grain_reserves", None)
-        set_grain_reserves_enabled(
-            world, _RESERVES_DEFAULT if _reserves is None else bool(_reserves))
-        # Community anchoring: new live worlds follow the CLI default (off;
-        # --community-anchoring opts in; dormant without an agent pool).
-        from chronicler.community_anchoring import (
-            DEFAULT_ENABLED_FOR_NEW_WORLDS as _ANCHOR_DEFAULT, set_community_anchoring_enabled,
-        )
-        _anchor = getattr(args, "community_anchoring", None)
-        set_community_anchoring_enabled(
-            world, _ANCHOR_DEFAULT if _anchor is None else bool(_anchor))
+        # New live worlds follow the CLI's new-world switch defaults
+        # (chronicler.switch_defaults; each --no-X / --X overrides its
+        # default). Governance is exempt here until COR-2. Epidemiology needs
+        # the ledger and domestic credit needs finance, explicit or not.
+        from chronicler.switch_defaults import apply_switches
+        apply_switches(world, args, fresh_world=True, live=True)
         from chronicler.refugee_routing import set_capacity_aware_refugees_enabled
         set_capacity_aware_refugees_enabled(world, bool(getattr(args, "capacity_aware_refugees", None)))
-        # Domestic credit: new live worlds follow the CLI default (off;
-        # --domestic-credit opts in; merchants lend only with an agent pool).
-        from chronicler.domestic_credit import (
-            DEFAULT_ENABLED_FOR_NEW_WORLDS as _CREDIT_DEFAULT, set_domestic_credit_enabled,
-        )
-        _credit = getattr(args, "domestic_credit", None)
-        set_domestic_credit_enabled(
-            world, (_CREDIT_DEFAULT if _credit is None else bool(_credit)) and world.finance is not None)
-        # Historiography: new live worlds follow the CLI default (observational).
-        from chronicler.historiography import (
-            DEFAULT_ENABLED_FOR_NEW_WORLDS as _HIST_DEFAULT, set_historiography_enabled,
-        )
-        _hist = getattr(args, "historiography", None)
-        set_historiography_enabled(world, _HIST_DEFAULT if _hist is None else bool(_hist))
-        # Languages: new live worlds follow the CLI default (observational).
-        from chronicler.languages import (
-            DEFAULT_ENABLED_FOR_NEW_WORLDS as _LANG_DEFAULT, set_languages_enabled,
-        )
-        _lang = getattr(args, "languages", None)
-        set_languages_enabled(world, _LANG_DEFAULT if _lang is None else bool(_lang))
-        # Fisheries and mutual aid: new live worlds follow the CLI defaults
-        # (execute_run sees a supplied world and keeps these settings).
-        from chronicler.experimental.fisheries import (
-            DEFAULT_ENABLED_FOR_NEW_WORLDS as _FISH_DEFAULT, set_fisheries_enabled,
-        )
-        _fish = getattr(args, "fisheries", None)
-        set_fisheries_enabled(world, _FISH_DEFAULT if _fish is None else bool(_fish), new_world=True)
-        from chronicler.mutual_aid import DEFAULT_ENABLED_FOR_NEW_WORLDS as _AID_DEFAULT
-        _aid = getattr(args, "mutual_aid", None)
-        world.mutual_aid_enabled = _AID_DEFAULT if _aid is None else bool(_aid)
-        # Epidemiology: new live worlds follow the CLI default; it needs the ledger.
-        from chronicler.epidemiology import (
-            DEFAULT_ENABLED_FOR_NEW_WORLDS as _EPI_DEFAULT, set_epidemiology_enabled,
-        )
-        from chronicler.contact_ledger import ledger_enabled as _ledger_on
-        _epi = getattr(args, "epidemiology", None)
-        set_epidemiology_enabled(
-            world, (_EPI_DEFAULT if _epi is None else bool(_epi)) and _ledger_on(world))
     _apply_live_prerequisites(world, args, getattr(args, "agents", "off"))
     from chronicler.expansion_features import configure_expansion_features
     configure_expansion_features(world, args, agent_mode=getattr(args, "agents", "off"))
