@@ -98,6 +98,7 @@ from chronicler.watershed_state import (
     ActiveConsequence, CapChange, DroughtSpell, ExternalFlow, FloodConsequence, FloodEvent, FloodRecord,
     SupersededFlood, WatershedFrame, WatershedGraph, WatershedState,
 )
+from chronicler.switch_state import sub_state_getter
 
 #: The native ecology terms ``flow`` replaces, switched off exactly once, in the
 #: native ``EcologyConfig`` (``agent_bridge.configure_ecology_runtime``): the
@@ -253,9 +254,7 @@ class _Plan:
 
 # --- State and switch -----------------------------------------------------------------
 
-def _state(world) -> WatershedState | None:
-    container = getattr(world, "livelihoods", None)
-    return getattr(container, "watershed", None) if container is not None else None
+_state = sub_state_getter("watershed")
 
 
 def watershed_active(world) -> bool:

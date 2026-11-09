@@ -1,0 +1,166 @@
+{
+ "class": "watershed_state.WatershedFrame",
+ "schema_sha256": "98b832aa82988bdd994eb0cd23b5b5152a0d899a5ab64f309748a2a8e2709687",
+ "variants": {
+  "populated": {
+   "pickle": "watershed_state.WatershedFrame.populated.pkl",
+   "sha256": "4a1e0d70700da0bab996f1523e51241cb417b3b4628fc8f616376a02171cd7f8",
+   "hash_order_free": false,
+   "loaded": {
+    "type": "watershed_state.WatershedFrame",
+    "dict_keys": [
+     "turn",
+     "phase",
+     "columns",
+     "drought_turns",
+     "floods",
+     "floods_ended",
+     "droughts_ended",
+     "external",
+     "stale_baseline",
+     "superseded",
+     "cap_changes",
+     "totals",
+     "storage_open",
+     "storage_close",
+     "closure_residual"
+    ],
+    "fields_set": [
+     "closure_residual",
+     "columns",
+     "drought_turns",
+     "phase",
+     "storage_close",
+     "storage_open",
+     "totals",
+     "turn"
+    ],
+    "extra": null,
+    "private": null,
+    "dump": {
+     "turn": 1,
+     "phase": "probe",
+     "columns": {},
+     "drought_turns": [],
+     "floods": [],
+     "droughts_ended": [],
+     "external": [],
+     "stale_baseline": false,
+     "totals": {
+      "switch_state_probe_1": 1.0,
+      "switch_state_probe_2": 2.5
+     },
+     "storage_open": 0.5,
+     "storage_close": 0.5,
+     "closure_residual": 0.5
+    }
+   },
+   "repickle_sha256": "fdab2bc5ae20a461b25c52b1d7aded84f54d41ad2a259bd95f67b7572c77c082",
+   "repickle_hash_order_free": false
+  },
+  "old": {
+   "pickle": "watershed_state.WatershedFrame.old.pkl",
+   "sha256": "7a42536d9162d16a6bcad52a68fa2b13314ccadbedcd45acccef8c5cc849a852",
+   "hash_order_free": false,
+   "loaded": {
+    "type": "watershed_state.WatershedFrame",
+    "dict_keys": [
+     "turn",
+     "phase",
+     "columns",
+     "drought_turns",
+     "totals",
+     "storage_open",
+     "storage_close",
+     "closure_residual",
+     "superseded",
+     "floods_ended",
+     "cap_changes"
+    ],
+    "fields_set": [
+     "closure_residual",
+     "columns",
+     "drought_turns",
+     "phase",
+     "storage_close",
+     "storage_open",
+     "totals",
+     "turn"
+    ],
+    "extra": null,
+    "private": null,
+    "dump": {
+     "turn": 1,
+     "phase": "probe",
+     "columns": {},
+     "drought_turns": [],
+     "totals": {
+      "switch_state_probe_1": 1.0,
+      "switch_state_probe_2": 2.5
+     },
+     "storage_open": 0.5,
+     "storage_close": 0.5,
+     "closure_residual": 0.5
+    }
+   },
+   "repickle_sha256": "f35f59bef9ffe645a3bf39cf05bb10173e304457dd8d2a627fbd8ffae7f06333",
+   "repickle_hash_order_free": false
+  },
+  "partial": {
+   "pickle": "watershed_state.WatershedFrame.partial.pkl",
+   "sha256": "4739736b145408376fa56c73414bec1c656f914b6a5f393b13aedf60705a2459",
+   "hash_order_free": false,
+   "loaded": {
+    "type": "watershed_state.WatershedFrame",
+    "dict_keys": [
+     "turn",
+     "phase",
+     "columns",
+     "drought_turns",
+     "floods",
+     "floods_ended",
+     "droughts_ended",
+     "external",
+     "stale_baseline",
+     "superseded",
+     "totals",
+     "storage_open",
+     "storage_close",
+     "closure_residual",
+     "cap_changes"
+    ],
+    "fields_set": [
+     "closure_residual",
+     "columns",
+     "drought_turns",
+     "phase",
+     "storage_close",
+     "storage_open",
+     "totals",
+     "turn"
+    ],
+    "extra": null,
+    "private": null,
+    "dump": {
+     "turn": 1,
+     "phase": "probe",
+     "columns": {},
+     "drought_turns": [],
+     "floods": [],
+     "droughts_ended": [],
+     "external": [],
+     "stale_baseline": false,
+     "totals": {
+      "switch_state_probe_1": 1.0,
+      "switch_state_probe_2": 2.5
+     },
+     "storage_open": 0.5,
+     "storage_close": 0.5,
+     "closure_residual": 0.5
+    }
+   },
+   "repickle_sha256": "e0d6db18dc09ff81f0ca708ce8eaf29195902184437f95ac5d3585ccdf7377c9",
+   "repickle_hash_order_free": false
+  }
+ }
+}

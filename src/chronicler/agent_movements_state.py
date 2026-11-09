@@ -13,7 +13,11 @@ five ``STAGE_NAMES`` mirror the native constants in ``movements.rs``.
 """
 from __future__ import annotations
 
+from typing import ClassVar
+
 from pydantic import BaseModel, Field
+
+from chronicler.switch_state import SwitchStateMixin
 
 #: ``Movement.creed`` names: the grievance a movement carries. ``guild``
 #: (guilds, ``--guilds``): a city's guild defending its privileges, founded
@@ -136,13 +140,14 @@ class Reform(BaseModel):
     repeal_event_id: str = ""
 
 
-class MovementState(BaseModel):
+class MovementState(SwitchStateMixin, BaseModel):
     """World-level switch and bookkeeping (``WorldState.agent_movements``)."""
 
     movements: list[Movement] = Field(default_factory=list)
     counters: dict[str, float] = Field(default_factory=lambda: {k: 0 for k in COUNTER_KEYS})
     last_tick_turn: int | None = None
     reforms: list[Reform] = Field(default_factory=list)
+    _BUMP: ClassVar[dict] = {"ndigits": 4}
 
 
 def agent_movements_on(world) -> bool:

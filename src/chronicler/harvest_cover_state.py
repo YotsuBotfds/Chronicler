@@ -3,6 +3,8 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
+from chronicler.switch_state import SwitchStateMixin
+
 MODES = ("loss", "record_only")
 COUNTERS = ("turns", "regions_stressed", "cover_loss", "proposed_loss")
 
@@ -20,7 +22,7 @@ class CoverRow(BaseModel):
     cover_after: float
 
 
-class HarvestCoverState(BaseModel):
+class HarvestCoverState(SwitchStateMixin, BaseModel):
     enabled: bool = True
     mode: Literal["loss", "record_only"] = "loss"
     frame_turn: int | None = None

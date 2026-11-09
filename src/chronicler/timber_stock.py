@@ -38,6 +38,7 @@ from typing import Any
 from chronicler.timber_stock_state import (
     TimberLedgerRow, TimberSlotStock, TimberStockState, TimberTotals,
 )
+from chronicler.switch_state import sub_state_getter
 
 #: Logistic regrowth rate per turn (a turn is a month: ``get_season_id``).
 #: Matches the time scale of forest cover regrowth (+0.01 cover a turn, about
@@ -67,9 +68,7 @@ SCHEMA_VERSION = 1
 
 # --- State access ---------------------------------------------------------------
 
-def _state(world) -> TimberStockState | None:
-    container = getattr(world, "livelihoods", None)
-    return getattr(container, "timber_stock", None) if container is not None else None
+_state = sub_state_getter("timber_stock")
 
 
 def timber_stock_active(world) -> bool:

@@ -43,9 +43,11 @@ never reorder.
 """
 from __future__ import annotations
 
-from typing import Literal
+from typing import ClassVar, Literal
 
 from pydantic import BaseModel, Field, PrivateAttr
+
+from chronicler.switch_state import SwitchStateMixin
 
 #: Modes (first: the default when enabled). Native ``set_household_retail``
 #: codes: retail 0, no_relief 1, free_exchange 2; record_only installs nothing.
@@ -242,7 +244,7 @@ class RegionFrame(_Backfilled):
     cap_cut: dict[str, int] | None = Field(default=None, exclude_if=_is_none)
 
 
-class HouseholdRetailState(BaseModel):
+class HouseholdRetailState(SwitchStateMixin, BaseModel):
     schema_version: Literal[1] = 1
     enabled: bool = True
     mode: Literal["retail", "no_relief", "free_exchange", "record_only"] = "retail"
@@ -288,22 +290,10 @@ class HouseholdRetailState(BaseModel):
     # Transient, within one turn (Phase 2 -> Phase 10); never serialized.
     _turn: object | None = PrivateAttr(default=None)
 
-    def __getstate__(self):
-        state = super().__getstate__()
-        private = state.get("__pydantic_private__")
-        if private and private.get("_turn") is not None:
-            state = {**state, "__pydantic_private__": {**private, "_turn": None}}
-        return state
-
-    def __setstate__(self, state):
-        super().__setstate__(state)
-        for name, field in type(self).model_fields.items():
-            if name not in self.__dict__:
-                self.__dict__[name] = field.get_default(call_default_factory=True)
-        if getattr(self, "__pydantic_private__", None) is None:
-            object.__setattr__(self, "__pydantic_private__", {"_turn": None})
-        else:
-            self.__pydantic_private__.setdefault("_turn", None)
+    _FILL_DEFAULTS: ClassVar[bool] = True
+    _FILL_PRIVATE: ClassVar[tuple[str, ...]] = ("_turn",)
+    _TRANSIENT: ClassVar[tuple[str, ...]] = ("_turn",)
+    _BUMP: ClassVar[dict] = {"allowed": COUNTERS, "coerce": int}
 
     @property
     def rules(self) -> str:

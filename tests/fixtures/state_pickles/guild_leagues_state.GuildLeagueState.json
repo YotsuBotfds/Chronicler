@@ -1,0 +1,152 @@
+{
+ "class": "guild_leagues_state.GuildLeagueState",
+ "schema_sha256": "2e19c5be3dc7ae7eb1d57ec617d72c0e0513a742830135ca1a5a74ec2af6f8b9",
+ "variants": {
+  "populated": {
+   "pickle": "guild_leagues_state.GuildLeagueState.populated.pkl",
+   "sha256": "7d447884e92c23b4867920e4c41193e50cf3ae093b3894b132f8e0882687ed07",
+   "hash_order_free": true,
+   "loaded": {
+    "type": "guild_leagues_state.GuildLeagueState",
+    "dict_keys": [
+     "enabled",
+     "mode",
+     "next_league",
+     "leagues",
+     "dissolved",
+     "dissolved_dropped",
+     "links",
+     "frame",
+     "frame_turn",
+     "log",
+     "log_dropped",
+     "counters"
+    ],
+    "fields_set": [],
+    "extra": null,
+    "private": {
+     "_turn": null
+    },
+    "dump": {
+     "enabled": true,
+     "mode": "mutual",
+     "next_league": 1,
+     "leagues": [],
+     "dissolved": [],
+     "dissolved_dropped": 0,
+     "links": [],
+     "frame": null,
+     "frame_turn": null,
+     "log": [],
+     "log_dropped": 0,
+     "counters": {
+      "switch_state_probe_1": 1,
+      "switch_state_probe_2": 2
+     }
+    }
+   },
+   "repickle_sha256": "7d447884e92c23b4867920e4c41193e50cf3ae093b3894b132f8e0882687ed07",
+   "repickle_hash_order_free": true
+  },
+  "transient": {
+   "pickle": "guild_leagues_state.GuildLeagueState.transient.pkl",
+   "sha256": "7d447884e92c23b4867920e4c41193e50cf3ae093b3894b132f8e0882687ed07",
+   "hash_order_free": true,
+   "loaded": {
+    "type": "guild_leagues_state.GuildLeagueState",
+    "dict_keys": [
+     "enabled",
+     "mode",
+     "next_league",
+     "leagues",
+     "dissolved",
+     "dissolved_dropped",
+     "links",
+     "frame",
+     "frame_turn",
+     "log",
+     "log_dropped",
+     "counters"
+    ],
+    "fields_set": [],
+    "extra": null,
+    "private": {
+     "_turn": null
+    },
+    "dump": {
+     "enabled": true,
+     "mode": "mutual",
+     "next_league": 1,
+     "leagues": [],
+     "dissolved": [],
+     "dissolved_dropped": 0,
+     "links": [],
+     "frame": null,
+     "frame_turn": null,
+     "log": [],
+     "log_dropped": 0,
+     "counters": {
+      "switch_state_probe_1": 1,
+      "switch_state_probe_2": 2
+     }
+    }
+   },
+   "repickle_sha256": "7d447884e92c23b4867920e4c41193e50cf3ae093b3894b132f8e0882687ed07",
+   "repickle_hash_order_free": true
+  },
+  "old": {
+   "pickle": "guild_leagues_state.GuildLeagueState.old.pkl",
+   "sha256": "48043280d4a8e96a9316c741c4ed13daff1e93625ff4e30ca8766d232c280538",
+   "hash_order_free": true,
+   "loaded": {
+    "type": "guild_leagues_state.GuildLeagueState",
+    "dict_keys": [],
+    "fields_set": [],
+    "extra": null,
+    "private": null,
+    "dump": {}
+   },
+   "repickle_sha256": "48043280d4a8e96a9316c741c4ed13daff1e93625ff4e30ca8766d232c280538",
+   "repickle_hash_order_free": true
+  },
+  "partial": {
+   "pickle": "guild_leagues_state.GuildLeagueState.partial.pkl",
+   "sha256": "59cfb5c1587574f1579e77408191119f470279db31f826e07833a3d5fc647461",
+   "hash_order_free": true,
+   "loaded": {
+    "type": "guild_leagues_state.GuildLeagueState",
+    "dict_keys": [
+     "enabled",
+     "mode",
+     "next_league",
+     "leagues",
+     "dissolved",
+     "dissolved_dropped",
+     "links",
+     "frame",
+     "frame_turn",
+     "log",
+     "log_dropped"
+    ],
+    "fields_set": [],
+    "extra": null,
+    "private": {},
+    "dump": {
+     "enabled": true,
+     "mode": "mutual",
+     "next_league": 1,
+     "leagues": [],
+     "dissolved": [],
+     "dissolved_dropped": 0,
+     "links": [],
+     "frame": null,
+     "frame_turn": null,
+     "log": [],
+     "log_dropped": 0
+    }
+   },
+   "repickle_sha256": "59cfb5c1587574f1579e77408191119f470279db31f826e07833a3d5fc647461",
+   "repickle_hash_order_free": true
+  }
+ }
+}

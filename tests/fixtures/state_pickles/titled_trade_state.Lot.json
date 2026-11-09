@@ -1,0 +1,93 @@
+{
+ "class": "titled_trade_state.Lot",
+ "schema_sha256": "2ec6ebc208c42e211d300e484e7c8606924a7432d877c80af865dde5d6c2dcd6",
+ "variants": {
+  "populated": {
+   "pickle": "titled_trade_state.Lot.populated.pkl",
+   "sha256": "ecb2368b9a0ae97ee8b0b316b8f0b7ecdfa546e9b33b7c5c8effe972fe5380aa",
+   "hash_order_free": false,
+   "loaded": {
+    "type": "titled_trade_state.Lot",
+    "dict_keys": [
+     "holder",
+     "region",
+     "milli",
+     "shipments"
+    ],
+    "fields_set": [
+     "holder",
+     "milli",
+     "region"
+    ],
+    "extra": null,
+    "private": null,
+    "dump": {
+     "holder": 1,
+     "region": 1,
+     "milli": 1,
+     "shipments": []
+    }
+   },
+   "repickle_sha256": "b708b9fa6fe5fe3ef4bb770ed0d94c3bccc1fa0c1b62c7b8f2b7ea0512ecc64e",
+   "repickle_hash_order_free": false
+  },
+  "old": {
+   "pickle": "titled_trade_state.Lot.old.pkl",
+   "sha256": "b51604174fecf8b71c2e49151b2ad7c93710dacc737ba6e49cdaee95add30dfb",
+   "hash_order_free": false,
+   "loaded": {
+    "type": "titled_trade_state.Lot",
+    "dict_keys": [
+     "holder",
+     "region",
+     "milli",
+     "shipments"
+    ],
+    "fields_set": [
+     "holder",
+     "milli",
+     "region"
+    ],
+    "extra": null,
+    "private": null,
+    "dump": {
+     "holder": 1,
+     "region": 1,
+     "milli": 1,
+     "shipments": []
+    }
+   },
+   "repickle_sha256": "ecb2368b9a0ae97ee8b0b316b8f0b7ecdfa546e9b33b7c5c8effe972fe5380aa",
+   "repickle_hash_order_free": false
+  },
+  "partial": {
+   "pickle": "titled_trade_state.Lot.partial.pkl",
+   "sha256": "b51604174fecf8b71c2e49151b2ad7c93710dacc737ba6e49cdaee95add30dfb",
+   "hash_order_free": false,
+   "loaded": {
+    "type": "titled_trade_state.Lot",
+    "dict_keys": [
+     "holder",
+     "region",
+     "milli",
+     "shipments"
+    ],
+    "fields_set": [
+     "holder",
+     "milli",
+     "region"
+    ],
+    "extra": null,
+    "private": null,
+    "dump": {
+     "holder": 1,
+     "region": 1,
+     "milli": 1,
+     "shipments": []
+    }
+   },
+   "repickle_sha256": "ecb2368b9a0ae97ee8b0b316b8f0b7ecdfa546e9b33b7c5c8effe972fe5380aa",
+   "repickle_hash_order_free": false
+  }
+ }
+}

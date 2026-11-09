@@ -414,8 +414,7 @@ def _rng(world, namespace: str, *parts) -> random.Random:
 
 
 def _bump(state: MaritimeState, key: str, amount: float = 1) -> None:
-    value = state.counters.get(key, 0) + amount
-    state.counters[key] = round(value, 4) if isinstance(value, float) else value
+    state.bump(key, amount)
 
 
 def era_index(civ) -> int:

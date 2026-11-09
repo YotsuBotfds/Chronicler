@@ -116,12 +116,12 @@ tuned on any run.
 from __future__ import annotations
 
 import math
-from importlib import import_module
 
 from chronicler.timber_supply_state import (
-    COUNTERS, MAX_CLOSED, MAX_DROPS, MAX_HISTORY, MAX_NEEDS, MODES, Expedition, ExpeditionReceipt,
+    MAX_CLOSED, MAX_DROPS, MAX_HISTORY, MAX_NEEDS, MODES, Expedition, ExpeditionReceipt,
     NeedRow, StoreRow, TimberSupplyState, WageLedger,
 )
+from chronicler.switch_state import lane_active, sub_state_getter
 
 MILLI = 1000
 #: Most named woodcutters on one expedition: RS2's ``MAX_CREW``, the named
@@ -228,15 +228,11 @@ class _Turn:
         self.needs_dropped = 0
 
 
-def _state(world) -> TimberSupplyState | None:
-    container = getattr(world, "livelihoods", None)
-    return getattr(container, "timber_supply", None) if container is not None else None
+_state = sub_state_getter("timber_supply")
 
 
 def _bump(state, key: str, amount=1) -> None:
-    if key not in COUNTERS:
-        raise KeyError(f"undeclared timber-supply counter {key!r}")
-    state.counters[key] = state.counters.get(key, 0) + amount
+    state.bump(key, amount)
 
 
 def _note(exp: Expedition, turn: int, event: str) -> None:
@@ -244,10 +240,7 @@ def _note(exp: Expedition, turn: int, event: str) -> None:
     del exp.history[:-MAX_HISTORY]
 
 
-def _lane_active(world, name: str) -> bool:
-    if getattr(getattr(world, "livelihoods", None), name, None) is None:
-        return False
-    return bool(getattr(import_module("chronicler." + name), f"{name}_active")(world))
+_lane_active = lane_active
 
 
 def set_timber_supply_enabled(world, value: bool, *, args=None, agent_mode=None) -> None:

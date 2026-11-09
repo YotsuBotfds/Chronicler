@@ -71,6 +71,7 @@ from chronicler.clearing_protection_state import (
     COUNTER_KEYS, ClearingProtectionState, Protection, ProtectionDecision,
     ProtectionReceipt, UnprotectedRegion,
 )
+from chronicler.switch_state import bump_counter, controller_index, sub_state_getter
 
 #: Protections a civilization may hold at once.
 MAX_REGIONS = 2
@@ -114,9 +115,7 @@ class _Plan:
 
 # --- State and switch -----------------------------------------------------------
 
-def _state(world) -> ClearingProtectionState | None:
-    container = getattr(world, "livelihoods", None)
-    return getattr(container, "clearing_protection", None) if container is not None else None
+_state = sub_state_getter("clearing_protection")
 
 
 def clearing_protection_active(world) -> bool:
@@ -144,11 +143,7 @@ def set_clearing_protection_enabled(world, value: bool, *, args=None, agent_mode
 
 # --- Observations ---------------------------------------------------------------
 
-def _controller(world, rid: int) -> int:
-    name = world.regions[rid].controller
-    if name is None:
-        return -1
-    return world.civ_index_map.get(name, -1)
+_controller = controller_index
 
 
 def forest_pop_ratio(world) -> float:
@@ -369,7 +364,7 @@ def observe_native(world, region_batch) -> None:
 
 
 def _bump(counters: dict, key: str, amount) -> None:
-    counters[key] = counters.get(key, 0) + amount
+    bump_counter(counters, key, amount)
 
 
 def _timber_capacity_kept(world, rid: int, kept: float) -> float | None:

@@ -27,9 +27,11 @@ never reorder.
 """
 from __future__ import annotations
 
-from typing import Literal
+from typing import ClassVar, Literal
 
 from pydantic import BaseModel, Field, PrivateAttr
+
+from chronicler.switch_state import SwitchStateMixin
 
 MAX_OPEN = 512
 MAX_OUTCOMES = 24
@@ -189,7 +191,7 @@ class VeteranFrame(BaseModel):
     rows_dropped: int = 0
 
 
-class VeteranReintegrationState(BaseModel):
+class VeteranReintegrationState(SwitchStateMixin, BaseModel):
     schema_version: Literal[1] = 1
     enabled: bool = True
     mode: Literal["priority", "record_only"] = "priority"
@@ -218,18 +220,8 @@ class VeteranReintegrationState(BaseModel):
     # hook, carried into the frame Phase 10 builds.
     _carry: tuple | None = PrivateAttr(default=None)
 
-    def __setstate__(self, state):
-        super().__setstate__(state)
-        # Exact pickle restoration bypasses Pydantic defaults: a pickle of the
-        # RS0 stub holds only the switch, its mode and counters.
-        for name, field in type(self).model_fields.items():
-            if name not in self.__dict__:
-                self.__dict__[name] = field.get_default(call_default_factory=True)
-        private = getattr(self, "__pydantic_private__", None)
-        if private is None:
-            private = {}
-            object.__setattr__(self, "__pydantic_private__", private)
-        private.setdefault("_captures", [])
-        private.setdefault("_phase2", None)
-        private.setdefault("_noted", [])
-        private.setdefault("_carry", None)
+    # Exact pickle restoration bypasses Pydantic defaults: a pickle of the
+    # RS0 stub holds only the switch, its mode and counters.
+    _FILL_DEFAULTS: ClassVar[bool] = True
+    _FILL_PRIVATE: ClassVar[tuple[str, ...]] = ("_captures", "_phase2", "_noted", "_carry")
+    _BUMP: ClassVar[dict] = {"allowed": COUNTERS, "coerce": int, "skip_zero": True}

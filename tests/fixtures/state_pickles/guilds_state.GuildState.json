@@ -1,0 +1,99 @@
+{
+ "class": "guilds_state.GuildState",
+ "schema_sha256": "77169f751ed24c9b9828c78b58280d0ecc323c0a6db6a7450ab8d39da8de2147",
+ "variants": {
+  "populated": {
+   "pickle": "guilds_state.GuildState.populated.pkl",
+   "sha256": "8e1ed9968fc453fe10bb2d17052914fcad029cc8ee1bc6e19c7a7e0731702d8f",
+   "hash_order_free": true,
+   "loaded": {
+    "type": "guilds_state.GuildState",
+    "dict_keys": [
+     "guilds",
+     "counters",
+     "burgher_idle",
+     "last_tick_turn"
+    ],
+    "fields_set": [],
+    "extra": null,
+    "private": null,
+    "dump": {
+     "guilds": [],
+     "counters": {
+      "founded": 1.0,
+      "dissolved": 0,
+      "privileges": 0,
+      "privileges_lost": 0,
+      "levies": 0,
+      "threats": 0,
+      "movements": 0,
+      "charters": 0,
+      "take": 0,
+      "walls": 0,
+      "burghers_formed": 0,
+      "burghers_dissolved": 0,
+      "news_foundings": 0,
+      "switch_state_probe_2": 2.5
+     },
+     "burgher_idle": [],
+     "last_tick_turn": null
+    }
+   },
+   "repickle_sha256": "8e1ed9968fc453fe10bb2d17052914fcad029cc8ee1bc6e19c7a7e0731702d8f",
+   "repickle_hash_order_free": true
+  },
+  "old": {
+   "pickle": "guilds_state.GuildState.old.pkl",
+   "sha256": "087d6629d95e3b3eaa4e4e0b02a7b309c44bcab87e66b6aaeaf61aae7d536574",
+   "hash_order_free": true,
+   "loaded": {
+    "type": "guilds_state.GuildState",
+    "dict_keys": [],
+    "fields_set": [],
+    "extra": null,
+    "private": null,
+    "dump": {}
+   },
+   "repickle_sha256": "087d6629d95e3b3eaa4e4e0b02a7b309c44bcab87e66b6aaeaf61aae7d536574",
+   "repickle_hash_order_free": true
+  },
+  "partial": {
+   "pickle": "guilds_state.GuildState.partial.pkl",
+   "sha256": "48f971ce9ffdce642ede8543c18bdc59ccb4139865ee26e6ab4ac140b6427d7a",
+   "hash_order_free": true,
+   "loaded": {
+    "type": "guilds_state.GuildState",
+    "dict_keys": [
+     "guilds",
+     "counters",
+     "burgher_idle"
+    ],
+    "fields_set": [],
+    "extra": null,
+    "private": null,
+    "dump": {
+     "guilds": [],
+     "counters": {
+      "founded": 1.0,
+      "dissolved": 0,
+      "privileges": 0,
+      "privileges_lost": 0,
+      "levies": 0,
+      "threats": 0,
+      "movements": 0,
+      "charters": 0,
+      "take": 0,
+      "walls": 0,
+      "burghers_formed": 0,
+      "burghers_dissolved": 0,
+      "news_foundings": 0,
+      "switch_state_probe_2": 2.5
+     },
+     "burgher_idle": []
+    }
+   },
+   "repickle_sha256": "48f971ce9ffdce642ede8543c18bdc59ccb4139865ee26e6ab4ac140b6427d7a",
+   "repickle_hash_order_free": true
+  }
+ }
+}

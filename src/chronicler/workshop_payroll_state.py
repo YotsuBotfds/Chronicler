@@ -16,6 +16,8 @@ from typing import Literal
 
 from pydantic import BaseModel, Field, PrivateAttr
 
+from chronicler.switch_state import SwitchStateMixin
+
 #: Payroll modes, in declaration order (append only). ``paid``: sales fund
 #: wages; ``unpaid_labor`` (cost-retaining ablation): the firm still sells and
 #: the crew's ordinary income share is still replaced, but no wage is paid;
@@ -169,7 +171,7 @@ class PayrollReceipt(BaseModel):
     household_sold: int | None = Field(default=None, exclude_if=_is_none)
 
 
-class WorkshopPayrollState(BaseModel):
+class WorkshopPayrollState(SwitchStateMixin, BaseModel):
     schema_version: Literal[1] = 1
     enabled: bool = True
     mode: Literal["paid", "unpaid_labor", "no_customer"] = "paid"

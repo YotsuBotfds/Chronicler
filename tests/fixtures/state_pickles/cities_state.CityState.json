@@ -1,0 +1,115 @@
+{
+ "class": "cities_state.CityState",
+ "schema_sha256": "a65f8b10b8d41a5287d062a560116669cef2a2ef964523b7ecce320689ea188c",
+ "variants": {
+  "populated": {
+   "pickle": "cities_state.CityState.populated.pkl",
+   "sha256": "cd1faccd34d8e40a29ba1983ecccfd1391afc250e592259332af665c941ee6c9",
+   "hash_order_free": true,
+   "loaded": {
+    "type": "cities_state.CityState",
+    "dict_keys": [
+     "cities",
+     "fallen",
+     "owed",
+     "carry",
+     "counters",
+     "last_tick_turn"
+    ],
+    "fields_set": [],
+    "extra": null,
+    "private": null,
+    "dump": {
+     "cities": [],
+     "fallen": [],
+     "owed": [],
+     "carry": [],
+     "counters": {
+      "founded": 1.0,
+      "rank_ups": 0,
+      "rank_downs": 0,
+      "fallen": 0,
+      "charters": 0,
+      "refusals": 0,
+      "revolts": 0,
+      "concessions": 0,
+      "suppressions": 0,
+      "free_cities": 0,
+      "sacks": 0,
+      "walls": 0,
+      "dues": 0,
+      "fees": 0,
+      "fines": 0,
+      "plunder": 0,
+      "commerce": 0,
+      "switch_state_probe_2": 2.5
+     },
+     "last_tick_turn": null
+    }
+   },
+   "repickle_sha256": "cd1faccd34d8e40a29ba1983ecccfd1391afc250e592259332af665c941ee6c9",
+   "repickle_hash_order_free": true
+  },
+  "old": {
+   "pickle": "cities_state.CityState.old.pkl",
+   "sha256": "a7bfadb894c236b0b52eea2151b845edc6749bfaaeba89483c86179d547e3dfa",
+   "hash_order_free": true,
+   "loaded": {
+    "type": "cities_state.CityState",
+    "dict_keys": [],
+    "fields_set": [],
+    "extra": null,
+    "private": null,
+    "dump": {}
+   },
+   "repickle_sha256": "a7bfadb894c236b0b52eea2151b845edc6749bfaaeba89483c86179d547e3dfa",
+   "repickle_hash_order_free": true
+  },
+  "partial": {
+   "pickle": "cities_state.CityState.partial.pkl",
+   "sha256": "208a02e20d48939e8baa18e6dbf4278cb8b1c7deea279e754303c828db05d4b5",
+   "hash_order_free": true,
+   "loaded": {
+    "type": "cities_state.CityState",
+    "dict_keys": [
+     "cities",
+     "fallen",
+     "owed",
+     "carry",
+     "counters"
+    ],
+    "fields_set": [],
+    "extra": null,
+    "private": null,
+    "dump": {
+     "cities": [],
+     "fallen": [],
+     "owed": [],
+     "carry": [],
+     "counters": {
+      "founded": 1.0,
+      "rank_ups": 0,
+      "rank_downs": 0,
+      "fallen": 0,
+      "charters": 0,
+      "refusals": 0,
+      "revolts": 0,
+      "concessions": 0,
+      "suppressions": 0,
+      "free_cities": 0,
+      "sacks": 0,
+      "walls": 0,
+      "dues": 0,
+      "fees": 0,
+      "fines": 0,
+      "plunder": 0,
+      "commerce": 0,
+      "switch_state_probe_2": 2.5
+     }
+    }
+   },
+   "repickle_sha256": "208a02e20d48939e8baa18e6dbf4278cb8b1c7deea279e754303c828db05d4b5",
+   "repickle_hash_order_free": true
+  }
+ }
+}

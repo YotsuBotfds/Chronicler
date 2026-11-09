@@ -1,10 +1,12 @@
 """A6 bounded, dated personal experience; no second residence authority."""
-from typing import Literal
+from typing import ClassVar, Literal
 
 from pydantic import BaseModel, Field, PrivateAttr
 
+from chronicler.switch_state import SwitchStateMixin
 
-class AdaptiveLivelihoodsState(BaseModel):
+
+class AdaptiveLivelihoodsState(SwitchStateMixin, BaseModel):
     enabled: bool = True
     mode: Literal["adapt", "record_only", "shuffled"] = "adapt"
     rules: Literal["1", "2", "3"] = "2"
@@ -25,11 +27,9 @@ class AdaptiveLivelihoodsState(BaseModel):
     _record_turn: int | None = PrivateAttr(default=None)
     _record_keys: set = PrivateAttr(default_factory=set)
     _work_heap: list = PrivateAttr(default_factory=list)
+    _FILL_DEFAULTS: ClassVar[bool] = True
 
     def __setstate__(self, state):
         super().__setstate__(state)
-        for name, field in type(self).model_fields.items():
-            if name not in self.__dict__:
-                self.__dict__[name] = field.get_default(call_default_factory=True)
         self._index_turn, self._work_index, self._offer_cache = None, {}, {}
         self._record_turn, self._record_keys, self._work_heap = None, set(), []

@@ -65,6 +65,7 @@ from chronicler.attribution_records_state import (
     IDENTITY_KINDS, LIFETIME, MAX_ENTRIES, MAX_IDENTITY_LOG, MAX_LOG, AttributionRecordsState, CivIdentity,
     IdentityRecord, LogRecord,
 )
+from chronicler.switch_state import sub_state_getter
 
 STAGE = "D2"
 
@@ -134,15 +135,11 @@ class _Turn:
 # Switch
 # ---------------------------------------------------------------------------
 
-def _state(world) -> AttributionRecordsState | None:
-    container = getattr(world, "livelihoods", None)
-    return getattr(container, "attribution_records", None) if container is not None else None
+_state = sub_state_getter("attribution_records")
 
 
 def _bump(state: AttributionRecordsState, key: str, amount: int = 1) -> None:
-    if key not in COUNTERS:
-        raise KeyError(f"undeclared attribution-records counter {key!r}")
-    state.counters[key] = state.counters.get(key, 0) + amount
+    state.bump(key, amount)
 
 
 def _total(state: AttributionRecordsState, key: str, amount) -> None:

@@ -28,11 +28,12 @@ never reorder.
 """
 from __future__ import annotations
 
-from typing import Any, Literal
+from typing import Any, ClassVar, Literal
 
 from pydantic import BaseModel, Field, PrivateAttr
 
 from chronicler.money import MoneyBook
+from chronicler.switch_state import SwitchStateMixin
 
 #: How a shipment ended (append only). ``delivered``: consigned at the
 #: destination (or deposited there when its claim was refused);
@@ -184,7 +185,7 @@ class TradeRecord(_Backfilled):
     detail: dict[str, Any] = Field(default_factory=dict)
 
 
-class TitledTradeState(BaseModel):
+class TitledTradeState(SwitchStateMixin, BaseModel):
     schema_version: Literal[1] = 1
     enabled: bool = True
     goods: Literal["food"] = "food"
@@ -206,22 +207,10 @@ class TitledTradeState(BaseModel):
     # Transient, within one turn (Phase 2 -> Phase 10); never serialized.
     _turn: object | None = PrivateAttr(default=None)
 
-    def __getstate__(self):
-        state = super().__getstate__()
-        private = state.get("__pydantic_private__")
-        if private and private.get("_turn") is not None:
-            state = {**state, "__pydantic_private__": {**private, "_turn": None}}
-        return state
-
-    def __setstate__(self, state):
-        super().__setstate__(state)
-        for name, field in type(self).model_fields.items():
-            if name not in self.__dict__:
-                self.__dict__[name] = field.get_default(call_default_factory=True)
-        if getattr(self, "__pydantic_private__", None) is None:
-            object.__setattr__(self, "__pydantic_private__", {"_turn": None})
-        else:
-            self.__pydantic_private__.setdefault("_turn", None)
+    _FILL_DEFAULTS: ClassVar[bool] = True
+    _FILL_PRIVATE: ClassVar[tuple[str, ...]] = ("_turn",)
+    _TRANSIENT: ClassVar[tuple[str, ...]] = ("_turn",)
+    _BUMP: ClassVar[dict] = {"allowed": COUNTERS, "message": "undeclared titled trade counter {key!r}", "coerce": int}
 
     def shipment(self, sid: int) -> Shipment | None:
         return next((s for s in self.shipments if s.id == sid), None)

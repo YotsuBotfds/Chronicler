@@ -76,6 +76,7 @@ from chronicler.epidemic_care_state import (
     COUNTERS, MAX_FRAME_ROWS, MODES, CapacityRefusal, CareApplied, CareCapacity, CareReceipt, Carer,
     CivWageLedger, EpidemicCareState, TickRegion,
 )
+from chronicler.switch_state import sub_state_getter
 
 MILLI = 1000
 #: Share of case fatality removed at full coverage (declared). The size of
@@ -134,15 +135,11 @@ class _Turn:
 # Switch
 # ---------------------------------------------------------------------------
 
-def _state(world) -> EpidemicCareState | None:
-    container = getattr(world, "livelihoods", None)
-    return getattr(container, "epidemic_care", None) if container is not None else None
+_state = sub_state_getter("epidemic_care")
 
 
 def _bump(state, key: str, amount=1) -> None:
-    if key not in COUNTERS:
-        raise KeyError(f"undeclared epidemic care counter {key!r}")
-    state.counters[key] = round(state.counters.get(key, 0) + amount, 6)
+    state.bump(key, amount)
 
 
 def set_epidemic_care_enabled(world, value: bool, *, args=None, agent_mode=None) -> None:

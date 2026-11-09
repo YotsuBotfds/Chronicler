@@ -1,0 +1,220 @@
+{
+ "class": "repair_projects_state.RepairProjectsState",
+ "schema_sha256": "9158f398f1c8bfff10ec8818cf69fb7a73f5d0893326a23b0f9d2b79a44d8927",
+ "variants": {
+  "populated": {
+   "pickle": "repair_projects_state.RepairProjectsState.populated.pkl",
+   "sha256": "e6862b15211917d43ca02b08787e235448a241e388d741575858191df721319e",
+   "hash_order_free": true,
+   "loaded": {
+    "type": "repair_projects_state.RepairProjectsState",
+    "dict_keys": [
+     "schema_version",
+     "enabled",
+     "mode",
+     "next_pid",
+     "next_did",
+     "projects",
+     "closed",
+     "damages",
+     "frame_turn",
+     "receipts",
+     "ledger",
+     "unmet",
+     "suspended",
+     "last_settled_turn",
+     "prepaid",
+     "counters"
+    ],
+    "fields_set": [],
+    "extra": null,
+    "private": {
+     "_turn": null,
+     "_labour": null
+    },
+    "dump": {
+     "schema_version": 1,
+     "enabled": true,
+     "mode": "repair",
+     "next_pid": 0,
+     "next_did": 0,
+     "projects": [],
+     "closed": [],
+     "damages": [],
+     "frame_turn": null,
+     "receipts": null,
+     "ledger": null,
+     "unmet": [],
+     "suspended": [],
+     "last_settled_turn": null,
+     "prepaid": {},
+     "counters": {
+      "switch_state_probe_1": 1.0,
+      "switch_state_probe_2": 2.5
+     }
+    }
+   },
+   "repickle_sha256": "e6862b15211917d43ca02b08787e235448a241e388d741575858191df721319e",
+   "repickle_hash_order_free": true
+  },
+  "transient": {
+   "pickle": "repair_projects_state.RepairProjectsState.transient.pkl",
+   "sha256": "e6862b15211917d43ca02b08787e235448a241e388d741575858191df721319e",
+   "hash_order_free": true,
+   "loaded": {
+    "type": "repair_projects_state.RepairProjectsState",
+    "dict_keys": [
+     "schema_version",
+     "enabled",
+     "mode",
+     "next_pid",
+     "next_did",
+     "projects",
+     "closed",
+     "damages",
+     "frame_turn",
+     "receipts",
+     "ledger",
+     "unmet",
+     "suspended",
+     "last_settled_turn",
+     "prepaid",
+     "counters"
+    ],
+    "fields_set": [],
+    "extra": null,
+    "private": {
+     "_turn": null,
+     "_labour": null
+    },
+    "dump": {
+     "schema_version": 1,
+     "enabled": true,
+     "mode": "repair",
+     "next_pid": 0,
+     "next_did": 0,
+     "projects": [],
+     "closed": [],
+     "damages": [],
+     "frame_turn": null,
+     "receipts": null,
+     "ledger": null,
+     "unmet": [],
+     "suspended": [],
+     "last_settled_turn": null,
+     "prepaid": {},
+     "counters": {
+      "switch_state_probe_1": 1.0,
+      "switch_state_probe_2": 2.5
+     }
+    }
+   },
+   "repickle_sha256": "e6862b15211917d43ca02b08787e235448a241e388d741575858191df721319e",
+   "repickle_hash_order_free": true
+  },
+  "old": {
+   "pickle": "repair_projects_state.RepairProjectsState.old.pkl",
+   "sha256": "0b2807e1cd4f3080feb91487e80640fda08e41b2f0b0f972cd3f73032de9fd7a",
+   "hash_order_free": true,
+   "loaded": {
+    "type": "repair_projects_state.RepairProjectsState",
+    "dict_keys": [
+     "schema_version",
+     "enabled",
+     "mode",
+     "next_pid",
+     "next_did",
+     "projects",
+     "closed",
+     "damages",
+     "frame_turn",
+     "receipts",
+     "ledger",
+     "unmet",
+     "suspended",
+     "last_settled_turn",
+     "prepaid",
+     "counters"
+    ],
+    "fields_set": [],
+    "extra": null,
+    "private": {
+     "_turn": null,
+     "_labour": null
+    },
+    "dump": {
+     "schema_version": 1,
+     "enabled": true,
+     "mode": "repair",
+     "next_pid": 0,
+     "next_did": 0,
+     "projects": [],
+     "closed": [],
+     "damages": [],
+     "frame_turn": null,
+     "receipts": null,
+     "ledger": null,
+     "unmet": [],
+     "suspended": [],
+     "last_settled_turn": null,
+     "prepaid": {},
+     "counters": {}
+    }
+   },
+   "repickle_sha256": "a5e4e5a2ebecd9975d82a383bd8ebd2a5906e0107d0f683b68bd9111ab5624c7",
+   "repickle_hash_order_free": true
+  },
+  "partial": {
+   "pickle": "repair_projects_state.RepairProjectsState.partial.pkl",
+   "sha256": "7b9fa377795651a9a03773fe2391b0a9df9a73438ddec6a568ce09b3496a11be",
+   "hash_order_free": true,
+   "loaded": {
+    "type": "repair_projects_state.RepairProjectsState",
+    "dict_keys": [
+     "schema_version",
+     "enabled",
+     "mode",
+     "next_pid",
+     "next_did",
+     "projects",
+     "closed",
+     "damages",
+     "frame_turn",
+     "receipts",
+     "ledger",
+     "unmet",
+     "suspended",
+     "last_settled_turn",
+     "prepaid",
+     "counters"
+    ],
+    "fields_set": [],
+    "extra": null,
+    "private": {
+     "_turn": null,
+     "_labour": null
+    },
+    "dump": {
+     "schema_version": 1,
+     "enabled": true,
+     "mode": "repair",
+     "next_pid": 0,
+     "next_did": 0,
+     "projects": [],
+     "closed": [],
+     "damages": [],
+     "frame_turn": null,
+     "receipts": null,
+     "ledger": null,
+     "unmet": [],
+     "suspended": [],
+     "last_settled_turn": null,
+     "prepaid": {},
+     "counters": {}
+    }
+   },
+   "repickle_sha256": "a5e4e5a2ebecd9975d82a383bd8ebd2a5906e0107d0f683b68bd9111ab5624c7",
+   "repickle_hash_order_free": true
+  }
+ }
+}

@@ -1,0 +1,149 @@
+{
+ "class": "workshop_payroll_state.WorkshopPayrollState",
+ "schema_sha256": "dd5a32ba9d060e7441ecf0fd4c3c770683996d86b7e810614470788ef5d6457e",
+ "variants": {
+  "populated": {
+   "pickle": "workshop_payroll_state.WorkshopPayrollState.populated.pkl",
+   "sha256": "9d9da6d1cc1c12b08773dac0f7e8327827fb1ab4370489fdb979793202c88308",
+   "hash_order_free": true,
+   "loaded": {
+    "type": "workshop_payroll_state.WorkshopPayrollState",
+    "dict_keys": [
+     "schema_version",
+     "enabled",
+     "mode",
+     "firms",
+     "closed",
+     "frame_turn",
+     "frame",
+     "money",
+     "materials",
+     "counters",
+     "last_payroll_turn"
+    ],
+    "fields_set": [],
+    "extra": null,
+    "private": {
+     "_turn": null
+    },
+    "dump": {
+     "schema_version": 1,
+     "enabled": true,
+     "mode": "paid",
+     "firms": [],
+     "closed": [],
+     "frame_turn": null,
+     "frame": [],
+     "money": [],
+     "materials": [],
+     "counters": {
+      "switch_state_probe_1": 1.0,
+      "switch_state_probe_2": 2.5
+     },
+     "last_payroll_turn": null
+    }
+   },
+   "repickle_sha256": "9d9da6d1cc1c12b08773dac0f7e8327827fb1ab4370489fdb979793202c88308",
+   "repickle_hash_order_free": true
+  },
+  "transient": {
+   "pickle": "workshop_payroll_state.WorkshopPayrollState.transient.pkl",
+   "sha256": "4561a1cd8fa40b3a53b4c33fe1f062d9dc990f53536c9234a64a5387ed46b7f0",
+   "hash_order_free": true,
+   "loaded": {
+    "type": "workshop_payroll_state.WorkshopPayrollState",
+    "dict_keys": [
+     "schema_version",
+     "enabled",
+     "mode",
+     "firms",
+     "closed",
+     "frame_turn",
+     "frame",
+     "money",
+     "materials",
+     "counters",
+     "last_payroll_turn"
+    ],
+    "fields_set": [],
+    "extra": null,
+    "private": {
+     "_turn": "probe:_turn"
+    },
+    "dump": {
+     "schema_version": 1,
+     "enabled": true,
+     "mode": "paid",
+     "firms": [],
+     "closed": [],
+     "frame_turn": null,
+     "frame": [],
+     "money": [],
+     "materials": [],
+     "counters": {
+      "switch_state_probe_1": 1.0,
+      "switch_state_probe_2": 2.5
+     },
+     "last_payroll_turn": null
+    }
+   },
+   "repickle_sha256": "4561a1cd8fa40b3a53b4c33fe1f062d9dc990f53536c9234a64a5387ed46b7f0",
+   "repickle_hash_order_free": true
+  },
+  "old": {
+   "pickle": "workshop_payroll_state.WorkshopPayrollState.old.pkl",
+   "sha256": "1738f74a904ce0ebbed7a4e6c71e88935332d036afb438a0e09ec78b9ebfd45a",
+   "hash_order_free": true,
+   "loaded": {
+    "type": "workshop_payroll_state.WorkshopPayrollState",
+    "dict_keys": [],
+    "fields_set": [],
+    "extra": null,
+    "private": null,
+    "dump": {}
+   },
+   "repickle_sha256": "1738f74a904ce0ebbed7a4e6c71e88935332d036afb438a0e09ec78b9ebfd45a",
+   "repickle_hash_order_free": true
+  },
+  "partial": {
+   "pickle": "workshop_payroll_state.WorkshopPayrollState.partial.pkl",
+   "sha256": "5fab173dd1e045e2438479c588b87bf3c9a88c67fdf87648a801026096037bbf",
+   "hash_order_free": true,
+   "loaded": {
+    "type": "workshop_payroll_state.WorkshopPayrollState",
+    "dict_keys": [
+     "schema_version",
+     "enabled",
+     "mode",
+     "firms",
+     "closed",
+     "frame_turn",
+     "frame",
+     "money",
+     "materials",
+     "counters"
+    ],
+    "fields_set": [],
+    "extra": null,
+    "private": {},
+    "dump": {
+     "schema_version": 1,
+     "enabled": true,
+     "mode": "paid",
+     "firms": [],
+     "closed": [],
+     "frame_turn": null,
+     "frame": [],
+     "money": [],
+     "materials": [],
+     "counters": {
+      "switch_state_probe_1": 1.0,
+      "switch_state_probe_2": 2.5
+     }
+    }
+   },
+   "repickle_sha256": "5fab173dd1e045e2438479c588b87bf3c9a88c67fdf87648a801026096037bbf",
+   "repickle_hash_order_free": true
+  }
+ }
+}

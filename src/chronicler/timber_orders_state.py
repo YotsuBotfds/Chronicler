@@ -1,7 +1,8 @@
 """Checkpointed A4-3 timber procurement, title and real escrow (default off)."""
-from typing import Any, Literal
+from typing import Any, ClassVar, Literal
 from pydantic import BaseModel, Field, PrivateAttr
 from chronicler.money import MoneyBook
+from chronicler.switch_state import SwitchStateMixin
 
 COUNTERS = (
     "dispatched", "delivered", "cancelled", "seized", "pool_reset", "expired",
@@ -39,7 +40,7 @@ class TimberOrder(BaseModel):
     refunded_milli: int = 0
     withheld: float = 0.0
 
-class TimberOrdersState(BaseModel):
+class TimberOrdersState(SwitchStateMixin, BaseModel):
     schema_version: Literal[1] = 1
     enabled: bool = True
     next_order: int = 0
@@ -51,6 +52,9 @@ class TimberOrdersState(BaseModel):
     counters: dict[str, int] = Field(default_factory=dict)
     book: MoneyBook = Field(default_factory=MoneyBook)
     _turn: Any = PrivateAttr(default=None)
+    _BUMP: ClassVar[dict] = {"allowed": COUNTERS, "message": "undeclared timber order counter {key}", "coerce": int}
+    # Not _TRANSIENT: this always pickles exactly {"_turn": None}, even for a
+    # missing or empty private dict.
     def __getstate__(self):
         state = super().__getstate__()
         state["__pydantic_private__"] = {"_turn": None}

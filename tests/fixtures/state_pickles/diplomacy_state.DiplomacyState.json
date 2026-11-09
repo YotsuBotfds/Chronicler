@@ -1,0 +1,80 @@
+{
+ "class": "diplomacy_state.DiplomacyState",
+ "schema_sha256": "209e910637145f05caa25fc41ae5d49324fe3baeaf1225e0bd731c978ea84fe9",
+ "variants": {
+  "populated": {
+   "pickle": "diplomacy_state.DiplomacyState.populated.pkl",
+   "sha256": "0c16becd683a77577c2cd3375761b3fc2bf8afeaede7c1d65aef11f3f6cf1298",
+   "hash_order_free": true,
+   "loaded": {
+    "type": "diplomacy_state.DiplomacyState",
+    "dict_keys": [
+     "treaties",
+     "next_treaty_id",
+     "cooldowns",
+     "subjects",
+     "controllers",
+     "counts"
+    ],
+    "fields_set": [],
+    "extra": null,
+    "private": null,
+    "dump": {
+     "treaties": [],
+     "next_treaty_id": 1,
+     "cooldowns": [],
+     "subjects": [],
+     "controllers": [],
+     "counts": {
+      "switch_state_probe_1": 1,
+      "switch_state_probe_2": 2
+     }
+    }
+   },
+   "repickle_sha256": "0c16becd683a77577c2cd3375761b3fc2bf8afeaede7c1d65aef11f3f6cf1298",
+   "repickle_hash_order_free": true
+  },
+  "old": {
+   "pickle": "diplomacy_state.DiplomacyState.old.pkl",
+   "sha256": "1463f674742ca0b5a2a6ae8886a76e38273133dc1fbfe84fe1f2ab81c303f362",
+   "hash_order_free": true,
+   "loaded": {
+    "type": "diplomacy_state.DiplomacyState",
+    "dict_keys": [],
+    "fields_set": [],
+    "extra": null,
+    "private": null,
+    "dump": {}
+   },
+   "repickle_sha256": "1463f674742ca0b5a2a6ae8886a76e38273133dc1fbfe84fe1f2ab81c303f362",
+   "repickle_hash_order_free": true
+  },
+  "partial": {
+   "pickle": "diplomacy_state.DiplomacyState.partial.pkl",
+   "sha256": "dad50d4b4e2e300bfadc8bfc1a037bef85dfd0d05b98532726f970be49a1defe",
+   "hash_order_free": true,
+   "loaded": {
+    "type": "diplomacy_state.DiplomacyState",
+    "dict_keys": [
+     "treaties",
+     "next_treaty_id",
+     "cooldowns",
+     "subjects",
+     "controllers"
+    ],
+    "fields_set": [],
+    "extra": null,
+    "private": null,
+    "dump": {
+     "treaties": [],
+     "next_treaty_id": 1,
+     "cooldowns": [],
+     "subjects": [],
+     "controllers": []
+    }
+   },
+   "repickle_sha256": "dad50d4b4e2e300bfadc8bfc1a037bef85dfd0d05b98532726f970be49a1defe",
+   "repickle_hash_order_free": true
+  }
+ }
+}

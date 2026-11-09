@@ -1,0 +1,101 @@
+{
+ "class": "ritual_gatherings_state.RitualGatheringState",
+ "schema_sha256": "06d8d2f3d9dd94c60cdb3b4f071d81dba5c41f4f9fb7a7b2d1da7f2cb53d0246",
+ "variants": {
+  "populated": {
+   "pickle": "ritual_gatherings_state.RitualGatheringState.populated.pkl",
+   "sha256": "1a8ed9d60b8de8840be3da2ba9dc1e7a138d5836eb8c649378efecaa567cea68",
+   "hash_order_free": true,
+   "loaded": {
+    "type": "ritual_gatherings_state.RitualGatheringState",
+    "dict_keys": [
+     "schedules",
+     "outcomes_turn",
+     "outcomes",
+     "last_tick_turn",
+     "counters",
+     "contact_enabled",
+     "bonds_enabled"
+    ],
+    "fields_set": [],
+    "extra": null,
+    "private": null,
+    "dump": {
+     "schedules": [],
+     "outcomes_turn": null,
+     "outcomes": [],
+     "last_tick_turn": -1,
+     "counters": {
+      "scheduled": 1.0,
+      "held": 0.0,
+      "cancelled": 0.0,
+      "attendees": 0.0,
+      "food": 0.0,
+      "funds": 0.0,
+      "contact_units": 0.0,
+      "bond_ops": 0.0,
+      "switch_state_probe_2": 2.5
+     },
+     "contact_enabled": true,
+     "bonds_enabled": true
+    }
+   },
+   "repickle_sha256": "1a8ed9d60b8de8840be3da2ba9dc1e7a138d5836eb8c649378efecaa567cea68",
+   "repickle_hash_order_free": true
+  },
+  "old": {
+   "pickle": "ritual_gatherings_state.RitualGatheringState.old.pkl",
+   "sha256": "25471199412d8abb91ae8cfeb0eb7e1eb9e43bd563b576905427c966711a0dfa",
+   "hash_order_free": true,
+   "loaded": {
+    "type": "ritual_gatherings_state.RitualGatheringState",
+    "dict_keys": [],
+    "fields_set": [],
+    "extra": null,
+    "private": null,
+    "dump": {}
+   },
+   "repickle_sha256": "25471199412d8abb91ae8cfeb0eb7e1eb9e43bd563b576905427c966711a0dfa",
+   "repickle_hash_order_free": true
+  },
+  "partial": {
+   "pickle": "ritual_gatherings_state.RitualGatheringState.partial.pkl",
+   "sha256": "3f855daddcb9b21409a2523193dc92923ba81531b2b3e5d4252e7f8379205040",
+   "hash_order_free": true,
+   "loaded": {
+    "type": "ritual_gatherings_state.RitualGatheringState",
+    "dict_keys": [
+     "schedules",
+     "outcomes_turn",
+     "outcomes",
+     "last_tick_turn",
+     "counters",
+     "contact_enabled"
+    ],
+    "fields_set": [],
+    "extra": null,
+    "private": null,
+    "dump": {
+     "schedules": [],
+     "outcomes_turn": null,
+     "outcomes": [],
+     "last_tick_turn": -1,
+     "counters": {
+      "scheduled": 1.0,
+      "held": 0.0,
+      "cancelled": 0.0,
+      "attendees": 0.0,
+      "food": 0.0,
+      "funds": 0.0,
+      "contact_units": 0.0,
+      "bond_ops": 0.0,
+      "switch_state_probe_2": 2.5
+     },
+     "contact_enabled": true
+    }
+   },
+   "repickle_sha256": "3f855daddcb9b21409a2523193dc92923ba81531b2b3e5d4252e7f8379205040",
+   "repickle_hash_order_free": true
+  }
+ }
+}

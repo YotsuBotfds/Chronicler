@@ -1,0 +1,113 @@
+{
+ "class": "operating_wear_state.OperatingWearState",
+ "schema_sha256": "2ee9d51c4ebd0e66297944a93499c7cac8ab5fbe82d8fe921be502c9212e538a",
+ "variants": {
+  "populated": {
+   "pickle": "operating_wear_state.OperatingWearState.populated.pkl",
+   "sha256": "70cf4a2a6037ce355c21a6f5e5b70b956c4833e484c6299761e7104ae199a74a",
+   "hash_order_free": true,
+   "loaded": {
+    "type": "operating_wear_state.OperatingWearState",
+    "dict_keys": [
+     "schema_version",
+     "enabled",
+     "counters",
+     "frame_turn",
+     "frame"
+    ],
+    "fields_set": [],
+    "extra": null,
+    "private": {
+     "_pending": null
+    },
+    "dump": {
+     "schema_version": 1,
+     "enabled": true,
+     "counters": {
+      "switch_state_probe_1": 1.0,
+      "switch_state_probe_2": 2.5
+     },
+     "frame_turn": null,
+     "frame": []
+    }
+   },
+   "repickle_sha256": "70cf4a2a6037ce355c21a6f5e5b70b956c4833e484c6299761e7104ae199a74a",
+   "repickle_hash_order_free": true
+  },
+  "transient": {
+   "pickle": "operating_wear_state.OperatingWearState.transient.pkl",
+   "sha256": "84959a866efae9c87362705ea966ec119296cc88cb8cdb3a3a73073ee9a50592",
+   "hash_order_free": true,
+   "loaded": {
+    "type": "operating_wear_state.OperatingWearState",
+    "dict_keys": [
+     "schema_version",
+     "enabled",
+     "counters",
+     "frame_turn",
+     "frame"
+    ],
+    "fields_set": [],
+    "extra": null,
+    "private": {
+     "_pending": "probe:_pending"
+    },
+    "dump": {
+     "schema_version": 1,
+     "enabled": true,
+     "counters": {
+      "switch_state_probe_1": 1.0,
+      "switch_state_probe_2": 2.5
+     },
+     "frame_turn": null,
+     "frame": []
+    }
+   },
+   "repickle_sha256": "84959a866efae9c87362705ea966ec119296cc88cb8cdb3a3a73073ee9a50592",
+   "repickle_hash_order_free": true
+  },
+  "old": {
+   "pickle": "operating_wear_state.OperatingWearState.old.pkl",
+   "sha256": "0b819fb23e99f87d1572fa8d7cf344abfb93c2efbac47f52a36f4147d43b6cea",
+   "hash_order_free": true,
+   "loaded": {
+    "type": "operating_wear_state.OperatingWearState",
+    "dict_keys": [],
+    "fields_set": [],
+    "extra": null,
+    "private": null,
+    "dump": {}
+   },
+   "repickle_sha256": "0b819fb23e99f87d1572fa8d7cf344abfb93c2efbac47f52a36f4147d43b6cea",
+   "repickle_hash_order_free": true
+  },
+  "partial": {
+   "pickle": "operating_wear_state.OperatingWearState.partial.pkl",
+   "sha256": "7586ab146bff25a15eceee66501debaabd8492c4349d3787f84975220cedd8e5",
+   "hash_order_free": true,
+   "loaded": {
+    "type": "operating_wear_state.OperatingWearState",
+    "dict_keys": [
+     "schema_version",
+     "enabled",
+     "counters",
+     "frame_turn"
+    ],
+    "fields_set": [],
+    "extra": null,
+    "private": {},
+    "dump": {
+     "schema_version": 1,
+     "enabled": true,
+     "counters": {
+      "switch_state_probe_1": 1.0,
+      "switch_state_probe_2": 2.5
+     },
+     "frame_turn": null
+    }
+   },
+   "repickle_sha256": "7586ab146bff25a15eceee66501debaabd8492c4349d3787f84975220cedd8e5",
+   "repickle_hash_order_free": true
+  }
+ }
+}

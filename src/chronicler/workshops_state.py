@@ -13,6 +13,8 @@ from typing import Literal
 
 from pydantic import BaseModel, Field, PrivateAttr
 
+from chronicler.switch_state import SwitchStateMixin
+
 MAX_SITES = 4
 MAX_CREW = 8
 MAX_CLOSED = 8
@@ -87,7 +89,7 @@ class WorkshopReceipt(BaseModel):
     affected_ordinary_income_share: float = 0.0
 
 
-class WorkshopState(BaseModel):
+class WorkshopState(SwitchStateMixin, BaseModel):
     schema_version: Literal[1] = 1
     enabled: bool = True
     mode: Literal["operate", "observe", "cost_only"] = "observe"

@@ -1,11 +1,12 @@
 """Dated evidence and material receipts for opt-in connected public health."""
 from __future__ import annotations
 
-from typing import Literal
+from typing import ClassVar, Literal
 
 from pydantic import BaseModel, Field, PrivateAttr
 
 from chronicler.money import MoneyBook
+from chronicler.switch_state import SwitchStateMixin
 
 
 class OutbreakReport(BaseModel):
@@ -35,7 +36,7 @@ class SupplyReceipt(BaseModel):
     reason: str = "unavailable"
 
 
-class PublicHealthState(BaseModel):
+class PublicHealthState(SwitchStateMixin, BaseModel):
     schema_version: Literal[1] = 1
     enabled: bool = True
     mode: Literal["active", "cost_only"] = "active"
@@ -68,21 +69,6 @@ class PublicHealthState(BaseModel):
     funding_turn: int | None = None
     funding: list[dict] = Field(default_factory=list)
     _guard_tick: object | None = PrivateAttr(default=None)
-
-    def __getstate__(self):
-        state = super().__getstate__()
-        private = state.get("__pydantic_private__")
-        if private and private.get("_guard_tick") is not None:
-            state = {**state, "__pydantic_private__": {**private, "_guard_tick": None}}
-        return state
-
-    def __setstate__(self, state):
-        super().__setstate__(state)
-        for name, field in type(self).model_fields.items():
-            if name not in self.__dict__:
-                self.__dict__[name] = field.get_default(call_default_factory=True)
-        private = getattr(self, "__pydantic_private__", None)
-        if private is None:
-            object.__setattr__(self, "__pydantic_private__", {"_guard_tick": None})
-        else:
-            private.setdefault("_guard_tick", None)
+    _FILL_DEFAULTS: ClassVar[bool] = True
+    _FILL_PRIVATE: ClassVar[tuple[str, ...]] = ("_guard_tick",)
+    _TRANSIENT: ClassVar[tuple[str, ...]] = ("_guard_tick",)

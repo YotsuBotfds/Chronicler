@@ -1,0 +1,121 @@
+{
+ "class": "agent_movements_state.MovementState",
+ "schema_sha256": "792e02563cb9fac1b47fa02b9ec8438ce128348b1d8e2c5c1ce1fae4f8f9d2ce",
+ "variants": {
+  "populated": {
+   "pickle": "agent_movements_state.MovementState.populated.pkl",
+   "sha256": "c98c9aa69f109caa11b9c65490bb5dd8c5bd23f4f85479c6b42f3e92703c7d58",
+   "hash_order_free": true,
+   "loaded": {
+    "type": "agent_movements_state.MovementState",
+    "dict_keys": [
+     "movements",
+     "counters",
+     "last_tick_turn",
+     "reforms"
+    ],
+    "fields_set": [],
+    "extra": null,
+    "private": null,
+    "dump": {
+     "movements": [],
+     "counters": {
+      "founded": 1.0,
+      "demands": 0,
+      "reforms": 0,
+      "refusals": 0,
+      "crackdowns": 0,
+      "martyrs": 0,
+      "risings": 0,
+      "concessions": 0,
+      "crushed": 0,
+      "secessions": 0,
+      "schisms": 0,
+      "faded": 0,
+      "won": 0,
+      "broken": 0,
+      "dissolved": 0,
+      "relief_cost": 0,
+      "enacted": 0,
+      "extended": 0,
+      "repealed": 0,
+      "lapsed": 0,
+      "restored": 0,
+      "upkeep": 0,
+      "leaders": 0,
+      "charters": 0,
+      "switch_state_probe_2": 2.5
+     },
+     "last_tick_turn": null,
+     "reforms": []
+    }
+   },
+   "repickle_sha256": "c98c9aa69f109caa11b9c65490bb5dd8c5bd23f4f85479c6b42f3e92703c7d58",
+   "repickle_hash_order_free": true
+  },
+  "old": {
+   "pickle": "agent_movements_state.MovementState.old.pkl",
+   "sha256": "b121762476c0dbde737d3928aa584a67c1821b873bd2dc1e9bb933f2c587ecd7",
+   "hash_order_free": true,
+   "loaded": {
+    "type": "agent_movements_state.MovementState",
+    "dict_keys": [],
+    "fields_set": [],
+    "extra": null,
+    "private": null,
+    "dump": {}
+   },
+   "repickle_sha256": "b121762476c0dbde737d3928aa584a67c1821b873bd2dc1e9bb933f2c587ecd7",
+   "repickle_hash_order_free": true
+  },
+  "partial": {
+   "pickle": "agent_movements_state.MovementState.partial.pkl",
+   "sha256": "53a7338f700262e9c6c8e65563de5903c4c7854ae3281909343ec3d92704f3e9",
+   "hash_order_free": true,
+   "loaded": {
+    "type": "agent_movements_state.MovementState",
+    "dict_keys": [
+     "movements",
+     "counters",
+     "last_tick_turn"
+    ],
+    "fields_set": [],
+    "extra": null,
+    "private": null,
+    "dump": {
+     "movements": [],
+     "counters": {
+      "founded": 1.0,
+      "demands": 0,
+      "reforms": 0,
+      "refusals": 0,
+      "crackdowns": 0,
+      "martyrs": 0,
+      "risings": 0,
+      "concessions": 0,
+      "crushed": 0,
+      "secessions": 0,
+      "schisms": 0,
+      "faded": 0,
+      "won": 0,
+      "broken": 0,
+      "dissolved": 0,
+      "relief_cost": 0,
+      "enacted": 0,
+      "extended": 0,
+      "repealed": 0,
+      "lapsed": 0,
+      "restored": 0,
+      "upkeep": 0,
+      "leaders": 0,
+      "charters": 0,
+      "switch_state_probe_2": 2.5
+     },
+     "last_tick_turn": null
+    }
+   },
+   "repickle_sha256": "53a7338f700262e9c6c8e65563de5903c4c7854ae3281909343ec3d92704f3e9",
+   "repickle_hash_order_free": true
+  }
+ }
+}

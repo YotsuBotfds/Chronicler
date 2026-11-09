@@ -14,9 +14,11 @@ Pure data, importable by :mod:`chronicler.livelihoods_state`.
 """
 from __future__ import annotations
 
-from typing import Literal
+from typing import ClassVar, Literal
 
 from pydantic import BaseModel, Field, PrivateAttr
+
+from chronicler.switch_state import SwitchStateMixin
 
 #: ``--local-budget-mode`` values (first: the default when enabled).
 MODES: tuple[str, ...] = ("bargained", "fixed_shares")
@@ -140,7 +142,7 @@ class Response(BaseModel):
     after: float
 
 
-class LocalBudgetState(BaseModel):
+class LocalBudgetState(SwitchStateMixin, BaseModel):
     schema_version: Literal[1] = 1
     enabled: bool = True
     mode: Literal["bargained", "fixed_shares"] = "bargained"
@@ -155,3 +157,4 @@ class LocalBudgetState(BaseModel):
     #: Execution observations recorded by the services within one turn and
     #: consumed (cleared) by that turn's settlement; empty between turns.
     _trace: dict = PrivateAttr(default_factory=dict)
+    _BUMP: ClassVar[dict] = {"ndigits": 6}

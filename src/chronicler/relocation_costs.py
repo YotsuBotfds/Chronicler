@@ -66,6 +66,7 @@ from chronicler.relocation_costs_state import (
     COUNTERS, GATE_REASONS, MAX_HOUSEHOLDS, MAX_TRACKED, TRANSFER_STATUSES,
     AssistanceCharge, HouseholdMove, RegionPressure, RelocationCostsState, ServiceReceipt,
 )
+from chronicler.switch_state import sub_state_getter
 
 FARE_MILLI = 1000            # per person, children included (one wealth unit)
 ASSIST_MILLI = 500           # per person, to a household short of the fare
@@ -84,15 +85,11 @@ class _Plan:
         self.turn, self.payers, self.budgets, self.food = turn, payers, budgets, food
 
 
-def _state(world) -> RelocationCostsState | None:
-    container = getattr(world, "livelihoods", None)
-    return getattr(container, "relocation_costs", None) if container is not None else None
+_state = sub_state_getter("relocation_costs")
 
 
 def _bump(state: RelocationCostsState, key: str, amount: int = 1) -> None:
-    if key not in COUNTERS:
-        raise KeyError(key)
-    state.counters[key] = state.counters.get(key, 0) + int(amount)
+    state.bump(key, amount)
 
 
 def set_relocation_costs_enabled(world, value: bool, *, args=None, agent_mode=None) -> None:

@@ -1,0 +1,170 @@
+{
+ "class": "reform_services_state.ReformServicesState",
+ "schema_sha256": "6547ea62a2d0c957b940d4f427000154e66c57a814c9a1de73c2d2f94be64486",
+ "variants": {
+  "populated": {
+   "pickle": "reform_services_state.ReformServicesState.populated.pkl",
+   "sha256": "3d1a1addc0592b98c45ceae020b5eefc263a54c54e49d49f010910203d374c1d",
+   "hash_order_free": true,
+   "loaded": {
+    "type": "reform_services_state.ReformServicesState",
+    "dict_keys": [
+     "enabled",
+     "mode",
+     "funds",
+     "book",
+     "pending",
+     "pending_turn",
+     "frame",
+     "frame_turn",
+     "log",
+     "log_dropped",
+     "counters"
+    ],
+    "fields_set": [],
+    "extra": null,
+    "private": {
+     "_turn": null
+    },
+    "dump": {
+     "enabled": true,
+     "mode": "service",
+     "funds": {},
+     "book": {
+      "settled": [],
+      "carry": {},
+      "sinks": {},
+      "flows_turn": null,
+      "flows": [],
+      "flows_dropped": 0,
+      "totals": []
+     },
+     "pending": [],
+     "pending_turn": null,
+     "frame": null,
+     "frame_turn": null,
+     "log": [],
+     "log_dropped": 0,
+     "counters": {
+      "switch_state_probe_1": 1,
+      "switch_state_probe_2": 2
+     }
+    }
+   },
+   "repickle_sha256": "3d1a1addc0592b98c45ceae020b5eefc263a54c54e49d49f010910203d374c1d",
+   "repickle_hash_order_free": true
+  },
+  "transient": {
+   "pickle": "reform_services_state.ReformServicesState.transient.pkl",
+   "sha256": "3d1a1addc0592b98c45ceae020b5eefc263a54c54e49d49f010910203d374c1d",
+   "hash_order_free": true,
+   "loaded": {
+    "type": "reform_services_state.ReformServicesState",
+    "dict_keys": [
+     "enabled",
+     "mode",
+     "funds",
+     "book",
+     "pending",
+     "pending_turn",
+     "frame",
+     "frame_turn",
+     "log",
+     "log_dropped",
+     "counters"
+    ],
+    "fields_set": [],
+    "extra": null,
+    "private": {
+     "_turn": null
+    },
+    "dump": {
+     "enabled": true,
+     "mode": "service",
+     "funds": {},
+     "book": {
+      "settled": [],
+      "carry": {},
+      "sinks": {},
+      "flows_turn": null,
+      "flows": [],
+      "flows_dropped": 0,
+      "totals": []
+     },
+     "pending": [],
+     "pending_turn": null,
+     "frame": null,
+     "frame_turn": null,
+     "log": [],
+     "log_dropped": 0,
+     "counters": {
+      "switch_state_probe_1": 1,
+      "switch_state_probe_2": 2
+     }
+    }
+   },
+   "repickle_sha256": "3d1a1addc0592b98c45ceae020b5eefc263a54c54e49d49f010910203d374c1d",
+   "repickle_hash_order_free": true
+  },
+  "old": {
+   "pickle": "reform_services_state.ReformServicesState.old.pkl",
+   "sha256": "6794dbfe9d1b24fb07591a9ee04c7839c9171adeefd4a600fbc07f759ad4597f",
+   "hash_order_free": true,
+   "loaded": {
+    "type": "reform_services_state.ReformServicesState",
+    "dict_keys": [],
+    "fields_set": [],
+    "extra": null,
+    "private": null,
+    "dump": {}
+   },
+   "repickle_sha256": "6794dbfe9d1b24fb07591a9ee04c7839c9171adeefd4a600fbc07f759ad4597f",
+   "repickle_hash_order_free": true
+  },
+  "partial": {
+   "pickle": "reform_services_state.ReformServicesState.partial.pkl",
+   "sha256": "e532a15be988836dc9fc56fd4eb688073e74e507eda80c4365eaca52656f2477",
+   "hash_order_free": true,
+   "loaded": {
+    "type": "reform_services_state.ReformServicesState",
+    "dict_keys": [
+     "enabled",
+     "mode",
+     "funds",
+     "book",
+     "pending",
+     "pending_turn",
+     "frame",
+     "frame_turn",
+     "log",
+     "log_dropped"
+    ],
+    "fields_set": [],
+    "extra": null,
+    "private": {},
+    "dump": {
+     "enabled": true,
+     "mode": "service",
+     "funds": {},
+     "book": {
+      "settled": [],
+      "carry": {},
+      "sinks": {},
+      "flows_turn": null,
+      "flows": [],
+      "flows_dropped": 0,
+      "totals": []
+     },
+     "pending": [],
+     "pending_turn": null,
+     "frame": null,
+     "frame_turn": null,
+     "log": [],
+     "log_dropped": 0
+    }
+   },
+   "repickle_sha256": "e532a15be988836dc9fc56fd4eb688073e74e507eda80c4365eaca52656f2477",
+   "repickle_hash_order_free": true
+  }
+ }
+}

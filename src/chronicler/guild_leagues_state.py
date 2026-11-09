@@ -20,9 +20,11 @@ are declaration orders: append, never reorder.
 """
 from __future__ import annotations
 
-from typing import Literal
+from typing import ClassVar, Literal
 
 from pydantic import BaseModel, Field, PrivateAttr
+
+from chronicler.switch_state import SwitchStateMixin
 
 #: ``--guild-league-mode`` choices (the first is the default when enabled).
 MODES: tuple[str, ...] = ("mutual", "dues_only")
@@ -137,7 +139,7 @@ class LeagueRecord(BaseModel):
     note: str = ""
 
 
-class GuildLeagueState(BaseModel):
+class GuildLeagueState(SwitchStateMixin, BaseModel):
     enabled: bool = True
     mode: Literal["mutual", "dues_only"] = "mutual"
     next_league: int = 1
@@ -154,9 +156,5 @@ class GuildLeagueState(BaseModel):
     # {"levy": milli, "sack": milli, "sack_event": id} noted at the event. Never serialized.
     _turn: object | None = PrivateAttr(default=None)
 
-    def __getstate__(self):
-        state = super().__getstate__()
-        private = state.get("__pydantic_private__")
-        if private and private.get("_turn") is not None:
-            state = {**state, "__pydantic_private__": {**private, "_turn": None}}
-        return state
+    _TRANSIENT: ClassVar[tuple[str, ...]] = ("_turn",)
+    _BUMP: ClassVar[dict] = {"allowed": COUNTERS, "coerce": int}

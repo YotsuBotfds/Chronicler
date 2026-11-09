@@ -1,0 +1,200 @@
+{
+ "class": "nomads_state.NomadState",
+ "schema_sha256": "ef75efa831d7beebdfd53d50937b5349d0adda6478ded02a195df41902874dd4",
+ "variants": {
+  "populated": {
+   "pickle": "nomads_state.NomadState.populated.pkl",
+   "sha256": "6b1df0dde85d01744a381d33bd56665fb9fa07082a24a7946bb4c8636696d14f",
+   "hash_order_free": true,
+   "loaded": {
+    "type": "nomads_state.NomadState",
+    "dict_keys": [
+     "modes",
+     "mode_turn",
+     "mode_event",
+     "settle",
+     "herds",
+     "dry",
+     "controllers",
+     "raids",
+     "tributes",
+     "hordes",
+     "conquests",
+     "next_pact_id",
+     "next_horde_id",
+     "counters"
+    ],
+    "fields_set": [],
+    "extra": null,
+    "private": {
+     "_cache": {
+      "__object__": "chronicler.nomads_state._CacheSlot"
+     }
+    },
+    "dump": {
+     "modes": [],
+     "mode_turn": [],
+     "mode_event": [],
+     "settle": [],
+     "herds": [],
+     "dry": [],
+     "controllers": [],
+     "raids": [],
+     "tributes": [],
+     "hordes": [],
+     "conquests": [],
+     "next_pact_id": 1,
+     "next_horde_id": 1,
+     "counters": {
+      "raids": 1.0,
+      "raids_repulsed": 0,
+      "plunder": 0,
+      "raid_deaths": 0,
+      "tributes": 0,
+      "tribute_paid": 0,
+      "tributes_repudiated": 0,
+      "hordes_formed": 0,
+      "hordes_fragmented": 0,
+      "hordes_dissolved": 0,
+      "horde_rides": 0,
+      "horde_wars": 0,
+      "nomad_conquests": 0,
+      "sedentarizations": 0,
+      "dzuds": 0,
+      "herds_lost_dzud": 0,
+      "herds_lost_pasture": 0,
+      "pastures_abandoned": 0,
+      "switch_state_probe_2": 2.5
+     }
+    }
+   },
+   "repickle_sha256": "6b1df0dde85d01744a381d33bd56665fb9fa07082a24a7946bb4c8636696d14f",
+   "repickle_hash_order_free": true
+  },
+  "transient": {
+   "pickle": "nomads_state.NomadState.transient.pkl",
+   "sha256": "bae24de23b3549df340ebd704f031e732e9e92283874df1c220311968f45e8ad",
+   "hash_order_free": true,
+   "loaded": {
+    "type": "nomads_state.NomadState",
+    "dict_keys": [
+     "modes",
+     "mode_turn",
+     "mode_event",
+     "settle",
+     "herds",
+     "dry",
+     "controllers",
+     "raids",
+     "tributes",
+     "hordes",
+     "conquests",
+     "next_pact_id",
+     "next_horde_id",
+     "counters"
+    ],
+    "fields_set": [],
+    "extra": null,
+    "private": {
+     "_cache": "probe:_cache"
+    },
+    "dump": {
+     "modes": [],
+     "mode_turn": [],
+     "mode_event": [],
+     "settle": [],
+     "herds": [],
+     "dry": [],
+     "controllers": [],
+     "raids": [],
+     "tributes": [],
+     "hordes": [],
+     "conquests": [],
+     "next_pact_id": 1,
+     "next_horde_id": 1,
+     "counters": {
+      "raids": 1.0,
+      "raids_repulsed": 0,
+      "plunder": 0,
+      "raid_deaths": 0,
+      "tributes": 0,
+      "tribute_paid": 0,
+      "tributes_repudiated": 0,
+      "hordes_formed": 0,
+      "hordes_fragmented": 0,
+      "hordes_dissolved": 0,
+      "horde_rides": 0,
+      "horde_wars": 0,
+      "nomad_conquests": 0,
+      "sedentarizations": 0,
+      "dzuds": 0,
+      "herds_lost_dzud": 0,
+      "herds_lost_pasture": 0,
+      "pastures_abandoned": 0,
+      "switch_state_probe_2": 2.5
+     }
+    }
+   },
+   "repickle_sha256": "bae24de23b3549df340ebd704f031e732e9e92283874df1c220311968f45e8ad",
+   "repickle_hash_order_free": true
+  },
+  "old": {
+   "pickle": "nomads_state.NomadState.old.pkl",
+   "sha256": "d29804c1ab1fa7f4bc0920cd77442cf81b5b11945867ec7d9ce4b1246fe15c8f",
+   "hash_order_free": true,
+   "loaded": {
+    "type": "nomads_state.NomadState",
+    "dict_keys": [],
+    "fields_set": [],
+    "extra": null,
+    "private": null,
+    "dump": {}
+   },
+   "repickle_sha256": "d29804c1ab1fa7f4bc0920cd77442cf81b5b11945867ec7d9ce4b1246fe15c8f",
+   "repickle_hash_order_free": true
+  },
+  "partial": {
+   "pickle": "nomads_state.NomadState.partial.pkl",
+   "sha256": "992f0230e9cb9664e55ca7dc43550221f99f7de5ddf15b9f85ddc780c89db806",
+   "hash_order_free": true,
+   "loaded": {
+    "type": "nomads_state.NomadState",
+    "dict_keys": [
+     "modes",
+     "mode_turn",
+     "mode_event",
+     "settle",
+     "herds",
+     "dry",
+     "controllers",
+     "raids",
+     "tributes",
+     "hordes",
+     "conquests",
+     "next_pact_id",
+     "next_horde_id"
+    ],
+    "fields_set": [],
+    "extra": null,
+    "private": {},
+    "dump": {
+     "modes": [],
+     "mode_turn": [],
+     "mode_event": [],
+     "settle": [],
+     "herds": [],
+     "dry": [],
+     "controllers": [],
+     "raids": [],
+     "tributes": [],
+     "hordes": [],
+     "conquests": [],
+     "next_pact_id": 1,
+     "next_horde_id": 1
+    }
+   },
+   "repickle_sha256": "992f0230e9cb9664e55ca7dc43550221f99f7de5ddf15b9f85ddc780c89db806",
+   "repickle_hash_order_free": true
+  }
+ }
+}

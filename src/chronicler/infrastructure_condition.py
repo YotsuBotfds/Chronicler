@@ -119,10 +119,11 @@ from __future__ import annotations
 import math
 
 from chronicler.infrastructure_condition_state import (
-    COUNTERS, KINDS, MAX_CLOSED, MAX_DAMAGES, MAX_HISTORY, MAX_TERMINAL, MAX_TIMBER_NEEDS, MODES, WORK_MODES,
+    KINDS, MAX_CLOSED, MAX_DAMAGES, MAX_HISTORY, MAX_TERMINAL, MAX_TIMBER_NEEDS, MODES, WORK_MODES,
     InfraAsset, InfraDamage, InfrastructureConditionState, InfraWork, SkippedDamage, UnmetWork, WorkReceipt,
     WorksLedger,
 )
+from chronicler.switch_state import sub_state_getter
 
 MILLI = 1000
 #: Condition lost per turn by a serving asset (declared).
@@ -166,9 +167,7 @@ _TYPES = {"IRRIGATION": "irrigation", "ROADS": "roads"}
 # Switch and lookups
 # ---------------------------------------------------------------------------
 
-def _state(world) -> InfrastructureConditionState | None:
-    container = getattr(world, "livelihoods", None)
-    return getattr(container, "infrastructure_condition", None) if container is not None else None
+_state = sub_state_getter("infrastructure_condition")
 
 
 def infrastructure_condition_active(world) -> bool:
@@ -190,9 +189,7 @@ def _works_on(world, state) -> bool:
 
 
 def _bump(state, key: str, amount=1) -> None:
-    if key not in COUNTERS:
-        raise KeyError(f"undeclared infrastructure-condition counter {key!r}")
-    state.counters[key] = state.counters.get(key, 0) + amount
+    state.bump(key, amount)
 
 
 def _note(item, turn: int, event: str, civ: int, amount: int = 0) -> None:

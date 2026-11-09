@@ -1,0 +1,160 @@
+{
+ "class": "grain_reserves_state.GrainReserveState",
+ "schema_sha256": "b795186ea1d162ce6be66d7a97fb5b27aae57e6a528bc4eda8acd3d94b29fc91",
+ "variants": {
+  "populated": {
+   "pickle": "grain_reserves_state.GrainReserveState.populated.pkl",
+   "sha256": "10a9b233b665f9b794a8ab46a33a17b03a2103068cbd2700a2788dd40ba17608",
+   "hash_order_free": true,
+   "loaded": {
+    "type": "grain_reserves_state.GrainReserveState",
+    "dict_keys": [
+     "granaries",
+     "flows",
+     "flows_turn",
+     "counters",
+     "shipments",
+     "storage"
+    ],
+    "fields_set": [],
+    "extra": null,
+    "private": {
+     "_ledger": null
+    },
+    "dump": {
+     "granaries": [],
+     "flows": [],
+     "flows_turn": null,
+     "counters": {
+      "bought_own": 1.0,
+      "bought_realm": 0.0,
+      "bought_foreign": 0.0,
+      "sent": 0.0,
+      "transit_loss": 0.0,
+      "paid_own": 0.0,
+      "paid_foreign": 0.0,
+      "released": 0.0,
+      "released_severe": 0.0,
+      "spoiled": 0.0,
+      "seized": 0.0,
+      "abandoned": 0.0,
+      "captured": 0.0,
+      "openings": 0.0,
+      "exhausted": 0.0,
+      "switch_state_probe_2": 2.5
+     }
+    }
+   },
+   "repickle_sha256": "10a9b233b665f9b794a8ab46a33a17b03a2103068cbd2700a2788dd40ba17608",
+   "repickle_hash_order_free": true
+  },
+  "transient": {
+   "pickle": "grain_reserves_state.GrainReserveState.transient.pkl",
+   "sha256": "be68d870da231fcedb78dbd62c06ea28c303eaf3cd5bd47905f13a76140d1cff",
+   "hash_order_free": true,
+   "loaded": {
+    "type": "grain_reserves_state.GrainReserveState",
+    "dict_keys": [
+     "granaries",
+     "flows",
+     "flows_turn",
+     "counters",
+     "shipments",
+     "storage"
+    ],
+    "fields_set": [],
+    "extra": null,
+    "private": {
+     "_ledger": "probe:_ledger"
+    },
+    "dump": {
+     "granaries": [],
+     "flows": [],
+     "flows_turn": null,
+     "counters": {
+      "bought_own": 1.0,
+      "bought_realm": 0.0,
+      "bought_foreign": 0.0,
+      "sent": 0.0,
+      "transit_loss": 0.0,
+      "paid_own": 0.0,
+      "paid_foreign": 0.0,
+      "released": 0.0,
+      "released_severe": 0.0,
+      "spoiled": 0.0,
+      "seized": 0.0,
+      "abandoned": 0.0,
+      "captured": 0.0,
+      "openings": 0.0,
+      "exhausted": 0.0,
+      "switch_state_probe_2": 2.5
+     }
+    }
+   },
+   "repickle_sha256": "be68d870da231fcedb78dbd62c06ea28c303eaf3cd5bd47905f13a76140d1cff",
+   "repickle_hash_order_free": true
+  },
+  "old": {
+   "pickle": "grain_reserves_state.GrainReserveState.old.pkl",
+   "sha256": "8fa38bfe157d67287de4f72e786918160a47623806aeebd1b0fab505576c2ae8",
+   "hash_order_free": true,
+   "loaded": {
+    "type": "grain_reserves_state.GrainReserveState",
+    "dict_keys": [
+     "shipments",
+     "storage"
+    ],
+    "fields_set": [],
+    "extra": null,
+    "private": null,
+    "dump": {}
+   },
+   "repickle_sha256": "dcf242d4fe410e528561fac33fb345095392f32ccd168ac7293ce049e0235169",
+   "repickle_hash_order_free": true
+  },
+  "partial": {
+   "pickle": "grain_reserves_state.GrainReserveState.partial.pkl",
+   "sha256": "76f7d12322eccb9b3b2e4c7114ba0c8b051f249edccc298b9ec49931e5ec1561",
+   "hash_order_free": true,
+   "loaded": {
+    "type": "grain_reserves_state.GrainReserveState",
+    "dict_keys": [
+     "granaries",
+     "flows",
+     "flows_turn",
+     "counters",
+     "shipments",
+     "storage"
+    ],
+    "fields_set": [],
+    "extra": null,
+    "private": {},
+    "dump": {
+     "granaries": [],
+     "flows": [],
+     "flows_turn": null,
+     "counters": {
+      "bought_own": 1.0,
+      "bought_realm": 0.0,
+      "bought_foreign": 0.0,
+      "sent": 0.0,
+      "transit_loss": 0.0,
+      "paid_own": 0.0,
+      "paid_foreign": 0.0,
+      "released": 0.0,
+      "released_severe": 0.0,
+      "spoiled": 0.0,
+      "seized": 0.0,
+      "abandoned": 0.0,
+      "captured": 0.0,
+      "openings": 0.0,
+      "exhausted": 0.0,
+      "switch_state_probe_2": 2.5
+     }
+    }
+   },
+   "repickle_sha256": "76f7d12322eccb9b3b2e4c7114ba0c8b051f249edccc298b9ec49931e5ec1561",
+   "repickle_hash_order_free": true
+  }
+ }
+}

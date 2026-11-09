@@ -1,0 +1,159 @@
+{
+ "class": "timber_orders_state.TimberOrdersState",
+ "schema_sha256": "eedd359c9626f7d10b26edfb24580628f2bee91a3db8807f395bb01d34ba7cc3",
+ "variants": {
+  "populated": {
+   "pickle": "timber_orders_state.TimberOrdersState.populated.pkl",
+   "sha256": "efef77094df35fc75375acd26df6eb810b5e524c9629c594320964b6844447a8",
+   "hash_order_free": true,
+   "loaded": {
+    "type": "timber_orders_state.TimberOrdersState",
+    "dict_keys": [
+     "schema_version",
+     "enabled",
+     "next_order",
+     "orders",
+     "closed",
+     "prices",
+     "frame_turn",
+     "frame",
+     "counters",
+     "book"
+    ],
+    "fields_set": [],
+    "extra": null,
+    "private": {
+     "_turn": null
+    },
+    "dump": {
+     "schema_version": 1,
+     "enabled": true,
+     "next_order": 0,
+     "orders": [],
+     "closed": [],
+     "prices": {},
+     "frame_turn": null,
+     "frame": null,
+     "counters": {
+      "switch_state_probe_1": 1,
+      "switch_state_probe_2": 2
+     },
+     "book": {
+      "settled": [],
+      "carry": {},
+      "sinks": {},
+      "flows_turn": null,
+      "flows": [],
+      "flows_dropped": 0,
+      "totals": []
+     }
+    }
+   },
+   "repickle_sha256": "efef77094df35fc75375acd26df6eb810b5e524c9629c594320964b6844447a8",
+   "repickle_hash_order_free": true
+  },
+  "transient": {
+   "pickle": "timber_orders_state.TimberOrdersState.transient.pkl",
+   "sha256": "efef77094df35fc75375acd26df6eb810b5e524c9629c594320964b6844447a8",
+   "hash_order_free": true,
+   "loaded": {
+    "type": "timber_orders_state.TimberOrdersState",
+    "dict_keys": [
+     "schema_version",
+     "enabled",
+     "next_order",
+     "orders",
+     "closed",
+     "prices",
+     "frame_turn",
+     "frame",
+     "counters",
+     "book"
+    ],
+    "fields_set": [],
+    "extra": null,
+    "private": {
+     "_turn": null
+    },
+    "dump": {
+     "schema_version": 1,
+     "enabled": true,
+     "next_order": 0,
+     "orders": [],
+     "closed": [],
+     "prices": {},
+     "frame_turn": null,
+     "frame": null,
+     "counters": {
+      "switch_state_probe_1": 1,
+      "switch_state_probe_2": 2
+     },
+     "book": {
+      "settled": [],
+      "carry": {},
+      "sinks": {},
+      "flows_turn": null,
+      "flows": [],
+      "flows_dropped": 0,
+      "totals": []
+     }
+    }
+   },
+   "repickle_sha256": "efef77094df35fc75375acd26df6eb810b5e524c9629c594320964b6844447a8",
+   "repickle_hash_order_free": true
+  },
+  "old": {
+   "pickle": "timber_orders_state.TimberOrdersState.old.pkl",
+   "sha256": "0f900e217e19843909c3944e5cfeda528505b0ced0a0a229b4a59c4f30d346ea",
+   "hash_order_free": true,
+   "loaded": {
+    "type": "timber_orders_state.TimberOrdersState",
+    "dict_keys": [],
+    "fields_set": [],
+    "extra": null,
+    "private": null,
+    "dump": {}
+   },
+   "repickle_sha256": "7cf4d97c7d2a446452be06055fd30bed80d0d397ae490d646f8079ac7d2b5c1f",
+   "repickle_hash_order_free": true
+  },
+  "partial": {
+   "pickle": "timber_orders_state.TimberOrdersState.partial.pkl",
+   "sha256": "462e1d855cc8c26f7bb00643129852dc9e17cf1be943d8f8d95b95be51b98e54",
+   "hash_order_free": true,
+   "loaded": {
+    "type": "timber_orders_state.TimberOrdersState",
+    "dict_keys": [
+     "schema_version",
+     "enabled",
+     "next_order",
+     "orders",
+     "closed",
+     "prices",
+     "frame_turn",
+     "frame",
+     "counters"
+    ],
+    "fields_set": [],
+    "extra": null,
+    "private": {},
+    "dump": {
+     "schema_version": 1,
+     "enabled": true,
+     "next_order": 0,
+     "orders": [],
+     "closed": [],
+     "prices": {},
+     "frame_turn": null,
+     "frame": null,
+     "counters": {
+      "switch_state_probe_1": 1,
+      "switch_state_probe_2": 2
+     }
+    }
+   },
+   "repickle_sha256": "54613859ed5e95874ad018d648e577d043f5bf31e35e9ba18be126dd1c9102f2",
+   "repickle_hash_order_free": true
+  }
+ }
+}

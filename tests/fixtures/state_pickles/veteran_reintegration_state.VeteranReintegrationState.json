@@ -1,0 +1,196 @@
+{
+ "class": "veteran_reintegration_state.VeteranReintegrationState",
+ "schema_sha256": "12aa3222de7770fa0c030a983704a100916b43157804cda34de9e45924923ca7",
+ "variants": {
+  "populated": {
+   "pickle": "veteran_reintegration_state.VeteranReintegrationState.populated.pkl",
+   "sha256": "2211c06bbe783d3d4282dcbf7e76c87105cf2aaedd333ecf46d29dc0d0be67f8",
+   "hash_order_free": true,
+   "loaded": {
+    "type": "veteran_reintegration_state.VeteranReintegrationState",
+    "dict_keys": [
+     "schema_version",
+     "enabled",
+     "mode",
+     "records",
+     "archive",
+     "next_record_id",
+     "ever_placed",
+     "last_settled_turn",
+     "pool_reset_turn",
+     "frame_turn",
+     "frame",
+     "counters"
+    ],
+    "fields_set": [],
+    "extra": null,
+    "private": {
+     "_captures": [],
+     "_phase2": null,
+     "_noted": [],
+     "_carry": null
+    },
+    "dump": {
+     "schema_version": 1,
+     "enabled": true,
+     "mode": "priority",
+     "records": [],
+     "archive": [],
+     "next_record_id": 0,
+     "ever_placed": [],
+     "last_settled_turn": null,
+     "pool_reset_turn": null,
+     "frame_turn": null,
+     "frame": null,
+     "counters": {
+      "switch_state_probe_1": 1,
+      "switch_state_probe_2": 2
+     }
+    }
+   },
+   "repickle_sha256": "2211c06bbe783d3d4282dcbf7e76c87105cf2aaedd333ecf46d29dc0d0be67f8",
+   "repickle_hash_order_free": true
+  },
+  "transient": {
+   "pickle": "veteran_reintegration_state.VeteranReintegrationState.transient.pkl",
+   "sha256": "5aaa36ed1686b38e77f17dc51f8af2183e48ef7f7743415425afcb18ae6aaede",
+   "hash_order_free": true,
+   "loaded": {
+    "type": "veteran_reintegration_state.VeteranReintegrationState",
+    "dict_keys": [
+     "schema_version",
+     "enabled",
+     "mode",
+     "records",
+     "archive",
+     "next_record_id",
+     "ever_placed",
+     "last_settled_turn",
+     "pool_reset_turn",
+     "frame_turn",
+     "frame",
+     "counters"
+    ],
+    "fields_set": [],
+    "extra": null,
+    "private": {
+     "_captures": "probe:_captures",
+     "_phase2": "probe:_phase2",
+     "_noted": "probe:_noted",
+     "_carry": "probe:_carry"
+    },
+    "dump": {
+     "schema_version": 1,
+     "enabled": true,
+     "mode": "priority",
+     "records": [],
+     "archive": [],
+     "next_record_id": 0,
+     "ever_placed": [],
+     "last_settled_turn": null,
+     "pool_reset_turn": null,
+     "frame_turn": null,
+     "frame": null,
+     "counters": {
+      "switch_state_probe_1": 1,
+      "switch_state_probe_2": 2
+     }
+    }
+   },
+   "repickle_sha256": "5aaa36ed1686b38e77f17dc51f8af2183e48ef7f7743415425afcb18ae6aaede",
+   "repickle_hash_order_free": true
+  },
+  "old": {
+   "pickle": "veteran_reintegration_state.VeteranReintegrationState.old.pkl",
+   "sha256": "00cdacaebff9cba08bd44b42832430bb6f481d004ad66310e94f8cbd347c3147",
+   "hash_order_free": true,
+   "loaded": {
+    "type": "veteran_reintegration_state.VeteranReintegrationState",
+    "dict_keys": [
+     "schema_version",
+     "enabled",
+     "mode",
+     "records",
+     "archive",
+     "next_record_id",
+     "ever_placed",
+     "last_settled_turn",
+     "pool_reset_turn",
+     "frame_turn",
+     "frame",
+     "counters"
+    ],
+    "fields_set": [],
+    "extra": null,
+    "private": {
+     "_captures": [],
+     "_phase2": null,
+     "_noted": [],
+     "_carry": null
+    },
+    "dump": {
+     "schema_version": 1,
+     "enabled": true,
+     "mode": "priority",
+     "records": [],
+     "archive": [],
+     "next_record_id": 0,
+     "ever_placed": [],
+     "last_settled_turn": null,
+     "pool_reset_turn": null,
+     "frame_turn": null,
+     "frame": null,
+     "counters": {}
+    }
+   },
+   "repickle_sha256": "48b0245cc329ae0a9f6338f7900c8f64f255f8c746578f0478ee11385795a865",
+   "repickle_hash_order_free": true
+  },
+  "partial": {
+   "pickle": "veteran_reintegration_state.VeteranReintegrationState.partial.pkl",
+   "sha256": "8dd054f184bf111eec3ac5cd70881663604f7ea07d53a971bcdbdfff6c62fb58",
+   "hash_order_free": true,
+   "loaded": {
+    "type": "veteran_reintegration_state.VeteranReintegrationState",
+    "dict_keys": [
+     "schema_version",
+     "enabled",
+     "mode",
+     "records",
+     "archive",
+     "next_record_id",
+     "ever_placed",
+     "last_settled_turn",
+     "pool_reset_turn",
+     "frame_turn",
+     "frame",
+     "counters"
+    ],
+    "fields_set": [],
+    "extra": null,
+    "private": {
+     "_captures": [],
+     "_phase2": null,
+     "_noted": [],
+     "_carry": null
+    },
+    "dump": {
+     "schema_version": 1,
+     "enabled": true,
+     "mode": "priority",
+     "records": [],
+     "archive": [],
+     "next_record_id": 0,
+     "ever_placed": [],
+     "last_settled_turn": null,
+     "pool_reset_turn": null,
+     "frame_turn": null,
+     "frame": null,
+     "counters": {}
+    }
+   },
+   "repickle_sha256": "48b0245cc329ae0a9f6338f7900c8f64f255f8c746578f0478ee11385795a865",
+   "repickle_hash_order_free": true
+  }
+ }
+}

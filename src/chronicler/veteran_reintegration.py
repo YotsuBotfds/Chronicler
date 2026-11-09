@@ -75,10 +75,11 @@ from __future__ import annotations
 from bisect import insort
 
 from chronicler.veteran_reintegration_state import (
-    CAUSES, CLOSING, COUNTERS, MAX_ARCHIVE, MAX_FRAME_ROWS, MAX_OPEN, MAX_OUTCOMES, MAX_PLACED_IDS,
+    CAUSES, CLOSING, MAX_ARCHIVE, MAX_FRAME_ROWS, MAX_OPEN, MAX_OUTCOMES, MAX_PLACED_IDS,
     MAX_SPELLS, MODES, OUTCOMES, PLACEMENTS, CaptureRow, FrameOutcome, FramePlacement, FrameWaiting,
     PlacementSpell, VeteranFrame, VeteranOutcome, VeteranRecord, VeteranReintegrationState,
 )
+from chronicler.switch_state import sub_state_getter
 
 #: Turns after release during which a veteran is eligible (declared, uncalibrated).
 ELIGIBLE_TURNS = 20
@@ -99,16 +100,11 @@ class _Phase2:
         self.reasons: dict[int, str] = {}
 
 
-def _state(world) -> VeteranReintegrationState | None:
-    container = getattr(world, "livelihoods", None)
-    return getattr(container, "veteran_reintegration", None) if container is not None else None
+_state = sub_state_getter("veteran_reintegration")
 
 
 def _bump(state: VeteranReintegrationState, key: str, amount: int = 1) -> None:
-    if key not in COUNTERS:
-        raise KeyError(key)
-    if amount:
-        state.counters[key] = state.counters.get(key, 0) + int(amount)
+    state.bump(key, amount)
 
 
 def set_veteran_reintegration_enabled(world, value: bool, *, args=None, agent_mode=None) -> None:

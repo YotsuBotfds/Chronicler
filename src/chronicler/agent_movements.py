@@ -45,6 +45,7 @@ from __future__ import annotations
 
 import math
 import random
+from functools import partial
 from typing import TYPE_CHECKING, Iterable
 
 from chronicler.agent_movements_state import (
@@ -54,7 +55,7 @@ from chronicler.agent_movements_state import (
     SECT, STAGE_NAMES, SUPPRESSED, TOLERATION, WON, Movement, MovementState, Reform,
     agent_movements_on,
 )
-from chronicler import faiths
+from chronicler import faiths, settlement_util
 from chronicler.utils import stable_hash_int
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -199,7 +200,7 @@ LEADER_ROLE_MERCHANT = 1                          # a guild's leader
 SOLDIER = 1                      # occupation id
 
 HISTORY_CAP = 60
-QUANTUM_DIGITS = 4
+QUANTUM_DIGITS = settlement_util.QUANTUM_DIGITS
 
 #: Counters of the ends not counted by their own outcome (secessions and
 #: schisms are).
@@ -256,16 +257,12 @@ def set_agent_movements_enabled(world: "WorldState", enabled: bool) -> None:
 # Helpers
 # ---------------------------------------------------------------------------
 
-def _q(x: float) -> float:
-    return round(x, QUANTUM_DIGITS)
-
-
-def _rng(world, namespace: str, *parts) -> random.Random:
-    return random.Random(stable_hash_int("agent_movements", namespace, world.seed, world.turn, *parts))
+_q = settlement_util.q
+_rng = partial(settlement_util.rng, "agent_movements")
 
 
 def _bump(state: MovementState, key: str, n: float = 1) -> None:
-    state.counters[key] = round(state.counters.get(key, 0) + n, 4)
+    state.bump(key, n)
 
 
 def _living(state: MovementState) -> list[tuple[int, Movement]]:
@@ -400,18 +397,7 @@ class _Tick:
         return civ_index(self.world, name)
 
 
-def _emit(t: _Tick, event_type: str, actors: Iterable[str], description: str, *,
-          importance: int = 5, region: str | None = None,
-          causes: Iterable[str | None] = ()) -> "Event":
-    from chronicler import provenance
-    from chronicler.models import Event
-    ev = Event(turn=t.world.turn, event_type=event_type,
-               actors=[a for a in actors if a], description=description,
-               importance=importance, region=region)
-    provenance.cite(ev, *causes)
-    provenance.observe_now(t.world, ev)
-    t.events.append(ev)
-    return ev
+_emit = settlement_util.emit
 
 
 def _note(m: Movement, turn: int, kind: str, event_id: str = "") -> None:
@@ -1450,9 +1436,7 @@ def _resolve_rising(t: _Tick, i: int, m: Movement, civ) -> None:
     _crackdown(t, i, m, civ, crushed=True, region=r, causes=(rising,))
 
 
-def _max_civs() -> int:
-    from chronicler.ffi_constants import MAX_CIV_RECORDS
-    return MAX_CIV_RECORDS
+_max_civs = settlement_util.max_civs
 
 
 def _secession_regions(t: _Tick, m: Movement, civ) -> list[str]:

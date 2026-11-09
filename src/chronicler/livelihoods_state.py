@@ -31,10 +31,11 @@ Pure data, importable by :mod:`chronicler.models`.
 """
 from __future__ import annotations
 
-from typing import Literal
+from typing import ClassVar, Literal
 
 from pydantic import BaseModel, Field, PrivateAttr
 
+from chronicler.switch_state import SwitchStateMixin
 from chronicler.war_requisition_state import WarRequisitionState
 from chronicler.war_consequences_state import WarConsequencesState
 from chronicler.adaptive_livelihoods_state import AdaptiveLivelihoodsState
@@ -89,7 +90,7 @@ def _is_none(value) -> bool:
     return value is None
 
 
-class LivelihoodsState(BaseModel):
+class LivelihoodsState(SwitchStateMixin, BaseModel):
     schema_version: Literal[1] = 1
     workshops: WorkshopState | None = Field(default=None, exclude_if=_is_none)
     food_allocation: FoodAllocationState | None = Field(default=None, exclude_if=_is_none)
@@ -136,22 +137,7 @@ class LivelihoodsState(BaseModel):
     # and shared by every package that installed paid work
     # (``livelihoods.paid_work_receipt``). Never serialized.
     _paid_receipt: tuple | None = PrivateAttr(default=None)
-
-    def __getstate__(self):
-        state = super().__getstate__()
-        private = state.get("__pydantic_private__")
-        if private and (private.get("_pool_sim") is not None or private.get("_paid_receipt") is not None):
-            state = {**state, "__pydantic_private__": {**private, "_pool_sim": None, "_paid_receipt": None}}
-        return state
-
-    def __setstate__(self, state):
-        super().__setstate__(state)
-        # Exact pickle restoration bypasses Pydantic defaults.
-        for name in LIVELIHOODS_SWITCHES:
-            self.__dict__.setdefault(name, None)
-        private = getattr(self, "__pydantic_private__", None)
-        if private is None:
-            object.__setattr__(self, "__pydantic_private__", {"_pool_sim": None, "_paid_receipt": None})
-        else:
-            private.setdefault("_pool_sim", None)
-            private.setdefault("_paid_receipt", None)
+    # Exact pickle restoration bypasses Pydantic defaults.
+    _FILL_DEFAULTS: ClassVar[tuple[str, ...]] = LIVELIHOODS_SWITCHES
+    _FILL_PRIVATE: ClassVar[tuple[str, ...]] = ("_pool_sim", "_paid_receipt")
+    _TRANSIENT: ClassVar[tuple[str, ...]] = ("_pool_sim", "_paid_receipt")

@@ -1,0 +1,195 @@
+{
+ "class": "attribution_records_state.AttributionRecordsState",
+ "schema_sha256": "37565e1037fb9cdc8d638e6e81bec65eb5a8c093e8216f24dd7403404766e40e",
+ "variants": {
+  "populated": {
+   "pickle": "attribution_records_state.AttributionRecordsState.populated.pkl",
+   "sha256": "45f1959bc84870a379ff1960f60e442c3404384c9e73f7148e942b1ef8354838",
+   "hash_order_free": true,
+   "loaded": {
+    "type": "attribution_records_state.AttributionRecordsState",
+    "dict_keys": [
+     "schema_version",
+     "enabled",
+     "frame_turn",
+     "frame",
+     "civs",
+     "army_casualties",
+     "baseline_turn",
+     "identity_log",
+     "identity_dropped",
+     "lifetime",
+     "counters",
+     "log",
+     "log_dropped"
+    ],
+    "fields_set": [],
+    "extra": null,
+    "private": {
+     "_turn": null
+    },
+    "dump": {
+     "schema_version": 1,
+     "enabled": true,
+     "frame_turn": null,
+     "frame": null,
+     "civs": [],
+     "army_casualties": {},
+     "baseline_turn": null,
+     "identity_log": [],
+     "identity_dropped": 0,
+     "lifetime": {},
+     "counters": {
+      "switch_state_probe_1": 1,
+      "switch_state_probe_2": 2
+     },
+     "log": [],
+     "log_dropped": 0
+    }
+   },
+   "repickle_sha256": "45f1959bc84870a379ff1960f60e442c3404384c9e73f7148e942b1ef8354838",
+   "repickle_hash_order_free": true
+  },
+  "transient": {
+   "pickle": "attribution_records_state.AttributionRecordsState.transient.pkl",
+   "sha256": "45f1959bc84870a379ff1960f60e442c3404384c9e73f7148e942b1ef8354838",
+   "hash_order_free": true,
+   "loaded": {
+    "type": "attribution_records_state.AttributionRecordsState",
+    "dict_keys": [
+     "schema_version",
+     "enabled",
+     "frame_turn",
+     "frame",
+     "civs",
+     "army_casualties",
+     "baseline_turn",
+     "identity_log",
+     "identity_dropped",
+     "lifetime",
+     "counters",
+     "log",
+     "log_dropped"
+    ],
+    "fields_set": [],
+    "extra": null,
+    "private": {
+     "_turn": null
+    },
+    "dump": {
+     "schema_version": 1,
+     "enabled": true,
+     "frame_turn": null,
+     "frame": null,
+     "civs": [],
+     "army_casualties": {},
+     "baseline_turn": null,
+     "identity_log": [],
+     "identity_dropped": 0,
+     "lifetime": {},
+     "counters": {
+      "switch_state_probe_1": 1,
+      "switch_state_probe_2": 2
+     },
+     "log": [],
+     "log_dropped": 0
+    }
+   },
+   "repickle_sha256": "45f1959bc84870a379ff1960f60e442c3404384c9e73f7148e942b1ef8354838",
+   "repickle_hash_order_free": true
+  },
+  "old": {
+   "pickle": "attribution_records_state.AttributionRecordsState.old.pkl",
+   "sha256": "58486b4c3e8d5f0d807e4e08efcb9bb4b56f411e447712f1f38eb660ee21e90f",
+   "hash_order_free": true,
+   "loaded": {
+    "type": "attribution_records_state.AttributionRecordsState",
+    "dict_keys": [
+     "schema_version",
+     "enabled",
+     "frame_turn",
+     "frame",
+     "civs",
+     "army_casualties",
+     "baseline_turn",
+     "identity_log",
+     "identity_dropped",
+     "lifetime",
+     "counters",
+     "log",
+     "log_dropped"
+    ],
+    "fields_set": [],
+    "extra": null,
+    "private": {
+     "_turn": null
+    },
+    "dump": {
+     "schema_version": 1,
+     "enabled": true,
+     "frame_turn": null,
+     "frame": null,
+     "civs": [],
+     "army_casualties": {},
+     "baseline_turn": null,
+     "identity_log": [],
+     "identity_dropped": 0,
+     "lifetime": {},
+     "counters": {},
+     "log": [],
+     "log_dropped": 0
+    }
+   },
+   "repickle_sha256": "e2b502d0e3d505170f69eb5d091c37ed5911aabe4e528131dbe3040ecb7307ce",
+   "repickle_hash_order_free": true
+  },
+  "partial": {
+   "pickle": "attribution_records_state.AttributionRecordsState.partial.pkl",
+   "sha256": "3dbab93a2bca30adec5ded06c811e8b0db0f0a2d6624dd954baee62cd9618d61",
+   "hash_order_free": true,
+   "loaded": {
+    "type": "attribution_records_state.AttributionRecordsState",
+    "dict_keys": [
+     "schema_version",
+     "enabled",
+     "frame_turn",
+     "frame",
+     "civs",
+     "army_casualties",
+     "baseline_turn",
+     "identity_log",
+     "identity_dropped",
+     "lifetime",
+     "counters",
+     "log",
+     "log_dropped"
+    ],
+    "fields_set": [],
+    "extra": null,
+    "private": {
+     "_turn": null
+    },
+    "dump": {
+     "schema_version": 1,
+     "enabled": true,
+     "frame_turn": null,
+     "frame": null,
+     "civs": [],
+     "army_casualties": {},
+     "baseline_turn": null,
+     "identity_log": [],
+     "identity_dropped": 0,
+     "lifetime": {},
+     "counters": {
+      "switch_state_probe_1": 1,
+      "switch_state_probe_2": 2
+     },
+     "log": [],
+     "log_dropped": 0
+    }
+   },
+   "repickle_sha256": "45f1959bc84870a379ff1960f60e442c3404384c9e73f7148e942b1ef8354838",
+   "repickle_hash_order_free": true
+  }
+ }
+}

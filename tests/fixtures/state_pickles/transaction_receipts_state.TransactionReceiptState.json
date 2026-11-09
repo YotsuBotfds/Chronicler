@@ -1,0 +1,107 @@
+{
+ "class": "transaction_receipts_state.TransactionReceiptState",
+ "schema_sha256": "162896b37c95f903dcdccceaeb3c6edb3e91185c285232b1848d641afcbbdf98",
+ "variants": {
+  "populated": {
+   "pickle": "transaction_receipts_state.TransactionReceiptState.populated.pkl",
+   "sha256": "036d6bc50290ff4f46da846df40dcc0723afa2d0f9b7fc3280e9bcd5ad752541",
+   "hash_order_free": true,
+   "loaded": {
+    "type": "transaction_receipts_state.TransactionReceiptState",
+    "dict_keys": [
+     "namespace",
+     "max_rows",
+     "active",
+     "frame",
+     "source_turn",
+     "frame_digest",
+     "complete",
+     "mobility_executed",
+     "public_purchases",
+     "dropped_rows",
+     "counters"
+    ],
+    "fields_set": [],
+    "extra": null,
+    "private": null,
+    "dump": {
+     "namespace": "trajectory",
+     "max_rows": 4096,
+     "active": {},
+     "frame": [],
+     "source_turn": null,
+     "frame_digest": "",
+     "complete": false,
+     "mobility_executed": false,
+     "dropped_rows": 0,
+     "counters": {
+      "frames": 1.0,
+      "incomplete_frames": 0,
+      "rows": 0,
+      "dropped_rows": 0,
+      "observed_starts": 0,
+      "unknown_voyage_rows": 0,
+      "regional_cargo_raided": 0.0,
+      "virtual_cargo_raided": 0.0,
+      "switch_state_probe_2": 2.5
+     }
+    }
+   },
+   "repickle_sha256": "036d6bc50290ff4f46da846df40dcc0723afa2d0f9b7fc3280e9bcd5ad752541",
+   "repickle_hash_order_free": true
+  },
+  "old": {
+   "pickle": "transaction_receipts_state.TransactionReceiptState.old.pkl",
+   "sha256": "de8667113830bcd1838675f6d5dbee7c81546a86c3f4998af74b69fc33d34c3e",
+   "hash_order_free": true,
+   "loaded": {
+    "type": "transaction_receipts_state.TransactionReceiptState",
+    "dict_keys": [
+     "public_purchases"
+    ],
+    "fields_set": [],
+    "extra": null,
+    "private": null,
+    "dump": {}
+   },
+   "repickle_sha256": "e8a0e664131103d3a9a064309a02946023770f28fac3a4cee417cd2f5f7bed04",
+   "repickle_hash_order_free": true
+  },
+  "partial": {
+   "pickle": "transaction_receipts_state.TransactionReceiptState.partial.pkl",
+   "sha256": "8d0846101223dc7151542d7710c72473b79bb0145754b80ca083fd76f00bf1a0",
+   "hash_order_free": true,
+   "loaded": {
+    "type": "transaction_receipts_state.TransactionReceiptState",
+    "dict_keys": [
+     "namespace",
+     "max_rows",
+     "active",
+     "frame",
+     "source_turn",
+     "frame_digest",
+     "complete",
+     "mobility_executed",
+     "public_purchases",
+     "dropped_rows"
+    ],
+    "fields_set": [],
+    "extra": null,
+    "private": null,
+    "dump": {
+     "namespace": "trajectory",
+     "max_rows": 4096,
+     "active": {},
+     "frame": [],
+     "source_turn": null,
+     "frame_digest": "",
+     "complete": false,
+     "mobility_executed": false,
+     "dropped_rows": 0
+    }
+   },
+   "repickle_sha256": "8d0846101223dc7151542d7710c72473b79bb0145754b80ca083fd76f00bf1a0",
+   "repickle_hash_order_free": true
+  }
+ }
+}

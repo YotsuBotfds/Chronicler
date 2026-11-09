@@ -10,7 +10,11 @@ never reorder (stored rows index into them).
 """
 from __future__ import annotations
 
+from typing import ClassVar
+
 from pydantic import BaseModel, Field, PrivateAttr
+
+from chronicler.switch_state import SwitchStateMixin
 
 #: Sea-zone control states (``SeaZoneState.status``).
 ZONE_STATUSES: tuple[str, ...] = ("uncontested", "contested", "controlled")
@@ -125,7 +129,7 @@ class EscortRequest(BaseModel):
     ships: int
 
 
-class MaritimeState(BaseModel):
+class MaritimeState(SwitchStateMixin, BaseModel):
     """World-level maritime switch and bookkeeping (``WorldState.maritime``).
 
     ``lanes`` rows are ``(a, b, zone)`` with region indices ``a < b``, sorted.
@@ -164,6 +168,7 @@ class MaritimeState(BaseModel):
     last_piracy: list[float] = Field(default_factory=list)
     # Derived lookups (chronicler.maritime; never serialized).
     _cache: _CacheSlot = PrivateAttr(default_factory=_CacheSlot)
+    _BUMP: ClassVar[dict] = {"ndigits": 4, "float_only_round": True}
 
     def active_blockades(self) -> list[Blockade]:
         return [b for b in self.blockades if b.end_turn is None]

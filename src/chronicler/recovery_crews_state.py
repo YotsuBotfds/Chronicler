@@ -20,9 +20,11 @@ never reorder.
 """
 from __future__ import annotations
 
-from typing import Literal
+from typing import ClassVar, Literal
 
 from pydantic import BaseModel, Field, PrivateAttr
+
+from chronicler.switch_state import SwitchStateMixin
 
 #: Modes (first: the default when enabled). ``unpaid`` is the control: the
 #: same crews, the same withheld income share and the same treasury charge,
@@ -123,7 +125,7 @@ class CivCrewLedger(BaseModel):
     sunk_milli: int
 
 
-class RecoveryCrewsState(BaseModel):
+class RecoveryCrewsState(SwitchStateMixin, BaseModel):
     schema_version: Literal[1] = 1
     enabled: bool = True
     mode: Literal["paid", "unpaid"] = "paid"
@@ -137,19 +139,7 @@ class RecoveryCrewsState(BaseModel):
     # Transient, within one turn (Phase 2 -> Phase 10); never serialized.
     _turn: object | None = PrivateAttr(default=None)
 
-    def __getstate__(self):
-        state = super().__getstate__()
-        private = state.get("__pydantic_private__")
-        if private and private.get("_turn") is not None:
-            state = {**state, "__pydantic_private__": {**private, "_turn": None}}
-        return state
-
-    def __setstate__(self, state):
-        super().__setstate__(state)
-        for name, field in type(self).model_fields.items():
-            if name not in self.__dict__:
-                self.__dict__[name] = field.get_default(call_default_factory=True)
-        if getattr(self, "__pydantic_private__", None) is None:
-            object.__setattr__(self, "__pydantic_private__", {"_turn": None})
-        else:
-            self.__pydantic_private__.setdefault("_turn", None)
+    _FILL_DEFAULTS: ClassVar[bool] = True
+    _FILL_PRIVATE: ClassVar[tuple[str, ...]] = ("_turn",)
+    _TRANSIENT: ClassVar[tuple[str, ...]] = ("_turn",)
+    _BUMP: ClassVar[dict] = {"allowed": COUNTERS, "message": "undeclared recovery-crews counter {key!r}"}

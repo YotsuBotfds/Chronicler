@@ -10,7 +10,11 @@ never reorder (stored values index into them).
 """
 from __future__ import annotations
 
+from typing import ClassVar
+
 from pydantic import BaseModel, Field
+
+from chronicler.switch_state import SwitchStateMixin
 
 #: ``City.rank`` names; rank 0 is unused (a settlement below town size).
 RANK_NAMES: tuple[str, ...] = ("settlement", "town", "city", "great city")
@@ -75,7 +79,7 @@ class City(BaseModel):
     history: list[tuple[int, str, str]] = Field(default_factory=list)
 
 
-class CityState(BaseModel):
+class CityState(SwitchStateMixin, BaseModel):
     """World-level switch and bookkeeping (``WorldState.cities``).
 
     ``owed`` and ``carry`` are indexed by civ index: dues assessed in the
@@ -89,6 +93,7 @@ class CityState(BaseModel):
     carry: list[float] = Field(default_factory=list)
     counters: dict[str, float] = Field(default_factory=lambda: {k: 0 for k in COUNTER_KEYS})
     last_tick_turn: int | None = None
+    _BUMP: ClassVar[dict] = {"ndigits": 4}
 
 
 def cities_on(world) -> bool:

@@ -11,7 +11,11 @@ never reorder (stored values index into them).
 """
 from __future__ import annotations
 
+from typing import ClassVar
+
 from pydantic import BaseModel, Field
+
+from chronicler.switch_state import SwitchStateMixin
 
 #: ``Guild.kind`` names: a craft guild works the city's wares, a merchant
 #: guild its trade.
@@ -65,7 +69,7 @@ class Guild(BaseModel):
     history: list[tuple[int, str, str]] = Field(default_factory=list)
 
 
-class GuildState(BaseModel):
+class GuildState(SwitchStateMixin, BaseModel):
     """World-level switch and bookkeeping (``WorldState.guilds``).
 
     ``burgher_idle`` counts, per civ index, the consecutive turns a realm with
@@ -75,6 +79,7 @@ class GuildState(BaseModel):
     counters: dict[str, float] = Field(default_factory=lambda: {k: 0 for k in COUNTER_KEYS})
     burgher_idle: list[int] = Field(default_factory=list)
     last_tick_turn: int | None = None
+    _BUMP: ClassVar[dict] = {"ndigits": 4}
 
 
 def guilds_on(world) -> bool:

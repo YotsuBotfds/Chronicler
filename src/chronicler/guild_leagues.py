@@ -78,6 +78,7 @@ from chronicler.guild_leagues_state import (
     COUNTERS, LOG_KINDS, MAX_DISSOLVED, MAX_LINKS, MAX_LOG, MODES, Change, Dues, GuildLeagueState, League,
     LeagueFrame, LeagueRecord, LeagueRow, Link, Member, Payout,
 )
+from chronicler.switch_state import sub_state_getter
 
 STAGE = "D1b"
 #: A pair is a candidate after recorded deliveries on this many turns ...
@@ -104,15 +105,11 @@ PURSE_TOL = 1.5e-4
 # State and switch
 # ---------------------------------------------------------------------------
 
-def _state(world) -> GuildLeagueState | None:
-    container = getattr(world, "livelihoods", None)
-    return getattr(container, "guild_leagues", None) if container is not None else None
+_state = sub_state_getter("guild_leagues")
 
 
 def _bump(state: GuildLeagueState, key: str, amount: int = 1) -> None:
-    if key not in COUNTERS:
-        raise KeyError(key)
-    state.counters[key] = state.counters.get(key, 0) + int(amount)
+    state.bump(key, amount)
 
 
 def _log(state: GuildLeagueState, record: LeagueRecord) -> None:

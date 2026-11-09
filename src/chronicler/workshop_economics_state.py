@@ -21,11 +21,12 @@ never reorder.
 """
 from __future__ import annotations
 
-from typing import Any, Literal
+from typing import Any, ClassVar, Literal
 
 from pydantic import BaseModel, Field, PrivateAttr
 
 from chronicler.money import MoneyBook
+from chronicler.switch_state import SwitchStateMixin
 
 #: Modes (``--workshop-economics-mode``), in declaration order (append only).
 #: ``market``: inputs are bought from the commons owner, households buy;
@@ -180,7 +181,7 @@ def _is_one(value) -> bool:
     return value == 1
 
 
-class WorkshopEconomicsState(BaseModel):
+class WorkshopEconomicsState(SwitchStateMixin, BaseModel):
     schema_version: Literal[1] = 1
     enabled: bool = True
     mode: Literal["market", "free_inputs", "academy_only"] = "market"
@@ -204,22 +205,10 @@ class WorkshopEconomicsState(BaseModel):
     # Transient, within one turn (Phase 2 plan -> Phase 10 frame). Never serialized.
     _turn: object | None = PrivateAttr(default=None)
 
-    def __getstate__(self):
-        state = super().__getstate__()
-        private = state.get("__pydantic_private__")
-        if private and private.get("_turn") is not None:
-            state = {**state, "__pydantic_private__": {**private, "_turn": None}}
-        return state
-
-    def __setstate__(self, state):
-        super().__setstate__(state)
-        for name, field in type(self).model_fields.items():
-            if name not in self.__dict__:
-                self.__dict__[name] = field.get_default(call_default_factory=True)
-        if getattr(self, "__pydantic_private__", None) is None:
-            object.__setattr__(self, "__pydantic_private__", {"_turn": None})
-        else:
-            self.__pydantic_private__.setdefault("_turn", None)
+    _FILL_DEFAULTS: ClassVar[bool] = True
+    _FILL_PRIVATE: ClassVar[tuple[str, ...]] = ("_turn",)
+    _TRANSIENT: ClassVar[tuple[str, ...]] = ("_turn",)
+    _BUMP: ClassVar[dict] = {"allowed": COUNTERS, "message": "undeclared workshop economics counter {key!r}", "coerce": int}
 
     @property
     def rules(self) -> str:

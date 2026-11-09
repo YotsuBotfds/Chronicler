@@ -44,6 +44,7 @@ from __future__ import annotations
 from typing import Any, Iterable
 
 from chronicler.household_access_state import COUNTERS, HouseholdAccessState
+from chronicler.switch_state import sub_state_getter
 
 STAGE = "DEP-7"
 #: L2 frame keys this package reads (``food_allocation.after_agent_tick`` totals).
@@ -54,9 +55,7 @@ _L2_KEYS: tuple[str, ...] = (
 _RETAIL_KEYS: tuple[str, ...] = ("persons", "rations", "priced_out_persons", "priced_out_deficit")
 
 
-def _state(world) -> HouseholdAccessState | None:
-    container = getattr(world, "livelihoods", None)
-    return getattr(container, "household_access", None) if container is not None else None
+_state = sub_state_getter("household_access")
 
 
 def set_household_access_enabled(world, value: bool, *, args=None, agent_mode=None) -> None:

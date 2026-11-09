@@ -14,7 +14,8 @@ import math
 from types import SimpleNamespace
 from chronicler import money as M
 from chronicler import titled_trade as TT
-from chronicler.timber_orders_state import COUNTERS, MAX_CLOSED, MAX_EVENTS, MAX_ORDERS, TimberOrder, TimberOrdersState
+from chronicler.timber_orders_state import MAX_CLOSED, MAX_EVENTS, MAX_ORDERS, TimberOrder, TimberOrdersState
+from chronicler.switch_state import sub_state_getter
 
 MILLI = 1000
 FREIGHT = 0.10
@@ -24,14 +25,11 @@ SERVICE = "timber_orders"
 REFUSALS = {"no_forest", "too_far", "forest_depleted", "forest_busy"}
 
 
-def _state(world):
-    return getattr(getattr(world, "livelihoods", None), "timber_orders", None)
+_state = sub_state_getter("timber_orders")
 
 
 def _bump(state, key, amount=1):
-    if key not in COUNTERS:
-        raise KeyError(f"undeclared timber order counter {key}")
-    state.counters[key] = state.counters.get(key, 0) + int(amount)
+    state.bump(key, amount)
 
 
 def timber_orders_active(world):

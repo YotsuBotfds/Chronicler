@@ -76,6 +76,7 @@ from chronicler.learning_cohorts_state import (
     ATTENDANCE_OUTCOMES, COUNTERS, MAX_ARCHIVE, MAX_COHORTS, MAX_GRADUATES, MAX_LEARNERS,
     MEMBER_STATUSES, Cohort, CohortMember, CohortReceipt, Graduate, LearningCohortState,
 )
+from chronicler.switch_state import sub_state_getter
 
 ATTENDANCE_FRACTION = 0.5
 SESSIONS_TO_COMPLETE = 4
@@ -109,15 +110,11 @@ class _Pending:
         self.turn, self.cohorts, self.reserved, self.academies = turn, cohorts, reserved, academies
 
 
-def _state(world) -> LearningCohortState | None:
-    container = getattr(world, "livelihoods", None)
-    return getattr(container, "learning_cohorts", None) if container is not None else None
+_state = sub_state_getter("learning_cohorts")
 
 
 def _bump(state: LearningCohortState, key: str, amount: float = 1) -> None:
-    if key not in COUNTERS:
-        raise KeyError(key)
-    state.counters[key] = state.counters.get(key, 0) + amount
+    state.bump(key, amount)
 
 
 def _close(state: LearningCohortState, cohort: Cohort, turn: int, reason: str, exit_reason: str) -> None:

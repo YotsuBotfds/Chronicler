@@ -1,0 +1,118 @@
+{
+ "class": "grain_reserves_state.ReserveFlow",
+ "schema_sha256": "ee8391faafa463526081b8acf51fde89983be5a35311f41b93d8c96f7cd568d0",
+ "variants": {
+  "populated": {
+   "pickle": "grain_reserves_state.ReserveFlow.populated.pkl",
+   "sha256": "985dfaf95a1a560517af86fa3ca1cb644329071e22043b0858a61ecb472dfd92",
+   "hash_order_free": false,
+   "loaded": {
+    "type": "grain_reserves_state.ReserveFlow",
+    "dict_keys": [
+     "kind",
+     "region",
+     "amount",
+     "source",
+     "seller",
+     "buyer",
+     "sent",
+     "cost",
+     "before",
+     "after",
+     "shipment_order"
+    ],
+    "fields_set": [
+     "amount",
+     "kind",
+     "region"
+    ],
+    "extra": null,
+    "private": null,
+    "dump": {
+     "kind": 1,
+     "region": 1,
+     "amount": 0.5,
+     "source": -1,
+     "seller": -1,
+     "buyer": -1,
+     "sent": 0.0,
+     "cost": 0,
+     "before": 0.0,
+     "after": 0.0
+    }
+   },
+   "repickle_sha256": "985dfaf95a1a560517af86fa3ca1cb644329071e22043b0858a61ecb472dfd92",
+   "repickle_hash_order_free": false
+  },
+  "old": {
+   "pickle": "grain_reserves_state.ReserveFlow.old.pkl",
+   "sha256": "3a1f6e1ea2bfb12e96a69ff8ae79c5ba7963ac02356fedb118df7dde04cfbd98",
+   "hash_order_free": false,
+   "loaded": {
+    "type": "grain_reserves_state.ReserveFlow",
+    "dict_keys": [
+     "kind",
+     "region",
+     "amount",
+     "shipment_order"
+    ],
+    "fields_set": [
+     "amount",
+     "kind",
+     "region"
+    ],
+    "extra": null,
+    "private": null,
+    "dump": {
+     "kind": 1,
+     "region": 1,
+     "amount": 0.5
+    }
+   },
+   "repickle_sha256": "a122033e6bc80a6f3cd7b1dd50cc95a052c457a2414c0d85f8ff0d0028de7b5b",
+   "repickle_hash_order_free": false
+  },
+  "partial": {
+   "pickle": "grain_reserves_state.ReserveFlow.partial.pkl",
+   "sha256": "9e3c5b52956ac02c00c048fc705a2051e49d0bae5239025ad901b8bdc6fd6411",
+   "hash_order_free": false,
+   "loaded": {
+    "type": "grain_reserves_state.ReserveFlow",
+    "dict_keys": [
+     "kind",
+     "region",
+     "amount",
+     "source",
+     "seller",
+     "buyer",
+     "sent",
+     "cost",
+     "before",
+     "after",
+     "shipment_order"
+    ],
+    "fields_set": [
+     "amount",
+     "kind",
+     "region"
+    ],
+    "extra": null,
+    "private": null,
+    "dump": {
+     "kind": 1,
+     "region": 1,
+     "amount": 0.5,
+     "source": -1,
+     "seller": -1,
+     "buyer": -1,
+     "sent": 0.0,
+     "cost": 0,
+     "before": 0.0,
+     "after": 0.0
+    }
+   },
+   "repickle_sha256": "985dfaf95a1a560517af86fa3ca1cb644329071e22043b0858a61ecb472dfd92",
+   "repickle_hash_order_free": false
+  }
+ }
+}

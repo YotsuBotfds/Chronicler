@@ -445,6 +445,8 @@
       "tests/test_snapshot_input_boundaries.py",
       "tests/test_snapshot_session_provenance.py",
       "tests/test_state_checkpoints.py",
+      "tests/test_switch_state.py",
+      "tests/test_switch_state_pickles.py",
       "tests/test_tech.py",
       "tests/test_techniques.py",
       "tests/test_third_wave_joint.py",

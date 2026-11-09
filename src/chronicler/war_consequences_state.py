@@ -1,10 +1,12 @@
 """D3 persisted war experience; native identities remain pool-scoped."""
-from typing import Literal
+from typing import ClassVar, Literal
 
 from pydantic import BaseModel, Field, PrivateAttr
 
+from chronicler.switch_state import SwitchStateMixin
 
-class WarConsequencesState(BaseModel):
+
+class WarConsequencesState(SwitchStateMixin, BaseModel):
     enabled: bool = True
     mode: Literal["active", "record_only"] = "active"
     last_turn: int = -1
@@ -21,10 +23,8 @@ class WarConsequencesState(BaseModel):
     noted_turn: int | None = None
     noted_keys: list[tuple] = Field(default_factory=list)
     _key_set: set = PrivateAttr(default_factory=set)
+    _FILL_DEFAULTS: ClassVar[bool] = True
 
     def __setstate__(self, state):
         super().__setstate__(state)
-        for name, field in type(self).model_fields.items():
-            if name not in self.__dict__:
-                self.__dict__[name] = field.get_default(call_default_factory=True)
         self._key_set = set(map(tuple, self.noted_keys))

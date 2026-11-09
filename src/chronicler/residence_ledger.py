@@ -107,6 +107,7 @@ from chronicler.residence_ledger_state import (
     MOVE_GROUPS, REGION_KEYS, REHOME_TURNS, SEPARATION_CAUSES, TOTAL_KEYS, LogRecord, RegionWatch,
     ResidenceLedgerState, ResidenceRow, Spell,
 )
+from chronicler.switch_state import sub_state_getter
 
 STAGE = "X1"
 #: ``ecology._check_famine_yield`` sets ``famine_cooldown`` to this at a famine
@@ -169,15 +170,11 @@ class LedgerReadRefused(RuntimeError):
 # Switch
 # ---------------------------------------------------------------------------
 
-def _state(world) -> ResidenceLedgerState | None:
-    container = getattr(world, "livelihoods", None)
-    return getattr(container, "residence_ledger", None) if container is not None else None
+_state = sub_state_getter("residence_ledger")
 
 
 def _bump(state: ResidenceLedgerState, key: str, amount: int = 1) -> None:
-    if key not in COUNTERS:
-        raise KeyError(f"undeclared residence-ledger counter {key!r}")
-    state.counters[key] = state.counters.get(key, 0) + amount
+    state.bump(key, amount)
 
 
 def _log(state: ResidenceLedgerState, turn: int, kind: str, **detail) -> None:

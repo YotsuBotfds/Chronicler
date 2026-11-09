@@ -37,6 +37,7 @@ calibrated: ``OPERATING_WEAR`` is RS1's value moved here unchanged.
 from __future__ import annotations
 
 from chronicler.operating_wear_state import COUNTERS, OperatingWearState, WearReceipt
+from chronicler.switch_state import sub_state_getter
 
 #: Condition a funded operating site loses per turn (declared, uncalibrated;
 #: moved unchanged from ``apprenticeship.py``). With nobody qualified a site
@@ -44,15 +45,11 @@ from chronicler.operating_wear_state import COUNTERS, OperatingWearState, WearRe
 OPERATING_WEAR = 0.02
 
 
-def _state(world) -> OperatingWearState | None:
-    container = getattr(world, "livelihoods", None)
-    return getattr(container, "operating_wear", None) if container is not None else None
+_state = sub_state_getter("operating_wear")
 
 
 def _bump(state: OperatingWearState, key: str, amount: float = 1) -> None:
-    if key not in COUNTERS:
-        raise KeyError(key)
-    state.counters[key] = state.counters.get(key, 0) + amount
+    state.bump(key, amount)
 
 
 def set_operating_wear_enabled(world, value: bool, *, args=None, agent_mode=None) -> None:

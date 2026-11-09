@@ -145,6 +145,7 @@ from chronicler.apprenticeship_state import (
 )
 # Moved unchanged to ``operating_wear`` (PL2); RS1 reads it there at call time.
 from chronicler.operating_wear import OPERATING_WEAR  # noqa: F401  (re-exported)
+from chronicler.switch_state import health_holders, sub_state_getter
 
 #: RS1 rules version of every new state (``ApprenticeshipState.schema_version``);
 #: a state saved under version 1 keeps it (see ``apprenticeship_state``).
@@ -255,15 +256,11 @@ class _Pending:
 # Switch and lookups
 # ---------------------------------------------------------------------------
 
-def _state(world) -> ApprenticeshipState | None:
-    container = getattr(world, "livelihoods", None)
-    return getattr(container, "apprenticeship", None) if container is not None else None
+_state = sub_state_getter("apprenticeship")
 
 
 def _bump(state: ApprenticeshipState, key: str, amount: float = 1) -> None:
-    if key not in COUNTERS:
-        raise KeyError(key)
-    state.counters[key] = state.counters.get(key, 0) + amount
+    state.bump(key, amount)
 
 
 def set_apprenticeship_enabled(world, value: bool, *, args=None, agent_mode=None) -> None:
@@ -1188,17 +1185,7 @@ def _miss_v2(state: ApprenticeshipState, record: Apprenticeship, seat: Seat, tur
     return False
 
 
-def _health_holders(world) -> set[int]:
-    """Patients and carers of this turn's prepared rural health work (as
-    ``recovery_crews._health_holders``); empty without ``--health-care``."""
-    health = getattr(world, "health_care", None)
-    rows = getattr(health, "_prepared", None) if health is not None else None
-    out: set[int] = set()
-    for aid, _region, giver, care in rows or ():
-        out.add(int(aid))
-        if int(giver) and float(care) > 0:
-            out.add(int(giver))
-    return out
+_health_holders = health_holders
 
 
 def _upkeep_split(st: _SiteTurn, p: _Pending) -> tuple[dict[str, float], dict[int, float]]:

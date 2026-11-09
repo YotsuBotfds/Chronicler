@@ -61,6 +61,7 @@ from __future__ import annotations
 import math
 import random
 from collections.abc import Mapping
+from functools import partial
 from numbers import Integral, Real
 from typing import TYPE_CHECKING, Iterable
 
@@ -68,6 +69,7 @@ from chronicler.cities_state import (
     CHARTER_NAMES, CITY, COUNTER_KEYS, FREE_CITY, GREAT_CITY, MARKET_RIGHTS, NO_CHARTER,
     RANK_NAMES, SELF_GOVERNMENT, TOWN, City, CityState, cities_on,
 )
+from chronicler import settlement_util
 from chronicler.utils import stable_hash_int
 from chronicler.utils import at_war as _at_war
 
@@ -208,7 +210,7 @@ CRAFT_ACCESS = 1.0
 CRAFT_ACCESS_CAP = 0.3
 
 #: Stored floats are rounded to this many decimals.
-QUANTUM_DIGITS = 4
+QUANTUM_DIGITS = settlement_util.QUANTUM_DIGITS
 
 
 # ---------------------------------------------------------------------------
@@ -234,16 +236,12 @@ def set_cities_enabled(world: "WorldState", enabled: bool) -> None:
 # Helpers
 # ---------------------------------------------------------------------------
 
-def _q(x: float) -> float:
-    return round(x, QUANTUM_DIGITS)
-
-
-def _rng(world, namespace: str, *parts) -> random.Random:
-    return random.Random(stable_hash_int("cities", namespace, world.seed, world.turn, *parts))
+_q = settlement_util.q
+_rng = partial(settlement_util.rng, "cities")
 
 
 def _bump(state: CityState, key: str, n: float = 1) -> None:
-    state.counters[key] = round(state.counters.get(key, 0) + n, 4)
+    state.bump(key, n)
 
 
 def scale(world) -> float:
@@ -320,19 +318,7 @@ class _Tick:
         return min(1.0, imports / max(0.1, food_demand))
 
 
-def _emit(t: _Tick, event_type: str, actors: Iterable[str], description: str, *,
-          importance: int = 5, region: str | None = None,
-          causes: Iterable[str | None] = ()) -> "Event":
-    from chronicler import provenance
-    from chronicler.models import Event
-    ev = Event(turn=t.world.turn, event_type=event_type,
-               actors=[a for a in actors if a], description=description,
-               importance=importance, region=region)
-    provenance.cite(ev, *causes)
-    # Same-tick chains (revolt -> free city) resolve in order.
-    provenance.observe_now(t.world, ev)
-    t.events.append(ev)
-    return ev
+_emit = settlement_util.emit
 
 
 def _note(city: City, turn: int, kind: str, event_id: str = "") -> None:
@@ -901,9 +887,7 @@ def _revolt(t: _Tick, city: City, region) -> None:
     _note(city, world.turn, "suppressed", ev.event_id)
 
 
-def _max_civs() -> int:
-    from chronicler.ffi_constants import MAX_CIV_RECORDS
-    return MAX_CIV_RECORDS
+_max_civs = settlement_util.max_civs
 
 
 def _free_city_name(world, region) -> str:

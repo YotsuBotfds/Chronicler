@@ -10,12 +10,14 @@ from typing import Literal
 
 from pydantic import BaseModel, Field, PrivateAttr
 
+from chronicler.switch_state import SwitchStateMixin
+
 REGIMES: tuple[str, ...] = ("equal", "floor_means", "targeted_relief")   # native codes 0, 1, 2
 #: Person receipts kept per completed turn (stable: ascending id, region order).
 SNAPSHOT_SAMPLE = 24
 
 
-class FoodAllocationState(BaseModel):
+class FoodAllocationState(SwitchStateMixin, BaseModel):
     schema_version: Literal[1] = 1
     enabled: bool = True
     regime: Literal["equal", "floor_means", "targeted_relief"] = "floor_means"

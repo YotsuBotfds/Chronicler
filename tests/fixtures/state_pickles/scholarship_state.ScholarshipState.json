@@ -1,0 +1,117 @@
+{
+ "class": "scholarship_state.ScholarshipState",
+ "schema_sha256": "0d580430095d2738eb771de4ed145d187bda86e4ade9e14d9555a2ea8e80c079",
+ "variants": {
+  "populated": {
+   "pickle": "scholarship_state.ScholarshipState.populated.pkl",
+   "sha256": "4404f301ca56ba1dd0938564c263fbdefee029d498fdd75773fc98643ff034de",
+   "hash_order_free": true,
+   "loaded": {
+    "type": "scholarship_state.ScholarshipState",
+    "dict_keys": [
+     "seats",
+     "carries",
+     "counters",
+     "last_tick_turn",
+     "learning_services"
+    ],
+    "fields_set": [],
+    "extra": null,
+    "private": null,
+    "dump": {
+     "seats": [],
+     "carries": [],
+     "counters": {
+      "founded": 1.0,
+      "academies": 0,
+      "temple_schools": 0,
+      "libraries": 0,
+      "rises": 0,
+      "declines": 0,
+      "fallen": 0,
+      "fall_sack": 0,
+      "fall_famine": 0,
+      "fall_persecution": 0,
+      "fall_patronage": 0,
+      "strikes": 0,
+      "unpaid": 0,
+      "patron_changes": 0,
+      "upkeep": 0,
+      "fees": 0,
+      "refuges": 0,
+      "carried": 0,
+      "practice_lost": 0,
+      "switch_state_probe_2": 2.5
+     },
+     "last_tick_turn": null
+    }
+   },
+   "repickle_sha256": "4404f301ca56ba1dd0938564c263fbdefee029d498fdd75773fc98643ff034de",
+   "repickle_hash_order_free": true
+  },
+  "old": {
+   "pickle": "scholarship_state.ScholarshipState.old.pkl",
+   "sha256": "63d556bb2aadc683f49f6ada63f107f3e38108895b98ea08a8a19aa0a6b53ef1",
+   "hash_order_free": true,
+   "loaded": {
+    "type": "scholarship_state.ScholarshipState",
+    "dict_keys": [
+     "learning_services"
+    ],
+    "fields_set": [],
+    "extra": null,
+    "private": null,
+    "dump": {}
+   },
+   "repickle_sha256": "1a07478c844a66e0f0067b55222068a0fe95aa7d52228712a2837f473c684554",
+   "repickle_hash_order_free": true
+  },
+  "partial": {
+   "pickle": "scholarship_state.ScholarshipState.partial.pkl",
+   "sha256": "3b23538a949fd4a7de0a3eba28c834704c34760fcc46508de3cb5d204f36fa39",
+   "hash_order_free": true,
+   "loaded": {
+    "type": "scholarship_state.ScholarshipState",
+    "dict_keys": [
+     "seats",
+     "carries",
+     "counters",
+     "last_tick_turn",
+     "learning_services"
+    ],
+    "fields_set": [],
+    "extra": null,
+    "private": null,
+    "dump": {
+     "seats": [],
+     "carries": [],
+     "counters": {
+      "founded": 1.0,
+      "academies": 0,
+      "temple_schools": 0,
+      "libraries": 0,
+      "rises": 0,
+      "declines": 0,
+      "fallen": 0,
+      "fall_sack": 0,
+      "fall_famine": 0,
+      "fall_persecution": 0,
+      "fall_patronage": 0,
+      "strikes": 0,
+      "unpaid": 0,
+      "patron_changes": 0,
+      "upkeep": 0,
+      "fees": 0,
+      "refuges": 0,
+      "carried": 0,
+      "practice_lost": 0,
+      "switch_state_probe_2": 2.5
+     },
+     "last_tick_turn": null
+    }
+   },
+   "repickle_sha256": "4404f301ca56ba1dd0938564c263fbdefee029d498fdd75773fc98643ff034de",
+   "repickle_hash_order_free": true
+  }
+ }
+}

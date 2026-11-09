@@ -1,0 +1,134 @@
+{
+ "class": "workshops_state.WorkshopState",
+ "schema_sha256": "4347a4a00b23b048edf233a21ccd6ecf59aed71a348a7099ed2bc3c8da27ec8e",
+ "variants": {
+  "populated": {
+   "pickle": "workshops_state.WorkshopState.populated.pkl",
+   "sha256": "6da0a6174a5e49cb92dd039e56a72d133ed1970ebea13e58f374b5feaf9b07bf",
+   "hash_order_free": true,
+   "loaded": {
+    "type": "workshops_state.WorkshopState",
+    "dict_keys": [
+     "schema_version",
+     "enabled",
+     "mode",
+     "sites",
+     "closed",
+     "next_site",
+     "frame_turn",
+     "frame",
+     "counters"
+    ],
+    "fields_set": [],
+    "extra": null,
+    "private": {
+     "_plan": null
+    },
+    "dump": {
+     "schema_version": 1,
+     "enabled": true,
+     "mode": "observe",
+     "sites": [],
+     "closed": [],
+     "next_site": 0,
+     "frame_turn": null,
+     "frame": [],
+     "counters": {
+      "switch_state_probe_1": 1.0,
+      "switch_state_probe_2": 2.5
+     }
+    }
+   },
+   "repickle_sha256": "6da0a6174a5e49cb92dd039e56a72d133ed1970ebea13e58f374b5feaf9b07bf",
+   "repickle_hash_order_free": true
+  },
+  "transient": {
+   "pickle": "workshops_state.WorkshopState.transient.pkl",
+   "sha256": "61adca57ead52d3abed77ebfd31abaf5ffd3a9274495d922eccb8f465a118259",
+   "hash_order_free": true,
+   "loaded": {
+    "type": "workshops_state.WorkshopState",
+    "dict_keys": [
+     "schema_version",
+     "enabled",
+     "mode",
+     "sites",
+     "closed",
+     "next_site",
+     "frame_turn",
+     "frame",
+     "counters"
+    ],
+    "fields_set": [],
+    "extra": null,
+    "private": {
+     "_plan": "probe:_plan"
+    },
+    "dump": {
+     "schema_version": 1,
+     "enabled": true,
+     "mode": "observe",
+     "sites": [],
+     "closed": [],
+     "next_site": 0,
+     "frame_turn": null,
+     "frame": [],
+     "counters": {
+      "switch_state_probe_1": 1.0,
+      "switch_state_probe_2": 2.5
+     }
+    }
+   },
+   "repickle_sha256": "61adca57ead52d3abed77ebfd31abaf5ffd3a9274495d922eccb8f465a118259",
+   "repickle_hash_order_free": true
+  },
+  "old": {
+   "pickle": "workshops_state.WorkshopState.old.pkl",
+   "sha256": "713d649a0969170272e3cb98cc0a858fe297c8f5cea4d2c20257a66abb2cf90f",
+   "hash_order_free": true,
+   "loaded": {
+    "type": "workshops_state.WorkshopState",
+    "dict_keys": [],
+    "fields_set": [],
+    "extra": null,
+    "private": null,
+    "dump": {}
+   },
+   "repickle_sha256": "713d649a0969170272e3cb98cc0a858fe297c8f5cea4d2c20257a66abb2cf90f",
+   "repickle_hash_order_free": true
+  },
+  "partial": {
+   "pickle": "workshops_state.WorkshopState.partial.pkl",
+   "sha256": "d397ef3870e95795431349effc4a0542f12c7bdd4927b30fe4cb747d227c50a4",
+   "hash_order_free": true,
+   "loaded": {
+    "type": "workshops_state.WorkshopState",
+    "dict_keys": [
+     "schema_version",
+     "enabled",
+     "mode",
+     "sites",
+     "closed",
+     "next_site",
+     "frame_turn",
+     "frame"
+    ],
+    "fields_set": [],
+    "extra": null,
+    "private": {},
+    "dump": {
+     "schema_version": 1,
+     "enabled": true,
+     "mode": "observe",
+     "sites": [],
+     "closed": [],
+     "next_site": 0,
+     "frame_turn": null,
+     "frame": []
+    }
+   },
+   "repickle_sha256": "d397ef3870e95795431349effc4a0542f12c7bdd4927b30fe4cb747d227c50a4",
+   "repickle_hash_order_free": true
+  }
+ }
+}

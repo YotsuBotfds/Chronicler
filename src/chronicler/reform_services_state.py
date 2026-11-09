@@ -21,11 +21,12 @@ set ``COUNTERS``. Tuple orders are declaration orders: append, never reorder.
 """
 from __future__ import annotations
 
-from typing import Literal
+from typing import ClassVar, Literal
 
 from pydantic import BaseModel, Field, PrivateAttr
 
 from chronicler.money import MoneyBook
+from chronicler.switch_state import SwitchStateMixin
 
 #: ``--reform-services-mode`` choices (the first is the default when enabled).
 MODES: tuple[str, ...] = ("service", "cost_only")
@@ -119,7 +120,7 @@ class ReliefRecord(BaseModel):
     note: str = ""
 
 
-class ReformServicesState(BaseModel):
+class ReformServicesState(SwitchStateMixin, BaseModel):
     """What poor relief as a service must remember across turns."""
 
     enabled: bool = True
@@ -140,9 +141,5 @@ class ReformServicesState(BaseModel):
     # turn's payments into the fund. Never serialized.
     _turn: object | None = PrivateAttr(default=None)
 
-    def __getstate__(self):
-        state = super().__getstate__()
-        private = state.get("__pydantic_private__")
-        if private and private.get("_turn") is not None:
-            state = {**state, "__pydantic_private__": {**private, "_turn": None}}
-        return state
+    _TRANSIENT: ClassVar[tuple[str, ...]] = ("_turn",)
+    _BUMP: ClassVar[dict] = {"allowed": COUNTERS, "coerce": int}

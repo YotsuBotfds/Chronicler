@@ -1,0 +1,279 @@
+{
+ "class": "watershed_state.WatershedState",
+ "schema_sha256": "825402088033168cdb0337c033c84eea4d7d3b7cb200d1fd4e6039fb8712ff75",
+ "variants": {
+  "populated": {
+   "pickle": "watershed_state.WatershedState.populated.pkl",
+   "sha256": "5bbf2646ef27e1901129b25f4dc2799240e86099077c863d5b7a7769b83a1545",
+   "hash_order_free": false,
+   "loaded": {
+    "type": "watershed_state.WatershedState",
+    "dict_keys": [
+     "schema_version",
+     "enabled",
+     "mode",
+     "opened_turn",
+     "graph",
+     "storage",
+     "last_index",
+     "opening_storage",
+     "spells",
+     "flood_events",
+     "active_consequences",
+     "frame",
+     "cumulative",
+     "counters",
+     "pending_superseded"
+    ],
+    "fields_set": [
+     "graph",
+     "last_index",
+     "opened_turn",
+     "opening_storage",
+     "storage"
+    ],
+    "extra": null,
+    "private": {
+     "_plan": null
+    },
+    "dump": {
+     "schema_version": 1,
+     "enabled": true,
+     "mode": "record_only",
+     "opened_turn": 1,
+     "graph": {
+      "down": [],
+      "order": [],
+      "river_steps": 1
+     },
+     "storage": [],
+     "last_index": [],
+     "opening_storage": 0.5,
+     "spells": [],
+     "frame": null,
+     "cumulative": {
+      "precipitation": 0.0,
+      "external_in": 0.0,
+      "external_out": 0.0,
+      "evaporation": 0.0,
+      "withdrawal": 0.0,
+      "to_sea": 0.0,
+      "to_sink": 0.0,
+      "to_lake": 0.0,
+      "transfer": 0.0
+     },
+     "counters": {
+      "planned_turns": 1,
+      "settled_turns": 0,
+      "abandoned_plans": 0,
+      "flood_region_turns": 0,
+      "drought_region_turns": 0,
+      "droughts_declared": 0,
+      "droughts_ended": 0,
+      "external_out_unmet_turns": 0,
+      "stale_baseline_turns": 0,
+      "switch_state_probe_2": 2
+     }
+    }
+   },
+   "repickle_sha256": "5bbf2646ef27e1901129b25f4dc2799240e86099077c863d5b7a7769b83a1545",
+   "repickle_hash_order_free": false
+  },
+  "transient": {
+   "pickle": "watershed_state.WatershedState.transient.pkl",
+   "sha256": "5bbf2646ef27e1901129b25f4dc2799240e86099077c863d5b7a7769b83a1545",
+   "hash_order_free": false,
+   "loaded": {
+    "type": "watershed_state.WatershedState",
+    "dict_keys": [
+     "schema_version",
+     "enabled",
+     "mode",
+     "opened_turn",
+     "graph",
+     "storage",
+     "last_index",
+     "opening_storage",
+     "spells",
+     "flood_events",
+     "active_consequences",
+     "frame",
+     "cumulative",
+     "counters",
+     "pending_superseded"
+    ],
+    "fields_set": [
+     "graph",
+     "last_index",
+     "opened_turn",
+     "opening_storage",
+     "storage"
+    ],
+    "extra": null,
+    "private": {
+     "_plan": null
+    },
+    "dump": {
+     "schema_version": 1,
+     "enabled": true,
+     "mode": "record_only",
+     "opened_turn": 1,
+     "graph": {
+      "down": [],
+      "order": [],
+      "river_steps": 1
+     },
+     "storage": [],
+     "last_index": [],
+     "opening_storage": 0.5,
+     "spells": [],
+     "frame": null,
+     "cumulative": {
+      "precipitation": 0.0,
+      "external_in": 0.0,
+      "external_out": 0.0,
+      "evaporation": 0.0,
+      "withdrawal": 0.0,
+      "to_sea": 0.0,
+      "to_sink": 0.0,
+      "to_lake": 0.0,
+      "transfer": 0.0
+     },
+     "counters": {
+      "planned_turns": 1,
+      "settled_turns": 0,
+      "abandoned_plans": 0,
+      "flood_region_turns": 0,
+      "drought_region_turns": 0,
+      "droughts_declared": 0,
+      "droughts_ended": 0,
+      "external_out_unmet_turns": 0,
+      "stale_baseline_turns": 0,
+      "switch_state_probe_2": 2
+     }
+    }
+   },
+   "repickle_sha256": "5bbf2646ef27e1901129b25f4dc2799240e86099077c863d5b7a7769b83a1545",
+   "repickle_hash_order_free": false
+  },
+  "old": {
+   "pickle": "watershed_state.WatershedState.old.pkl",
+   "sha256": "3a7ac164d14042a1bdcbb620fd0a2a416de920c9a064e76c25058fd7f9ce84ee",
+   "hash_order_free": false,
+   "loaded": {
+    "type": "watershed_state.WatershedState",
+    "dict_keys": [
+     "opened_turn",
+     "graph",
+     "storage",
+     "last_index",
+     "opening_storage",
+     "pending_superseded",
+     "flood_events",
+     "active_consequences"
+    ],
+    "fields_set": [
+     "graph",
+     "last_index",
+     "opened_turn",
+     "opening_storage",
+     "storage"
+    ],
+    "extra": null,
+    "private": {
+     "_plan": null
+    },
+    "dump": {
+     "opened_turn": 1,
+     "graph": {
+      "down": [],
+      "order": [],
+      "river_steps": 1
+     },
+     "storage": [],
+     "last_index": [],
+     "opening_storage": 0.5
+    }
+   },
+   "repickle_sha256": "0e45f56993506c1f79b9fa7b4074e21a8ecda219a3191ff1c18fa9a9e0419123",
+   "repickle_hash_order_free": false
+  },
+  "partial": {
+   "pickle": "watershed_state.WatershedState.partial.pkl",
+   "sha256": "ea7ab9df4939f33f62077f20ea0b4776a3d13b2afa53f1b600b9afe8c434f09d",
+   "hash_order_free": false,
+   "loaded": {
+    "type": "watershed_state.WatershedState",
+    "dict_keys": [
+     "schema_version",
+     "enabled",
+     "mode",
+     "opened_turn",
+     "graph",
+     "storage",
+     "last_index",
+     "opening_storage",
+     "spells",
+     "flood_events",
+     "active_consequences",
+     "frame",
+     "cumulative",
+     "counters",
+     "pending_superseded"
+    ],
+    "fields_set": [
+     "graph",
+     "last_index",
+     "opened_turn",
+     "opening_storage",
+     "storage"
+    ],
+    "extra": null,
+    "private": {
+     "_plan": null
+    },
+    "dump": {
+     "schema_version": 1,
+     "enabled": true,
+     "mode": "record_only",
+     "opened_turn": 1,
+     "graph": {
+      "down": [],
+      "order": [],
+      "river_steps": 1
+     },
+     "storage": [],
+     "last_index": [],
+     "opening_storage": 0.5,
+     "spells": [],
+     "frame": null,
+     "cumulative": {
+      "precipitation": 0.0,
+      "external_in": 0.0,
+      "external_out": 0.0,
+      "evaporation": 0.0,
+      "withdrawal": 0.0,
+      "to_sea": 0.0,
+      "to_sink": 0.0,
+      "to_lake": 0.0,
+      "transfer": 0.0
+     },
+     "counters": {
+      "planned_turns": 1,
+      "settled_turns": 0,
+      "abandoned_plans": 0,
+      "flood_region_turns": 0,
+      "drought_region_turns": 0,
+      "droughts_declared": 0,
+      "droughts_ended": 0,
+      "external_out_unmet_turns": 0,
+      "stale_baseline_turns": 0,
+      "switch_state_probe_2": 2
+     }
+    }
+   },
+   "repickle_sha256": "5bbf2646ef27e1901129b25f4dc2799240e86099077c863d5b7a7769b83a1545",
+   "repickle_hash_order_free": false
+  }
+ }
+}

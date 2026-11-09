@@ -15,9 +15,11 @@ the fixed key set ``COUNTERS`` (declaration order: append only).
 """
 from __future__ import annotations
 
-from typing import Literal
+from typing import ClassVar, Literal
 
 from pydantic import BaseModel, Field, PrivateAttr
+
+from chronicler.switch_state import SwitchStateMixin
 
 #: Lifetime counters (declaration order; append only).
 COUNTERS: tuple[str, ...] = (
@@ -45,7 +47,7 @@ class WearReceipt(BaseModel):
     full_offset: bool = False
 
 
-class OperatingWearState(BaseModel):
+class OperatingWearState(SwitchStateMixin, BaseModel):
     schema_version: Literal[1] = 1
     enabled: bool = True
     #: Scalar lifetime counters (the fixed key set ``COUNTERS``).
@@ -55,3 +57,4 @@ class OperatingWearState(BaseModel):
     #: Transient, within one Phase 2: (turn, receipts by site) recorded at
     #: workshop settlement and committed by ``finish_phase2``. Never serialized.
     _pending: object | None = PrivateAttr(default=None)
+    _BUMP: ClassVar[dict] = {"allowed": COUNTERS}

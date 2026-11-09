@@ -111,6 +111,7 @@ from chronicler.workshop_economics_state import (
     COUNTERS, MAX_FRAME, MAX_LOG, MAX_POPULATION_HISTORY, EconomicsReceipt, EconomicsRecord, FirmTerms,
     PriceObservation, WorkshopEconomicsState,
 )
+from chronicler.switch_state import sub_state_getter
 
 MILLI = 1000
 #: The owner's one-time starting capital, milli-units (declared, uncalibrated:
@@ -163,15 +164,11 @@ class _Turn:
 # Switch
 # ---------------------------------------------------------------------------
 
-def _state(world) -> WorkshopEconomicsState | None:
-    container = getattr(world, "livelihoods", None)
-    return getattr(container, "workshop_economics", None) if container is not None else None
+_state = sub_state_getter("workshop_economics")
 
 
 def _bump(state: WorkshopEconomicsState, key: str, amount: int = 1) -> None:
-    if key not in COUNTERS:
-        raise KeyError(f"undeclared workshop economics counter {key!r}")
-    state.counters[key] = state.counters.get(key, 0) + int(amount)
+    state.bump(key, amount)
 
 
 def _log(state: WorkshopEconomicsState, turn: int, kind: str, firm: int | None = None, **detail) -> None:

@@ -8,9 +8,11 @@ counters. See docs/integration/clearing-protection.md.
 """
 from __future__ import annotations
 
-from typing import Literal
+from typing import ClassVar, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, PrivateAttr
+
+from chronicler.switch_state import SwitchStateMixin
 
 #: Funnel counters, in report order (all start at zero).
 COUNTER_KEYS: tuple[str, ...] = (
@@ -116,7 +118,7 @@ class UnprotectedRegion(BaseModel):
     cleared: float = _amount()
 
 
-class ClearingProtectionState(BaseModel):
+class ClearingProtectionState(SwitchStateMixin, BaseModel):
     schema_version: Literal[1] = 1
     enabled: bool = True
     mode: Literal["enforced", "cost_only"] = "enforced"
@@ -141,20 +143,6 @@ class ClearingProtectionState(BaseModel):
     # in exact checkpoints (the engine is fixed for a run), unknown (None)
     # before the first Phase 9 of a run or after a state-file load.
     _native_ecology: bool | None = PrivateAttr(default=None)
-
-    def __getstate__(self):
-        state = super().__getstate__()
-        private = state.get("__pydantic_private__")
-        if private and private.get("_plan") is not None:
-            state = {**state, "__pydantic_private__": {**private, "_plan": None}}
-        return state
-
-    def __setstate__(self, state):
-        super().__setstate__(state)
-        self.__dict__.setdefault("unprotected", [])
-        private = getattr(self, "__pydantic_private__", None)
-        if private is None:
-            object.__setattr__(self, "__pydantic_private__", {"_plan": None, "_native_ecology": None})
-        else:
-            private.setdefault("_plan", None)
-            private.setdefault("_native_ecology", None)
+    _FILL_DEFAULTS: ClassVar[tuple[str, ...]] = ("unprotected",)
+    _FILL_PRIVATE: ClassVar[tuple[str, ...]] = ("_plan", "_native_ecology")
+    _TRANSIENT: ClassVar[tuple[str, ...]] = ("_plan",)

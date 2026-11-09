@@ -78,11 +78,11 @@ this turn (no production from unpaid inputs under A3); and
 from __future__ import annotations
 
 import math
-from importlib import import_module
 
 from chronicler.workshops_state import (
     MAX_CLOSED, MAX_CREW, MAX_HISTORY, MAX_SITES, WorkshopReceipt, WorkshopSite, WorkshopState,
 )
+from chronicler.switch_state import lane_active, sub_state_getter
 
 #: Goods in native slot order (economy.FIXED_GOODS); only raw materials are crafted.
 _RAW_GOODS = ("timber", "ore")
@@ -114,9 +114,7 @@ class _Plan:
         self.turn, self.sites, self.legacy = turn, sites, legacy
 
 
-def _state(world) -> WorkshopState | None:
-    container = getattr(world, "livelihoods", None)
-    return getattr(container, "workshops", None) if container is not None else None
+_state = sub_state_getter("workshops")
 
 
 def set_workshops_enabled(world, value: bool, *, args=None, agent_mode=None) -> None:
@@ -229,12 +227,7 @@ def _column(region_input, name: str):
     return region_input.column(names.index(name)).to_pylist()
 
 
-def _lane_active(world, name: str) -> bool:
-    """RS0: a recovery-skills switch is present and active (never imports its
-    module for a world that never enabled it)."""
-    if getattr(getattr(world, "livelihoods", None), name, None) is None:
-        return False
-    return bool(getattr(import_module("chronicler." + name), f"{name}_active")(world))
+_lane_active = lane_active
 
 
 def _legacy_repair_allowed(world) -> bool:

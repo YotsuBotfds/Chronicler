@@ -12,13 +12,13 @@ from __future__ import annotations
 import math
 
 from chronicler.harvest_cover_state import COUNTERS, MODES, CoverRow, HarvestCoverState
+from chronicler.switch_state import sub_state_getter
 
 GAP_THRESHOLD = 0.3
 LOSS_RATE = 0.05
 
 
-def _state(world):
-    return getattr(getattr(world, "livelihoods", None), "harvest_cover", None)
+_state = sub_state_getter("harvest_cover")
 
 
 def harvest_cover_active(world):

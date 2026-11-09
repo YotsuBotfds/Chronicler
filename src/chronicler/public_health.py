@@ -12,6 +12,7 @@ from __future__ import annotations
 import math
 
 from chronicler.public_health_state import OutbreakReport, PublicHealthState, SupplyReceipt
+from chronicler.switch_state import sub_state_getter
 
 SANITATION_REDUCTION = 0.20  # flux susceptibility, at full maintained service
 DISPLACEMENT_CROWDING = 0.25  # extra susceptibility at a fully displaced region
@@ -24,8 +25,7 @@ GUARDS_PER_PAIR = 1.0
 GUARD_WAGE_MILLI = 500
 
 
-def _state(world):
-    return getattr(getattr(world, "livelihoods", None), "public_health", None)
+_state = sub_state_getter("public_health")
 
 
 def public_health_active(world) -> bool:

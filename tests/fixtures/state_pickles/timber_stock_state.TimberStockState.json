@@ -1,0 +1,158 @@
+{
+ "class": "timber_stock_state.TimberStockState",
+ "schema_sha256": "6b529cf56851fd24e13551fc3738ddc1983986107d59781dafe8c23810c389b7",
+ "variants": {
+  "populated": {
+   "pickle": "timber_stock_state.TimberStockState.populated.pkl",
+   "sha256": "e4f49734f1ecbb90b34ace85f0cad236d0a45adfe80834f170d2d3573701eb6d",
+   "hash_order_free": true,
+   "loaded": {
+    "type": "timber_stock_state.TimberStockState",
+    "dict_keys": [
+     "schema_version",
+     "enabled",
+     "stocks",
+     "ledger_turn",
+     "ledger",
+     "totals"
+    ],
+    "fields_set": [],
+    "extra": null,
+    "private": {
+     "_offered": null
+    },
+    "dump": {
+     "schema_version": 1,
+     "enabled": true,
+     "stocks": [],
+     "ledger_turn": null,
+     "ledger": [],
+     "totals": {
+      "observed_turns": 0,
+      "extraction": 0.0,
+      "overdraft": 0.0,
+      "regrowth": 0.0,
+      "cleared": 0.0,
+      "removed": 0.0,
+      "capped_slot_turns": 0
+     }
+    }
+   },
+   "repickle_sha256": "e4f49734f1ecbb90b34ace85f0cad236d0a45adfe80834f170d2d3573701eb6d",
+   "repickle_hash_order_free": true
+  },
+  "transient": {
+   "pickle": "timber_stock_state.TimberStockState.transient.pkl",
+   "sha256": "142379c65c7e59d359153c071d0dbedc767b396647a55433b90ea19161662d6a",
+   "hash_order_free": true,
+   "loaded": {
+    "type": "timber_stock_state.TimberStockState",
+    "dict_keys": [
+     "schema_version",
+     "enabled",
+     "stocks",
+     "ledger_turn",
+     "ledger",
+     "totals"
+    ],
+    "fields_set": [],
+    "extra": null,
+    "private": {
+     "_offered": "probe:_offered"
+    },
+    "dump": {
+     "schema_version": 1,
+     "enabled": true,
+     "stocks": [],
+     "ledger_turn": null,
+     "ledger": [],
+     "totals": {
+      "observed_turns": 0,
+      "extraction": 0.0,
+      "overdraft": 0.0,
+      "regrowth": 0.0,
+      "cleared": 0.0,
+      "removed": 0.0,
+      "capped_slot_turns": 0
+     }
+    }
+   },
+   "repickle_sha256": "142379c65c7e59d359153c071d0dbedc767b396647a55433b90ea19161662d6a",
+   "repickle_hash_order_free": true
+  },
+  "old": {
+   "pickle": "timber_stock_state.TimberStockState.old.pkl",
+   "sha256": "e04ec2cb769e64dbe02b44ad62dda3517b86d907d6d932106ce400d9df0c31a2",
+   "hash_order_free": true,
+   "loaded": {
+    "type": "timber_stock_state.TimberStockState",
+    "dict_keys": [
+     "stocks",
+     "ledger_turn",
+     "ledger",
+     "totals"
+    ],
+    "fields_set": [],
+    "extra": null,
+    "private": {
+     "_offered": null
+    },
+    "dump": {
+     "stocks": [],
+     "ledger_turn": null,
+     "ledger": [],
+     "totals": {
+      "observed_turns": 0,
+      "extraction": 0.0,
+      "overdraft": 0.0,
+      "regrowth": 0.0,
+      "cleared": 0.0,
+      "removed": 0.0,
+      "capped_slot_turns": 0
+     }
+    }
+   },
+   "repickle_sha256": "b951256004669d7f06364ff2876d2f6fbcb84a9308d0ca6c5b15ca8c27475d3f",
+   "repickle_hash_order_free": true
+  },
+  "partial": {
+   "pickle": "timber_stock_state.TimberStockState.partial.pkl",
+   "sha256": "5683c8cde13ee369bd17d44878fbd27b00d9bb7e6b8065856004f1389c7870ef",
+   "hash_order_free": true,
+   "loaded": {
+    "type": "timber_stock_state.TimberStockState",
+    "dict_keys": [
+     "schema_version",
+     "enabled",
+     "stocks",
+     "ledger_turn",
+     "ledger",
+     "totals"
+    ],
+    "fields_set": [],
+    "extra": null,
+    "private": {
+     "_offered": null
+    },
+    "dump": {
+     "schema_version": 1,
+     "enabled": true,
+     "stocks": [],
+     "ledger_turn": null,
+     "ledger": [],
+     "totals": {
+      "observed_turns": 0,
+      "extraction": 0.0,
+      "overdraft": 0.0,
+      "regrowth": 0.0,
+      "cleared": 0.0,
+      "removed": 0.0,
+      "capped_slot_turns": 0
+     }
+    }
+   },
+   "repickle_sha256": "e4f49734f1ecbb90b34ace85f0cad236d0a45adfe80834f170d2d3573701eb6d",
+   "repickle_hash_order_free": true
+  }
+ }
+}

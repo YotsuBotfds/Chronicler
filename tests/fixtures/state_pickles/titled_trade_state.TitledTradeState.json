@@ -1,0 +1,243 @@
+{
+ "class": "titled_trade_state.TitledTradeState",
+ "schema_sha256": "269b33a2c5551cb0cfb411e64c7e229b1c3559719d2918ed1b1b4456d453ecc9",
+ "variants": {
+  "populated": {
+   "pickle": "titled_trade_state.TitledTradeState.populated.pkl",
+   "sha256": "11df1cf0d088f9d546cbe4707bc59e77b3df74f0e36371e7c8f4e5c1f135ba46",
+   "hash_order_free": true,
+   "loaded": {
+    "type": "titled_trade_state.TitledTradeState",
+    "dict_keys": [
+     "schema_version",
+     "enabled",
+     "goods",
+     "next_shipment",
+     "shipments",
+     "closed",
+     "lots",
+     "book",
+     "last_settled_turn",
+     "last_trade_turn",
+     "frame_turn",
+     "frame",
+     "counters",
+     "log",
+     "log_dropped"
+    ],
+    "fields_set": [],
+    "extra": null,
+    "private": {
+     "_turn": null
+    },
+    "dump": {
+     "schema_version": 1,
+     "enabled": true,
+     "goods": "food",
+     "next_shipment": 0,
+     "shipments": [],
+     "closed": [],
+     "lots": [],
+     "book": {
+      "settled": [],
+      "carry": {},
+      "sinks": {},
+      "flows_turn": null,
+      "flows": [],
+      "flows_dropped": 0,
+      "totals": []
+     },
+     "last_settled_turn": null,
+     "last_trade_turn": null,
+     "frame_turn": null,
+     "frame": null,
+     "counters": {
+      "switch_state_probe_1": 1,
+      "switch_state_probe_2": 2
+     },
+     "log": [],
+     "log_dropped": 0
+    }
+   },
+   "repickle_sha256": "11df1cf0d088f9d546cbe4707bc59e77b3df74f0e36371e7c8f4e5c1f135ba46",
+   "repickle_hash_order_free": true
+  },
+  "transient": {
+   "pickle": "titled_trade_state.TitledTradeState.transient.pkl",
+   "sha256": "11df1cf0d088f9d546cbe4707bc59e77b3df74f0e36371e7c8f4e5c1f135ba46",
+   "hash_order_free": true,
+   "loaded": {
+    "type": "titled_trade_state.TitledTradeState",
+    "dict_keys": [
+     "schema_version",
+     "enabled",
+     "goods",
+     "next_shipment",
+     "shipments",
+     "closed",
+     "lots",
+     "book",
+     "last_settled_turn",
+     "last_trade_turn",
+     "frame_turn",
+     "frame",
+     "counters",
+     "log",
+     "log_dropped"
+    ],
+    "fields_set": [],
+    "extra": null,
+    "private": {
+     "_turn": null
+    },
+    "dump": {
+     "schema_version": 1,
+     "enabled": true,
+     "goods": "food",
+     "next_shipment": 0,
+     "shipments": [],
+     "closed": [],
+     "lots": [],
+     "book": {
+      "settled": [],
+      "carry": {},
+      "sinks": {},
+      "flows_turn": null,
+      "flows": [],
+      "flows_dropped": 0,
+      "totals": []
+     },
+     "last_settled_turn": null,
+     "last_trade_turn": null,
+     "frame_turn": null,
+     "frame": null,
+     "counters": {
+      "switch_state_probe_1": 1,
+      "switch_state_probe_2": 2
+     },
+     "log": [],
+     "log_dropped": 0
+    }
+   },
+   "repickle_sha256": "11df1cf0d088f9d546cbe4707bc59e77b3df74f0e36371e7c8f4e5c1f135ba46",
+   "repickle_hash_order_free": true
+  },
+  "old": {
+   "pickle": "titled_trade_state.TitledTradeState.old.pkl",
+   "sha256": "4a3c4dfafdbd0b3075e5590c27916114f69360a89dd0cc768250f4b0e0229caf",
+   "hash_order_free": true,
+   "loaded": {
+    "type": "titled_trade_state.TitledTradeState",
+    "dict_keys": [
+     "schema_version",
+     "enabled",
+     "goods",
+     "next_shipment",
+     "shipments",
+     "closed",
+     "lots",
+     "book",
+     "last_settled_turn",
+     "last_trade_turn",
+     "frame_turn",
+     "frame",
+     "counters",
+     "log",
+     "log_dropped"
+    ],
+    "fields_set": [],
+    "extra": null,
+    "private": {
+     "_turn": null
+    },
+    "dump": {
+     "schema_version": 1,
+     "enabled": true,
+     "goods": "food",
+     "next_shipment": 0,
+     "shipments": [],
+     "closed": [],
+     "lots": [],
+     "book": {
+      "settled": [],
+      "carry": {},
+      "sinks": {},
+      "flows_turn": null,
+      "flows": [],
+      "flows_dropped": 0,
+      "totals": []
+     },
+     "last_settled_turn": null,
+     "last_trade_turn": null,
+     "frame_turn": null,
+     "frame": null,
+     "counters": {},
+     "log": [],
+     "log_dropped": 0
+    }
+   },
+   "repickle_sha256": "b250e4cdbd634bc845349b67bbff865637f8c34706ef2435e4258f6d8de27021",
+   "repickle_hash_order_free": true
+  },
+  "partial": {
+   "pickle": "titled_trade_state.TitledTradeState.partial.pkl",
+   "sha256": "d5f43507d1663e2fb0005d7a7683517e4fb2593381a95a5d7db464bf782d5e5d",
+   "hash_order_free": true,
+   "loaded": {
+    "type": "titled_trade_state.TitledTradeState",
+    "dict_keys": [
+     "schema_version",
+     "enabled",
+     "goods",
+     "next_shipment",
+     "shipments",
+     "closed",
+     "lots",
+     "book",
+     "last_settled_turn",
+     "last_trade_turn",
+     "frame_turn",
+     "frame",
+     "counters",
+     "log",
+     "log_dropped"
+    ],
+    "fields_set": [],
+    "extra": null,
+    "private": {
+     "_turn": null
+    },
+    "dump": {
+     "schema_version": 1,
+     "enabled": true,
+     "goods": "food",
+     "next_shipment": 0,
+     "shipments": [],
+     "closed": [],
+     "lots": [],
+     "book": {
+      "settled": [],
+      "carry": {},
+      "sinks": {},
+      "flows_turn": null,
+      "flows": [],
+      "flows_dropped": 0,
+      "totals": []
+     },
+     "last_settled_turn": null,
+     "last_trade_turn": null,
+     "frame_turn": null,
+     "frame": null,
+     "counters": {
+      "switch_state_probe_1": 1,
+      "switch_state_probe_2": 2
+     },
+     "log": [],
+     "log_dropped": 0
+    }
+   },
+   "repickle_sha256": "11df1cf0d088f9d546cbe4707bc59e77b3df74f0e36371e7c8f4e5c1f135ba46",
+   "repickle_hash_order_free": true
+  }
+ }
+}

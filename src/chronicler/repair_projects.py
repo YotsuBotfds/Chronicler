@@ -101,12 +101,12 @@ timber held is used or returned. All parameters are declared modeling choices, n
 from __future__ import annotations
 
 import math
-from importlib import import_module
 
 from chronicler.repair_projects_state import (
-    COUNTERS, MAX_CLOSED, MAX_CREW, MAX_DAMAGES, MAX_HISTORY, MODES, CivLedger, RepairProject,
+    MAX_CLOSED, MAX_CREW, MAX_DAMAGES, MAX_HISTORY, MODES, CivLedger, RepairProject,
     RepairProjectsState, RepairReceipt, UnmetNeed, WarDamage,
 )
+from chronicler.switch_state import lane_active, sub_state_getter
 
 MILLI = 1000
 #: A wear project opens below this condition (both kinds).
@@ -214,15 +214,11 @@ class _Turn:
         self.store_holds: dict[int, float] = {}   # PL1: the part of each hold taken from the store
 
 
-def _state(world) -> RepairProjectsState | None:
-    container = getattr(world, "livelihoods", None)
-    return getattr(container, "repair_projects", None) if container is not None else None
+_state = sub_state_getter("repair_projects")
 
 
 def _bump(state, key: str, amount=1) -> None:
-    if key not in COUNTERS:
-        raise KeyError(f"undeclared repair-projects counter {key!r}")
-    state.counters[key] = state.counters.get(key, 0) + amount
+    state.bump(key, amount)
 
 
 def _note(project: RepairProject, turn: int, event: str, civ: int, amount: int = 0) -> None:
@@ -289,10 +285,7 @@ def repair_projects_active(world) -> bool:
     return workshops_active(world) or _grain_storage_on(world)
 
 
-def _lane_active(world, name: str) -> bool:
-    if getattr(getattr(world, "livelihoods", None), name, None) is None:
-        return False
-    return bool(getattr(import_module("chronicler." + name), f"{name}_active")(world))
+_lane_active = lane_active
 
 
 def _storage(world):

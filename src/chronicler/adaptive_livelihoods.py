@@ -12,6 +12,7 @@ import heapq
 
 from chronicler.adaptive_livelihoods_state import AdaptiveLivelihoodsState
 from chronicler.utils import stable_hash_int
+from chronicler.switch_state import sub_state_getter
 
 MAX_MEMORY = 16384
 MAX_WORK = 16384
@@ -20,8 +21,7 @@ P_REFUSED, P_LEFT, P_CAP = 0.20, 0.15, 0.30
 WORK_WINDOW = 10
 
 
-def _state(world):
-    return getattr(getattr(world, "livelihoods", None), "adaptive_livelihoods", None)
+_state = sub_state_getter("adaptive_livelihoods")
 
 
 def adaptive_livelihoods_active(world):
@@ -56,7 +56,7 @@ def set_adaptive_livelihoods_enabled(world, value, *, args=None, agent_mode=None
 
 
 def _bump(state, name, amount=1):
-    state.counters[name] = state.counters.get(name, 0) + amount
+    state.bump(name, amount)
 
 
 def _personal_channel(state, channel):
@@ -313,22 +313,7 @@ def before_agent_tick(world, agent_bridge, economy_result=None):
     if state.mode == "shuffled":
         snap = agent_bridge._sim.get_snapshot()
         homes = dict(zip(map(int, snap.column("id").to_pylist()), map(int, snap.column("region").to_pylist())))
-        index = {r.name: i for i, r in enumerate(world.regions)}
-        remapped = []
-        permutations = {}
-        for aid, target, magnitude in rows:
-            origin = homes.get(aid)
-            choices = sorted(index[n] for n in world.regions[origin].adjacencies if n in index) if origin is not None else []
-            if aid not in permutations:
-                shift = 1 + stable_hash_int("a6_shuffle", world.turn, aid) % (len(choices) - 1) if len(choices) > 1 else 0
-                permutations[aid] = dict(zip(choices, choices[shift:] + choices[:shift]))
-            if len(choices) > 1 and target in permutations[aid]:
-                target = permutations[aid][target]
-            else:
-                _bump(state, "unshuffled")
-            remapped.append((aid, target, magnitude))
-        # A permutation is one-to-one: row count and every magnitude survive.
-        rows = sorted(remapped)
+        rows = _shuffle_rows(world, state, homes, rows)
     # Install an empty input in record_only so refusals are still observed.
     agent_bridge._sim.set_adaptive_migration(world.turn, [] if state.mode == "record_only" else rows)
     state.frame = {"turn": world.turn, "rows": rows[:256], "rows_total": len(rows),
@@ -337,6 +322,28 @@ def before_agent_tick(world, agent_bridge, economy_result=None):
                    "known_destinations": information[:256], "known_destinations_total": len(information),
                    "known_destinations_dropped": max(0, len(information) - 256),
                    "information_gate_installed": state.rules == "2" and state.mode != "record_only"}
+
+
+def _shuffle_rows(world, state, homes, rows):
+    """Shuffled control: move each row to a per-person rotation of its origin's
+    neighbours (a stable hash of turn and id). A row that cannot move (no home,
+    fewer than two neighbours, or a target outside them) is kept and counted
+    as ``unshuffled``, in row order. A permutation is one-to-one: row count and
+    every magnitude survive."""
+    index = {r.name: i for i, r in enumerate(world.regions)}
+    remapped, permutations = [], {}
+    for aid, target, magnitude in rows:
+        origin = homes.get(aid)
+        choices = sorted(index[n] for n in world.regions[origin].adjacencies if n in index) if origin is not None else []
+        if aid not in permutations:
+            shift = 1 + stable_hash_int("a6_shuffle", world.turn, aid) % (len(choices) - 1) if len(choices) > 1 else 0
+            permutations[aid] = dict(zip(choices, choices[shift:] + choices[:shift]))
+        if len(choices) > 1 and target in permutations[aid]:
+            target = permutations[aid][target]
+        else:
+            _bump(state, "unshuffled")
+        remapped.append((aid, target, magnitude))
+    return sorted(remapped)
 
 
 def _before_agent_tick_v3(world, agent_bridge, state):
@@ -357,20 +364,7 @@ def _before_agent_tick_v3(world, agent_bridge, state):
     would = penalty_rows(state, world.turn)
     personal = list(would) if _personal_channel(state, "migration_experience") else []
     if state.mode == "shuffled":
-        index = {r.name: i for i, r in enumerate(world.regions)}
-        remapped, permutations = [], {}
-        for aid, target, magnitude in personal:
-            origin = homes.get(aid)
-            choices = sorted(index[n] for n in world.regions[origin].adjacencies if n in index) if origin is not None else []
-            if aid not in permutations:
-                shift = 1 + stable_hash_int("a6_shuffle", world.turn, aid) % (len(choices) - 1) if len(choices) > 1 else 0
-                permutations[aid] = dict(zip(choices, choices[shift:] + choices[:shift]))
-            if len(choices) > 1 and target in permutations[aid]:
-                target = permutations[aid][target]
-            else:
-                _bump(state, "unshuffled")
-            remapped.append((aid, target, magnitude))
-        personal = sorted(remapped)
+        personal = _shuffle_rows(world, state, homes, personal)
     from chronicler.war_consequences import movement_rows
     attached = {int(aid) for army in getattr(getattr(world, "war_state", None), "armies", []) for aid, _ in army.roster}
     war = [row for aid, origin in sorted(homes.items())

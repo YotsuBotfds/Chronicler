@@ -1,0 +1,198 @@
+{
+ "class": "clearing_protection_state.ClearingProtectionState",
+ "schema_sha256": "b24860861502c7649f0fbdd67ee09ad66dc064ec473de513b7dc090ac6ad388e",
+ "variants": {
+  "populated": {
+   "pickle": "clearing_protection_state.ClearingProtectionState.populated.pkl",
+   "sha256": "1dd5c06f04c4d65cab0dc3ad3036b780231713866bfb93f2d5bba41f3cbf4eb8",
+   "hash_order_free": true,
+   "loaded": {
+    "type": "clearing_protection_state.ClearingProtectionState",
+    "dict_keys": [
+     "schema_version",
+     "enabled",
+     "mode",
+     "protections",
+     "decisions",
+     "frame_turn",
+     "frame",
+     "unprotected",
+     "counters"
+    ],
+    "fields_set": [],
+    "extra": null,
+    "private": {
+     "_plan": null,
+     "_native_ecology": null
+    },
+    "dump": {
+     "schema_version": 1,
+     "enabled": true,
+     "mode": "enforced",
+     "protections": [],
+     "decisions": [],
+     "frame_turn": null,
+     "frame": [],
+     "unprotected": [],
+     "counters": {
+      "planned_turns": 1,
+      "settled_turns": 0,
+      "abandoned_plans": 0,
+      "eligible_region_turns": 0,
+      "adoption_candidates": 0,
+      "adoption_over_limit": 0,
+      "adoption_unaffordable": 0,
+      "adopted": 0,
+      "protected_region_turns": 0,
+      "pressure_planned_turns": 0,
+      "clearing_active_turns": 0,
+      "required": 0,
+      "paid_planned": 0,
+      "charged": 0,
+      "full_funded_turns": 0,
+      "partial_funded_turns": 0,
+      "zero_funded_turns": 0,
+      "cover_not_cleared": 0,
+      "cover_would_keep": 0,
+      "timber_capacity_kept": 0,
+      "ended_controller_changed": 0,
+      "ended_uncontrolled": 0,
+      "ended_cover_lost": 0,
+      "ended_idle": 0,
+      "ended_unfunded": 0,
+      "unprotected_clearing_turns": 0,
+      "cover_cleared_unprotected": 0,
+      "switch_state_probe_2": 2.5
+     }
+    }
+   },
+   "repickle_sha256": "1dd5c06f04c4d65cab0dc3ad3036b780231713866bfb93f2d5bba41f3cbf4eb8",
+   "repickle_hash_order_free": true
+  },
+  "transient": {
+   "pickle": "clearing_protection_state.ClearingProtectionState.transient.pkl",
+   "sha256": "a8e970967ddf64c1f48fe137d5922c6746c5d72b5991f09ee8d5a7fae70120a7",
+   "hash_order_free": true,
+   "loaded": {
+    "type": "clearing_protection_state.ClearingProtectionState",
+    "dict_keys": [
+     "schema_version",
+     "enabled",
+     "mode",
+     "protections",
+     "decisions",
+     "frame_turn",
+     "frame",
+     "unprotected",
+     "counters"
+    ],
+    "fields_set": [],
+    "extra": null,
+    "private": {
+     "_plan": null,
+     "_native_ecology": "probe:_native_ecology"
+    },
+    "dump": {
+     "schema_version": 1,
+     "enabled": true,
+     "mode": "enforced",
+     "protections": [],
+     "decisions": [],
+     "frame_turn": null,
+     "frame": [],
+     "unprotected": [],
+     "counters": {
+      "planned_turns": 1,
+      "settled_turns": 0,
+      "abandoned_plans": 0,
+      "eligible_region_turns": 0,
+      "adoption_candidates": 0,
+      "adoption_over_limit": 0,
+      "adoption_unaffordable": 0,
+      "adopted": 0,
+      "protected_region_turns": 0,
+      "pressure_planned_turns": 0,
+      "clearing_active_turns": 0,
+      "required": 0,
+      "paid_planned": 0,
+      "charged": 0,
+      "full_funded_turns": 0,
+      "partial_funded_turns": 0,
+      "zero_funded_turns": 0,
+      "cover_not_cleared": 0,
+      "cover_would_keep": 0,
+      "timber_capacity_kept": 0,
+      "ended_controller_changed": 0,
+      "ended_uncontrolled": 0,
+      "ended_cover_lost": 0,
+      "ended_idle": 0,
+      "ended_unfunded": 0,
+      "unprotected_clearing_turns": 0,
+      "cover_cleared_unprotected": 0,
+      "switch_state_probe_2": 2.5
+     }
+    }
+   },
+   "repickle_sha256": "a8e970967ddf64c1f48fe137d5922c6746c5d72b5991f09ee8d5a7fae70120a7",
+   "repickle_hash_order_free": true
+  },
+  "old": {
+   "pickle": "clearing_protection_state.ClearingProtectionState.old.pkl",
+   "sha256": "b985aff5abab3347b277a0585edac210f7def588b327455bd6f7f49998e07d11",
+   "hash_order_free": true,
+   "loaded": {
+    "type": "clearing_protection_state.ClearingProtectionState",
+    "dict_keys": [
+     "unprotected"
+    ],
+    "fields_set": [],
+    "extra": null,
+    "private": {
+     "_plan": null,
+     "_native_ecology": null
+    },
+    "dump": {
+     "unprotected": []
+    }
+   },
+   "repickle_sha256": "77e3fe87046bef35074247c41f9ed44bf4c0dd930d0b5f81e5bdd2befc5b8ba8",
+   "repickle_hash_order_free": true
+  },
+  "partial": {
+   "pickle": "clearing_protection_state.ClearingProtectionState.partial.pkl",
+   "sha256": "d8bacfa73ff07b51c234413e2bbbf38f52dde7c8d1ef834abc39ad36a6e2ac2b",
+   "hash_order_free": true,
+   "loaded": {
+    "type": "clearing_protection_state.ClearingProtectionState",
+    "dict_keys": [
+     "schema_version",
+     "enabled",
+     "mode",
+     "protections",
+     "decisions",
+     "frame_turn",
+     "frame",
+     "unprotected"
+    ],
+    "fields_set": [],
+    "extra": null,
+    "private": {
+     "_plan": null,
+     "_native_ecology": null
+    },
+    "dump": {
+     "schema_version": 1,
+     "enabled": true,
+     "mode": "enforced",
+     "protections": [],
+     "decisions": [],
+     "frame_turn": null,
+     "frame": [],
+     "unprotected": []
+    }
+   },
+   "repickle_sha256": "8f0aa7d93ce4519b6923a89c2ed6db31669a70f9fc659a4498a1219912a7b28c",
+   "repickle_hash_order_free": true
+  }
+ }
+}
