@@ -894,7 +894,6 @@ fn try_tick_agents_with_movements_observer<M: crate::decision_delivery::MoveObse
 
         // Occupation switches
         for &(slot, new_occ) in &pd.occupation_switches {
-            let old_occ = pool.occupation(slot);
             pool.set_occupation(slot, new_occ);
             // Set skill floor for new occupation
             let skill_idx = slot * 5 + new_occ as usize;
@@ -916,7 +915,6 @@ fn try_tick_agents_with_movements_observer<M: crate::decision_delivery::MoveObse
                 formed_turn: 0,
                 migration_driver: NO_MIGRATION_DRIVER,
             });
-            let _ = old_occ; // suppress unused warning
         }
 
         // Loyalty flips
