@@ -1,5 +1,11 @@
 # Chronicler Full Codebase Audit — 2026-03-29
 
+> **Historical snapshot — not current project status.** The findings and severity
+> counts below describe the March 29 source, not the current development branch.
+> Later remediation is recorded in `docs/superpowers/progress/phase-6-progress.md`
+> and `docs/integration/deferred-backlog-2026-10.md`. Retain this document as
+> audit evidence; do not use its severity labels or the counts as a current task list.
+
 10-agent team audit covering correctness, code quality, architecture, and project direction across all 53 Python files, the Rust agent crate, and the React/TS viewer.
 
 **Test suite status at time of audit:** 2,193 Python tests passed (4 skipped), 680 Rust tests passed (2 skipped). Zero failures.

@@ -37,7 +37,7 @@ Where the entries come from:
   registry appears in the catalog on its own.
 - **Prerequisites.** These are listed in `PREREQUISITES`: `grain_reserves`,
   `public_grain_shipments`, `grain_storage` (with `grain_storage_policy`),
-  `scholarship` and `academy_services`.
+  `scholarship`, `academy_services` and `health_care`.
 - **Public health.** The `FEATURE_GROUPS` group `Public health` holds a
   top-level choice with no boolean switch: `quarantine_mode`
   ([quarantine rules](quarantine-rules.md)), whose
@@ -49,11 +49,14 @@ Where the entries come from:
   (its config, else the server's). `test_public_health_choices_agree_with_the_run`
   and its batch-surface twin check every value against the real
   configuration path.
-- **Exclusions.** `epidemic_care` (C2, [epidemic care](epidemic-care.md)) and
-  `wealth_accounting` (A1) declare `{"not": {"feature": other}}` about each other (the
-  first pair; `exclusion_problems` refuses a one-sided one): the A1 ledger does not
-  itemize care wages. The compatibility matrix's all-enabled set keeps the switch later in
-  catalog order (A1) and drops `epidemic_care`.
+- **Exclusions.** None is declared in the current registry (checked 2026-11-08:
+  no `REQUIREMENTS` entry holds a `not` condition, and `exclusion_problems()` is
+  empty). The first pair, `epidemic_care` (C2, [epidemic care](epidemic-care.md))
+  and `wealth_accounting` (A1), is no longer declared: the A1 ledger now records care
+  wages through the committed payment seam ([wealth accounting](wealth-accounting.md)),
+  and the compatibility matrix's all-enabled set keeps both switches. The `not`
+  kind and `_excludes` remain for a future pair; `exclusion_problems` refuses a
+  one-sided one.
 - **Flags, help and choices.** These are read from the CLI parser itself.
 
 Each requirement is an object with a `reason`. It is one of:
@@ -90,9 +93,10 @@ the new `epidemiology` setting is outside that reference view), and
 lists the group keys after the prerequisite and livelihoods keys; the
 requirement-term walk of
 `test_every_boolean_feature_declares_requirements_over_known_terms` accepts
-`not`. No exclusion is declared yet. Viewers built before the `not` kind refuse a catalog that
-contains one: consider bumping `CATALOG_SCHEMA_VERSION` (and the version the
-viewer accepts) when the first exclusion lands.
+`not`. No exclusion is declared now (the C2/A1 pair above was lifted). Viewers
+built before the `not` kind refuse a catalog that contains one: consider bumping
+`CATALOG_SCHEMA_VERSION` (and the version the viewer accepts) when an exclusion
+is declared again.
 
 **Compatibility matrix.** `scripts/feature_matrix.py [--json OUT] [--markdown
 OUT]` generates it from the catalog, per agent mode and per world (template and
@@ -103,9 +107,11 @@ a refusal is expected only for an exclusive pair or a pair without a shared
 agent mode or world), each prerequisite drop (all must be refused) and the
 all-enabled selection per agent mode and world. `tests/test_feature_matrix.py`
 also sends every all-enabled selection (template and procedural worlds) and
-every drop through `main._configure_run`. With `--watershed` (2026-11-06): 25
-switches, 300 pairs, 0 refused, 24 world-dependent, 24 drops all refused,
-all-enabled accepted in every mode and world (procedural hybrid: all 25).
+every drop through `main._configure_run`. Counts from
+`scripts/feature_matrix.py` on 2026-11-08 (they change as switches are added):
+42 switches, 861 pairs, 0 refused, 41 world-dependent, 52 prerequisite drops all
+refused, all-enabled accepted in every mode and world (procedural hybrid: all 42;
+template hybrid: 41, without `watershed`). `PREREQUISITES` lists 6 switches.
 
 ## Agreement with the run's own checks
 
@@ -257,8 +263,8 @@ print(json.dumps(lobby_feature_catalog(_build_parser().parse_args(['--live', '--
   requirement is a server setting the live surface reports.
 - The live agent mode is the server's `--agents`. Batch Lab can change it per
   batch. Hybrid runs still need the native extension.
-- Other expansion switches (health care, harvest forecasts and others) are not
-  in the catalog. Batch Lab still accepts them at the top level of the config,
-  as before.
+- Health care is in the catalog, as a prerequisite (`health_care`). Other
+  expansion switches (harvest forecasts and others) are not in the catalog.
+  Batch Lab still accepts them at the top level of the config, as before.
 - Offering a switch does not qualify it. The switches remain experimental and
   default off.

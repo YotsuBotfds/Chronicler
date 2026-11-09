@@ -1,5 +1,11 @@
 # Chronicler Full Codebase Audit — 2026-04-02
 
+> **Historical snapshot — not current project status.** The findings and severity
+> counts below describe the April 2 source, not the current development branch.
+> Later remediation is recorded in `docs/superpowers/progress/phase-6-progress.md`
+> and `docs/integration/deferred-backlog-2026-10.md`. Retain this document as
+> audit evidence; do not use its severity labels or the counts as a current task list.
+
 25-agent coordinated audit across Python simulation (~32k lines, 57 files), Rust agent crate (~26k lines), viewer, and test suites. Goal: verify stability baseline before next milestones.
 
 ---

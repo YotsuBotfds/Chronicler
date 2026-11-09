@@ -2,7 +2,9 @@
 
 Moved here on 2026-11-04 from `scripts/`. Only dated records under `docs/`
 cite these scripts (milestone probes, one-off comparisons and earlier
-reports). No test or CI workflow runs them. Their documented commands were
+reports). No CI workflow runs them. `scripts/testing/script_smoke.py` runs
+the manifest entries marked safe to run (on request, not in CI), and
+`tests/test_script_smoke_manifest.py` checks the manifest statically. Their documented commands were
 updated to the new paths, and their repository-root lookups now go up two
 levels, so they still run from the repository root.
 
