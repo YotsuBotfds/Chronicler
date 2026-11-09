@@ -10,7 +10,7 @@ import pyarrow as pa
 import pytest
 
 from chronicler.agent_bridge import AgentBridge
-from chronicler import decision_delivery as delivery
+from chronicler_lab import decision_delivery as delivery
 
 
 def batch(fields, rows):
@@ -161,7 +161,8 @@ def test_default_path_never_configures_or_reads_and_adds_no_attachment(bridge, m
         monkeypatch.setattr(bridge._sim, name, forbidden)
     original_import = builtins.__import__
     def no_optional_import(name, globals=None, locals=None, fromlist=(), level=0):
-        if name == "chronicler.decision_delivery" or (name == "chronicler" and "decision_delivery" in (fromlist or ())):
+        if name in ("chronicler.decision_delivery", "chronicler_lab.decision_delivery") or (
+                name in ("chronicler", "chronicler_lab") and "decision_delivery" in (fromlist or ())):
             pytest.fail("default tick imported optional adapter")
         return original_import(name, globals, locals, fromlist, level)
     monkeypatch.setattr(builtins, "__import__", no_optional_import)

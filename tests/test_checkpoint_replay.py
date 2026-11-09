@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from chronicler import checkpoint_replay as replay
+from chronicler_lab import checkpoint_replay as replay
 from chronicler.models import ResourceType, WorldState
 from chronicler.tech_focus import TechFocus, apply_focus_effects, remove_focus_effects
 from chronicler.world_gen import generate_world
@@ -348,7 +348,7 @@ def test_real_cli_and_cross_process_resume_with_different_hashseeds(tmp_path):
     root = Path(__file__).resolve().parents[1]
     environment = dict(os.environ, PYTHONPATH=str(root / "src"), PYTHONHASHSEED="11")
     result = subprocess.run([
-        sys.executable, "-m", "chronicler.checkpoint_replay", "--seed", "42",
+        sys.executable, "-m", "chronicler_lab.checkpoint_replay", "--seed", "42",
         "--turns", "30", "--split", "13", "--output-dir", str(tmp_path),
     ], env=environment, cwd=root, text=True, capture_output=True, check=True)
     report = json.loads(result.stdout)
@@ -356,7 +356,7 @@ def test_real_cli_and_cross_process_resume_with_different_hashseeds(tmp_path):
     script = """
 import json,sys
 from pathlib import Path
-from chronicler.checkpoint_replay import load_checkpoint,_advance,_digest,_comparison_state
+from chronicler_lab.checkpoint_replay import load_checkpoint,_advance,_digest,_comparison_state
 w=load_checkpoint(Path(sys.argv[1]))
 while w.turn < 30: _advance(w)
 print(json.dumps({'turn':w.turn,'digest':_digest(_comparison_state(w))}))

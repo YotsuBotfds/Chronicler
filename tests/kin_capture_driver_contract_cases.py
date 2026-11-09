@@ -7,7 +7,7 @@ from types import SimpleNamespace
 import pytest
 
 from scripts import capture_kin_root_exposure as driver
-from chronicler.kin_root_exposure import summarize_kin_root_exposure
+from chronicler_lab.kin_root_exposure import summarize_kin_root_exposure
 from chronicler.validation_communities import oracle1_snapshot
 from tests.kin_root_exposure_contract_cases import bits, candidate, decision, frames
 

@@ -224,7 +224,7 @@ def capture(args):
         sys.path.insert(0, str(Path(__file__).parent))
         import a01_test_doubles  # noqa: F401
     from chronicler import main as runner
-    from chronicler import checkpoint_replay as replay
+    from chronicler_lab import checkpoint_replay as replay
     from chronicler.models import WorldState
     from chronicler.world_gen import generate_world
     from scripts.benchmark_headless import FixedDateTime, rng_trace

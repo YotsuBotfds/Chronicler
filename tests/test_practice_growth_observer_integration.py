@@ -7,7 +7,7 @@ import pytest
 from chronicler import techniques as T
 from chronicler.accumulator import StatAccumulator
 from chronicler.models import ActionType
-from chronicler.practice_growth import PracticeGrowthObserver
+from chronicler_lab.practice_growth import PracticeGrowthObserver
 from chronicler.simulation import run_turn_result
 from chronicler.techniques_state import TECHNIQUE_INDEX as K
 from test_scientific_claims import _complete, _world
