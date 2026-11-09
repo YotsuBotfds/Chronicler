@@ -9,6 +9,7 @@
 
 pub mod schema;
 pub mod batch;
+mod columns;
 mod ecology_sim;
 mod politics_sim;
 
@@ -24,6 +25,7 @@ use batch::{
     build_ecology_batches, apply_patch_to_regions, recompute_region_yields,
     events_to_batch, tick_politics_impl,
 };
+use columns::col;
 
 use std::sync::Arc;
 
@@ -1180,47 +1182,18 @@ impl AgentSimulator {
             ));
         }
 
-        // Helper macros to extract typed columns.
-        macro_rules! col_u16 {
-            ($name:expr) => {{
-                rb.column_by_name($name)
-                    .ok_or_else(|| PyValueError::new_err(format!("missing column {}", $name)))?
-                    .as_any()
-                    .downcast_ref::<arrow::array::UInt16Array>()
-                    .ok_or_else(|| PyValueError::new_err(format!("column {} not UInt16", $name)))?
-            }};
-        }
-        macro_rules! col_u8 {
-            ($name:expr) => {{
-                rb.column_by_name($name)
-                    .ok_or_else(|| PyValueError::new_err(format!("missing column {}", $name)))?
-                    .as_any()
-                    .downcast_ref::<arrow::array::UInt8Array>()
-                    .ok_or_else(|| PyValueError::new_err(format!("column {} not UInt8", $name)))?
-            }};
-        }
-        macro_rules! col_f32 {
-            ($name:expr) => {{
-                rb.column_by_name($name)
-                    .ok_or_else(|| PyValueError::new_err(format!("missing column {}", $name)))?
-                    .as_any()
-                    .downcast_ref::<arrow::array::Float32Array>()
-                    .ok_or_else(|| PyValueError::new_err(format!("column {} not Float32", $name)))?
-            }};
-        }
-
-        let region_ids = col_u16!("region_id");
+        let region_ids = col::<arrow::array::UInt16Array>(&rb, "region_id", "")?;
         if !self.initialized && region_ids.iter().enumerate().any(|(i, id)| id != Some(i as u16)) {
             return Err(PyValueError::new_err(
                 "set_region_state: initial region_id values must be non-null and ordered 0..num_regions",
             ));
         }
-        let terrains = col_u8!("terrain");
-        let capacities = col_u16!("carrying_capacity");
-        let populations = col_u16!("population");
-        let soils = col_f32!("soil");
-        let waters = col_f32!("water");
-        let forest_covers = col_f32!("forest_cover");
+        let terrains = col::<arrow::array::UInt8Array>(&rb, "terrain", "")?;
+        let capacities = col::<arrow::array::UInt16Array>(&rb, "carrying_capacity", "")?;
+        let populations = col::<arrow::array::UInt16Array>(&rb, "population", "")?;
+        let soils = col::<arrow::array::Float32Array>(&rb, "soil", "")?;
+        let waters = col::<arrow::array::Float32Array>(&rb, "water", "")?;
+        let forest_covers = col::<arrow::array::Float32Array>(&rb, "forest_cover", "")?;
 
         // Optional M26 columns — backward-compatible defaults.
         let controller_civs = rb
@@ -2437,20 +2410,12 @@ impl AgentSimulator {
         let n = rb.num_rows();
         let id_to_slot = self.pool.build_id_to_slot();
 
-        macro_rules! named_col {
-            ($name:expr, $ty:ty) => {
-                rb.column_by_name($name)
-                    .and_then(|c| c.as_any().downcast_ref::<$ty>())
-                    .ok_or_else(|| PyValueError::new_err(concat!("missing or wrong type: ", $name)))?
-            };
-        }
-
-        let op_type_col = named_col!("op_type", arrow::array::UInt8Array);
-        let agent_a_col = named_col!("agent_a", arrow::array::UInt32Array);
-        let agent_b_col = named_col!("agent_b", arrow::array::UInt32Array);
-        let bond_type_col = named_col!("bond_type", arrow::array::UInt8Array);
-        let sentiment_col = named_col!("sentiment", arrow::array::Int8Array);
-        let formed_turn_col = named_col!("formed_turn", arrow::array::UInt16Array);
+        let op_type_col = col::<arrow::array::UInt8Array>(&rb, "op_type", "")?;
+        let agent_a_col = col::<arrow::array::UInt32Array>(&rb, "agent_a", "")?;
+        let agent_b_col = col::<arrow::array::UInt32Array>(&rb, "agent_b", "")?;
+        let bond_type_col = col::<arrow::array::UInt8Array>(&rb, "bond_type", "")?;
+        let sentiment_col = col::<arrow::array::Int8Array>(&rb, "sentiment", "")?;
+        let formed_turn_col = col::<arrow::array::UInt16Array>(&rb, "formed_turn", "")?;
 
         for i in 0..n {
             let op = op_type_col.value(i);
@@ -3443,40 +3408,6 @@ impl AgentSimulator {
         let n_routes = tr_rb.num_rows();
 
         // --- Unpack region inputs ---
-        // Helper macros for column extraction
-        macro_rules! col_u8 {
-            ($rb:expr, $name:expr) => {
-                $rb.column_by_name($name)
-                    .ok_or_else(|| PyValueError::new_err(format!("missing column {}", $name)))?
-                    .as_any().downcast_ref::<UInt8Array>()
-                    .ok_or_else(|| PyValueError::new_err(format!("column {} not UInt8", $name)))?
-            };
-        }
-        macro_rules! col_u16 {
-            ($rb:expr, $name:expr) => {
-                $rb.column_by_name($name)
-                    .ok_or_else(|| PyValueError::new_err(format!("missing column {}", $name)))?
-                    .as_any().downcast_ref::<UInt16Array>()
-                    .ok_or_else(|| PyValueError::new_err(format!("column {} not UInt16", $name)))?
-            };
-        }
-        macro_rules! col_f32 {
-            ($rb:expr, $name:expr) => {
-                $rb.column_by_name($name)
-                    .ok_or_else(|| PyValueError::new_err(format!("missing column {}", $name)))?
-                    .as_any().downcast_ref::<Float32Array>()
-                    .ok_or_else(|| PyValueError::new_err(format!("column {} not Float32", $name)))?
-            };
-        }
-        macro_rules! col_bool {
-            ($rb:expr, $name:expr) => {
-                $rb.column_by_name($name)
-                    .ok_or_else(|| PyValueError::new_err(format!("missing column {}", $name)))?
-                    .as_any().downcast_ref::<BooleanArray>()
-                    .ok_or_else(|| PyValueError::new_err(format!("column {} not Boolean", $name)))?
-            };
-        }
-
         // Validate the complete optional request before any simulator mutation
         // or delivery-buffer consumption. Null is distinct from an absent column.
         let mut granary_work_requested = vec![0.0f32; n_regions];
@@ -3513,15 +3444,15 @@ impl AgentSimulator {
                 _ => return Err(PyValueError::new_err("woodcut_labor_away and woodcut_labor come together")),
             };
 
-        let ri_region_ids = col_u16!(&ri_rb, "region_id");
-        let ri_terrain = col_u8!(&ri_rb, "terrain");
-        let ri_storage_pop = col_u16!(&ri_rb, "storage_population");
-        let ri_rt0 = col_u8!(&ri_rb, "resource_type_0");
-        let ri_rt1 = col_u8!(&ri_rb, "resource_type_1");
-        let ri_rt2 = col_u8!(&ri_rb, "resource_type_2");
-        let ri_y0 = col_f32!(&ri_rb, "resource_yield_0");
-        let ri_y1 = col_f32!(&ri_rb, "resource_yield_1");
-        let ri_y2 = col_f32!(&ri_rb, "resource_yield_2");
+        let ri_region_ids = col::<UInt16Array>(&ri_rb, "region_id", "")?;
+        let ri_terrain = col::<UInt8Array>(&ri_rb, "terrain", "")?;
+        let ri_storage_pop = col::<UInt16Array>(&ri_rb, "storage_population", "")?;
+        let ri_rt0 = col::<UInt8Array>(&ri_rb, "resource_type_0", "")?;
+        let ri_rt1 = col::<UInt8Array>(&ri_rb, "resource_type_1", "")?;
+        let ri_rt2 = col::<UInt8Array>(&ri_rb, "resource_type_2", "")?;
+        let ri_y0 = col::<Float32Array>(&ri_rb, "resource_yield_0", "")?;
+        let ri_y1 = col::<Float32Array>(&ri_rb, "resource_yield_1", "")?;
+        let ri_y2 = col::<Float32Array>(&ri_rb, "resource_yield_2", "")?;
 
         // Fixed good slot columns (crafts optional: absent, no wares in stock).
         use crate::ffi::schema::GOOD_NAMES;
@@ -3531,7 +3462,7 @@ impl AgentSimulator {
             if g == crate::economy::SLOT_CRAFTS {
                 ri_stockpile_cols.push(ri_rb.column_by_name(&name).and_then(|c| c.as_any().downcast_ref::<Float32Array>()));
             } else {
-                ri_stockpile_cols.push(Some(col_f32!(&ri_rb, &name)));
+                ri_stockpile_cols.push(Some(col::<Float32Array>(&ri_rb, &name, "")?));
             }
         }
 
@@ -3900,9 +3831,9 @@ impl AgentSimulator {
         // --- Unpack trade routes ---
         let mut routes: Vec<TradeRouteInput> = Vec::with_capacity(n_routes);
         if n_routes > 0 {
-            let tr_origin = col_u16!(&tr_rb, "origin_region_id");
-            let tr_dest = col_u16!(&tr_rb, "dest_region_id");
-            let tr_river = col_bool!(&tr_rb, "is_river");
+            let tr_origin = col::<UInt16Array>(&tr_rb, "origin_region_id", "")?;
+            let tr_dest = col::<UInt16Array>(&tr_rb, "dest_region_id", "")?;
+            let tr_river = col::<BooleanArray>(&tr_rb, "is_river", "")?;
             for i in 0..n_routes {
                 routes.push(TradeRouteInput {
                     origin_region_id: tr_origin.value(i),
@@ -4314,29 +4245,10 @@ impl AgentSimulator {
             return Ok(());
         }
 
-        macro_rules! col_u16 {
-            ($name:expr) => {{
-                rb.column_by_name($name)
-                    .ok_or_else(|| PyValueError::new_err(format!("missing column: {}", $name)))?
-                    .as_any()
-                    .downcast_ref::<arrow::array::UInt16Array>()
-                    .ok_or_else(|| PyValueError::new_err(format!("column {} not UInt16", $name)))?
-            }};
-        }
-        macro_rules! col_u8 {
-            ($name:expr) => {{
-                rb.column_by_name($name)
-                    .ok_or_else(|| PyValueError::new_err(format!("missing column: {}", $name)))?
-                    .as_any()
-                    .downcast_ref::<arrow::array::UInt8Array>()
-                    .ok_or_else(|| PyValueError::new_err(format!("column {} not UInt8", $name)))?
-            }};
-        }
-
-        let region_ids = col_u16!("region_id");
-        let settlement_ids = col_u16!("settlement_id");
-        let cell_xs = col_u8!("cell_x");
-        let cell_ys = col_u8!("cell_y");
+        let region_ids = col::<arrow::array::UInt16Array>(&rb, "region_id", "")?;
+        let settlement_ids = col::<arrow::array::UInt16Array>(&rb, "settlement_id", "")?;
+        let cell_xs = col::<arrow::array::UInt8Array>(&rb, "cell_x", "")?;
+        let cell_ys = col::<arrow::array::UInt8Array>(&rb, "cell_y", "")?;
 
         self.settlement_grids = crate::tick::build_settlement_grids(
             self.num_regions,
