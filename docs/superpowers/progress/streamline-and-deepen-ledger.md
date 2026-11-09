@@ -200,3 +200,36 @@ Gates on the merged head `065055ec`:
 - Oracle lane `--jobs 2`: PASS in 168.9 s. 78 chunks; 8,333 passed, 70 skipped, 0 failed.
 
 Not run: browser QA and equivalence scripts, Node 20.19.0, and GitHub CI.
+
+## 2026-11-09 — integration 9 (Rust and cross-language lane)
+
+Merged `sd/CON-7b` as `28b1a04`. This one chain carries ten tasks, each approved by independent review with no blocker or major findings. The corrections had two reviewers each, one for scope and one for contracts; CON-6ab also had two.
+
+| Task | Reviewed head | Notes |
+|---|---|---|
+| COR-8a | `584acd06` | Explicit `hills`/`river` ecology rows equal to plains, plus a Python↔Rust `TERRAIN_CAPS` parity class in `tests/test_ecology.py`. The plan's `test_ecology_parity.py` skips without native, so the test was put where the offline lane runs it |
+| COR-8b | `9ef19e11` | `DEPRECATED_UNREAD_KEYS` warns once per accepted-but-unread tuning key; values still load; a reader check fails on new dead keys |
+| COR-8c | `a4ae368b` | Test only: Rust `TITHE_RATE`/`TITHE_FOOD_GATE` checked against Python |
+| DEAD-5b | `430deecd` | `#[cfg(test)]` on `Terrain::from_u8` and `is_adjacent_to`; the dead `old_occ` read in `tick.rs` removed |
+| CON-5a | `5163b49f` | `tests/rust_source_constants.py` reader; parity rows for every constant mirror in the spec table; `test_ffi_constants.py` joins oracle chunk core |
+| CON-7a | `a7a7921f` | `chronicler.economy_oracle` re-export module; 9 test modules and 3 scripts migrated |
+| CON-5b | `c8abed1c` | One supply-floor and one tithe-gate literal per language; the tautological H-2 tithe tests replaced by an oracle-driven test |
+| CON-6ab | `2a75dad9` | Generic Arrow column reader (`ffi/columns.rs`) replaces 14 macros; ffi tests moved to `ffi/tests.rs`. FFI column error texts are normalised (text only, no test asserts them); the PR must say so |
+| CON-6cd | `cf49965b` | `derive_region_agent_counts` and `derive_civ_fiscal_inputs` move to `economy.rs`; `EconomyExtras`; the four `_with_*` wrappers removed |
+| CON-7b | `1f76767c` | `compute_economy` and its oracle-only helpers live in `economy_oracle.py`; `chronicler.economy` keeps a lazy `__getattr__` shim. `compute_production` and `derive_farmer_income_modifier` stay in `economy.py` until DEAD-5a; the oracle's re-export of them must go when DEAD-5a merges |
+
+Correction baselines are in [COR-8](streamline-and-deepen-baselines/COR-8.md): 0 differences for all three parts.
+
+Lead fix `b07777d9`: CON-6cd had renamed `tick_economy`'s unused third parameter to `_season_id`. PyO3 exposes Rust parameter names as Python keywords, so the keyword `season_id=` would have stopped working. That is a compatibility break the plan did not intend, and the implementer had raised it as an owner question. The parameter keeps its name `season_id`, and `let _ = season_id;` marks it unused. `cargo check` reports 0 warnings.
+
+Gates on the merged head `b07777d9`:
+- `cargo test --locked`: all suites pass, including 788 in the main library suite.
+- Fresh native build (`d2956542…`): `check_python_env.py --expect native` PASS; the compiled classes are AgentSimulator, EcologySimulator and PoliticsSimulator.
+- Identity, all 9 cases against the post-correction baseline (integration 5): **399 files, 0 differences**. Against the pre-correction base: 76 differences, all in `proc48_hybrid_s42` (COR-10, expected).
+- Oracle lane `--jobs 2`: PASS in 163.9 s. 78 chunks; 8,354 passed, 70 skipped, 0 failed.
+- Native focused tests (`test_ecology_parity`, `test_economy`, `test_tuning`, `test_ffi_constants`, `test_politics_hash_parity`): 108 passed.
+- Identity gate: Python lane 53 files, 0 differences. Native lane 133 files, 0 differences. The receipt check reports the rebuilt native (`d79f483d…` → `d2956542…`) with identical outputs.
+
+New board item **FIX-14**, from the COR-8b work. Any `--tuning` file, even one that sets a key to its default, makes `off_s42` diverge from a run without `--tuning`. This predates COR-8. The first step is a diagnosis; any fix is a correction and needs a baseline report.
+
+Not run: the native Python shards in full, the 200-seed gate, and GitHub CI.

@@ -441,9 +441,10 @@
       ],
       "risk": "med",
       "size": "~-135",
-      "status": "ready",
+      "status": "active",
       "spec": "docs/superpowers/specs/2026-11-08-dead-code-removal-design.md",
-      "plan": "docs/superpowers/plans/2026-11-08-dead-code-removal.md"
+      "plan": "docs/superpowers/plans/2026-11-08-dead-code-removal.md",
+      "note": "DEAD-5b (Rust) integrated in integration 9, reviewed head 430deecd; DEAD-5a (Python) reviewed, awaiting integration."
     },
     {
       "id": "FIX-1",
@@ -621,6 +622,19 @@
       "integrated": "lead branch claude/exciting-mayer-nolksw, integration 1 (2026-11-09), reviewed head a4e37a63; see progress/streamline-and-deepen-ledger.md"
     },
     {
+      "id": "FIX-14",
+      "title": "Any --tuning file changes the run, even one that only sets a default value",
+      "phase": "R2",
+      "class": "fix",
+      "depends_on": [],
+      "risk": "med",
+      "size": "investigation",
+      "status": "proposed",
+      "spec": null,
+      "plan": null,
+      "note": "Found during COR-8b (2026-11-09): off_s42 with a tuning file setting multiplier.aggression_bias: 1.0 (its default) diverges from the run without --tuning from the action history onward. Predates COR-8. Diagnose first; a fix that changes outcomes is a correction and needs a baseline report and owner go-ahead."
+    },
+    {
       "id": "PIN-2",
       "title": "Identity-gate coverage for witness-pinned code",
       "phase": "R3",
@@ -762,9 +776,10 @@
       ],
       "risk": "low",
       "size": "small",
-      "status": "ready",
+      "status": "review",
       "spec": "docs/superpowers/specs/2026-11-08-behaviour-corrections-design.md",
-      "plan": "docs/superpowers/plans/2026-11-08-behaviour-corrections.md"
+      "plan": "docs/superpowers/plans/2026-11-08-behaviour-corrections.md",
+      "integrated": "lead branch, integration 9 (2026-11-09), reviewed heads 584acd06/9ef19e11/a4ae368b; baseline progress/streamline-and-deepen-baselines/COR-8.md; see progress/streamline-and-deepen-ledger.md"
     },
     {
       "id": "COR-9",
@@ -875,9 +890,10 @@
       ],
       "risk": "med",
       "size": "~-60",
-      "status": "ready",
+      "status": "review",
       "spec": "docs/superpowers/specs/2026-11-08-rust-cross-language-consolidation-design.md",
-      "plan": "docs/superpowers/plans/2026-11-08-rust-cross-language-consolidation.md"
+      "plan": "docs/superpowers/plans/2026-11-08-rust-cross-language-consolidation.md",
+      "integrated": "lead branch, integration 9 (2026-11-09), reviewed heads 5163b49f/c8abed1c; see progress/streamline-and-deepen-ledger.md"
     },
     {
       "id": "CON-6",
@@ -889,9 +905,10 @@
       ],
       "risk": "med",
       "size": "~-200",
-      "status": "ready",
+      "status": "review",
       "spec": "docs/superpowers/specs/2026-11-08-rust-cross-language-consolidation-design.md",
-      "plan": "docs/superpowers/plans/2026-11-08-rust-cross-language-consolidation.md"
+      "plan": "docs/superpowers/plans/2026-11-08-rust-cross-language-consolidation.md",
+      "integrated": "lead branch, integration 9 (2026-11-09), reviewed heads 2a75dad9/cf49965b, plus lead fix b07777d9 (season_id keyword kept); see progress/streamline-and-deepen-ledger.md"
     },
     {
       "id": "CON-7",
@@ -903,9 +920,10 @@
       ],
       "risk": "med",
       "size": "~800 moved",
-      "status": "ready",
+      "status": "review",
       "spec": "docs/superpowers/specs/2026-11-08-rust-cross-language-consolidation-design.md",
-      "plan": "docs/superpowers/plans/2026-11-08-rust-cross-language-consolidation.md"
+      "plan": "docs/superpowers/plans/2026-11-08-rust-cross-language-consolidation.md",
+      "integrated": "lead branch, integration 9 (2026-11-09), reviewed heads a7a7921f/1f76767c; see progress/streamline-and-deepen-ledger.md"
     },
     {
       "id": "CON-8",

@@ -29,8 +29,10 @@ COR-9 (Rust `stable_hash_int` repr parity) and COR-7 (Rust politics step 11 dele
 differences; COR-6a/6b (war early-return flush, drained-only soldier deaths) give 0 differences
 on the identity cases and a 40-seed agents-off batch; COR-10 (`gp_agendas` projected treasury
 respects the keep watermark) changes `proc48_hybrid_s42` (first divergence turn 33) and gate
-case `g_learning_s42` only, whose native golden was re-captured. COR-6c waits for its own PR now
-that PIN-1 is in. Not merged to `main`, no PR, 200-seed gate not run; goldens were captured
+case `g_learning_s42` only, whose native golden was re-captured. COR-8a/8b/8c (explicit hills
+and river ecology rows, warnings for unread tuning keys, tithe parity test) give 0 differences;
+FIX-14 (any `--tuning` file changes the run) is a new investigation item. COR-6c waits for its
+own PR now that PIN-1 is in. Not merged to `main`, no PR, 200-seed gate not run; goldens were captured
 locally (CI capture pending); tag `pin-freeze-2026-11` not yet created. The superseded
 2026-11-08 review-response entry is verbatim in the history file.
 
