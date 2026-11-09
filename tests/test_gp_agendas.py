@@ -484,6 +484,54 @@ def test_trading_house_is_founded_paid_for_and_leaves_a_trade_good(monkeypatch):
                                                     KETHANI, kethani, other, _rec(world, merchant), {})
 
 
+def test_projected_treasury_counts_only_keep_changes_after_the_watermark():
+    # COR-10: keep changes before the watermark are already in civ.treasury
+    # (hybrid apply_keep runs before Phase 10) and must not be counted again.
+    from chronicler.accumulator import StatAccumulator
+    world = _world()
+    kethani, thornwall = world.civilizations[KETHANI], world.civilizations[THORNWALL]
+    kethani.treasury = 100
+    acc = StatAccumulator()
+    assert G._projected_treasury(KETHANI, kethani, None) == 100
+    assert G._projected_treasury(KETHANI, kethani, acc) == 100
+    acc.add(KETHANI, kethani, "treasury", -30, "keep")
+    acc.add(KETHANI, kethani, "treasury", -5, "guard")
+    acc.add(KETHANI, kethani, "stability", -4, "keep")
+    acc.add(THORNWALL, thornwall, "treasury", -7, "keep")
+    assert G._projected_treasury(KETHANI, kethani, acc) == 70
+    acc.apply_keep(world)
+    assert kethani.treasury == 70
+    assert G._projected_treasury(KETHANI, kethani, acc) == 70
+    acc.add(KETHANI, kethani, "treasury", -20, "keep")
+    acc.add(KETHANI, kethani, "treasury", 3, "guard")
+    assert G._projected_treasury(KETHANI, kethani, acc) == 50
+
+
+def test_trading_house_after_the_keep_flush_is_not_charged_twice(monkeypatch):
+    from chronicler.accumulator import StatAccumulator
+    world = _world()
+    for a, b in (("Kethani Empire", "Thornwall Confederacy"), ("Thornwall Confederacy", "Kethani Empire")):
+        world.relationships[a][b].disposition = Disposition.NEUTRAL
+    world.invalidate_trade_route_cache()
+    _gp(world, KETHANI, "merchant", "Factor Oda")
+    _force(monkeypatch, T.FOUND_TRADING_HOUSE)
+    _tick(world)
+    monkeypatch.setattr(G, "TRADING_HOUSE_P", 1.0)
+    kethani = world.civilizations[KETHANI]
+    # Earlier phases spent 20 and the hybrid flush already applied it: the
+    # treasury now holds exactly the two house costs the merchant needs.
+    kethani.treasury = 2 * G.TRADING_HOUSE_COST + 20
+    acc = StatAccumulator()
+    acc.add(KETHANI, kethani, "treasury", -20, "keep")
+    acc.apply_keep(world)
+    assert kethani.treasury == 2 * G.TRADING_HOUSE_COST
+    world.turn += 1
+    out = _tick(world, acc=acc)
+    assert _types(out)[:2] == ["trading_house_founded", "agenda_fulfilled"]
+    acc.apply_keep(world)
+    assert kethani.treasury == G.TRADING_HOUSE_COST
+
+
 def test_lending_merchant_deepens_crown_credit_and_completes_on_a_domestic_loan(monkeypatch):
     import chronicler.finance as F
     world = _world()

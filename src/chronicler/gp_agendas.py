@@ -301,8 +301,17 @@ def _stat(world, acc, civ_idx: int, civ, stat: str, delta: int, category: str) -
 
 
 def _projected_treasury(civ_idx: int, civ, acc) -> int:
+    """Treasury including keep-category changes queued but not yet applied.
+
+    Keep changes before the accumulator's watermark are already in
+    ``civ.treasury`` (``apply_keep`` ran before the hybrid Phase 10), so only
+    the changes after it are added, as in the war and diplomacy projections.
+    """
     projected = int(civ.treasury)
-    for change in getattr(acc, "_changes", ()) if acc is not None else ():
+    if acc is None:
+        return projected
+    start = getattr(acc, "_keep_applied_up_to", 0)
+    for change in getattr(acc, "_changes", ())[start:]:
         if change.civ_id == civ_idx and change.category == "keep" and change.stat == "treasury":
             projected += change.delta
     return projected
