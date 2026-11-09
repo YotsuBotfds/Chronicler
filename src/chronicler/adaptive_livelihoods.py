@@ -10,6 +10,7 @@ from __future__ import annotations
 from collections import defaultdict
 import heapq
 
+from chronicler.switch_state import bump_counter
 from chronicler.adaptive_livelihoods_state import AdaptiveLivelihoodsState
 from chronicler.utils import stable_hash_int
 from chronicler.switch_state import sub_state_getter
@@ -56,7 +57,10 @@ def set_adaptive_livelihoods_enabled(world, value, *, args=None, agent_mode=None
 
 
 def _bump(state, name, amount=1):
-    state.bump(name, amount)
+    # Lax counter, as before CON-2: works on any object with a ``counters`` dict
+    # (tests pass SimpleNamespace states); same result as state.bump() for
+    # AdaptiveLivelihoodsState, whose _BUMP options are empty.
+    bump_counter(state.counters, name, amount)
 
 
 def _personal_channel(state, channel):
