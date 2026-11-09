@@ -3388,10 +3388,13 @@ impl AgentSimulator {
         &mut self,
         region_input_batch: PyRecordBatch,
         trade_route_batch: PyRecordBatch,
-        _season_id: u8, // reserved for future seasonal modifiers
+        season_id: u8,
         is_winter: bool,
         trade_friction: f32,
     ) -> PyResult<(PyRecordBatch, PyRecordBatch, PyRecordBatch, PyRecordBatch, PyRecordBatch)> {
+        // Reserved for future seasonal modifiers. The parameter keeps its name because
+        // PyO3 exposes it as a Python keyword argument (`season_id=`).
+        let _ = season_id;
         use arrow::array::{
             Array, Float32Array, Float64Array, UInt8Array, UInt16Array, BooleanArray,
             Float32Builder, UInt8Builder, UInt16Builder, BooleanBuilder,
