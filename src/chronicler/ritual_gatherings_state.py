@@ -5,9 +5,11 @@ Schedules belong to regions, never to their current ruler or a reusable faith sl
 """
 from __future__ import annotations
 
-from typing import Literal
+from typing import ClassVar, Literal
 
 from pydantic import BaseModel, Field
+
+from chronicler.switch_state import SwitchStateMixin
 
 COUNTER_KEYS = ("scheduled", "held", "cancelled", "attendees", "food", "funds", "contact_units", "bond_ops")
 
@@ -51,7 +53,7 @@ class GatheringOutcome(BaseModel):
     funds_after: int | None = None
 
 
-class RitualGatheringState(BaseModel):
+class RitualGatheringState(SwitchStateMixin, BaseModel):
     schedules: list[GatheringSchedule] = Field(default_factory=list)
     outcomes_turn: int | None = None
     outcomes: list[GatheringOutcome] = Field(default_factory=list)
@@ -60,6 +62,7 @@ class RitualGatheringState(BaseModel):
     # Persisted intervention controls: equal costs/attendance in every arm.
     contact_enabled: bool = True
     bonds_enabled: bool = True
+    _BUMP: ClassVar[dict] = {"zero": 0.0, "ndigits": 9}
 
 
 def ritual_gatherings_on(world) -> bool:

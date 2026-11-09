@@ -155,7 +155,7 @@ def local_budgets_active(world) -> bool:
 
 
 def _bump(state, key: str, value: float = 1) -> None:
-    state.counters[key] = round(state.counters.get(key, 0) + value, 6)
+    state.bump(key, value)
 
 
 def _param(world, name: str, default: float) -> float:

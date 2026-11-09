@@ -56,7 +56,7 @@ def set_adaptive_livelihoods_enabled(world, value, *, args=None, agent_mode=None
 
 
 def _bump(state, name, amount=1):
-    state.counters[name] = state.counters.get(name, 0) + amount
+    state.bump(name, amount)
 
 
 def _personal_channel(state, channel):

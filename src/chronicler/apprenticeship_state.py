@@ -45,9 +45,11 @@ reorder.
 """
 from __future__ import annotations
 
-from typing import Literal
+from typing import ClassVar, Literal
 
 from pydantic import BaseModel, Field, PrivateAttr, model_validator
+
+from chronicler.switch_state import SwitchStateMixin
 
 #: Modes (first: the default when enabled).
 MODES: tuple[str, ...] = ("train", "no_qualification")
@@ -323,7 +325,7 @@ class GraduateRecord(BaseModel):
     last_crew_turn: int | None = None
 
 
-class ApprenticeshipState(_Record):
+class ApprenticeshipState(SwitchStateMixin, _Record):
     #: Also the RS1 rules version (see the module docstring): 1 only in a state
     #: saved before PL2, 2 for every new state.
     schema_version: Literal[1, 2] = 2
@@ -351,6 +353,7 @@ class ApprenticeshipState(_Record):
     #: open (absent after a closure or a move), with their site of record.
     detached: list[Seat] | None = _v2()
     _pending: object | None = PrivateAttr(default=None)
+    _BUMP: ClassVar[dict] = {"allowed": COUNTERS}
 
     @property
     def rules_version(self) -> int:

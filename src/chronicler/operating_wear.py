@@ -49,9 +49,7 @@ _state = sub_state_getter("operating_wear")
 
 
 def _bump(state: OperatingWearState, key: str, amount: float = 1) -> None:
-    if key not in COUNTERS:
-        raise KeyError(key)
-    state.counters[key] = state.counters.get(key, 0) + amount
+    state.bump(key, amount)
 
 
 def set_operating_wear_enabled(world, value: bool, *, args=None, agent_mode=None) -> None:

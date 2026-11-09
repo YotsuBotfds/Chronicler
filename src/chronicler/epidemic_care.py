@@ -139,9 +139,7 @@ _state = sub_state_getter("epidemic_care")
 
 
 def _bump(state, key: str, amount=1) -> None:
-    if key not in COUNTERS:
-        raise KeyError(f"undeclared epidemic care counter {key!r}")
-    state.counters[key] = round(state.counters.get(key, 0) + amount, 6)
+    state.bump(key, amount)
 
 
 def set_epidemic_care_enabled(world, value: bool, *, args=None, agent_mode=None) -> None:

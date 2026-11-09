@@ -8,9 +8,11 @@ funnel counters. See docs/integration/commons-rules.md.
 """
 from __future__ import annotations
 
-from typing import Literal
+from typing import ClassVar, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, PrivateAttr
+
+from chronicler.switch_state import SwitchStateMixin
 
 #: Bounded logs.
 MAX_DECISIONS = 64
@@ -122,7 +124,7 @@ class CommonsReceipt(BaseModel):
     food_sufficiency: float | None = None
 
 
-class CommonsRulesState(BaseModel):
+class CommonsRulesState(SwitchStateMixin, BaseModel):
     schema_version: Literal[1] = 1
     enabled: bool = True
     mode: Literal["enforced", "cost_only"] = "enforced"
@@ -138,18 +140,5 @@ class CommonsRulesState(BaseModel):
     # bills, limits); finish commits it and rollback drops it. Never
     # serialized; None between turns.
     _plan: object | None = PrivateAttr(default=None)
-
-    def __getstate__(self):
-        state = super().__getstate__()
-        private = state.get("__pydantic_private__")
-        if private and private.get("_plan") is not None:
-            state = {**state, "__pydantic_private__": {**private, "_plan": None}}
-        return state
-
-    def __setstate__(self, state):
-        super().__setstate__(state)
-        private = getattr(self, "__pydantic_private__", None)
-        if private is None:
-            object.__setattr__(self, "__pydantic_private__", {"_plan": None})
-        else:
-            private.setdefault("_plan", None)
+    _FILL_PRIVATE: ClassVar[tuple[str, ...]] = ("_plan",)
+    _TRANSIENT: ClassVar[tuple[str, ...]] = ("_plan",)

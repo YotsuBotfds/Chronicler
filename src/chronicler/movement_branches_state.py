@@ -3,11 +3,12 @@
 There is no branch cash account. Named resident members pay an explicit host
 license/service contribution through the one wealth balance and money seam.
 """
-from typing import Literal
+from typing import ClassVar, Literal
 
 from pydantic import BaseModel, Field
 
 from chronicler.money import MoneyBook
+from chronicler.switch_state import SwitchStateMixin
 
 MODES = ("funded", "record_only", "cost_only")
 MAX_BRANCHES = 256                 # lifetime identities; never pruned or reused
@@ -50,7 +51,7 @@ class BranchFrame(BaseModel):
     new_identities_refused: int = 0
 
 
-class MovementBranchesState(BaseModel):
+class MovementBranchesState(SwitchStateMixin, BaseModel):
     enabled: bool = True
     mode: Literal["funded", "record_only", "cost_only"] = "funded"
     next_branch: int = 1
@@ -59,3 +60,4 @@ class MovementBranchesState(BaseModel):
     frame: BranchFrame | None = None
     frame_turn: int | None = None
     counters: dict[str, int] = Field(default_factory=dict)
+    _BUMP: ClassVar[dict] = {"allowed": COUNTERS}

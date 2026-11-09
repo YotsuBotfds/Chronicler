@@ -260,9 +260,7 @@ _state = sub_state_getter("apprenticeship")
 
 
 def _bump(state: ApprenticeshipState, key: str, amount: float = 1) -> None:
-    if key not in COUNTERS:
-        raise KeyError(key)
-    state.counters[key] = state.counters.get(key, 0) + amount
+    state.bump(key, amount)
 
 
 def set_apprenticeship_enabled(world, value: bool, *, args=None, agent_mode=None) -> None:

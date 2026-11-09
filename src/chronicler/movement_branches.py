@@ -27,7 +27,7 @@ from pydantic import ValidationError
 from chronicler import money
 from chronicler.agent_movements_state import ENDED, GUILD, agent_movements_on
 from chronicler.movement_branches_state import (
-    BRANCH_BATCH, COUNTERS, DUES_MILLI, MAX_BRANCHES, MAX_PAYERS, MAX_PAYERS_TOTAL,
+    BRANCH_BATCH, DUES_MILLI, MAX_BRANCHES, MAX_PAYERS, MAX_PAYERS_TOTAL,
     MIN_PAYERS, MODES, Branch, BranchFrame, BranchRow, MovementBranchesState,
 )
 from chronicler.switch_state import sub_state_getter
@@ -77,9 +77,7 @@ def set_movement_branches_enabled(world, value, *, args=None, agent_mode=None):
 
 
 def _bump(state, key, amount=1):
-    if key not in COUNTERS:
-        raise KeyError(key)
-    state.counters[key] = state.counters.get(key, 0) + amount
+    state.bump(key, amount)
 
 
 def on_pool_reset(world):

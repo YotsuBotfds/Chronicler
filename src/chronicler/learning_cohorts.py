@@ -114,9 +114,7 @@ _state = sub_state_getter("learning_cohorts")
 
 
 def _bump(state: LearningCohortState, key: str, amount: float = 1) -> None:
-    if key not in COUNTERS:
-        raise KeyError(key)
-    state.counters[key] = state.counters.get(key, 0) + amount
+    state.bump(key, amount)
 
 
 def _close(state: LearningCohortState, cohort: Cohort, turn: int, reason: str, exit_reason: str) -> None:

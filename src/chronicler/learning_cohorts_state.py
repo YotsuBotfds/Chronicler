@@ -18,9 +18,11 @@ never reorder.
 """
 from __future__ import annotations
 
-from typing import Literal
+from typing import ClassVar, Literal
 
 from pydantic import BaseModel, Field, PrivateAttr
+
+from chronicler.switch_state import SwitchStateMixin
 
 MAX_COHORTS = 8
 MAX_LEARNERS = 8
@@ -145,7 +147,7 @@ class Graduate(BaseModel):
     granted: bool
 
 
-class LearningCohortState(BaseModel):
+class LearningCohortState(SwitchStateMixin, BaseModel):
     schema_version: Literal[1] = 1
     enabled: bool = True
     mode: Literal["learn", "no_learning"] = "learn"
@@ -157,3 +159,4 @@ class LearningCohortState(BaseModel):
     frame: list[CohortReceipt] = Field(default_factory=list)
     counters: dict[str, float] = Field(default_factory=dict)
     _pending: object | None = PrivateAttr(default=None)
+    _BUMP: ClassVar[dict] = {"allowed": COUNTERS}

@@ -71,7 +71,7 @@ from chronicler.clearing_protection_state import (
     COUNTER_KEYS, ClearingProtectionState, Protection, ProtectionDecision,
     ProtectionReceipt, UnprotectedRegion,
 )
-from chronicler.switch_state import sub_state_getter
+from chronicler.switch_state import bump_counter, sub_state_getter
 
 #: Protections a civilization may hold at once.
 MAX_REGIONS = 2
@@ -368,7 +368,7 @@ def observe_native(world, region_batch) -> None:
 
 
 def _bump(counters: dict, key: str, amount) -> None:
-    counters[key] = counters.get(key, 0) + amount
+    bump_counter(counters, key, amount)
 
 
 def _timber_capacity_kept(world, rid: int, kept: float) -> float | None:

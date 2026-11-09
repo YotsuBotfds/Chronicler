@@ -14,9 +14,11 @@ never reorder (stored values and counters are keyed by them).
 """
 from __future__ import annotations
 
-from typing import Literal
+from typing import ClassVar, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
+
+from chronicler.switch_state import SwitchStateMixin
 
 MAX_ACTIVE = 64            # convoys on the road at once (all buyers)
 MAX_PER_DEST = 2           # convoys bound for one granary at once
@@ -135,7 +137,7 @@ class ConvoyTransition(BaseModel):
     escort_fee: int | None = None                  # dispatched: escort sink payment
 
 
-class GrainConvoyState(BaseModel):
+class GrainConvoyState(SwitchStateMixin, BaseModel):
     """``WorldState.livelihoods.grain_convoys``; None while never enabled."""
 
     model_config = ConfigDict(extra="forbid")
@@ -149,11 +151,6 @@ class GrainConvoyState(BaseModel):
     frame_turn: int | None = None
     frame: list[ConvoyTransition] = Field(default_factory=list, max_length=MAX_FRAME)
     counters: dict[str, float] = Field(default_factory=lambda: {key: 0.0 for key in COUNTERS})
-
-    def __setstate__(self, state):
-        super().__setstate__(state)
-        # Exact pickle restoration bypasses Pydantic defaults (the L0 stub
-        # state had only ``schema_version`` and ``enabled``).
-        for name, field in type(self).model_fields.items():
-            if name not in self.__dict__:
-                self.__dict__[name] = field.get_default(call_default_factory=True)
+    # Exact pickle restoration bypasses Pydantic defaults (the L0 stub
+    # state had only ``schema_version`` and ``enabled``).
+    _FILL_DEFAULTS: ClassVar[bool] = True

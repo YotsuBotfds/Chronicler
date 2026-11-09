@@ -199,7 +199,7 @@ def _controller(world, region: int) -> int | None:
 
 
 def _bump(state, key: str, amount=1) -> None:
-    state.counters[key] = state.counters.get(key, 0) + amount
+    state.bump(key, amount)
 
 
 def _total(firm: WorkshopFirm, key: str, amount: int) -> None:

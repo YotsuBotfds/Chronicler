@@ -59,7 +59,7 @@ def _next_turn(turn: int) -> int:
 
 
 def _bump(state, key, value=1) -> None:
-    state.counters[key] = round(state.counters.get(key, 0.0) + value, 9)
+    state.bump(key, value)
 
 
 def _presence(world, bridge) -> dict[int, list[tuple[int, int]]]:

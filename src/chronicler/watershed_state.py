@@ -11,9 +11,11 @@ region is its index in ``world.regions``. See docs/integration/watershed.md.
 """
 from __future__ import annotations
 
-from typing import Literal
+from typing import ClassVar, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, PrivateAttr
+
+from chronicler.switch_state import SwitchStateMixin
 
 #: Destination codes in ``WatershedGraph.down`` besides a region index:
 #: the sea (a shore on an ocean or sea), a sink (an inland region with no
@@ -261,7 +263,7 @@ class WatershedFrame(BaseModel):
         self.__dict__.setdefault("cap_changes", [])
 
 
-class WatershedState(BaseModel):
+class WatershedState(SwitchStateMixin, BaseModel):
     schema_version: Literal[1] = 1
     enabled: bool = True
     mode: Literal["record_only", "flow"] = "record_only"
@@ -290,22 +292,7 @@ class WatershedState(BaseModel):
     # ecology tick, committed after it. A plan left by a failed tick is
     # dropped at the next planning (nothing was settled). Never serialized.
     _plan: object | None = PrivateAttr(default=None)
-
-    def __getstate__(self):
-        state = super().__getstate__()
-        private = state.get("__pydantic_private__")
-        if private and private.get("_plan") is not None:
-            state = {**state, "__pydantic_private__": {**private, "_plan": None}}
-        return state
-
-    def __setstate__(self, state):
-        super().__setstate__(state)
-        # A B1 (record_only) checkpoint predates the flow and B2 fields.
-        self.__dict__.setdefault("pending_superseded", [])
-        self.__dict__.setdefault("flood_events", [])
-        self.__dict__.setdefault("active_consequences", [])
-        private = getattr(self, "__pydantic_private__", None)
-        if private is None:
-            object.__setattr__(self, "__pydantic_private__", {"_plan": None})
-        else:
-            private.setdefault("_plan", None)
+    # A B1 (record_only) checkpoint predates the flow and B2 fields.
+    _FILL_DEFAULTS: ClassVar[tuple[str, ...]] = ("pending_superseded", "flood_events", "active_consequences")
+    _FILL_PRIVATE: ClassVar[tuple[str, ...]] = ("_plan",)
+    _TRANSIENT: ClassVar[tuple[str, ...]] = ("_plan",)
