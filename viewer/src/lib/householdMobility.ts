@@ -1,9 +1,7 @@
 import type { Bundle, HouseholdMobilitySnapshot } from "../types";
 import { exactSnapshot } from "./historyComparison";
+import { finite, amount as quantity, safeCount as count } from "./recordGuards";
 
-const count = (v: unknown): v is number => typeof v === "number" && Number.isSafeInteger(v) && v >= 0;
-const quantity = (v: unknown): v is number => typeof v === "number" && Number.isFinite(v) && v >= 0;
-const finite = (v: unknown) => typeof v === "number" && Number.isFinite(v);
 const reasons = ["sufficient", "insufficient", "no_local_distress", "unknown_destination", "on_trip"];
 
 /** Only the exact selected snapshot is eligible. Missing and malformed frames remain unknown. */

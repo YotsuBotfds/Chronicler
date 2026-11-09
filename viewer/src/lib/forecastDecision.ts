@@ -1,8 +1,6 @@
 import type { HarvestEstimatorMetadata, HarvestForecastReport, HarvestProcurementDecisions } from "../expansionTypes";
 import type { TurnSnapshot } from "../types";
-const integer = (v: unknown): v is number => typeof v === "number" && Number.isSafeInteger(v) && v >= 0;
-const number = (v: unknown): v is number => typeof v === "number" && Number.isFinite(v) && v >= 0;
-const finite = (v: unknown): v is number => typeof v === "number" && Number.isFinite(v);
+import { finite, amount as number, safeCount as integer } from "./recordGuards";
 const probability = (v: unknown): v is number => number(v) && v <= 1;
 const nullable = (v: unknown) => v === null || number(v);
 const index = (v: unknown, n: number) => integer(v) && v < n;

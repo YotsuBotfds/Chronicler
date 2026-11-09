@@ -1,11 +1,9 @@
 import type { SeatRecord, TurnSnapshot } from "../types";
 import type { AcademyIdentity, AcademyInventory, AcademyProcurement, AcademySupplyLoss, AcademyTeaching, LearningServicesSnapshot } from "../learningServicesTypes";
+import { isRecord as object, amount as num, safeCount as count } from "./recordGuards";
 
-const count = (v: unknown): v is number => typeof v === "number" && Number.isSafeInteger(v) && v >= 0;
-const num = (v: unknown): v is number => typeof v === "number" && Number.isFinite(v) && v >= 0;
 const nullable = (v: unknown, test: (x: unknown) => boolean) => v === null || test(v);
 const bool = (v: unknown) => typeof v === "boolean";
-const object = (v: unknown): v is Record<string, unknown> => v !== null && typeof v === "object" && !Array.isArray(v);
 const owner = (v: unknown) => v === -1 || count(v);
 const identity = (v: unknown): v is AcademyIdentity => object(v) && count(v.seat_id) && count(v.region) && owner(v.founder)
   && count(v.founded_turn) && typeof v.seat_name === "string" && v.seat_name.length > 0;
