@@ -231,6 +231,14 @@ def test_repo_tuning_yaml_is_utf8_mapping(yaml_path):
     assert isinstance(yaml.safe_load(text), dict)
 
 
+@pytest.mark.parametrize("yaml_path", sorted(_REPO_TUNING_DIR.glob("*.yaml")), ids=lambda p: p.name)
+def test_repo_tuning_yaml_loads_without_unknown_keys(yaml_path):
+    import warnings, chronicler.tuning as tuning
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        tuning.load_tuning(yaml_path)
+
+
 def test_peak_yield_is_not_an_accepted_tuning_key(tmp_path):
     """ecology.peak_yield never had a consumer; the Rust satisfaction ceiling
     (satisfaction.rs PEAK_YIELD) is a fixed constant. Setting it must warn

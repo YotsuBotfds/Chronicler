@@ -634,6 +634,22 @@ def test_sidecar_round_trip_and_stale_or_missing_sidecars(world, tmp_path):
     assert not H.sidecar_path(path).exists()
 
 
+def test_sidecar_write_failure_leaves_no_temp_file(world, tmp_path, monkeypatch):
+    from chronicler.artifact_io import ArtifactIOError
+
+    _fill(world, 0, 3)
+    path = tmp_path / "state.json"
+
+    def fail_replace(*args, **kwargs):
+        raise OSError("simulated replace failure")
+
+    monkeypatch.setattr("os.replace", fail_replace)
+    with pytest.raises(ArtifactIOError):
+        H.save_sidecar(world, path, atomic=True)
+    assert list(tmp_path.glob("*.tmp")) == []
+    assert not H.sidecar_path(path).exists()
+
+
 @pytest.fixture
 def pure_python(monkeypatch):
     monkeypatch.setattr("chronicler.main._create_ecology_runtime", lambda world: None)

@@ -60,6 +60,19 @@ def test_public_relief_does_not_rewrite_native_consumption_and_balances_separate
     assert captured.as_dict(1)['regions'][0]['model_population'] == 40
 
 
+def test_public_capture_is_reported_but_leaves_the_balance_residual_at_zero(make_world):
+    from chronicler.grain_reserves_state import CAPTURED, ReserveFlow
+    w,e,weights = setup(make_world,stock=2,consumed=2,reserve=4)
+    opening = public_opening(w)
+    open_granaries(w,e)
+    w.grain_reserves.flows.append(ReserveFlow(kind=CAPTURED, region=0, amount=2))
+    w.grain_reserves.flows_turn = w.turn
+    row = capture_food_accounting(w,e,weights,opening).as_dict(1)['regions'][0]
+    assert row['public']['captured'] == 2
+    # ownership transfer: stock unchanged, so not a residual term
+    assert row['public']['balance_residual'] == pytest.approx(0)
+
+
 def test_old_native_output_is_unknown_instead_of_zero_consumed(make_world):
     w,e,weights=setup(make_world,stock=10,consumed=5)
     e.food_ledger.clear()

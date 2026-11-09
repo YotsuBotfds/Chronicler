@@ -258,7 +258,7 @@ tests/                # Python test suite and fixtures
 scripts/              # Gates, CI lanes, identity checks, reports (see scripts/README.md)
 docs/                 # Documentation (start at docs/README.md)
 scenarios/            # YAML scenario files
-tuning/               # Tuning override YAML used by the M53 calibration runs
+tuning/               # Tuning override YAML (the M53 calibration gate file); frozen records are in docs/validation/m53/
 examples/             # Standalone usage examples (detached governance kernels)
 ```
 
