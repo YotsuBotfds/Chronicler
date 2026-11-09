@@ -386,9 +386,10 @@
       "depends_on": [],
       "risk": "low",
       "size": "-2,096 (+440 test)",
-      "status": "active",
+      "status": "review",
       "spec": "docs/superpowers/specs/2026-11-08-viewer-streamlining-design.md",
-      "plan": "docs/superpowers/plans/2026-11-08-viewer-streamlining.md"
+      "plan": "docs/superpowers/plans/2026-11-08-viewer-streamlining.md",
+      "integrated": "lead branch, integration 6 (2026-11-09); see progress/streamline-and-deepen-ledger.md"
     },
     {
       "id": "DEAD-2",
@@ -424,9 +425,11 @@
       "depends_on": [],
       "risk": "low",
       "size": "~-30",
-      "status": "active",
+      "status": "review",
       "spec": "docs/superpowers/specs/2026-11-08-viewer-streamlining-design.md",
-      "plan": "docs/superpowers/plans/2026-11-08-viewer-streamlining.md"
+      "plan": "docs/superpowers/plans/2026-11-08-viewer-streamlining.md",
+      "integrated": "lead branch, integration 6 (2026-11-09); see progress/streamline-and-deepen-ledger.md",
+      "note": "Unpinned slice integrated; the pinned slice (viewer plan PR 6) is unblocked by PIN-1 and not started."
     },
     {
       "id": "DEAD-5",
@@ -544,9 +547,11 @@
       "depends_on": [],
       "risk": "low",
       "size": "small",
-      "status": "active",
+      "status": "review",
       "spec": "docs/superpowers/specs/2026-11-08-viewer-streamlining-design.md",
-      "plan": "docs/superpowers/plans/2026-11-08-viewer-streamlining.md"
+      "plan": "docs/superpowers/plans/2026-11-08-viewer-streamlining.md",
+      "integrated": "lead branch, integration 6 (2026-11-09); see progress/streamline-and-deepen-ledger.md",
+      "note": "Unpinned slice integrated; the pinned slice (viewer plan PR 6) is unblocked by PIN-1 and not started."
     },
     {
       "id": "FIX-9",
@@ -920,9 +925,11 @@
       "depends_on": [],
       "risk": "med",
       "size": "~-900 to -1,300",
-      "status": "active",
+      "status": "review",
       "spec": "docs/superpowers/specs/2026-11-08-viewer-streamlining-design.md",
-      "plan": "docs/superpowers/plans/2026-11-08-viewer-streamlining.md"
+      "plan": "docs/superpowers/plans/2026-11-08-viewer-streamlining.md",
+      "integrated": "lead branch, integration 6 (2026-11-09); see progress/streamline-and-deepen-ledger.md",
+      "note": "Unpinned slice integrated; the pinned slice (viewer plan PR 6) is unblocked by PIN-1 and not started."
     },
     {
       "id": "CON-10",

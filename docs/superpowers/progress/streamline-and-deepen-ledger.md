@@ -129,3 +129,28 @@ Gates on the merged head `ace1de11`:
   - Attribution: `g_learning_s42` was run at `sd/COR-9`, `sd/COR-10` and `sd/COR-6`, each with its own native. COR-9 changes nothing, **COR-10 makes the whole change** (3,918 → 3,811 events), COR-6 changes nothing, and the merged head equals the chain.
   - `native_goldens.json` was re-captured for that case only (the other five cases are unchanged). The spec treats re-capture as part of a correction. The provenance note records the attribution.
 - Not run: the 200-seed gate, GitHub CI, and a hybrid paired batch for COR-6.
+
+## 2026-11-09 — integration 6 (viewer chain)
+
+Merged `sd/CON-9c`, which carries the sequential viewer chain. Each step was approved by an independent reviewer with no blocker or major findings:
+
+| Task | Reviewed head | Notes |
+|---|---|---|
+| DEAD-1 | `55e601f2` | Nine legacy components and three test files removed, plus `d3-force` and `@types/d3-force`. The entry chunk is unchanged at 490,463 B |
+| DEAD-4 | `e59a14c2` | Dead exports and the `useBundle` `parseBundle` re-export removed (unpinned slice) |
+| FIX-8 | `2f733ae6` | `lib/liveMessages.ts` guard module; it is wired into `useLiveConnection.ts` in the pinned slice still to come. Also: `.mjs` lint scope, `esbuild` declared, Playwright an optional peer loaded through `scripts/lib/playwright.mjs` |
+| CON-9a | `f143ea3a` | Shared `recordGuards`, `livelihoodRecord` envelope and `downloadText` |
+| CON-9b | `04d4dd1d` | `components/systems/` formatters, `SystemSection`, `SystemTable` and `usePaged`. DOM unchanged |
+| CON-9c | `e0f9ba87` | AppShell helpers moved to `lib/shellFeed.ts` and `lib/atlasLayout.ts`; `snapshotAtTurn`; four per-render computations memoised; a single validation pass. DOM equivalence gave 0 differences. Perf numbers were measured on a loaded host and are inconclusive, so no speedup is claimed |
+
+Gates on the merged head `a8fc4d8f` (Node 22 in the cloud container):
+- `npm ci`, `tsc --noEmit -p tsconfig.app.json`, `npm run lint` and `npm run build` all pass. The existing large-chunk warning remains.
+- `npm test -- --maxWorkers=2`: **202 files; 1,919 passed, 2 skipped, 0 failed**.
+- `tests/test_native_build_lanes.py` and `tests/test_docs_status.py`: 28 passed.
+- Preflight against `33c6f86` (164 paths): only the frozen-snapshot entries, which are expected.
+- No Python or Rust change, so identity is unaffected.
+
+Not run:
+- Browser QA scripts.
+- Node 20.19.0, the floor that CI uses.
+- The pinned viewer slice (plan PR 6), which is now unblocked by PIN-1.
