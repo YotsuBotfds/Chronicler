@@ -10,7 +10,7 @@ import hashlib
 import struct
 import sys
 
-from chronicler import health_care_observation_codec as codec
+from chronicler_lab import health_care_observation_codec as codec
 
 INTEGER_BITS = 8192
 ONE32 = 0x3F800000

@@ -12,7 +12,7 @@ import struct
 from chronicler.health_care import (
     get_health_care_policy, health_care_active, health_care_on,
 )
-from chronicler.health_care_observation_codec import (
+from chronicler_lab.health_care_observation_codec import (
     BYTE_CAP, ROW_CAP, CareFrameError, CareFrameView, ControlsBits, EpisodeBits,
     FrameExpected, NumericSummaryBits, PostJoinBits, RegionalSummaryBits,
     SnapshotBits, decode_care_frame, finalize_care_frame,
