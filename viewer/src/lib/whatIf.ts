@@ -2,6 +2,7 @@ import type { Bundle, PauseContext } from "../types";
 import { identifyArtifact, type ArtifactIdentity } from "./artifactIdentity";
 import type { CompletedRun } from "./completedRunComparison";
 import { classifyParsedBundlePayload } from "./bundleLoader";
+import { isRecord as record } from "./recordGuards";
 
 interface WhatIfManifestBase {
   request_id: string;
@@ -49,9 +50,6 @@ export interface WhatIfControls {
 }
 export function whatIfActive(status: WhatIfStatus | null | undefined): boolean {
   return !!status && ["preparing", "prepared", "running"].includes(status.state);
-}
-function record(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 const binary = (value: unknown): value is 0 | 1 => value === 0 || value === 1;
 export const validWhatIfHorizon = (turns: number) => Number.isSafeInteger(turns) && turns >= 1 && turns <= 20;
@@ -196,7 +194,7 @@ export function artifactBasename(value: unknown): string | null {
   const name = value.replace(/\\/g, "/").split("/").at(-1) ?? "";
   return name && name !== "." && name !== ".." && !/[?:#]/.test(name) ? name : null;
 }
-export function portableArtifact(value: unknown): ArtifactIdentity | null {
+function portableArtifact(value: unknown): ArtifactIdentity | null {
   if (!record(value)) return null;
   const name = artifactBasename(value.name);
   return name && Number.isSafeInteger(value.byteLength) && (value.byteLength as number) > 0
@@ -428,7 +426,4 @@ export async function checkPreparedRecipe(recipe: WhatIfRecipe, manifest: WhatIf
     return { current, mismatch: "plan", message: "The prepared control or horizon differs from the imported recipe." };
   }
   return { current, mismatch: null, message: null };
-}
-export async function recipePreparedMismatch(recipe: WhatIfRecipe, manifest: WhatIfManifest): Promise<string | null> {
-  return (await checkPreparedRecipe(recipe, manifest)).message;
 }

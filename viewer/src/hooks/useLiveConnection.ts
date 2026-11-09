@@ -16,12 +16,14 @@ import { classifyParsedBundlePayload, formatBundleLoaderDiagnostics } from "../l
 import {
   applyCompletedMessage, bundleFromInitMessage, snapshotFromMessage, withSessionToken,
 } from "../lib/transport";
+import { parseLiveInit, parseLiveTurn } from "../lib/liveMessages";
+import { isRecord } from "../lib/recordGuards";
 
 import { granaryPolicyValue, readWhatIfManifest, readWhatIfResult, validWhatIfHorizon, validTransportDuration, transportRegions, restorationContext, whatIfActive, type WhatIfControls, type WhatIfStatus } from "../lib/whatIf";
 
 /** Failed attempts without ever opening before the viewer explains the refusal. */
 const REFUSED_ATTEMPTS = 2;
-export const LIVE_REFUSED_MESSAGE =
+const LIVE_REFUSED_MESSAGE =
   "Could not connect to the live server. It accepts the viewer only from the link the CLI prints "
   + "(it carries the session token) and from the local dev or preview origin; see "
   + "docs/integration/historical-parity.md.";
@@ -257,18 +259,21 @@ export function useLiveConnection(wsUrl: string, token: string | null = null): L
 
       ws.onmessage = (e) => {
         if (unmounted) return;
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        let msg: any;
+        let parsed: unknown;
         try {
-          msg = JSON.parse(e.data);
+          parsed = JSON.parse(e.data);
         } catch {
           console.warn("WebSocket: received non-JSON message, ignoring");
           return;
         }
-        if (typeof msg !== "object" || msg === null || typeof msg.type !== "string") {
-          console.warn("WebSocket: message missing 'type' field, ignoring", msg);
+        if (!isRecord(parsed) || typeof parsed.type !== "string") {
+          console.warn("WebSocket: message missing 'type' field, ignoring", parsed);
           return;
         }
+        // A running `init` and a `turn` are checked (lib/liveMessages) before they
+        // reach the bundle; the other message kinds read their fields one by one.
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const msg: any = parsed;
 
         switch (msg.type) {
           case "init":
@@ -287,11 +292,16 @@ export function useLiveConnection(wsUrl: string, token: string | null = null): L
             } else {
               // "running" or absent (backward compat: pre-lobby servers
               // don't send state field; treat absence as running)
+              const init = parseLiveInit(msg);
+              if (!init.ok) {
+                console.warn(`WebSocket: ${init.reason}, ignoring`);
+                break;
+              }
               setServerState("running");
               serverStateRef.current = "running";
               setError(null);
               // Reconnect history rows and bundle systems through the transport contract.
-              replaceBundle(bundleFromInitMessage(msg));
+              replaceBundle(bundleFromInitMessage(init.value));
               if (msg.speed !== undefined) {
                 setSpeedState(msg.speed);
               }
@@ -300,11 +310,16 @@ export function useLiveConnection(wsUrl: string, token: string | null = null): L
 
           case "turn":
             {
+              const turn = parseLiveTurn(msg);
+              if (!turn.ok) {
+                console.warn(`WebSocket: ${turn.reason}, ignoring`);
+                break;
+              }
               const liveBundle = bundleRef.current;
               if (!liveBundle) {
                 break;
               }
-              liveBundle.history = [...liveBundle.history, snapshotFromMessage(msg as Record<string, unknown>)];
+              liveBundle.history = [...liveBundle.history, snapshotFromMessage(turn.value)];
               if (isLegacyBundle(liveBundle.chronicle_entries)) {
                 liveBundle.chronicle_entries = {
                   ...liveBundle.chronicle_entries,

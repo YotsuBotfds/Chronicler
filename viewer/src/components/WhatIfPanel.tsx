@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import type { PauseContext } from "../types";
+import { downloadText } from "../lib/download";
 import { checkPreparedRecipe, createWhatIfRecipe, granaryPolicyValue, portableWhatIfManifest, readWhatIfRecipe,
   recipeLiveMismatch, restorationContext, transportRegions, validTransportDuration, whatIfActive, whatIfInterventionLabel,
   type WhatIfControls, type WhatIfManifest, type WhatIfPair, type WhatIfRecipe } from "../lib/whatIf";
@@ -83,10 +84,7 @@ export function WhatIfPanel({ context, controls, onCompare }: {
     setRecipeError("");
     try {
       const exported = await createWhatIfRecipe(manifest, status?.pair);
-      const url = URL.createObjectURL(new Blob([JSON.stringify(exported, null, 2) + "\n"], { type: "application/json" }));
-      const anchor = document.createElement("a");
-      anchor.href = url; anchor.download = "chronicler-what-if-recipe.json"; anchor.click();
-      setTimeout(() => URL.revokeObjectURL(url), 0);
+      downloadText("chronicler-what-if-recipe.json", JSON.stringify(exported, null, 2) + "\n", "application/json", 0);
       setRecipeMessage("Recipe downloaded with basename-only artifact identities and supported settings.");
     } catch (error) {
       setRecipeError(error instanceof Error ? error.message : "Could not export this recipe.");

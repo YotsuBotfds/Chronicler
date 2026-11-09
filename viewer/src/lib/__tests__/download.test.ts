@@ -33,6 +33,19 @@ describe("downloadText", () => {
     expect(revoke).toHaveBeenCalledWith("blob:packet");
   });
 
+  it("revokes after the delay a caller passes", () => {
+    vi.useFakeTimers();
+    const revoke = vi.fn();
+    Object.assign(URL, { createObjectURL: () => "blob:now", revokeObjectURL: revoke });
+    vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
+
+    downloadText("a.json", "{}", "application/json", 0);
+
+    expect(revoke).not.toHaveBeenCalled();
+    vi.advanceTimersByTime(0);
+    expect(revoke).toHaveBeenCalledWith("blob:now");
+  });
+
   it("propagates a failure to create the object URL", () => {
     Object.assign(URL, { createObjectURL: () => { throw new Error("no blobs"); }, revokeObjectURL: vi.fn() });
     expect(() => downloadText("a.json", "{}", "application/json")).toThrow("no blobs");

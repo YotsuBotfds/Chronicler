@@ -2,7 +2,7 @@
 import { webcrypto } from "node:crypto";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { checkPreparedRecipe, createWhatIfRecipe, granaryPolicyValue, portableWhatIfManifest, readWhatIfManifest, readWhatIfRecipe,
-  readWhatIfResult, recipeLiveMismatch, recipePreparedMismatch, whatIfInterventionLabel } from "../whatIf";
+  readWhatIfResult, recipeLiveMismatch, whatIfInterventionLabel } from "../whatIf";
 import { comparisonBundle } from "../../__fixtures__/completedRunHistory";
 import { recipeManifest, whatIfManifest, whatIfPair } from "../../__fixtures__/whatIf";
 beforeEach(() => vi.stubGlobal("crypto", webcrypto));
@@ -63,7 +63,7 @@ it("round-trips a versioned recipe with complete content identities and basename
   expect(exported).not.toContain("https:");
   expect(recipe.source.runtime_sha256).toMatch(/^[a-f0-9]{64}$/);
   expect(recipe.source.settings_sha256).toMatch(/^[a-f0-9]{64}$/);
-  expect(await recipePreparedMismatch(recipe, manifest)).toBeNull();
+  expect((await checkPreparedRecipe(recipe, manifest)).message).toBeNull();
   expect(JSON.stringify(portableWhatIfManifest(manifest))).not.toContain("PRIVATE_TOKEN");
   expect(JSON.stringify(portableWhatIfManifest(manifest))).not.toContain("/private/");
 });
@@ -100,12 +100,12 @@ it("refuses incompatible seed/turn/mode at import and exact runtime/settings/con
   const header = changed.source.header as Record<string, unknown>;
   const config = header.run_config as Record<string, unknown>;
   (config.simulation_args as Record<string, unknown>).grain_reserves = false;
-  expect(await recipePreparedMismatch(recipe, changed)).toContain("settings identity differs");
+  expect((await checkPreparedRecipe(recipe, changed)).message).toContain("settings identity differs");
   expect((await checkPreparedRecipe(recipe, changed)).mismatch).toBe("source");
   const otherContent = structuredClone(manifest);
   (otherContent.source.checkpoint as Record<string, unknown>).sha256 = "e".repeat(64);
-  expect(await recipePreparedMismatch(recipe, otherContent)).toContain("checkpoint");
-  expect(await recipePreparedMismatch(recipe, { ...manifest, turns: 4, end_turn: 6 })).toContain("horizon");
+  expect((await checkPreparedRecipe(recipe, otherContent)).message).toContain("checkpoint");
+  expect((await checkPreparedRecipe(recipe, { ...manifest, turns: 4, end_turn: 6 })).message).toContain("horizon");
   expect((await checkPreparedRecipe(recipe, { ...manifest, turns: 4, end_turn: 6 })).mismatch).toBe("plan");
   await expect(createWhatIfRecipe(whatIfManifest)).rejects.toThrow("complete compatible exact-checkpoint");
 });
@@ -135,7 +135,7 @@ it("validates readable schema-three transport manifests and preserves legacy con
   expect(exported).not.toContain('"value":12');
   expect(exported).not.toContain("/private/");
   expect(readWhatIfManifest(JSON.parse(exported))).toBeNull(); // descriptive export is not a backend command
-  expect(await recipePreparedMismatch(recipe, m)).toBeNull();
+  expect((await checkPreparedRecipe(recipe, m)).message).toBeNull();
   const b = comparisonBundle(); (b.world_state as unknown as Record<string, unknown>).agent_mode = "hybrid";
   expect(recipeLiveMismatch(recipe, b, 2, ["A"])).toBeNull();
   expect(recipeLiveMismatch({ ...recipe, control: { kind: "regional_transport_disruption", region_id: 99, duration: 2 } }, b, 2, ["A"])).toContain("selected region");

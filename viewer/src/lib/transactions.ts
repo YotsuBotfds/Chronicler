@@ -1,7 +1,7 @@
 import type { TurnSnapshot } from "../types";
+import { amount as finiteNonnegative } from "./recordGuards";
 
 const hasReturnReason = (row: object) => Object.prototype.hasOwnProperty.call(row, "return_reason");
-const finiteNonnegative = (n: unknown) => typeof n === "number" && Number.isFinite(n) && n >= 0;
 
 /** Native and public observations have separate source clocks and validity. */
 export function nativeTransactionsAt(snapshot: TurnSnapshot | null) {
