@@ -39,7 +39,7 @@ import { foodCrisisSpans } from "../../lib/food";
 import {
   availableMapLayers, buildMapLayer, defaultTechnique, practisedTechniquesBy, type MapLayerKey,
 } from "../../lib/mapLayers";
-import { eventByKey } from "../../lib/bundleIndex";
+import { eventByKey, snapshotAtTurn } from "../../lib/bundleIndex";
 import {
   atlasPoint,
   buildEventFeed,
@@ -68,7 +68,7 @@ import { InterestingPeriods } from "../InterestingPeriods";
 import { TerritoryChanges } from "../TerritoryChanges";
 import { HistoricalSearch } from "../HistoricalSearch";
 import type { HistoricalSearchResult } from "../../lib/historicalSearch";
-import { exactSnapshot, type HistoryEntity } from "../../lib/historyComparison";
+import type { HistoryEntity } from "../../lib/historyComparison";
 // The inspector's civilization history styles keep their place in the entry
 // stylesheet (before InstitutionHistory's), as when this file imported it.
 import "../civilization-history.css";
@@ -341,7 +341,7 @@ export function AppShell({
   // live session before its first turn); before the first snapshot of a
   // recorded history no controller is known.
   const worldIsPresent = !!bundle && bundle.history.length === 0;
-  const mapSnapshot = bundle ? exactSnapshot(bundle, currentTurn) : null;
+  const mapSnapshot = bundle ? snapshotAtTurn(bundle.history, currentTurn) : null;
   const regionControllers = mapSnapshot?.region_control
     ?? (bundle
       ? (worldIsPresent
@@ -371,7 +371,7 @@ export function AppShell({
     ? techniqueSelection
     : (mapLayer === "techniques" ? defaultTechnique(currentSnapshot, techniqueOptions) : null);
   const mapLayerView = bundle
-    ? buildMapLayer(mapLayer, { bundle, snapshot: exactSnapshot(bundle, currentTurn), famine, technique,
+    ? buildMapLayer(mapLayer, { bundle, snapshot: mapSnapshot, famine, technique,
       territoryFromTurn: territoryChoice?.world === worldKey && territoryChoice.turn === currentTurn ? territoryChoice.from ?? undefined : undefined,
       territoryCivilizationIndex: territoryChoice?.world === worldKey && territoryChoice.turn === currentTurn ? territoryChoice.civ
         : selectedEntity?.kind === "civilization" ? bundle.world_state.civilizations.findIndex((row) => row.name === selectedEntity.id) : null,
