@@ -14,8 +14,8 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 if __name__ == "__main__":
     sys.path.insert(0, str(REPO_ROOT / "src"))
 
-from chronicler import governance_measurements as gm
-from chronicler import governance_sequence as sequence
+from chronicler_lab import governance_measurements as gm
+from chronicler_lab import governance_sequence as sequence
 
 
 def capture_fixture(*, origin, source_identity):

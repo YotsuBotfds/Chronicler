@@ -10,7 +10,7 @@ from types import ModuleType, SimpleNamespace
 import pytest
 
 from chronicler import governance_kernel_harness as h
-from chronicler import governance_measurements as gm
+from chronicler_lab import governance_measurements as gm
 
 from test_governance_measurements import carry, initial, frame, enact_and_suppress, policy, IDENTITY, ORIGIN
 

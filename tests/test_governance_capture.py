@@ -12,9 +12,9 @@ from threading import Barrier
 
 import pytest
 
-from chronicler import governance_capture as gc
+from chronicler_lab import governance_capture as gc
 from chronicler import governance_kernel_harness as h
-from chronicler import governance_measurements as gm
+from chronicler_lab import governance_measurements as gm
 from chronicler import governance_capital as c
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -401,9 +401,9 @@ def test_driver_bytes_match_fresh_hash_seeds(args):
 def test_fresh_serial_and_concurrent_outputs_match_and_imports_stay_detached():
     code = '''import importlib.util, sys
 from concurrent.futures import ThreadPoolExecutor
-from chronicler import governance_capture as gc
+from chronicler_lab import governance_capture as gc
 from chronicler import governance_kernel_harness as h
-from chronicler import governance_measurements as gm
+from chronicler_lab import governance_measurements as gm
 spec=importlib.util.spec_from_file_location("driver", "scripts/governance_capture_report.py")
 m=importlib.util.module_from_spec(spec); spec.loader.exec_module(m)
 identity=gm.SourceIdentity("1"*40,"2"*40,"fresh process")

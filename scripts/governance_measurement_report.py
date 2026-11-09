@@ -25,7 +25,7 @@ Trusted source is loaded in a fresh unattached module namespace without changing
 sys.argv or installing a temporary sys.modules entry. Ordinary imports performed
 by the trusted example retain their normal Python behaviour.
 No kernel behaviour changes and no example source is modified. The measurement
-itself (``chronicler.governance_measurements.measure_governance_result``) never
+itself (``chronicler_lab.governance_measurements.measure_governance_result``) never
 calls ``run_kernel_frame``, reads an observation or a draw, or consumes an RNG.
 
 All output is synthetic-fixture measurement. It is not calibration, not a
@@ -42,7 +42,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT / "src"))
 
 from chronicler import governance_kernel_harness as harness  # noqa: E402
-from chronicler import governance_measurements as gm  # noqa: E402
+from chronicler_lab import governance_measurements as gm  # noqa: E402
 
 EXAMPLE_PATH = REPO_ROOT / "examples" / "governance_four_kernel.py"
 

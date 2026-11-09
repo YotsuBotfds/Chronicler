@@ -24,7 +24,7 @@ import pytest
 from chronicler import elite_metrics as e
 from chronicler import governance_capital as c
 from chronicler import governance_kernel_harness as h
-from chronicler import governance_measurements as gm
+from chronicler_lab import governance_measurements as gm
 from chronicler import institutions as i
 from chronicler import ruler_ambitions as a
 
@@ -1060,13 +1060,13 @@ def test_measurement_module_imports_no_simulation_models_or_analytics():
     env = dict(os.environ)
     env["PYTHONPATH"] = str(REPO_ROOT / "src")
     code = ("import sys\n"
-            "import chronicler.governance_measurements\n"
-            "print(','.join(sorted(m for m in sys.modules if m.startswith('chronicler.'))))\n")
+            "import chronicler_lab.governance_measurements\n"
+            "print(','.join(sorted(m for m in sys.modules if m.startswith(('chronicler.', 'chronicler_lab.')))))\n")
     completed = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True,
                                cwd=str(REPO_ROOT), env=env)
     assert completed.returncode == 0, completed.stderr
     imported = set(completed.stdout.strip().split(','))
-    assert imported == {'chronicler.governance_measurements',
+    assert imported == {'chronicler_lab.governance_measurements',
                         'chronicler.governance_kernel_harness', 'chronicler.institutions',
                         'chronicler.elite_metrics', 'chronicler.governance_capital',
                         'chronicler.ruler_ambitions'}
@@ -1079,11 +1079,11 @@ def test_measurement_module_imports_no_simulation_models_or_analytics():
 
 def test_lane_imports_only_the_reviewed_kernel_surface():
     script_source = SCRIPT_PATH.read_text(encoding="utf-8")
-    assert re.findall(r"^from chronicler import (\w+)", script_source, re.MULTILINE) == [
-        "governance_kernel_harness", "governance_measurements"]
-    library_source = (REPO_ROOT / "src" / "chronicler" / "governance_measurements.py").read_text(
+    assert re.findall(r"^from (chronicler|chronicler_lab) import (\w+)", script_source, re.MULTILINE) == [
+        ("chronicler", "governance_kernel_harness"), ("chronicler_lab", "governance_measurements")]
+    library_source = (REPO_ROOT / "src" / "chronicler_lab" / "governance_measurements.py").read_text(
         encoding="utf-8")
-    assert re.findall(r"^from \. import (\w+)", library_source, re.MULTILINE) == [
+    assert re.findall(r"^from chronicler import (\w+)", library_source, re.MULTILINE) == [
         "elite_metrics", "governance_capital", "governance_kernel_harness", "institutions",
         "ruler_ambitions"]
     for unrelated in ("analytics", "simulation", "models", "agent_bridge", "world_gen",
