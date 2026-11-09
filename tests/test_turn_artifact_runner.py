@@ -13,7 +13,9 @@ import weakref
 import pyarrow as pa
 import pytest
 
-from chronicler import checkpoint_replay as replay
+import chronicler
+from chronicler_lab import checkpoint_replay as replay
+from chronicler.batch_manifest import package_digest
 from chronicler.main import execute_run
 from chronicler.turn_artifacts import Stamp, TurnObservation, TurnResult
 
@@ -218,10 +220,12 @@ def test_checkpoint_residual_guards_survive_cutover(name, make_world, tmp_path):
 def test_new_source_module_changes_identity_and_rejects_checkpoint(
     relative_path, make_world, tmp_path, monkeypatch
 ):
+    # The identity hashes the production package (chronicler.__file__'s directory),
+    # not the relocated chronicler_lab module, so stand a skeleton copy in for it.
     source = tmp_path / "source"
     source.mkdir()
-    (source / "checkpoint_replay.py").write_bytes(Path(replay.__file__).read_bytes())
-    monkeypatch.setattr(replay, "__file__", str(source / "checkpoint_replay.py"))
+    (source / "__init__.py").write_bytes(Path(replay.chronicler.__file__).read_bytes())
+    monkeypatch.setattr(replay.chronicler, "__file__", str(source / "__init__.py"))
     checkpoint = tmp_path / "checkpoint.json"
     replay.save_checkpoint(make_world(), checkpoint)
     before = replay._runtime_identity()["source_sha256"]
@@ -232,6 +236,12 @@ def test_new_source_module_changes_identity_and_rejects_checkpoint(
     assert before != after
     with pytest.raises(replay.CheckpointError, match="source/Python/dependency runtime mismatch"):
         replay.load_checkpoint(checkpoint)
+
+
+def test_runtime_identity_hashes_the_production_package():
+    expected = package_digest(Path(chronicler.__file__).parent)
+    assert replay._runtime_identity()["source_sha256"] == expected
+    assert Path(chronicler.__file__).parent.name == "chronicler"
 
 
 def _evidence_reports(tmp_path):
