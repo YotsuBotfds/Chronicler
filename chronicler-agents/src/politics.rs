@@ -717,6 +717,40 @@ pub fn get_severity_multiplier(civ_stress: i32, config: &PoliticsConfig) -> f32 
     (base * config.severity_multiplier).min(config.severity_cap)
 }
 
+/// Python `repr()` of a `str`, for building `stable_hash_int` payloads.
+///
+/// Follows CPython's `str.__repr__`: single quotes unless the text contains `'`
+/// and no `"`; escapes `\`, the chosen quote, `\t`, `\n`, `\r`, and every other
+/// control character (`char::is_control`: U+0000-U+001F, U+007F-U+009F) as
+/// lowercase `\xNN`. Other characters are copied unchanged. CPython also escapes
+/// non-ASCII characters it treats as non-printable (for example U+00A0 or
+/// U+200B); that is not reproduced here, so such names may still hash
+/// differently from Python.
+pub fn py_repr_str(s: &str) -> String {
+    use std::fmt::Write as _;
+    let quote = if s.contains('\'') && !s.contains('"') { '"' } else { '\'' };
+    let mut out = String::with_capacity(s.len() + 2);
+    out.push(quote);
+    for c in s.chars() {
+        match c {
+            '\\' => out.push_str("\\\\"),
+            '\t' => out.push_str("\\t"),
+            '\n' => out.push_str("\\n"),
+            '\r' => out.push_str("\\r"),
+            c if c == quote => {
+                out.push('\\');
+                out.push(c);
+            }
+            c if c.is_control() => {
+                write!(out, "\\x{:02x}", c as u32).unwrap();
+            }
+            c => out.push(c),
+        }
+    }
+    out.push(quote);
+    out
+}
+
 /// Deterministic hash equivalent to Python's `stable_hash_int()`.
 /// Produces identical values for same inputs by matching Python's SHA-256 based approach.
 ///
@@ -1374,7 +1408,7 @@ fn step_secession(
         prob = prob.min(1.0);
 
         // Deterministic RNG
-        let seed_parts = format!("'secession'|{}|{}|'{}'", seed, turn, civ.name);
+        let seed_parts = format!("'secession'|{}|{}|{}", seed, turn, py_repr_str(&civ.name));
         let hash = stable_hash_int(&[&seed_parts]);
         let mut rng = DetRng::new(hash);
         if rng.random() >= prob as f64 {
@@ -1833,10 +1867,10 @@ fn step_vassal_rebellion(
 
         // RNG
         let seed_parts = format!(
-            "'vassal_rebellion'|{}|{}|'{}'",
+            "'vassal_rebellion'|{}|{}|{}",
             seed,
             turn,
-            civs[vassal_idx as usize].name,
+            py_repr_str(&civs[vassal_idx as usize].name),
         );
         let hash = stable_hash_int(&[&seed_parts]);
         let mut rng = DetRng::new(hash);
@@ -2279,11 +2313,11 @@ fn step_proxy_detection(
 
         // Deterministic detection roll
         let seed_parts = format!(
-            "'proxy_detection'|{}|{}|'{}'|'{}'",
+            "'proxy_detection'|{}|{}|{}|{}",
             seed,
             turn,
-            civs[pw.sponsor as usize].name,
-            civs[pw.target_civ as usize].name,
+            py_repr_str(&civs[pw.sponsor as usize].name),
+            py_repr_str(&civs[pw.target_civ as usize].name),
         );
         let hash = stable_hash_int(&[&seed_parts]);
         let mut rng = DetRng::new(hash);
@@ -2407,10 +2441,10 @@ fn step_restoration(
             + config.restoration_recognition_bonus * exile.recognized_by.len() as f32;
 
         let seed_parts = format!(
-            "'restoration'|{}|{}|'{}'",
+            "'restoration'|{}|{}|{}",
             seed,
             turn,
-            civs[exile.original_civ as usize].name,
+            py_repr_str(&civs[exile.original_civ as usize].name),
         );
         let hash = stable_hash_int(&[&seed_parts]);
         let mut rng = DetRng::new(hash);
@@ -3288,6 +3322,50 @@ mod tests {
         let h1 = stable_hash_int(&["a"]);
         let h2 = stable_hash_int(&["b"]);
         assert_ne!(h1, h2);
+    }
+
+    /// Pinned on both sides: `tests/test_politics_hash_parity.py` holds the
+    /// same table and recomputes it with Python's
+    /// `stable_hash_int("secession", 7, 3, name)`.
+    const SECESSION_HASH_PARITY: &[(&str, &str, u64)] = &[
+        ("Aldor", "'Aldor'", 5965020321537964785),
+        ("Ka'lo", "\"Ka'lo\"", 824216405042331300),
+        ("A\\B", "'A\\\\B'", 753379866302640020),
+        ("Zo\u{eb}", "'Zo\u{eb}'", 2123918839911951856),
+        ("He said \"hi\"", "'He said \"hi\"'", 5665349242566717993),
+        ("tab\there", "'tab\\there'", 8333909184004934855),
+        ("Both ' and \"", "'Both \\' and \"'", 6631886806500821251),
+        ("line\nbreak\r", "'line\\nbreak\\r'", 17064170672029403852),
+        ("bell\x07del\x7f", "'bell\\x07del\\x7f'", 8829576378575621579),
+        ("nel\u{85}", "'nel\\x85'", 1040625089979112548),
+    ];
+
+    #[test]
+    fn test_py_repr_str_matches_python_repr() {
+        for (name, expected_repr, _) in SECESSION_HASH_PARITY {
+            assert_eq!(py_repr_str(name), *expected_repr, "repr of {:?}", name);
+        }
+    }
+
+    #[test]
+    fn test_stable_hash_secession_parity_with_python() {
+        for (name, _, expected) in SECESSION_HASH_PARITY {
+            let seed_parts = format!("'secession'|{}|{}|{}", 7u64, 3u32, py_repr_str(name));
+            assert_eq!(stable_hash_int(&[&seed_parts]), *expected, "hash of {:?}", name);
+        }
+    }
+
+    #[test]
+    fn test_stable_hash_proxy_detection_parity_with_python() {
+        // Python: stable_hash_int("proxy_detection", 7, 3, "Ka'lo", "A\\B")
+        let seed_parts = format!(
+            "'proxy_detection'|{}|{}|{}|{}",
+            7u64,
+            3u32,
+            py_repr_str("Ka'lo"),
+            py_repr_str("A\\B"),
+        );
+        assert_eq!(stable_hash_int(&[&seed_parts]), 8235038744015777200);
     }
 
     #[test]
