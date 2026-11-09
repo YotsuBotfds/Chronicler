@@ -362,7 +362,13 @@ $HOME/.venvs/chronicler-native/bin/python scripts/check_python_env.py --expect n
 
 The script ends by running `scripts/check_python_env.py --expect no-native` on
 `.venv` and a report-only check on the native venv; like its other steps, a
-failed check prints `!!` and setup continues.
+failed check prints `!!` and setup continues. Missing `uv`, `npm` or `cargo`
+on `PATH` is recorded as a failure before any step runs. The script closes with
+a `== setup summary` block that lists every failed step. It exits 0 by default
+so a failed step never stops a cloud session from starting; set
+`CHRONICLER_SETUP_STRICT=1` to exit 1 when any step failed (for example in a
+local check or CI). It exits 1 in either mode if it cannot enter the
+repository root.
 
 Observed on a 4-core cloud container (2026-11-04): bounded offline lane
 about 4 minutes, viewer tests/lint/build about 2 minutes, `cargo test` about
