@@ -437,7 +437,10 @@ pub struct FoodPurchaseMoney {
 /// measured before the purchases (regions in the given order share it); what
 /// the ceiling refuses is refunded to that region's payers in proportion to
 /// what they paid. Every seller must be alive: the retail step withholds a
-/// dead owner's claim, so a sale by nobody living is a logic error (panics). Each person's net change is applied once, so a payer is
+/// dead owner's claim, so a sale by nobody living is a logic error. A
+/// purchase above its payers' cash, a sale by nobody living, and a region
+/// that paid with no positive sale weight each return `Err` before the pool
+/// is written. Each person's net change is applied once, so a payer is
 /// never refunded above what they paid and `paid == credited + refunded`
 /// exactly. Returns per region the money and per stable id (ascending)
 /// (id, paid, credited, refunded) for everyone who paid or sold.
@@ -456,7 +459,9 @@ pub fn settle_food_purchases(pool: &mut AgentPool, turn: u32, regions: &[FoodPur
         let mut debits: Vec<(u32, i64)> = Vec::new();
         for (payers, amount) in &region.households {
             let cash: i64 = payers.iter().map(|p| p.1.max(0)).sum();
-            assert!(*amount >= 0 && *amount <= cash, "a food purchase above its payers' cash");
+            if !(*amount >= 0 && *amount <= cash) {
+                return Err("a food purchase above its payers' cash");
+            }
             let weights: Vec<(u64, i64)> = payers.iter().map(|&(id, w)| (id as u64, w)).collect();
             for (&(id, _), share) in payers.iter().zip(split_largest_remainder(*amount, &weights)) {
                 if share > 0 {
@@ -467,12 +472,15 @@ pub fn settle_food_purchases(pool: &mut AgentPool, turn: u32, regions: &[FoodPur
             }
         }
         let weights: Vec<(u64, i64)> = region.sales.iter().map(|&(id, q)| (id as u64, q)).collect();
+        if money.paid > 0 && weights.iter().all(|&(_, w)| w <= 0) {
+            return Err("a food purchase with no sale");
+        }
         for (&(id, sold), credit) in region.sales.iter().zip(split_largest_remainder(money.paid, &weights)) {
             if sold <= 0 && credit == 0 {
                 continue;
             }
             let left = room.entry(id).or_insert_with(|| living(id).map(|s| floor_millis(MAX_WEALTH - pool.wealth[s])));
-            let Some(left) = left else { panic!("a food sale by no living seller") };
+            let Some(left) = left else { return Err("a food sale by no living seller") };
             let accepted = credit.min(*left);
             *left -= accepted;
             book.entry(id).or_default()[1] += accepted;
@@ -1181,24 +1189,60 @@ mod tests {
         transfer(&mut pool, 9, PURPOSE_FOOD_PROCUREMENT, 0, &[(ids[0], 1)]).unwrap();
     }
 
+    /// Settle `regions` on a pool that already holds an earlier turn's
+    /// log entry and assert the call is refused with `message`, leaving the
+    /// pool's wealth and transfer log exactly as they were.
+    fn assert_refused_unchanged(pool: &mut AgentPool, regions: &[FoodPurchases], message: &str) {
+        pool.wealth_transfer_log.push((0, PURPOSE_FOOD_PROCUREMENT, 0));
+        let wealth = pool.wealth.clone();
+        let log = pool.wealth_transfer_log.clone();
+        let result = settle_food_purchases(pool, 1, regions);
+        assert_eq!(result, Err(message));
+        assert_eq!(pool.wealth, wealth);
+        assert_eq!(pool.wealth_transfer_log, log);
+    }
+
     #[test]
-    #[should_panic(expected = "a food sale by no living seller")]
-    fn a_sale_by_a_dead_seller_is_a_logic_error() {
+    fn a_sale_by_a_dead_seller_is_refused_before_the_pool_changes() {
         // The retail step withholds a dead owner's claim; nothing may sell it.
         let mut pool = pool_with(&[5.0, 1.0]);
         let (a, b) = (pool.ids[0], pool.ids[1]);
         pool.kill(1);
-        let _ = settle_food_purchases(&mut pool, 1, &[FoodPurchases { households: vec![(vec![(a, 5000)], 100)],
-                                                              sales: vec![(b, 1)] }]);
+        assert_refused_unchanged(&mut pool, &[FoodPurchases { households: vec![(vec![(a, 5000)], 100)],
+                                                              sales: vec![(b, 1)] }],
+                                 "a food sale by no living seller");
     }
 
     #[test]
-    #[should_panic(expected = "a food purchase above its payers' cash")]
-    fn a_purchase_above_the_payers_cash_is_a_logic_error() {
+    fn a_purchase_above_the_payers_cash_is_refused_before_the_pool_changes() {
         let mut pool = pool_with(&[1.0, 1.0]);
         let (a, b) = (pool.ids[0], pool.ids[1]);
-        let _ = settle_food_purchases(&mut pool, 1, &[FoodPurchases { households: vec![(vec![(a, 1000)], 1001)],
-                                                              sales: vec![(b, 1)] }]);
+        assert_refused_unchanged(&mut pool, &[FoodPurchases { households: vec![(vec![(a, 1000)], 1001)],
+                                                              sales: vec![(b, 1)] }],
+                                 "a food purchase above its payers' cash");
+        // A negative price is refused the same way.
+        assert_refused_unchanged(&mut pool, &[FoodPurchases { households: vec![(vec![(a, 1000)], -1)],
+                                                              sales: vec![(b, 1)] }],
+                                 "a food purchase above its payers' cash");
+    }
+
+    #[test]
+    fn a_purchase_with_no_sale_is_refused_before_the_pool_changes() {
+        // A first region settles in memory, then a second pays with only
+        // zero sale weights: the whole call is refused, nothing is written.
+        let mut pool = pool_with(&[5.0, 1.0, 2.0]);
+        let (a, b, c) = (pool.ids[0], pool.ids[1], pool.ids[2]);
+        let ok = FoodPurchases { households: vec![(vec![(a, 5000)], 100)], sales: vec![(b, 1)] };
+        assert_refused_unchanged(&mut pool, &[ok.clone(), FoodPurchases {
+                                     households: vec![(vec![(a, 5000)], 100)], sales: vec![(b, 0), (c, 0)] }],
+                                 "a food purchase with no sale");
+        assert_refused_unchanged(&mut pool, &[FoodPurchases { households: vec![(vec![(a, 5000)], 1)],
+                                                              sales: Vec::new() }],
+                                 "a food purchase with no sale");
+        // Nothing paid needs no sale.
+        let free = FoodPurchases { households: vec![(vec![(a, 5000)], 0)], sales: Vec::new() };
+        let (money, book) = settle_food_purchases(&mut pool, 1, &[free]).unwrap();
+        assert_eq!((money, book), (vec![FoodPurchaseMoney::default()], Vec::new()));
     }
 
     fn farm_region(id: u16) -> crate::region::RegionState {

@@ -1013,7 +1013,9 @@ Statuses, in order:
   (ties by id), by stable id wherever they live, up to each seller's ceiling room.
 - What the ceiling refuses is refunded to that region's payers in proportion to what
   they paid. Every seller is alive (a dead owner's claim is withheld); a sale by nobody
-  living is a logic error (the settlement panics).
+  living is a logic error. It, a purchase above its payers' cash, and a region that paid
+  with no positive sale make the settlement return an error before any wealth changes;
+  the tick propagates it.
 - Each person's net change is applied once.
 - `paid == credited + refunded` and `refunded == refused_ceiling` exactly, per region
   and over the money rows.
