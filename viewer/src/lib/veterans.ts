@@ -1,3 +1,4 @@
+import { readLivelihoodRecord } from "./livelihoodRecord";
 import { isRecord as object } from "./recordGuards";
 import type { TurnSnapshot } from "../types";
 
@@ -146,11 +147,8 @@ function validFrame(x: unknown, regions: number, source: number, control: boolea
 
 /** Strict reader; null when absent, from another schema, misdated or malformed. */
 export function veteransAt(snapshot: TurnSnapshot | null, regionCount: number): VeteransRecord | null {
-  const row = snapshot as unknown as Record<string, unknown> | null;
-  const livelihoods = row?.livelihoods;
-  if (!object(livelihoods) || livelihoods.schema_version !== 1) return null;
-  const x = livelihoods.veteran_reintegration;
-  if (!object(x) || x.schema_version !== 1 || x.stage !== "RS3" || typeof x.enabled !== "boolean"
+  const x = readLivelihoodRecord(snapshot, "veteran_reintegration");
+  if (!x || x.stage !== "RS3" || typeof x.enabled !== "boolean"
     || !among(["priority", "record_only"])(x.mode) || !count(x.source_turn) || x.source_turn + 1 !== snapshot?.turn
     || !count(x.veterans_omitted) || !object(x.counters) || !Object.values(x.counters).every(count)
     || !object(x.parameters)) return null;

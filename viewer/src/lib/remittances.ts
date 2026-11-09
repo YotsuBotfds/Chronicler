@@ -1,3 +1,4 @@
+import { readLivelihoodRecord } from "./livelihoodRecord";
 import { isRecord as object, finite, count } from "./recordGuards";
 import type { TurnSnapshot } from "../types";
 
@@ -111,11 +112,8 @@ const list = <T,>(x: unknown, max: number, check: (v: unknown) => boolean): x is
 
 /** Strict reader; null when absent, from another schema, misdated or malformed. */
 export function remittancesAt(snapshot: TurnSnapshot | null, regionCount: number): RemittancesRecord | null {
-  const row = snapshot as unknown as Record<string, unknown> | null;
-  const livelihoods = row?.livelihoods;
-  if (!object(livelihoods) || livelihoods.schema_version !== 1) return null;
-  const x = livelihoods.remittances;
-  if (!object(x) || x.schema_version !== 1 || x.stage !== "RS4" || !among(MODES, x.mode)
+  const x = readLivelihoodRecord(snapshot, "remittances");
+  if (!x || x.stage !== "RS4" || !among(MODES, x.mode)
     || !count(x.source_turn) || x.source_turn + 1 !== snapshot?.turn || !counts(x.counters)
     || !object(x.parameters) || !Object.values(x.parameters).every(count)) return null;
   const source = x.source_turn as number;

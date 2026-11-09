@@ -1,3 +1,4 @@
+import { readLivelihoodRecord } from "./livelihoodRecord";
 import { isRecord as object, finite, amount, count } from "./recordGuards";
 import type { TurnSnapshot } from "../types";
 
@@ -150,11 +151,8 @@ function validUnmet(x: unknown, regions: number): boolean {
 
 /** Strict reader; null when absent, from another schema, misdated or malformed. */
 export function repairProjectsAt(snapshot: TurnSnapshot | null, regionCount: number, civCount: number): RepairProjectsRecord | null {
-  const row = snapshot as unknown as Record<string, unknown> | null;
-  const livelihoods = row?.livelihoods;
-  if (!object(livelihoods) || livelihoods.schema_version !== 1) return null;
-  const x = livelihoods.repair_projects;
-  if (!object(x) || x.schema_version !== 1 || x.stage !== "RS2" || !MODES.includes(x.mode as string)
+  const x = readLivelihoodRecord(snapshot, "repair_projects");
+  if (!x || x.stage !== "RS2" || !MODES.includes(x.mode as string)
     || !count(x.source_turn) || x.source_turn + 1 !== snapshot?.turn || !object(x.units)
     || !Array.isArray(x.projects) || x.projects.length > regionCount + 4
     || !x.projects.every((p) => validProject(p, regionCount, true))

@@ -1,3 +1,4 @@
+import { readLivelihoodRecord } from "./livelihoodRecord";
 import { isRecord as object, finite, amount, count } from "./recordGuards";
 import type { TurnSnapshot } from "../types";
 
@@ -54,11 +55,8 @@ function validRegion(x: unknown, regions: number): x is FoodAllocationRegion {
 
 /** Strict reader; null when absent, from another schema, misdated or malformed. */
 export function foodAllocationAt(snapshot: TurnSnapshot | null, regionCount: number): FoodAllocationRecord | null {
-  const row = snapshot as unknown as Record<string, unknown> | null;
-  const livelihoods = row?.livelihoods;
-  if (!object(livelihoods) || livelihoods.schema_version !== 1) return null;
-  const x = livelihoods.food_allocation;
-  if (!object(x) || x.schema_version !== 1 || !REGIMES.includes(x.regime as string) || !finite(x.source_turn)
+  const x = readLivelihoodRecord(snapshot, "food_allocation");
+  if (!x || !REGIMES.includes(x.regime as string) || !finite(x.source_turn)
     || x.source_turn + 1 !== snapshot?.turn || !object(x.counters)) return null;
   if (x.totals === null) return x.regions === null && x.sample === null ? x as unknown as FoodAllocationRecord : null;
   if (!validTotals(x.totals) || !Array.isArray(x.regions) || !Array.isArray(x.sample)

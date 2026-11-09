@@ -1,3 +1,4 @@
+import { readLivelihoodRecord } from "./livelihoodRecord";
 import { isRecord as object, finite, amount, count as integer } from "./recordGuards";
 import type { TurnSnapshot } from "../types";
 
@@ -113,11 +114,8 @@ const unique = (rows: Array<{ region_id: number }>) => new Set(rows.map((r) => r
  * to another snapshot or malformed. Never borrows values from other snapshots.
  */
 export function clearingProtectionAt(snapshot: TurnSnapshot | null, regionCount: number): ClearingProtectionRecord | null {
-  const row = snapshot as unknown as Record<string, unknown> | null;
-  const livelihoods = row?.livelihoods;
-  if (!object(livelihoods) || livelihoods.schema_version !== 1) return null;
-  const x = livelihoods.clearing_protection;
-  if (!object(x) || x.schema_version !== 1 || !object(x.units) || x.units.cover !== "forest_cover" || x.units.money !== "treasury"
+  const x = readLivelihoodRecord(snapshot, "clearing_protection");
+  if (!x || !object(x.units) || x.units.cover !== "forest_cover" || x.units.money !== "treasury"
     || (x.mode !== "enforced" && x.mode !== "cost_only") || !integer(x.source_turn) || !integer(x.completed_turn)
     || x.completed_turn !== x.source_turn + 1 || x.completed_turn !== snapshot?.turn || !bool(x.observed)
     || !object(x.parameters) || !Object.values(x.parameters).every(amount)

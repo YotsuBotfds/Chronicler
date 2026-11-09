@@ -1,3 +1,4 @@
+import { readLivelihoodRecord } from "./livelihoodRecord";
 import { isRecord as object, finite, amount, count } from "./recordGuards";
 import type { TurnSnapshot } from "../types";
 
@@ -114,11 +115,8 @@ function validTransfers(x: unknown, source: number): boolean {
 
 /** Strict reader; null when absent, from another schema, misdated or not closing. */
 export function workshopFinanceAt(snapshot: TurnSnapshot | null, regionCount: number): WorkshopFinanceRecord | null {
-  const row = snapshot as unknown as Record<string, unknown> | null;
-  const livelihoods = row?.livelihoods;
-  if (!object(livelihoods) || livelihoods.schema_version !== 1) return null;
-  const x = livelihoods.workshop_payroll;
-  if (!object(x) || x.schema_version !== 1 || x.stage !== "L6a" || !MODES.includes(x.mode as string)
+  const x = readLivelihoodRecord(snapshot, "workshop_payroll");
+  if (!x || x.stage !== "L6a" || !MODES.includes(x.mode as string)
     || !count(x.source_turn) || x.source_turn + 1 !== snapshot?.turn || !object(x.units) || x.units.milli !== 1000
     || !Array.isArray(x.firms) || x.firms.length > 4 || !x.firms.every((f) => validFirm(f, regionCount))
     || !Array.isArray(x.closed) || x.closed.length > 8 || !x.closed.every((f) => validFirm(f, regionCount))

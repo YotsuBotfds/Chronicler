@@ -1,3 +1,4 @@
+import { readLivelihoodRecord } from "./livelihoodRecord";
 import { isRecord as object, finite, amount, count } from "./recordGuards";
 import type { TurnSnapshot } from "../types";
 
@@ -86,11 +87,8 @@ function validAssistance(x: unknown): boolean {
 
 /** Strict reader; null when absent, from another schema, misdated or malformed. */
 export function relocationAt(snapshot: TurnSnapshot | null, regionCount: number): RelocationRecord | null {
-  const row = snapshot as unknown as Record<string, unknown> | null;
-  const livelihoods = row?.livelihoods;
-  if (!object(livelihoods) || livelihoods.schema_version !== 1) return null;
-  const x = livelihoods.relocation_costs;
-  if (!object(x) || x.schema_version !== 1 || x.stage !== "L7" || !MODES.includes(x.mode as string)
+  const x = readLivelihoodRecord(snapshot, "relocation_costs");
+  if (!x || x.stage !== "L7" || !MODES.includes(x.mode as string)
     || !count(x.source_turn) || x.source_turn + 1 !== snapshot?.turn || !object(x.counters)
     || !Object.values(x.counters).every(amount) || !object(x.parameters)) return null;
   const mode = x.mode as string;

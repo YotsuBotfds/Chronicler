@@ -1,3 +1,4 @@
+import { readLivelihoodRecord } from "./livelihoodRecord";
 import { isRecord as object, amount, count as integer } from "./recordGuards";
 import type { TurnSnapshot } from "../types";
 
@@ -50,11 +51,8 @@ function validRow(x: unknown, regionCount: number, enforced: boolean): x is Timb
  * another snapshot or malformed. Never borrows observations from other snapshots.
  */
 export function timberStockAt(snapshot: TurnSnapshot | null, regionCount: number): TimberStockRecord | null {
-  const row = snapshot as unknown as Record<string, unknown> | null;
-  const livelihoods = row?.livelihoods;
-  if (!object(livelihoods) || livelihoods.schema_version !== 1) return null;
-  const x = livelihoods.timber_stock;
-  if (!object(x) || x.schema_version !== 1 || x.units !== "timber_goods" || !integer(x.source_turn)
+  const x = readLivelihoodRecord(snapshot, "timber_stock");
+  if (!x || x.units !== "timber_goods" || !integer(x.source_turn)
     || !integer(x.completed_turn) || x.completed_turn !== x.source_turn + 1 || x.completed_turn !== snapshot?.turn
     || typeof x.enforce_cap !== "boolean" || typeof x.observed !== "boolean"
     || !object(x.parameters) || !PARAMETERS.every((key) => amount((x.parameters as Record<string, unknown>)[key]))) return null;

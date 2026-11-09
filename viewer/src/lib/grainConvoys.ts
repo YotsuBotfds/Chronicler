@@ -8,6 +8,7 @@
  * record whose ``transitions`` is null knows the convoys on the road but not
  * what happened in its turn (unknown); an empty list means nothing happened.
  */
+import { readLivelihoodRecord } from "./livelihoodRecord";
 import { amount } from "./recordGuards";
 import type { TurnSnapshot } from "../types";
 
@@ -115,10 +116,8 @@ function transitionRow(v: unknown, source: number): v is GrainConvoyTransition {
 /** The dated convoy record of a snapshot, or null (absent, stale or malformed). */
 export function readGrainConvoys(snapshot: TurnSnapshot | null | undefined): GrainConvoysRecord | null {
   if (!snapshot) return null;
-  const livelihoods = (snapshot as unknown as Row).livelihoods;
-  if (!object(livelihoods) || livelihoods.schema_version !== 1) return null;
-  const r = livelihoods.grain_convoys;
-  if (!object(r) || r.schema_version !== 1 || !integer(r.source_turn) || r.source_turn !== snapshot.turn - 1) return null;
+  const r = readLivelihoodRecord(snapshot, "grain_convoys");
+  if (!r || !integer(r.source_turn) || r.source_turn !== snapshot.turn - 1) return null;
   const source = r.source_turn;
   if (typeof r.enabled !== "boolean" || !oneOf(CONVOY_POLICIES)(r.route_policy) || typeof r.moved !== "boolean"
     || typeof r.dispatch_ran !== "boolean" || !integer(r.active_count) || r.active_count > MAX_ACTIVE

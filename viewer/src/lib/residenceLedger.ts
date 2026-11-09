@@ -1,3 +1,4 @@
+import { readLivelihoodRecord } from "./livelihoodRecord";
 import { isRecord as object, count } from "./recordGuards";
 import type { TurnSnapshot } from "../types";
 
@@ -144,11 +145,8 @@ function validFrame(f: unknown, regions: number, source: number): f is Residence
 
 /** The residence ledger record of one snapshot, or null when it is absent or malformed. */
 export function residenceLedgerAt(snapshot: TurnSnapshot | null, regions: number): ResidenceLedgerRecord | null {
-  const row = snapshot as unknown as Record<string, unknown> | null;
-  const livelihoods = row?.livelihoods;
-  if (!object(livelihoods) || livelihoods.schema_version !== 1) return null;
-  const x = livelihoods.residence_ledger;
-  if (!object(x) || x.schema_version !== 1 || x.stage !== "X1" || !count(x.source_turn)
+  const x = readLivelihoodRecord(snapshot, "residence_ledger");
+  if (!x || x.stage !== "X1" || !count(x.source_turn)
     || x.source_turn + 1 !== snapshot?.turn || !object(x.counters) || !Object.values(x.counters).every(count)
     || !Array.isArray(x.log) || !count(x.log_dropped) || !object(x.labels) || !object(x.parameters)
     || !count(x.events_dropped) || !(x.observed_from === null || count(x.observed_from))) return null;
