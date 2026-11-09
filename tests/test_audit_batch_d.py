@@ -67,39 +67,37 @@ def _make_world(regions=None, civs=None, seed=42):
 class TestTitheFoodSufficiencyGate:
     """H-2: Tithe should be reduced/skipped when food_sufficiency is low."""
 
-    def test_tithe_reduced_when_food_scarce(self):
-        """When avg food_sufficiency < 0.5, tithe_base should be scaled down."""
-        from chronicler.economy import EconomyResult
+    @pytest.mark.parametrize(
+        ("sufficiencies", "avg"),
+        [((0.2, 0.3), 0.25), ((0.4, 0.6), 0.5), ((0.6, 1.0), 0.8)],
+    )
+    def test_oracle_scales_tithe_base_by_food_gate(self, sufficiencies, avg):
+        """The oracle's tithe base is merchant wealth scaled by min(avg / gate, 1)."""
+        from chronicler.economy import TITHE_FOOD_GATE
+        from chronicler.factions import TITHE_RATE
+        from tests.test_economy_oracle import _make_economy_world, _make_snapshot, _run_python_oracle
 
-        # Simulate: result with low food_sufficiency
-        result = EconomyResult()
-        result.food_sufficiency = {"RegionA": 0.2, "RegionB": 0.3}
+        # One civ holding both regions, four merchants in each and no farmers, so
+        # no food is produced and each region's food demand is 2.0: a stockpile of
+        # 2.0 * s gives that region food sufficiency s.
+        world = _make_economy_world(
+            n_farmers_r1=0, n_merchants_r1=4, n_soldiers_r1=0,
+            n_farmers_r2=0, n_merchants_r2=4, n_soldiers_r2=0,
+        )
+        world.civilizations[0].regions = ["Breadbasket", "Port"]
+        world.civilizations[1].regions = []
+        for region, sufficiency in zip(world.regions, sufficiencies):
+            region.stockpile.goods = {"grain": 2.0 * sufficiency}
+        agents = [(0, 2, 10.0, 0)] * 4 + [(1, 2, 5.0, 0)] * 4
+        merchant_wealth = 60.0
 
-        # Compute avg
-        civ_regions = {"RegionA", "RegionB"}
-        suff_values = [result.food_sufficiency.get(rn, 1.0) for rn in civ_regions]
-        avg_food_suff = sum(suff_values) / len(suff_values)
+        result = _run_python_oracle(world, _make_snapshot(world, agents), active_routes=[])
 
-        # avg = 0.25, threshold = 0.5 -> scale = 0.25/0.5 = 0.5
-        assert avg_food_suff == pytest.approx(0.25)
-        TITHE_FOOD_GATE = 0.5
-        tithe_scale = min(avg_food_suff / TITHE_FOOD_GATE, 1.0)
-        assert tithe_scale == pytest.approx(0.5)
-
-    def test_tithe_full_when_food_sufficient(self):
-        """When avg food_sufficiency >= 0.5, tithe_base should be unscaled."""
-        from chronicler.economy import EconomyResult
-
-        result = EconomyResult()
-        result.food_sufficiency = {"RegionA": 1.0, "RegionB": 0.8}
-
-        civ_regions = {"RegionA", "RegionB"}
-        suff_values = [result.food_sufficiency.get(rn, 1.0) for rn in civ_regions]
-        avg_food_suff = sum(suff_values) / len(suff_values)
-
-        TITHE_FOOD_GATE = 0.5
-        tithe_scale = min(avg_food_suff / TITHE_FOOD_GATE, 1.0)
-        assert tithe_scale == 1.0
+        assert [result.food_sufficiency[r.name] for r in world.regions] == pytest.approx(list(sufficiencies))
+        expected = merchant_wealth * min(avg / TITHE_FOOD_GATE, 1.0)
+        assert result.tithe_base[0] == pytest.approx(expected)
+        assert result.priest_tithe_shares[0] == pytest.approx(TITHE_RATE * expected)
+        assert result.conservation["treasury_tithe"] == pytest.approx(TITHE_RATE * expected)
 
 
 # ---------------------------------------------------------------------------
