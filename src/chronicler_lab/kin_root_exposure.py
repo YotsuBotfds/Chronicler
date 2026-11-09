@@ -12,7 +12,7 @@ import math
 import struct
 from types import MappingProxyType
 
-from .decision_delivery import (
+from chronicler_lab.decision_delivery import (
     _CANDIDATES, _DECISION_HEADER, _DECISIONS, _MOVE_HEADER, _MOVES,
 )
 

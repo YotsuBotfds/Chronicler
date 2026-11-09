@@ -18,6 +18,7 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, StrictInt, TypeAdapter, ValidationError
 
+import chronicler
 from chronicler.action_engine import ActionEngine
 from chronicler.artifact_io import (
     ArtifactIOError, atomic_write_json, strict_json_dumps, strict_json_loads,
@@ -141,7 +142,7 @@ def _runtime_identity() -> dict[str, str]:
         "python": platform.python_version(),
         "implementation": platform.python_implementation(),
         "platform": platform.platform(),
-        "source_sha256": package_digest(Path(__file__).parent),
+        "source_sha256": package_digest(Path(chronicler.__file__).parent),
         **{name: version(name) for name in (
             "pydantic", "numpy", "scipy", "pyarrow", "arro3-core", "pyyaml",
         )},
