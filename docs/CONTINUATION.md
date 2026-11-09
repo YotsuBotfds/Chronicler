@@ -17,28 +17,22 @@
   to [superpowers/progress/continuation-history.md](superpowers/progress/continuation-history.md).
 - Update this block in the ledger commit after each merge.
 
-# 2026-11-08 — external review response (branch `claude/relaxed-brown-4ozgeg`)
+# 2026-11-09 — streamline-and-deepen integration (branch `claude/exciting-mayer-nolksw`)
 
-The external review of `b0811a73` requested changes, all at P2; all are addressed on the branch:
-1. **Oracle `--jobs` and Ctrl-C.** Results go to caller-owned storage; on an exceptional exit
-   finished chunks are published, the receipt is built in `finally` with `error: interrupted`
-   and `passed: false`. Regression tests at scheduler and runner level fail on `b0811a73`.
-2. **COR-1 hash-seed sweep plan.** The child no longer runs with `-I`; it gets an absolute
-   `PYTHONPATH`, explicit `cwd` and platform variables, and checks its checkout, its seeds and
-   that seed 0 reproduces the pre-fix output.
-3. **PIN-2 gate plan.** The native SHA-256 is provenance, not equality; identity is judged by
-   output digests within a compatibility class.
-4. **DEP-6 tax plan.** `money.pay` is the only settlement step (`MoneyBook` in
-   `ClosedMoneyState`); no second treasury credit or separate carry.
-5. **DEP-6 tithe plan.** One funded collection pays treasury and priest parts; zero priests,
-   insufficient funds, refusals and the escrow residual are specified.
-
-The workstation guide creates `output/` before receipts, saves a native receipt, separates a
-local PASS from a reproduction of the reference CI gate run, and states that Python 3.13.5
-fails the argparse golden on untouched `main`. The full bounded oracle lane passed on the
-code of `567571f`: `--jobs 4` 8,139 passed / 69 skipped / 0 failed in 96.9 s (slowest chunk
-37.7 s of 110 s); serial, same per-chunk counts, 339.6 s. Exact-head CI has not run:
-`tests.yml` does not run on pushes to that branch.
+Owner decisions DEC-1–DEC-8 (2026-11-08) are in the
+[decision record](superpowers/progress/streamline-and-deepen-decisions.md); every merge, its
+reviewed heads and its gates are in the [integration ledger](superpowers/progress/streamline-and-deepen-ledger.md).
+Behaviour-neutral work (R1/R2 hygiene, dead code, neutral fixes, tooling, PIN-2 and PIN-1 under
+DEC-1 option A) compared identical on all nine identity cases. Corrections (owner go-ahead
+2026-11-08), each with a [baseline report](superpowers/progress/streamline-and-deepen-baselines/):
+COR-9 (Rust `stable_hash_int` repr parity) and COR-7 (Rust politics step 11 deleted) give 0
+differences; COR-6a/6b (war early-return flush, drained-only soldier deaths) give 0 differences
+on the identity cases and a 40-seed agents-off batch; COR-10 (`gp_agendas` projected treasury
+respects the keep watermark) changes `proc48_hybrid_s42` (first divergence turn 33) and gate
+case `g_learning_s42` only, whose native golden was re-captured. COR-6c waits for its own PR now
+that PIN-1 is in. Not merged to `main`, no PR, 200-seed gate not run; goldens were captured
+locally (CI capture pending); tag `pin-freeze-2026-11` not yet created. The superseded
+2026-11-08 review-response entry is verbatim in the history file.
 
 # 2026-11-08 — workstation tooling (Linux 9950X / 3950X)
 

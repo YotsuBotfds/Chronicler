@@ -75,18 +75,18 @@
    "validation_summary/needs_turn_100.json": "f200f56411e1a22c65ac50c3bab1da2c7b9cdcec7511e73da8b0015517818af2"
   },
   "g_learning_s42": {
-   "agent_events.arrow": "db2f9fee728f47ee4fba8524ea3b73cf8a276f966e0b448768ee439ed980a4b5",
+   "agent_events.arrow": "ac9cb135640efe0375c830f3f38d73bb4350c523bfbf934689ade45622add4fe",
    "chronicle.md": "0fb4e380ec45596212d7c8c10aedc1be766ddb473f337124f03cedcdebf4ab52",
-   "chronicle_bundle.json": "53ec6e94b6f22806a4b1ca178cfb374e53ba4d421637baca338960c8c58597ff",
-   "memories_confederacy_of_bemere.json": "f834b8816c7368a23c65595634803423e216389fb837043340d4b60f0f307839",
-   "memories_lisolenen_league.json": "5fe751e556a865f1a56a8aa16d1c2d7ae9af7da5683d8850c94e2ff7cae4ede6",
-   "memories_merosi_league.json": "97b62adab5dd1bcfbb8404c48af24a625557b1dbc814eaf9917891e1f11065b7",
-   "memories_mevilenen_league.json": "777b8f168f65c0a3f1464e4892f17748fa0df9e02682c71450641123e129f91a",
-   "memories_republic_of_rimarion.json": "49db7bbb4d95c9ef49e5d6efcef658e0af70390189f4fb958e1face2faf83856",
-   "memories_saqeduni_empire.json": "82ef2c6ac1acfc0d5884034c87cdbd863d0cc2d535184f1055c424949e3938e6",
-   "state.historiography.json": "ac1b5f3ca8f3e2bd07a783fd7c55c88b50ed6a0c6d915223706fa2bc6f542f27",
-   "state.json": "018145c413ba3ab7c7de39a83e3cd5d153b95e55ee9aace05f63a4cc4c2f2fef",
-   "state.languages.json": "18d69adf06849a3f8f30a6cf7a0d5c5670e504f01813f8a34c811caa51be2403"
+   "chronicle_bundle.json": "d97067825891f4a6fda899ef1c150315ee35e2251d94e44d0bc99046bc39d338",
+   "memories_confederacy_of_bemere.json": "3c9cd53b7120c097ca6b8777747fa7d27647590dc17c23635500ac4a161e20c0",
+   "memories_lisolenen_league.json": "cbf9d42210dc47984ecd530063b4c510826b32d1a584985dcfc539479a00a6a3",
+   "memories_merosi_league.json": "ee0720ca0fee696aeef9e2e41417dbdec723f8986b59fb019d80f419ede78af5",
+   "memories_mevilenen_league.json": "1f9f32220101794abd3910f8e1f342f089131b1e6b95495fc4133ee89ff6337d",
+   "memories_republic_of_rimarion.json": "f024637a656e529ef42acec8018c058359a81be678c8239384bdeecdcb2d7858",
+   "memories_saqeduni_empire.json": "bf96ad32166868e610ce4b2443cf20ffe315d4ba840bc8a9999c2d6ad4002f41",
+   "state.historiography.json": "11ab048845e4b1c645d9524dc21aab9f672996d72e371678fafbf6745913b9cd",
+   "state.json": "707f7a580c9565bc7680e1a57d7e205d70f0adbb2092e4453c443a0c5a609c68",
+   "state.languages.json": "5abe4081c765e9e21dffba3387b169e04f3dd37e7de65511de0895d545c24f39"
   },
   "g_mobility_s1234": {
    "agent_events.arrow": "82c191ab47050b3304269e901b3624c7132eaaf123605b5793c6883c328c160a",
@@ -153,9 +153,9 @@
    "rust_channel": "stable"
   },
   "provenance": {
-   "native_sha256": "2125dfd7b5f9e2091ac70fad5f08709c14d2e553ab65691f7638d219e9c22641",
-   "native_source_digest": "fec90fa0bedf63801a1c7a2a85c758c9fd6e424d6cb960b1c85c02e51ead7b47",
-   "note": "captured locally (Linux container, not the CI runner) at source 5eedc67 with a maturin develop --release --locked build; CI capture and CI determinism re-runs pending",
+   "native_sha256": "d79f483dd04f4407fc025b0ff357622572eedd95e62cfffeb147932e7365b7e2",
+   "native_source_digest": "511f27d4a37297beed54a9eba09d2b382f33eb102093f2157c9009450145f736",
+   "note": "re-captured locally (Linux container, not the CI runner) at source ace1de1 after COR-10 (gp_agendas projected treasury watermark), which changes g_learning_s42 only; attribution: g_learning_s42 run at sd/COR-9, sd/COR-10 and sd/COR-6 with their own natives shows 0 differences for COR-9 and COR-6 and the whole change at COR-10; the other five native cases are unchanged; CI capture and CI determinism re-runs pending",
    "python_full": "3.13.18",
    "rustc": "rustc 1.97.0 (2d8144b78 2026-07-07)"
   }

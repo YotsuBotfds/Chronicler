@@ -85,3 +85,47 @@ Open owner questions from DEP-7 (no answer needed until registration):
 - the weights of a joint food-and-care welfare primary;
 - whether P2's denominator is all observed person-turns (as implemented) or retail person-turns only;
 - whether "child shortfall share" means the children's share of total shortfall (as implemented).
+
+## 2026-11-09 — integration 4 (PIN-2, PIN-1; DEC-1 option A)
+
+Merged `sd/PIN-1b`, which carries three steps. Each was approved by two independent reviewers, one for scope and one for contracts, with no blocker or major findings:
+
+| Task | Reviewed head | Notes |
+|---|---|---|
+| PIN-2 | `7e3907cf` | 8 `g_*` cases, `GATE_PYTHON`/`GATE_NATIVE`, `digest`/`check`/`receipt`; `identity-gate.yml`; goldens captured **locally** at `5eedc67` (Linux, 3.13.18, rustc 1.97.0, native `2125dfd7…`), determinism shown by two re-runs per lane; `coverage.json` maps all 91 witnessed paths: 44 to gate cases, 47 to tests, none to `none` |
+| PIN-1a | `72442fda` | `freeze_pin_sources.py`, `frozen_sources.py`; 91 copies plus MANIFEST under `tests/fixtures/frozen_pin_sources/`; freeze commit `c3d752fa` (main) |
+| PIN-1b | `616ff9f3` | The 9 witness modules and the embedded chains read the frozen copies; preflight reports witnessed sources as historical and the copies as enforced; AGENTS.md, DEVELOPMENT.md and scripts/README.md updated |
+
+Gates on the merged head `526f1b52`:
+- Oracle lane: 77 chunks; 8,204 passed, 69 skipped, 0 failed.
+- The 14 witness and embedded-chain modules plus preflight and turn-speed tests: 320 passed, 61 subtests.
+- `freeze_pin_sources.py --verify`: 91 files, 0 mismatches.
+- Identity: 4 cases, 0 differences.
+- **Identity gate.** The Python lane gave 53 files, 0 differences. The native lane, with the integration-1 extension and a build receipt, gave 133 files, 0 differences; it printed `native rebuilt: 2125dfd7… -> 97049985…`, which independently confirms that FIX-6 is behaviour-neutral.
+- Preflight now reports `simulation.py`, `main.py` and `tick.rs` with no enforced pin and with their identity-gate cases.
+
+Not done (owner actions):
+- create and push tag `pin-freeze-2026-11` at `c3d752fa`;
+- dispatch `identity-gate.yml` to capture the goldens on CI and repeat the determinism runs;
+- open a PR so the workflow runs.
+
+## 2026-11-09 — integration 5 (corrections COR-9, COR-10, COR-6a/6b, COR-7)
+
+Merged `sd/COR-7`, which carries the sequential correction chain. Each correction was approved by two independent reviewers and has its own before/after baseline, built on the previous correction's outputs. The reports are in [streamline-and-deepen-baselines/](streamline-and-deepen-baselines/).
+
+| Task | Reviewed head | Baseline (9 cases) | Notes |
+|---|---|---|---|
+| COR-9 | `d294ff73` | 0 differences | Rust politics hash inputs quoted with Python `repr` rules. In a separate check with quoted names, Rust and Python agreed on 255/300 and 249/300 names before the fix and 300/300 after. Native `59663c67…` |
+| COR-10 | `165b58e2` | 76 differences, all in `proc48_hybrid_s42` | The double-counted keep changes flipped 9 gate decisions: 8 temple or trading-house decisions are now allowed and 1 is refused. The first divergence is at turn 33. The other 8 cases are byte-identical. Agents-off runs cannot change (`acc` is `None`) |
+| COR-6a, 6b | `677e537a` | 0 differences; 0 of 40 bundles changed in an agents-off batch over seeds 2101–2140 (development measurement, not registered) | Early war returns keep their reconciliation events; soldiers without a roster die only for people actually drained. **COR-6c** (`Army.natural_deaths`) was blocked on the then-enforced `models.py` and is now unblocked by PIN-1 |
+| COR-7 | `79aae4be` | 0 differences | Rust step 11 deleted (option B); the enum variant and FFI mapping are kept. It fired 0 times in normal runs; forced runs emitted 197–319 discarded ops with identical outputs. Native `6b4909d7…` |
+
+Gates on the merged head `ace1de11`:
+- Fresh native build `d79f483d…`; `check_python_env --expect native` passes; `cargo test --locked` passes (library 782).
+- Identity, all 9 cases, against the correction chain's own after-outputs: **399 files, 0 differences**. Against the pre-correction baseline: 76 differences, all in `proc48_hybrid_s42`, as COR-10's report says.
+- Oracle lane: 77 chunks; 8,217 passed, 69 skipped, 0 failed.
+- Native politics, gp_agendas, war and household-retail tests: 357 passed.
+- Identity gate. The Python lane gave 0 differences. The native lane gave 11 differences, all in `g_learning_s42`.
+  - Attribution: `g_learning_s42` was run at `sd/COR-9`, `sd/COR-10` and `sd/COR-6`, each with its own native. COR-9 changes nothing, **COR-10 makes the whole change** (3,918 → 3,811 events), COR-6 changes nothing, and the merged head equals the chain.
+  - `native_goldens.json` was re-captured for that case only (the other five cases are unchanged). The spec treats re-capture as part of a correction. The provenance note records the attribution.
+- Not run: the 200-seed gate, GitHub CI, and a hybrid paired batch for COR-6.
