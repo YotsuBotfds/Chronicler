@@ -173,7 +173,7 @@ def _rng(world, namespace: str, *parts) -> random.Random:
 
 
 def _bump(state: GuildState, key: str, n: float = 1) -> None:
-    state.counters[key] = round(state.counters.get(key, 0) + n, 4)
+    state.bump(key, n)
 
 
 def _note(guild: Guild, turn: int, kind: str, event_id: str = "") -> None:

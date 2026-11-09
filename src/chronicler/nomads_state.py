@@ -11,7 +11,11 @@ never reorder (stored rows index into them).
 """
 from __future__ import annotations
 
+from typing import ClassVar
+
 from pydantic import BaseModel, Field, PrivateAttr
+
+from chronicler.switch_state import SwitchStateMixin
 
 #: Ways of life (``NomadState.modes``), most settled first.
 SUBSISTENCE_MODES: tuple[str, ...] = ("sedentary", "agro_pastoral", "nomadic")
@@ -116,7 +120,7 @@ class Conquest(BaseModel):
     event_id: str = ""
 
 
-class NomadState(BaseModel):
+class NomadState(SwitchStateMixin, BaseModel):
     """World-level switch and bookkeeping (``WorldState.nomads``).
 
     Per-civ lists (``modes``, ``mode_turn``, ``mode_event``, ``settle``) are
@@ -143,6 +147,7 @@ class NomadState(BaseModel):
     counters: dict[str, float] = Field(default_factory=lambda: {k: 0 for k in COUNTER_KEYS})
     # Derived lookups (chronicler.nomads; never serialized).
     _cache: _CacheSlot = PrivateAttr(default_factory=_CacheSlot)
+    _BUMP: ClassVar[dict] = {"ndigits": 4}
 
     def mode(self, civ_idx: int | None) -> int:
         """Subsistence mode of a civ index (sedentary when unknown)."""
