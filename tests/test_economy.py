@@ -424,6 +424,38 @@ def test_compute_economy_agents_off():
     assert "Hills" in result.food_sufficiency
 
 
+def test_compute_economy_zero_farmer_region_gets_neutral_modifier():
+    """H-4: a region with no farmers gets a neutral farmer income modifier.
+
+    Plains keeps its food demand but has no farmers, so a price-ratio modifier
+    would hit the cap; the zero-farmer guard in compute_economy returns 1.0.
+    """
+    world, region_map = _make_test_world()
+    snapshot = _make_test_snapshot()
+    occupations = snapshot.column("occupation").to_numpy().copy()
+    regions = snapshot.column("region").to_numpy()
+    occupations[0:50] = 1  # Plains farmers become soldiers
+    assert not ((regions == 0) & (occupations == 0)).any()
+    base_columns = {
+        name: snapshot.column(name).to_numpy()
+        for name in ("region", "civ_affinity", "wealth")
+    }
+    base_columns["occupation"] = occupations
+
+    def _make_col(arr):
+        col = MagicMock()
+        col.to_numpy.return_value = arr
+        return col
+
+    snapshot.column.side_effect = lambda name: _make_col(base_columns[name])
+
+    for agent_mode in (True, False):
+        result = compute_economy(world, snapshot, region_map, agent_mode=agent_mode,
+                                 active_trade_routes=[])
+        assert result.region_goods["Plains"].production["food"] == 0.0
+        assert result.farmer_income_modifiers["Plains"] == 1.0
+
+
 def test_conservation_exports_equal_imports():
     """Exports equal delivered imports plus transit loss (conservation law)."""
     world, region_map = _make_test_world()

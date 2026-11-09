@@ -35,6 +35,7 @@ Gompertz term plus war and coup terms plus the decaying excitation.
 from __future__ import annotations
 
 import math
+import random
 from typing import TYPE_CHECKING
 
 from chronicler.models import Event
@@ -200,6 +201,60 @@ _CLIMATE_DROUGHT_FACTOR: dict[str, float] = {
     "drought": 2.0,
     "cooling": 0.8,
 }
+
+
+# --- Legacy helpers (kept for compatibility; no longer used by the turn loop) --
+
+def roll_for_event(
+    probabilities: dict[str, float],
+    turn: int,
+    seed: int | None = None,
+    allowed_types: list[str] | None = None,
+) -> Event | None:
+    """Roll against each event probability; return at most one event.
+
+    Events are checked in shuffled order. The first one that triggers wins.
+    This means at most one event fires per call.  Retained as a utility; the
+    simulation uses the per-civ hazard model below.
+    """
+    rng = random.Random(seed)
+    candidates = list(probabilities.keys())
+    if allowed_types is not None:
+        candidates = [c for c in candidates if c in allowed_types]
+    rng.shuffle(candidates)
+
+    for event_type in candidates:
+        prob = probabilities.get(event_type, 0.0)
+        if rng.random() < prob:
+            return Event(
+                turn=turn,
+                event_type=event_type,
+                actors=[],
+                description="",  # Filled in by narrative engine
+                importance=5,
+            )
+    return None
+
+
+def apply_probability_cascade(
+    event_type: str,
+    probabilities: dict[str, float],
+) -> dict[str, float]:
+    """Legacy non-decaying cascade (pure function).
+
+    Retained for compatibility with external callers.  The simulation no
+    longer mutates ``world.event_probabilities``; it uses decaying per-civ
+    excitations instead (see module docstring).
+    """
+    rules = EVENT_CASCADE_RULES.get(event_type)
+    if rules is None:
+        return dict(probabilities)
+
+    updated = dict(probabilities)
+    for target, delta in rules.items():
+        if target in updated:
+            updated[target] = max(0.0, min(1.0, updated[target] + delta))
+    return updated
 
 
 # --- Hazard math ------------------------------------------------------------
