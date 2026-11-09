@@ -20,7 +20,8 @@ import sys
 import tempfile
 import time
 
-from benchmark_headless import WORKLOADS
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # scripts/: benchmark_headless
+from benchmark_headless import WORKLOADS  # noqa: E402
 
 
 def worker(source: Path, boundary: str):

@@ -237,7 +237,7 @@ python scripts/m53b_run_validation.py --profile subset --worldgen procedural --o
 python scripts/m53b_run_validation.py --profile full --worldgen procedural --output-root output/m53/procedural-full
 
 # Per-system activity of batches (from their bundles), side by side.
-python scripts/world_systems_report.py template=output/m53/full/full_gate/batch_42 \
+python scripts/archive/world_systems_report.py template=output/m53/full/full_gate/batch_42 \
   procedural=output/m53/procedural-full/full_gate/batch_42
 ```
 

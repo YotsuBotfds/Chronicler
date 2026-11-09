@@ -15,7 +15,7 @@ upstream irrigation withdrawals). Development
 worlds only (it refuses any other seed); labelled development-only evidence,
 not an evaluation.
 
-    python scripts/watershed_activation.py FLOW_DIR:RECORD_DIR [...] [--json OUT]
+    python scripts/archive/watershed_activation.py FLOW_DIR:RECORD_DIR [...] [--json OUT]
 """
 from __future__ import annotations
 

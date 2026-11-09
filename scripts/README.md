@@ -64,15 +64,15 @@ screens through the generic `screen_runner.py` (seeds checked against `seed_regi
 panel, activation before effects, identities). CW1–CW6 and their follow-ons are implemented;
 CW6 delegates to `cw_integrated_screen.py` for its strict sidecar-aware extractor and
 120-turn bounded horizon. `cw_health_screen.py` owns the separate 200-turn C2/C4 screen;
-`cw_program_profile.py` reproduces the serial declared-scale off/FULL profile with explicit
+`archive/cw_program_profile.py` reproduces the serial declared-scale off/FULL profile with explicit
 200-turn screen and 150-turn procedural stress cases. These are bounded evidence tools,
 not qualification or default promotion. `feature_matrix.py` generates the switch compatibility matrix from the feature catalog.
 See [connected-world screens](../docs/integration/connected-world-screens.md).
-`watershed_calibration.py BUNDLE [BUNDLE ...] [--json OUT]` compares the index the watershed
+`archive/watershed_calibration.py BUNDLE [BUNDLE ...] [--json OUT]` compares the index the watershed
 account (`--watershed`, record only) would derive with the index the simulation used;
-`watershed_replay.py capture|check|replay|fit|cv` captures the account's inputs, replays its
+`archive/watershed_replay.py capture|check|replay|fit|cv` captures the account's inputs, replays its
 step under other constants (checked against `account_step`), fits a declared parameterization and
-cross-validates it with two seeds held out (the B2 calibration); `watershed_activation.py FLOW_DIR:RECORD_DIR ...`
+cross-validates it with two seeds held out (the B2 calibration); `archive/watershed_activation.py FLOW_DIR:RECORD_DIR ...`
 compares `--watershed-mode flow` with `record_only` runs (development-only activation report). All
 three read procedural development worlds only and refuse other seeds; see
 [docs/integration/watershed.md](../docs/integration/watershed.md), sections 8 and 9.
@@ -80,7 +80,7 @@ three read procedural development worlds only and refuse other seeds; see
 ## Bundles and viewer fixtures
 
 `bundle_v6.py` converts, decodes and compares bundles;
-`prune_dead_civ_snapshots.py` prunes them. These generators write the
+`archive/prune_dead_civ_snapshots.py` prunes version-4 ones. These generators write the
 checked-in fixtures in `viewer/src/__fixtures__/` that current viewer and
 Python tests read. Regenerate one only deliberately and review the diff:
 
@@ -124,8 +124,8 @@ registered experiments (`run_expansion_experiment.py`,
 
 ## Benchmarks
 
-`benchmark_headless.py`, `benchmark_perception.py`, `agent_scale_benchmark.py`
-and `m53_baseline.py`.
+`benchmark_headless.py` and `agent_scale_benchmark.py`
+(`archive/benchmark_perception.py` and `archive/m53_baseline.py` are archived).
 
 ## Archive
 

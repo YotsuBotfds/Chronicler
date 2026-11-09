@@ -815,7 +815,7 @@ class ChronicSpec(NamedTuple):
 
 
 # Diagnostic switch for identity proofs against pre-provenance oracles
-# (tests, scripts/provenance_identity.py): ids, causes and the causal index
+# (tests, scripts/archive/provenance_identity.py): ids, causes and the causal index
 # are recorded as usual, but the timeline is left exactly as a
 # provenance-free run would write it: chronic repeats stay (as
 # ``episode="repeat"``), onset importance is not capped and no ``*_ended``

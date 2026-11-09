@@ -38,11 +38,11 @@ and scores the held seeds at 32x10 and 64x16.
 Development worlds only (``DEVELOPMENT_PROCEDURAL``); it refuses any other
 seed. Nothing here changes the simulation.
 
-    python scripts/watershed_replay.py capture OUT [--seeds 7,11,...] [--turns 400] [--regions 32 --civs 10]
-    python scripts/watershed_replay.py check OUT                       # simulate == account_step
-    python scripts/watershed_replay.py replay OUT [--params JSON] [--b1]
-    python scripts/watershed_replay.py fit OUT --form reduced [--json RESULT]
-    python scripts/watershed_replay.py cv OUT32 OUT64 --form reduced [--pairs all|disjoint] [--json RESULT]
+    python scripts/archive/watershed_replay.py capture OUT [--seeds 7,11,...] [--turns 400] [--regions 32 --civs 10]
+    python scripts/archive/watershed_replay.py check OUT                       # simulate == account_step
+    python scripts/archive/watershed_replay.py replay OUT [--params JSON] [--b1]
+    python scripts/archive/watershed_replay.py fit OUT --form reduced [--json RESULT]
+    python scripts/archive/watershed_replay.py cv OUT32 OUT64 --form reduced [--pairs all|disjoint] [--json RESULT]
 """
 from __future__ import annotations
 

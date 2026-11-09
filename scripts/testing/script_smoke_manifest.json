@@ -57,6 +57,17 @@
       "fixture_outputs": [],
       "note": "Prints usage. Real use runs paired hybrid workers in a reserved quiet window and writes a new --output-root."
     },
+    "scripts/archive/benchmark_perception.py": {
+      "invocation": ["--help"],
+      "expected_exit": 0,
+      "safe_to_run": true,
+      "mutates": false,
+      "native": "optional",
+      "network": false,
+      "inputs": ["two source checkouts (--baseline-root, --candidate-root) sharing one interpreter"],
+      "fixture_outputs": [],
+      "note": "Prints usage. Real use times paired snapshot, kernel, execute and CLI workers in child processes and writes --output; benchmark_headless is imported from scripts/."
+    },
     "scripts/archive/benchmark_validation_turn_index.py": {
       "invocation": ["--help"],
       "expected_exit": 0,
@@ -112,6 +123,28 @@
       "fixture_outputs": [],
       "note": "No --help handling: prints its docstring, exit 2. Read-only."
     },
+    "scripts/archive/cw_program_profile.py": {
+      "invocation": ["--help"],
+      "expected_exit": 0,
+      "safe_to_run": true,
+      "mutates": false,
+      "native": "required",
+      "network": false,
+      "inputs": ["a frozen source checkout (--source-root) at --expect-commit with a matching native build (--native-sha256)"],
+      "fixture_outputs": [],
+      "note": "Prints usage. Real use profiles Connected World cases in fresh child processes and writes profile.json and machine.json under a new OUT."
+    },
+    "scripts/archive/diplomacy_identity.py": {
+      "invocation": ["--help"],
+      "expected_exit": 2,
+      "safe_to_run": true,
+      "mutates": false,
+      "native": "none",
+      "network": false,
+      "inputs": ["two run or batch directories"],
+      "fixture_outputs": [],
+      "note": "No --help handling: prints its docstring, exit 2. Read-only compare."
+    },
     "scripts/archive/economy_hybrid_smoke.py": {
       "invocation": ["--help"],
       "expected_exit": 0,
@@ -122,6 +155,17 @@
       "inputs": [],
       "fixture_outputs": [],
       "note": "Prints usage. Real use runs full hybrid turns; --output writes the report."
+    },
+    "scripts/archive/epidemiology_identity.py": {
+      "invocation": ["--help"],
+      "expected_exit": 2,
+      "safe_to_run": true,
+      "mutates": false,
+      "native": "none",
+      "network": false,
+      "inputs": ["two run or batch directories"],
+      "fixture_outputs": [],
+      "note": "No --help handling: prints its docstring, exit 2. Read-only compare."
     },
     "scripts/archive/epidemiology_stats.py": {
       "invocation": ["--help"],
@@ -156,6 +200,17 @@
       "fixture_outputs": [],
       "note": "No --help handling: prints its docstring, exit 2. Read-only compare."
     },
+    "scripts/archive/guilds_identity.py": {
+      "invocation": ["--help"],
+      "expected_exit": 2,
+      "safe_to_run": true,
+      "mutates": false,
+      "native": "none",
+      "network": false,
+      "inputs": ["two run or batch directories"],
+      "fixture_outputs": [],
+      "note": "No --help handling: prints the docstring of scripts/agent_movements_identity.py (imported from scripts/), exit 2. Read-only compare."
+    },
     "scripts/archive/guilds_probe.py": {
       "invocation": ["--help"],
       "expected_exit": 0,
@@ -177,6 +232,28 @@
       "inputs": ["RUN_DIR holding state.json from a --guilds run"],
       "fixture_outputs": [],
       "note": "No --help handling: WorldState.load('--help') fails, exit 1. Read-only report on stdout."
+    },
+    "scripts/archive/learning_cohorts_funnel.py": {
+      "invocation": ["--help"],
+      "expected_exit": 0,
+      "safe_to_run": true,
+      "mutates": false,
+      "native": "required",
+      "network": false,
+      "inputs": ["none: runs its own seeds"],
+      "fixture_outputs": [],
+      "note": "Prints usage. Real use runs hybrid seeds with and without --learning-cohorts in child processes and writes funnel.jsonl under OUT_DIR."
+    },
+    "scripts/archive/m53_baseline.py": {
+      "invocation": ["--help"],
+      "expected_exit": 0,
+      "safe_to_run": true,
+      "mutates": false,
+      "native": "none",
+      "network": false,
+      "inputs": ["a batch directory of chronicle_bundle.json files with validation_summary sidecars", "chronicler-agents/src/agent.rs and src/chronicler constants"],
+      "fixture_outputs": [],
+      "note": "Prints usage. Real use writes --output (default tuning/m53_baseline.yaml, relative to the working directory)."
     },
     "scripts/archive/m53_demographics_probe.py": {
       "invocation": ["--help"],
@@ -310,6 +387,50 @@
       "fixture_outputs": [],
       "note": "Prints usage. Writes only the --json or --markdown paths it is given."
     },
+    "scripts/archive/provenance_identity.py": {
+      "invocation": ["--help"],
+      "expected_exit": 2,
+      "safe_to_run": true,
+      "mutates": false,
+      "native": "none",
+      "network": false,
+      "inputs": ["two run directories (state.json, chronicle_bundle.json, agent_events.arrow)"],
+      "fixture_outputs": [],
+      "note": "No --help handling: prints its docstring to stderr, exit 2. compare is read-only; run-legacy runs chronicler.main and writes its outputs."
+    },
+    "scripts/archive/prune_dead_civ_snapshots.py": {
+      "invocation": ["--help"],
+      "expected_exit": 0,
+      "safe_to_run": true,
+      "mutates": false,
+      "native": "none",
+      "network": false,
+      "inputs": ["version-4 chronicle_bundle.json files or batch directories"],
+      "fixture_outputs": [],
+      "note": "Prints usage. convert rewrites version-4 bundles in place; check is read-only."
+    },
+    "scripts/archive/recovery_skills_examples.py": {
+      "invocation": ["--help"],
+      "expected_exit": 1,
+      "safe_to_run": true,
+      "mutates": false,
+      "native": "none",
+      "network": false,
+      "inputs": ["chronicle_bundle.json files of recovery-skills runs"],
+      "fixture_outputs": [],
+      "note": "No --help handling: reads --help as a bundle path, FileNotFoundError, exit 1. Read-only report on stdout."
+    },
+    "scripts/archive/relocation_costs_funnel.py": {
+      "invocation": ["--help"],
+      "expected_exit": 0,
+      "safe_to_run": true,
+      "mutates": false,
+      "native": "required",
+      "network": false,
+      "inputs": ["none: runs its own seeds"],
+      "fixture_outputs": [],
+      "note": "Prints usage. Real use runs hybrid seeds with and without --relocation-costs in child processes and writes funnel.jsonl under OUT_DIR."
+    },
     "scripts/archive/rescore_cohort_oracle.py": {
       "invocation": ["--help"],
       "expected_exit": 0,
@@ -387,6 +508,39 @@
       "fixture_outputs": [],
       "note": "No --help handling: prints its docstring, exit 2. Read-only compare."
     },
+    "scripts/archive/watershed_activation.py": {
+      "invocation": ["--help"],
+      "expected_exit": 0,
+      "safe_to_run": true,
+      "mutates": false,
+      "native": "none",
+      "network": false,
+      "inputs": ["FLOW_DIR:RECORD_DIR pairs of development-world --watershed runs"],
+      "fixture_outputs": [],
+      "note": "Prints usage. Read-only report on stdout; writes only with --json OUT."
+    },
+    "scripts/archive/watershed_calibration.py": {
+      "invocation": ["--help"],
+      "expected_exit": 0,
+      "safe_to_run": true,
+      "mutates": false,
+      "native": "none",
+      "network": false,
+      "inputs": ["chronicle_bundle.json files of development-world --watershed runs"],
+      "fixture_outputs": [],
+      "note": "Prints usage. Read-only report on stdout; writes only with --json OUT."
+    },
+    "scripts/archive/watershed_replay.py": {
+      "invocation": ["--help"],
+      "expected_exit": 0,
+      "safe_to_run": true,
+      "mutates": false,
+      "native": "required",
+      "network": false,
+      "inputs": ["capture directories it wrote earlier"],
+      "fixture_outputs": [],
+      "note": "Prints usage. capture runs development worlds in process (hybrid by default) and writes capture_p*.json under OUT; fit and cv write only with --json."
+    },
     "scripts/archive/world-laboratory-example.sh": {
       "invocation": ["--help"],
       "expected_exit": 2,
@@ -397,6 +551,17 @@
       "inputs": [],
       "fixture_outputs": [],
       "note": "Usage on stderr, exit 2, for any argument count but 2 or 3. generate and live need Python 3.13+ with a matching native build and write only outside the repository."
+    },
+    "scripts/archive/world_systems_report.py": {
+      "invocation": ["--help"],
+      "expected_exit": 0,
+      "safe_to_run": true,
+      "mutates": false,
+      "native": "none",
+      "network": false,
+      "inputs": ["LABEL=DIR run or batch directories, or LABEL=FILE.json saved by --json"],
+      "fixture_outputs": [],
+      "note": "Prints usage. Read-only report on stdout; writes only with --json OUT."
     },
     "scripts/build_learning_fixture.py": {
       "invocation": ["--help"],

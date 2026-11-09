@@ -3,7 +3,7 @@
 Reads bundles + sidecars from a batch run and extracts baseline metrics.
 Also collects current constant values from source files.
 
-Usage: PYTHONPATH=src python scripts/m53_baseline.py --batch-dir output/m53/baseline
+Usage: PYTHONPATH=src python scripts/archive/m53_baseline.py --batch-dir output/m53/baseline
 """
 from __future__ import annotations
 import argparse
@@ -142,7 +142,7 @@ def main():
     args = parser.parse_args()
 
     # Collect constants
-    project_root = Path(__file__).parent.parent
+    project_root = Path(__file__).resolve().parents[2]
     rust_constants = collect_rust_constants(project_root / "chronicler-agents" / "src" / "agent.rs")
     python_constants = collect_python_constants(project_root / "src" / "chronicler")
 
