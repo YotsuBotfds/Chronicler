@@ -2,9 +2,8 @@ import type { Bundle, TurnSnapshot } from "../../types";
 import {
   clearingProtectionAt, clearingSummary, fundingLabel, type EndReason, type ProtectionReceipt, type UnprotectedReason,
 } from "../../lib/clearingProtection";
+import { show } from "./formatters";
 
-const show = (value: number | null | undefined) =>
-  value === null || value === undefined ? "Unknown" : value.toLocaleString(undefined, { maximumFractionDigits: 3 });
 const yesNo = (value: boolean) => value ? "Yes" : "No";
 const END_TEXT: Record<EndReason, string> = {
   controller_changed: "controller changed (the new controller decides afresh)",

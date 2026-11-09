@@ -3,9 +3,8 @@ import {
   NO_OPENING, unmetByReason, veteranFunnel, veteranOutcomeCounts, veteransAt,
   type VeteranOutcomeRecord, type VeteranRecord,
 } from "../../lib/veterans";
+import { show } from "./formatters";
 
-const show = (value: number | null | undefined) =>
-  value === null || value === undefined ? "Unknown" : value.toLocaleString(undefined, { maximumFractionDigits: 3 });
 const words = (text: string | null | undefined) => (text ?? "").replace(/_/g, " ").replace("placed:", "placed as ");
 const MODE_NOTE: Record<string, string> = {
   priority: "Priority mode: eligible veterans are put first, among people who are otherwise eligible, for workshop crews and (when those packages run) apprenticeship seats and repair crews.",

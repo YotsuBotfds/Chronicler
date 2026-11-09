@@ -1,9 +1,7 @@
 import type { Bundle, TurnSnapshot } from "../../types";
 import { relocationAt, relocationFunnel, units } from "../../lib/relocation";
+import { show, words } from "./formatters";
 
-const show = (value: number | null | undefined, digits = 3) =>
-  value === null || value === undefined ? "Unknown" : value.toLocaleString(undefined, { maximumFractionDigits: digits });
-const words = (text: string | null | undefined) => (text ?? "").replace(/_/g, " ");
 const MODE_NOTE: Record<string, string> = {
   paid: "Paid: a household's adult movers pay the fare after the move is applied.",
   assisted: "Assisted: as paid, and the destination's ruler funds part of the fare for households short of it, from a bounded share of its treasury.",

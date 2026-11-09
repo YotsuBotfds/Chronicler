@@ -1,8 +1,7 @@
 import type { Bundle, TurnSnapshot } from "../../types";
 import { economicsFunnel, units, workshopEconomicsAt } from "../../lib/workshopEconomics";
+import { show } from "./formatters";
 
-const show = (value: number | null | undefined) =>
-  value === null || value === undefined ? "Unknown" : value.toLocaleString(undefined, { maximumFractionDigits: 3 });
 const money = (milli: number | null | undefined) => (milli === null || milli === undefined ? "Unknown" : show(units(milli)));
 const MODE_NOTE: Record<string, string> = {
   market: "Market mode: each firm pays its region's ruler for the raw timber and ore it converts, at the raw price the economy computed in an earlier tick, and sells wares to academies and to the region's households.",

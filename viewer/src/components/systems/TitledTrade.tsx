@@ -1,9 +1,8 @@
 import type { ReactNode } from "react";
 import type { Bundle, TurnSnapshot } from "../../types";
 import { GOODS, titledTradeAt, tradeFunnel, units, type ShipmentRecord } from "../../lib/titledTrade";
+import { show } from "./formatters";
 
-const show = (value: number | null | undefined) =>
-  value === null || value === undefined ? "Unknown" : value.toLocaleString(undefined, { maximumFractionDigits: 3 });
 const food = (milli: number) => show(units(milli));
 const OUTCOME: Record<string, string> = {
   delivered: "delivered (the holder's retail claim at the destination)",

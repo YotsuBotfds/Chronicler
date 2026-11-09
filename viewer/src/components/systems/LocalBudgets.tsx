@@ -1,9 +1,7 @@
 import type { Bundle, TurnSnapshot } from "../../types";
 import { awardedServices, localBudgetsAt, type BudgetCommitmentRecord } from "../../lib/localBudgets";
+import { show, words } from "./formatters";
 
-const show = (value: number | null | undefined) =>
-  value === null || value === undefined ? "Unknown" : value.toLocaleString(undefined, { maximumFractionDigits: 3 });
-const words = (value: string | null | undefined) => (value ?? "").replace(/_/g, " ");
 const MODE_NOTE: Record<string, string> = {
   bargained: "Bargained: each constituency proposes its own feasible allocation from its measured burden; the ruler adopts the one with the highest influence-weighted satisfaction. Delivered or broken promises move the judging city's grievance.",
   fixed_shares: "Fixed shares (control): the same budget split by fixed declared shares per service, in a fixed order; no bargaining and no political response.",

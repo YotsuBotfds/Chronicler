@@ -1,6 +1,6 @@
 import type { SystemPanelProps } from "../../lib/systems";
 import { warRequisitionAt } from "../../lib/warRequisition";
-const show = (n: number) => n.toLocaleString(undefined, { maximumFractionDigits: 3 });
+import { show } from "./formatters";
 const money = (n: number) => show(n / 1000);
 /** Physical sources and liabilities remain distinct from food creation and spendable cash. */
 export function WarRequisition({ bundle, snapshot, onSelectRegion }: SystemPanelProps) {

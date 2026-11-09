@@ -2,11 +2,9 @@ import { useMemo } from "react";
 import type { Bundle, TurnSnapshot } from "../../types";
 import { conditionSeries, infrastructureOn, readInfrastructure, worksStory } from "../../lib/infrastructureCondition";
 import type { InfraAsset, InfraConditionPoint, InfraReceipt, InfraWork } from "../../infrastructureConditionTypes";
+import { show, words } from "./formatters";
 
-const show = (value: number | null | undefined, digits = 3) =>
-  value === null || value === undefined ? "Unknown" : value.toLocaleString(undefined, { maximumFractionDigits: digits });
 const coins = (milli: number) => (milli / 1000).toLocaleString(undefined, { maximumFractionDigits: 3 });
-const words = (text: string | null | undefined) => (text ?? "").replace(/_/g, " ");
 const KIND: Record<string, string> = { irrigation: "Irrigation works", roads: "Road" };
 const REASON: Record<string, string> = {
   no_timber: "no free timber", no_coins: "treasury short", no_labor: "not enough farm labour",
