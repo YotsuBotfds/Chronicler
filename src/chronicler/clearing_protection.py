@@ -71,7 +71,7 @@ from chronicler.clearing_protection_state import (
     COUNTER_KEYS, ClearingProtectionState, Protection, ProtectionDecision,
     ProtectionReceipt, UnprotectedRegion,
 )
-from chronicler.switch_state import bump_counter, sub_state_getter
+from chronicler.switch_state import bump_counter, controller_index, sub_state_getter
 
 #: Protections a civilization may hold at once.
 MAX_REGIONS = 2
@@ -143,11 +143,7 @@ def set_clearing_protection_enabled(world, value: bool, *, args=None, agent_mode
 
 # --- Observations ---------------------------------------------------------------
 
-def _controller(world, rid: int) -> int:
-    name = world.regions[rid].controller
-    if name is None:
-        return -1
-    return world.civ_index_map.get(name, -1)
+_controller = controller_index
 
 
 def forest_pop_ratio(world) -> float:

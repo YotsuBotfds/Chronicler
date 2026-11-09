@@ -28,6 +28,7 @@ from typing import Any, ClassVar
 __all__ = [
     "SwitchStateMixin",
     "bump_counter",
+    "controller_index",
     "health_holders",
     "lane_active",
     "sub_state_getter",
@@ -77,6 +78,20 @@ def sub_state_getter(name: str) -> Callable[[Any], Any]:
         return getattr(getattr(world, "livelihoods", None), name, None)
     _state.__qualname__ = f"sub_state_getter({name!r})"
     return _state
+
+
+def controller_index(world, rid: int) -> int:
+    """The controlling civilization's index through ``world.civ_index_map``,
+    -1 for no controller or an unknown name (commons_rules, clearing_protection).
+
+    Not the scan form (``timber_orders._controller``: first civilization of
+    that name): with duplicate names the map holds the last index, and its
+    cache is rebuilt only when the civilization count changes.
+    """
+    name = world.regions[rid].controller
+    if name is None:
+        return -1
+    return world.civ_index_map.get(name, -1)
 
 
 def health_holders(world) -> set[int]:

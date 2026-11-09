@@ -73,7 +73,7 @@ from chronicler.commons_rules_state import (
     COUNTER_KEYS, MAX_DECISIONS, CommonsCooldown, CommonsDecision, CommonsReceipt, CommonsRule,
     CommonsRulesState, StockObservation,
 )
-from chronicler.switch_state import bump_counter, sub_state_getter
+from chronicler.switch_state import bump_counter, controller_index, sub_state_getter
 
 #: Adopt a rule when the observed stock is below this share of capacity.
 ADOPT_BELOW = 0.5
@@ -250,11 +250,7 @@ def _observations(world) -> dict[tuple[int, int], StockObservation]:
             for row in stock.ledger if row.removed == 0.0}
 
 
-def _controller(world, rid: int) -> int:
-    name = world.regions[rid].controller
-    if name is None:
-        return -1
-    return world.civ_index_map.get(name, -1)
+_controller = controller_index
 
 
 def carrier_city(world, rid: int):

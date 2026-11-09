@@ -571,3 +571,47 @@ def test_mixin_over_lazy_research_model_keeps_lazy_payload(monkeypatch):
                             "__pydantic_fields_set__": set(), "__pydantic_private__": None})
         assert list(stale.__dict__) == ["counters", "_probe_identity", "last_turn"]
         assert stale.model_dump()["probe_identity"] == 4
+
+
+# ---------------------------------------------------------------------------
+# controller_index (CON-14)
+# ---------------------------------------------------------------------------
+
+def _old_map_controller(world, rid: int) -> int:       # commons_rules.py, clearing_protection.py
+    name = world.regions[rid].controller
+    if name is None:
+        return -1
+    return world.civ_index_map.get(name, -1)
+
+
+def _old_scan_controller(world, rid):                  # timber_orders.py (kept local)
+    return next((i for i, civ in enumerate(world.civilizations) if civ.name == world.regions[rid].controller), -1)
+
+
+def _controller_world(civ_names, controllers):
+    from chronicler.models import WorldState
+    world = WorldState.model_construct(
+        civilizations=[SimpleNamespace(name=n) for n in civ_names],
+        regions=[SimpleNamespace(controller=c) for c in controllers])
+    world._civ_index_map = None
+    return world
+
+
+def test_controller_index_matches_the_civ_index_map_copies():
+    from chronicler import clearing_protection, commons_rules
+    assert commons_rules._controller is clearing_protection._controller is switch_state.controller_index
+    world = _controller_world(["A", "B", "C"], ["B", None, "Z", "A", "C"])
+    for rid in range(5):
+        assert switch_state.controller_index(world, rid) == _old_map_controller(world, rid)
+    assert [switch_state.controller_index(world, rid) for rid in range(5)] == [1, -1, -1, 0, 2]
+
+
+def test_scan_controller_differs_on_duplicate_names_so_timber_orders_keeps_it():
+    """The probe behind leaving ``timber_orders._controller`` alone: equal on
+    unique names and None controllers, not on a duplicate civilization name."""
+    unique = _controller_world(["A", "B"], ["A", "B", None, "Z"])
+    assert ([_old_scan_controller(unique, r) for r in range(4)]
+            == [switch_state.controller_index(unique, r) for r in range(4)] == [0, 1, -1, -1])
+    dup = _controller_world(["A", "B", "A"], ["A"])
+    assert _old_scan_controller(dup, 0) == 0
+    assert switch_state.controller_index(dup, 0) == 2
