@@ -4,12 +4,15 @@ For the later Connected World correctness, causal evaluation and performance
 rework, start with [CONTINUATION.md](CONTINUATION.md) and its linked current
 ledger/report. The entries below retain their historical source and evidence.
 
-Updated 2026-11-06 after PRs #73, #74, #76, #78, #80, #81, #83, #84, #85, #86, #87, #88, #89, #90, #91 and #92. This is the starting map for future agents;
-dated reports keep their original source, platform and qualification limits.
+The current `main` commit, merged pull request and Tests run are in the
+[current status block](CONTINUATION.md#current-status). This index maps sources and
+archives for future agents; dated reports keep their original source, platform and
+qualification limits.
 
-## Current source and evidence
+## Historical source identities
 
-Use fetched `main` for new work.
+Use fetched `main` for new work. The entries below are historical source identities
+(last updated 2026-11-06), not the current status.
 
 - [PR #73](https://github.com/YotsuBotfds/Chronicler/pull/73) (livelihoods sprint 1,
   L0–L4) merged on 2026-11-05 at `7001d649346c52d967cb07c6d8c6906bb9e842a4`.
@@ -302,7 +305,7 @@ qualification log, browser receipt, scenario output or checkpoint. If an item is
 absent from the accessible archive manifest, mark it unavailable until recovered.
 The older thread's inaccessible uncommitted work is not claimed recovered.
 The Living Atlas Library reference/access gap remains recorded in
-[the continuation history](CONTINUATION.md#product-gaps-to-carry-forward).
+[the continuation history](superpowers/progress/continuation-history.md#product-gaps-to-carry-forward).
 
 On 2026-11-04 this documentation update checked Git merge/tree identity, main-CI
 run/job results, folder listings, and selected restoration text/record metadata.

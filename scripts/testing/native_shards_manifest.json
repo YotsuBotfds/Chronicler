@@ -319,6 +319,7 @@
       "tests/test_decision_delivery_moves_native.py",
       "tests/test_decision_delivery_native.py",
       "tests/test_diplomacy.py",
+      "tests/test_docs_status.py",
       "tests/test_ecology.py",
       "tests/test_ecology_bridge.py",
       "tests/test_economy_m43a.py",

@@ -82,6 +82,7 @@ CHUNKS = {
     ],
     "refactor-preflight": [
         "tests/test_refactor_preflight.py",
+        "tests/test_docs_status.py",
     ],
     "diagnostics": [
         "tests/test_community_admissibility.py::test_decomposes_saved_counters_without_changing_report_or_verdict",
