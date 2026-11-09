@@ -328,7 +328,11 @@ def drain_population(ctx: WarContext, region_names: list[str], amount: int, *, a
 
 
 def apply_casualties(ctx: WarContext, army: "Army", count: int, *, cause: str) -> int:
-    """Kill ``count`` soldiers of ``army``; returns the number killed."""
+    """Kill ``count`` soldiers of ``army``; returns the number killed.
+
+    Without a roster the dead are drained from the civ's regions, and only
+    the people actually drained die: if those regions hold fewer people than
+    ``count``, fewer soldiers die (none when they are empty)."""
     count = max(0, min(int(count), army.soldiers))
     if count == 0:
         return 0
@@ -350,7 +354,7 @@ def apply_casualties(ctx: WarContext, army: "Army", count: int, *, cause: str) -
         count = len(victims)
     else:
         civ_regions = [r.name for r in ctx.world.regions if r.controller == army.civ]
-        drain_population(ctx, civ_regions, count)
+        count = drain_population(ctx, civ_regions, count)
     army.soldiers -= count
     army.casualties += count
     if cause == "attrition":

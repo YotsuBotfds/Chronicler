@@ -228,3 +228,38 @@ def test_hybrid_resume_rebinds_rosters_to_new_pool(tmp_path):
     resumed.agent_mode = "hybrid"
     fresh = AgentBridge(resumed, mode="hybrid")
     _advance(resumed, 6, bridge=fresh, check=_roster_check(fresh))
+
+
+def _ended_externally():
+    """A campaign war A-B whose ``active_wars`` entry is gone (ended elsewhere)."""
+    from war_fixtures import start_war, war_world
+    world = war_world()
+    start_war(world)
+    world.turn = 5
+    world.active_wars.clear()
+    return world
+
+
+def test_truce_early_return_keeps_reconciliation_events():
+    # COR-6a: reconcile_wars closes the stale war (war_ended, external treaty);
+    # the new treaty then makes the truce return fire. The war_ended event
+    # must still reach the timeline, once.
+    from chronicler.war.runtime import declare_or_press_war
+    world = _ended_externally()
+    result = declare_or_press_war(world.civ_map["A"], world.civ_map["B"], world)
+    assert "honoured the truce" in result.description
+    ended = [e for e in world.events_timeline if e.event_type == "war_ended"]
+    assert len(ended) == 1 and ended[0].actors == ["A", "B"]
+    assert not world.war_state.wars
+
+
+def test_cannot_muster_early_return_keeps_reconciliation_events():
+    # COR-6a: the can_raise early return publishes the same way.
+    from chronicler.war.runtime import declare_or_press_war
+    from war_fixtures import make_civ
+    world = _ended_externally()
+    world.civilizations.append(make_civ("C", [], military=10, treasury=0, capital=""))
+    world.civ_map["A"].treasury = 0
+    result = declare_or_press_war(world.civ_map["A"], world.civ_map["C"], world)
+    assert "could not muster" in result.description
+    assert [e.event_type for e in world.events_timeline].count("war_ended") == 1

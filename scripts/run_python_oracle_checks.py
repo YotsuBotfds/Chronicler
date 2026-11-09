@@ -108,6 +108,7 @@ CHUNKS = {
         "tests/test_action_engine.py",
         "tests/test_politics_bridge.py::TestApplyPoliticsOps",
         "tests/test_politics_bridge.py::TestOraclePreservation",
+        "tests/test_politics_hash_parity.py",
         "tests/test_agents_off_determinism.py",
         "tests/test_validate.py",
         "tests/test_validation_shared_event_table.py",

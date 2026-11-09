@@ -633,88 +633,43 @@ class TestTwilightAbsorptionParity:
 
 
 class TestForcedCollapseParity:
-    """Forced collapse is deterministic (triggered by asabiya < 0.1 and
-    stability <= 20, with > 1 region). Both paths must produce the same
-    structural outcome."""
+    """Forced collapse (asabiya < 0.1, stability <= 20, > 1 region) runs only
+    in Python, after ``apply_asabiya_dynamics`` in ``phase_consequences``
+    (COR-7). The Rust politics pass must not emit it in either mode."""
 
-    def test_forced_collapse_fires_both_paths(self):
-        """Both paths strip to first region and halve military/economy."""
-        sim = _get_simulator()
-        world_py = _make_world(num_civs=1, num_regions=3)
-        world_rust = _make_world(num_civs=1, num_regions=3)
-
-        for w in [world_py, world_rust]:
-            civ = w.civilizations[0]
-            civ.asabiya = 0.05
-            civ.stability = 15
-            civ.military = 51
-            civ.economy = 33
-            civ.regions = ["A", "B", "C"]
-            for r in w.regions:
-                r.controller = civ.name
-
-        # Python oracle (inline forced collapse in phase_consequences)
-        from chronicler.utils import clamp, STAT_FLOOR
-        py_civ = world_py.civilizations[0]
-        # Manually apply forced collapse logic matching simulation.py
-        lost = py_civ.regions[1:]
-        py_civ.regions = py_civ.regions[:1]
-        for region in world_py.regions:
-            if region.name in lost:
-                region.controller = None
-        py_civ.military = clamp(py_civ.military // 2, STAT_FLOOR["military"], 100)
-        py_civ.economy = clamp(py_civ.economy // 2, STAT_FLOOR["economy"], 100)
-
-        # Rust path
-        configure_politics_runtime(sim, world_rust)
-        ops = call_rust_politics(sim, world_rust, hybrid_mode=False)
-        apply_politics_ops(world_rust, ops)
-
-        rust_civ = world_rust.civilizations[0]
-
-        # Both should have exactly 1 region
-        assert py_civ.regions == ["A"]
-        assert rust_civ.regions == ["A"]
-
-        # Both should halve stats via integer division
-        assert py_civ.military == 51 // 2  # 25
-        assert py_civ.economy == 33 // 2   # 16
-        assert rust_civ.military == 51 // 2
-        assert rust_civ.economy == 33 // 2
-
-        # Lost regions should have controller=None
-        for r in world_rust.regions:
-            if r.name in ["B", "C"]:
-                assert r.controller is None
-
-    def test_forced_collapse_hybrid_mode_emits_shocks(self):
-        """In hybrid mode, forced collapse emits shocks instead of direct deltas."""
+    @pytest.mark.parametrize("hybrid_mode", [False, True])
+    def test_rust_pass_emits_no_forced_collapse(self, hybrid_mode):
+        """A collapse-eligible civ gets no step-11 op, strip op or collapse
+        event from Rust, and applying the ops leaves its regions and
+        military/economy untouched."""
         sim = _get_simulator()
         world = _make_world(num_civs=1, num_regions=3)
         civ = world.civilizations[0]
         civ.asabiya = 0.05
         civ.stability = 15
-        civ.military = 50
-        civ.economy = 30
+        civ.military = 51
+        civ.economy = 33
         civ.regions = ["A", "B", "C"]
-        world.agent_mode = "hybrid"
+        if hybrid_mode:
+            world.agent_mode = "hybrid"
         for r in world.regions:
             r.controller = civ.name
 
         configure_politics_runtime(sim, world)
-        ops = call_rust_politics(sim, world, hybrid_mode=True)
+        ops = call_rust_politics(sim, world, hybrid_mode=hybrid_mode)
 
-        # Should have HybridShock routing for military/economy effects
-        mil_effects = [o for o in ops if o[2] == "civ_effect"
-                       and o[3].get("field") == "military"
-                       and o[0] == 11]
-        eco_effects = [o for o in ops if o[2] == "civ_effect"
-                       and o[3].get("field") == "economy"
-                       and o[0] == 11]
-        assert len(mil_effects) >= 1
-        assert len(eco_effects) >= 1
-        assert mil_effects[0][3]["routing"] == ROUTING_HYBRID_SHOCK
-        assert eco_effects[0][3]["routing"] == ROUTING_HYBRID_SHOCK
+        assert [o for o in ops if o[0] == 11] == []
+        assert all(1 <= o[0] <= 10 for o in ops)
+        assert not [o for o in ops if o[2] == "civ_op"
+                    and o[3].get("op_type") == CIV_OP_STRIP_TO_FIRST_REGION]
+        assert not [o for o in ops if o[2] == "event_trigger"
+                    and o[3].get("event_type") == "collapse"]
+
+        apply_politics_ops(world, ops)
+        assert civ.regions == ["A", "B", "C"]
+        assert civ.military == 51
+        assert civ.economy == 33
+        assert all(r.controller == civ.name for r in world.regions)
 
     def test_no_collapse_when_stable(self):
         """No collapse when asabiya >= 0.1 or stability > 20."""
@@ -1016,7 +971,7 @@ class TestPendingShockSemantics:
 
 
 class TestStepOrderingParity:
-    """Verify the 11-step ordering is preserved in Rust output."""
+    """Verify the 10-step ordering is preserved in Rust output."""
 
     def test_step_ordering_monotonic(self):
         """All ops from the Rust path have non-decreasing step values."""
@@ -1039,7 +994,7 @@ class TestStepOrderingParity:
                 )
 
     def test_step_values_in_valid_range(self):
-        """All step values are in [1, 11]."""
+        """All step values are in [1, 10]."""
         sim = _get_simulator()
         world = _make_world(num_civs=1, num_regions=3)
         world.civilizations[0].asabiya = 0.05
@@ -1049,7 +1004,7 @@ class TestStepOrderingParity:
         ops = call_rust_politics(sim, world, hybrid_mode=False)
 
         for step, seq, family, payload in ops:
-            assert 1 <= step <= 11, f"Step {step} out of range"
+            assert 1 <= step <= 10, f"Step {step} out of range"
 
 
 # ── Determinism ──────────────────────────────────────────────────────

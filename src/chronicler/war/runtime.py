@@ -105,11 +105,13 @@ def declare_or_press_war(civ: "Civilization", target: "Civilization", world: "Wo
             target = world.civ_map[war.defender]
     declared = False
     if war is None and _in_truce(world, civ.name, target.name):
+        _publish(ctx)
         return Event(turn=world.turn, event_type="war", actors=[civ.name, target.name],
                      description=f"{civ.name} rattled sabres at {target.name} but honoured the truce.",
                      importance=3)
     if war is None and not can_raise(ctx, civ):
         # No army to march: the threat stays a threat (no phony war).
+        _publish(ctx)
         return Event(turn=world.turn, event_type="war", actors=[civ.name, target.name],
                      description=f"{civ.name} threatened {target.name} but could not muster an army.",
                      importance=3)
@@ -136,8 +138,7 @@ def declare_or_press_war(civ: "Civilization", target: "Civilization", world: "Wo
     if raised is None:
         for army in mine:
             army.morale = min(1000, army.morale + 60)
-    world.events_timeline.extend(ctx.events)
-    flush_military_losses(ctx)
+    _publish(ctx)
     if declared:
         desc = f"{civ.name} declared war on {enemy} ({war.aim}); campaign begins."
     elif raised is not None:
@@ -146,6 +147,16 @@ def declare_or_press_war(civ: "Civilization", target: "Civilization", world: "Wo
         desc = f"{civ.name} pressed its war against {enemy}."
     return Event(turn=world.turn, event_type="war", actors=[civ.name, enemy],
                  description=desc, importance=7 if declared else 5)
+
+
+def _publish(ctx: WarContext) -> None:
+    """Put the hook's events on the timeline and flush military losses.
+
+    Every return of :func:`declare_or_press_war` calls this: ``reconcile_wars``
+    may already have emitted ``war_ended``/``war_declared`` (with provenance
+    ids) before an early return."""
+    ctx.world.events_timeline.extend(ctx.events)
+    flush_military_losses(ctx)
 
 
 def _in_truce(world: "WorldState", a: str, b: str) -> bool:

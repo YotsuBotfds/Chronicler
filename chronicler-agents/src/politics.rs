@@ -1,8 +1,9 @@
-//! Pure Rust Phase 10 politics core — 11-step ordered consequence pass.
+//! Pure Rust Phase 10 politics core — 10-step ordered consequence pass.
 //! No PyO3 — FFI wrappers live in ffi/politics_sim.rs.
 //!
-//! Mirrors the Python oracle in `src/chronicler/politics.py` and the inline
-//! forced collapse in `src/chronicler/simulation.py:1020-1041`.
+//! Mirrors the Python oracle in `src/chronicler/politics.py`. The forced
+//! collapse is not computed here: `src/chronicler/simulation.py` runs it after
+//! `apply_asabiya_dynamics` (post-aggregation asabiya, severity-scaled loss).
 
 use std::collections::{HashMap, HashSet, VecDeque};
 
@@ -320,6 +321,8 @@ pub enum CivOpType {
     Restore,
     Absorb,
     ReassignCapital,
+    /// No longer emitted (the Rust forced collapse was removed); kept so the
+    /// FFI op code 4 and enum declaration order stay stable.
     StripToFirstRegion,
 }
 
@@ -723,6 +726,40 @@ pub fn graph_distance(regions: &[RegionInput], from_idx: u16, to_idx: u16) -> i3
 pub fn get_severity_multiplier(civ_stress: i32, config: &PoliticsConfig) -> f32 {
     let base = 1.0 + (civ_stress as f32 / config.severity_stress_divisor) * config.severity_stress_scale;
     (base * config.severity_multiplier).min(config.severity_cap)
+}
+
+/// Python `repr()` of a `str`, for building `stable_hash_int` payloads.
+///
+/// Follows CPython's `str.__repr__`: single quotes unless the text contains `'`
+/// and no `"`; escapes `\`, the chosen quote, `\t`, `\n`, `\r`, and every other
+/// control character (`char::is_control`: U+0000-U+001F, U+007F-U+009F) as
+/// lowercase `\xNN`. Other characters are copied unchanged. CPython also escapes
+/// non-ASCII characters it treats as non-printable (for example U+00A0 or
+/// U+200B); that is not reproduced here, so such names may still hash
+/// differently from Python.
+pub fn py_repr_str(s: &str) -> String {
+    use std::fmt::Write as _;
+    let quote = if s.contains('\'') && !s.contains('"') { '"' } else { '\'' };
+    let mut out = String::with_capacity(s.len() + 2);
+    out.push(quote);
+    for c in s.chars() {
+        match c {
+            '\\' => out.push_str("\\\\"),
+            '\t' => out.push_str("\\t"),
+            '\n' => out.push_str("\\n"),
+            '\r' => out.push_str("\\r"),
+            c if c == quote => {
+                out.push('\\');
+                out.push(c);
+            }
+            c if c.is_control() => {
+                write!(out, "\\x{:02x}", c as u32).unwrap();
+            }
+            c => out.push(c),
+        }
+    }
+    out.push(quote);
+    out
 }
 
 /// Deterministic hash equivalent to Python's `stable_hash_int()`.
@@ -1382,7 +1419,7 @@ fn step_secession(
         prob = prob.min(1.0);
 
         // Deterministic RNG
-        let seed_parts = format!("'secession'|{}|{}|'{}'", seed, turn, civ.name);
+        let seed_parts = format!("'secession'|{}|{}|{}", seed, turn, py_repr_str(&civ.name));
         let hash = stable_hash_int(&[&seed_parts]);
         let mut rng = DetRng::new(hash);
         if rng.random() >= prob as f64 {
@@ -1841,10 +1878,10 @@ fn step_vassal_rebellion(
 
         // RNG
         let seed_parts = format!(
-            "'vassal_rebellion'|{}|{}|'{}'",
+            "'vassal_rebellion'|{}|{}|{}",
             seed,
             turn,
-            civs[vassal_idx as usize].name,
+            py_repr_str(&civs[vassal_idx as usize].name),
         );
         let hash = stable_hash_int(&[&seed_parts]);
         let mut rng = DetRng::new(hash);
@@ -2287,11 +2324,11 @@ fn step_proxy_detection(
 
         // Deterministic detection roll
         let seed_parts = format!(
-            "'proxy_detection'|{}|{}|'{}'|'{}'",
+            "'proxy_detection'|{}|{}|{}|{}",
             seed,
             turn,
-            civs[pw.sponsor as usize].name,
-            civs[pw.target_civ as usize].name,
+            py_repr_str(&civs[pw.sponsor as usize].name),
+            py_repr_str(&civs[pw.target_civ as usize].name),
         );
         let hash = stable_hash_int(&[&seed_parts]);
         let mut rng = DetRng::new(hash);
@@ -2415,10 +2452,10 @@ fn step_restoration(
             + config.restoration_recognition_bonus * exile.recognized_by.len() as f32;
 
         let seed_parts = format!(
-            "'restoration'|{}|{}|'{}'",
+            "'restoration'|{}|{}|{}",
             seed,
             turn,
-            civs[exile.original_civ as usize].name,
+            py_repr_str(&civs[exile.original_civ as usize].name),
         );
         let hash = stable_hash_int(&[&seed_parts]);
         let mut rng = DetRng::new(hash);
@@ -2893,150 +2930,11 @@ fn step_decline_tracking(
     }
 }
 
-/// Step 11: Forced collapse.
-/// Preserves `regions[:1]` (first listed, NOT capital), integer division,
-/// NO severity multiplier, NO sync_civ_population().
-fn step_forced_collapse(
-    civs: &[CivInput],
-    live_civs: &mut [LiveCiv],
-    live_regions: &mut [LiveRegion],
-    hybrid_mode: bool,
-    result: &mut PoliticsResult,
-) {
-    let step: u8 = 11;
-    let mut seq = SeqCounter::new();
-
-    for (ci, civ) in civs.iter().enumerate() {
-        // Extract values before mutable borrow
-        let asabiya = live_civs[ci].asabiya;
-        let stability = live_civs[ci].stability;
-        let military = live_civs[ci].military;
-        let economy = live_civs[ci].economy;
-        let regions_snapshot = live_civs[ci].regions.clone();
-
-        if asabiya >= 0.1 || stability > 20 {
-            continue;
-        }
-        if regions_snapshot.len() <= 1 {
-            continue;
-        }
-
-        // Keep first listed region (regions[:1])
-        let kept_region = regions_snapshot[0];
-        let lost_regions: Vec<u16> = regions_snapshot[1..].to_vec();
-
-        // Strip to first region
-        result.civ_ops.push(CivOp {
-            step,
-            seq: seq.next(),
-            op_type: CivOpType::StripToFirstRegion,
-            source_civ: CivRef::Existing(civ.civ_idx),
-            target_civ: CivRef::Existing(civ.civ_idx),
-            regions: vec![kept_region],
-            stat_military: 0,
-            stat_economy: 0,
-            stat_culture: 0,
-            stat_stability: 0,
-            stat_treasury: 0,
-            stat_population: 0,
-            stat_asabiya: 0.0,
-            founded_turn: 0,
-        });
-
-        // Nullify controllers of lost regions
-        for &r_idx in &lost_regions {
-            result.region_ops.push(RegionOp {
-                step,
-                seq: seq.next(),
-                op_type: RegionOpType::NullifyController,
-                region: r_idx,
-                controller: CivRef::Existing(CIV_NONE),
-            });
-        }
-
-        // Stat effects: integer division (military // 2, economy // 2)
-        // In hybrid mode: pending_shocks with -0.5 each
-        // In non-hybrid: direct integer division
-        if hybrid_mode {
-            result.civ_effects.push(CivEffectOp {
-                step,
-                seq: seq.next(),
-                civ: CivRef::Existing(civ.civ_idx),
-                field: "military",
-                delta_i: -(military / 2),
-                delta_f: -0.5,
-                routing: EffectRouting::HybridShock,
-            });
-            result.civ_effects.push(CivEffectOp {
-                step,
-                seq: seq.next(),
-                civ: CivRef::Existing(civ.civ_idx),
-                field: "economy",
-                delta_i: -(economy / 2),
-                delta_f: -0.5,
-                routing: EffectRouting::HybridShock,
-            });
-        } else {
-            // Integer division: military // 2, clamped to floor 0
-            let new_mil = (military / 2).max(0);
-            let new_eco = (economy / 2).max(0);
-            result.civ_effects.push(CivEffectOp {
-                step,
-                seq: seq.next(),
-                civ: CivRef::Existing(civ.civ_idx),
-                field: "military",
-                delta_i: new_mil - military, // negative delta
-                delta_f: 0.0,
-                routing: EffectRouting::DirectOnly,
-            });
-            result.civ_effects.push(CivEffectOp {
-                step,
-                seq: seq.next(),
-                civ: CivRef::Existing(civ.civ_idx),
-                field: "economy",
-                delta_i: new_eco - economy,
-                delta_f: 0.0,
-                routing: EffectRouting::DirectOnly,
-            });
-        }
-
-        // Event
-        result.events.push(EventTrigger {
-            step,
-            seq: seq.next(),
-            event_type: "collapse",
-            actors: vec![CivRef::Existing(civ.civ_idx)],
-            importance: 10,
-            context_regions: lost_regions.clone(),
-            context_seed: 0,
-        });
-
-        // Update live state
-        live_civs[ci].regions = vec![kept_region];
-        live_civs[ci].military = if hybrid_mode {
-            military
-        } else {
-            (military / 2).max(0)
-        };
-        live_civs[ci].economy = if hybrid_mode {
-            economy
-        } else {
-            (economy / 2).max(0)
-        };
-        for &r_idx in &lost_regions {
-            if (r_idx as usize) < live_regions.len() {
-                live_regions[r_idx as usize].controller = CIV_NONE;
-            }
-        }
-        // NOTE: No sync_civ_population() — this is intentional existing behavior
-    }
-}
-
 // ---------------------------------------------------------------------------
 // Main entry point
 // ---------------------------------------------------------------------------
 
-/// Execute the full 11-step Phase 10 political consequence pass.
+/// Execute the full 10-step Phase 10 political consequence pass.
 ///
 /// Returns a `PoliticsResult` containing all ops in `step + seq` order.
 /// Python applies these ops onto the world state.
@@ -3194,15 +3092,6 @@ pub fn run_politics_pass(
     // Step 10: Decline tracking
     step_decline_tracking(civs, &mut live_civs, &mut result);
 
-    // Step 11: Forced collapse
-    step_forced_collapse(
-        civs,
-        &mut live_civs,
-        &mut live_regions,
-        hybrid_mode,
-        &mut result,
-    );
-
     result
 }
 
@@ -3322,6 +3211,50 @@ mod tests {
         let h1 = stable_hash_int(&["a"]);
         let h2 = stable_hash_int(&["b"]);
         assert_ne!(h1, h2);
+    }
+
+    /// Pinned on both sides: `tests/test_politics_hash_parity.py` holds the
+    /// same table and recomputes it with Python's
+    /// `stable_hash_int("secession", 7, 3, name)`.
+    const SECESSION_HASH_PARITY: &[(&str, &str, u64)] = &[
+        ("Aldor", "'Aldor'", 5965020321537964785),
+        ("Ka'lo", "\"Ka'lo\"", 824216405042331300),
+        ("A\\B", "'A\\\\B'", 753379866302640020),
+        ("Zo\u{eb}", "'Zo\u{eb}'", 2123918839911951856),
+        ("He said \"hi\"", "'He said \"hi\"'", 5665349242566717993),
+        ("tab\there", "'tab\\there'", 8333909184004934855),
+        ("Both ' and \"", "'Both \\' and \"'", 6631886806500821251),
+        ("line\nbreak\r", "'line\\nbreak\\r'", 17064170672029403852),
+        ("bell\x07del\x7f", "'bell\\x07del\\x7f'", 8829576378575621579),
+        ("nel\u{85}", "'nel\\x85'", 1040625089979112548),
+    ];
+
+    #[test]
+    fn test_py_repr_str_matches_python_repr() {
+        for (name, expected_repr, _) in SECESSION_HASH_PARITY {
+            assert_eq!(py_repr_str(name), *expected_repr, "repr of {:?}", name);
+        }
+    }
+
+    #[test]
+    fn test_stable_hash_secession_parity_with_python() {
+        for (name, _, expected) in SECESSION_HASH_PARITY {
+            let seed_parts = format!("'secession'|{}|{}|{}", 7u64, 3u32, py_repr_str(name));
+            assert_eq!(stable_hash_int(&[&seed_parts]), *expected, "hash of {:?}", name);
+        }
+    }
+
+    #[test]
+    fn test_stable_hash_proxy_detection_parity_with_python() {
+        // Python: stable_hash_int("proxy_detection", 7, 3, "Ka'lo", "A\\B")
+        let seed_parts = format!(
+            "'proxy_detection'|{}|{}|{}|{}",
+            7u64,
+            3u32,
+            py_repr_str("Ka'lo"),
+            py_repr_str("A\\B"),
+        );
+        assert_eq!(stable_hash_int(&[&seed_parts]), 8235038744015777200);
     }
 
     #[test]

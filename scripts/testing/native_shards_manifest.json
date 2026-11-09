@@ -404,6 +404,7 @@
       "tests/test_oracle_chunk_scheduler.py",
       "tests/test_persecution.py",
       "tests/test_politics_bridge.py",
+      "tests/test_politics_hash_parity.py",
       "tests/test_politics_parity.py",
       "tests/test_population_conservation.py",
       "tests/test_population_entities_native.py",

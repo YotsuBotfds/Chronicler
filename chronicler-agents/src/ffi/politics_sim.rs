@@ -1,7 +1,7 @@
 //! PoliticsSimulator — off-mode wrapper (no AgentPool).
 //!
 //! Lightweight politics-only simulator for `--agents=off` mode.
-//! Executes the same 11-step Rust politics pass without any agent pool.
+//! Executes the same 10-step Rust politics pass without any agent pool.
 
 use pyo3::prelude::*;
 use pyo3_arrow::PyRecordBatch;
@@ -88,7 +88,7 @@ impl PoliticsSimulator {
         };
     }
 
-    /// Run the 11-step Phase 10 politics pass (off-mode, no pool).
+    /// Run the 10-step Phase 10 politics pass (off-mode, no pool).
     ///
     /// Same signature and return type as `AgentSimulator.tick_politics()`.
     #[allow(clippy::too_many_arguments, clippy::type_complexity)]
