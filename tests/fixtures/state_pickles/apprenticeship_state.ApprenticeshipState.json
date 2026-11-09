@@ -1,0 +1,215 @@
+{
+ "class": "apprenticeship_state.ApprenticeshipState",
+ "schema_sha256": "747c348414b774ea70264e57e19bfd7a537a3dc3e154588c6c3b34483029ae8e",
+ "variants": {
+  "populated": {
+   "pickle": "apprenticeship_state.ApprenticeshipState.populated.pkl",
+   "sha256": "eb5409338d420da4023abacbb19f8dc9418956142b0b4462d46f79830b3765c2",
+   "hash_order_free": true,
+   "loaded": {
+    "type": "apprenticeship_state.ApprenticeshipState",
+    "dict_keys": [
+     "schema_version",
+     "enabled",
+     "mode",
+     "counters",
+     "qualifications",
+     "retired",
+     "service",
+     "apprenticeships",
+     "archive",
+     "sites",
+     "events",
+     "frame_turn",
+     "frame",
+     "continuity",
+     "last_settled_turn",
+     "graduates",
+     "detached"
+    ],
+    "fields_set": [],
+    "extra": null,
+    "private": {
+     "_pending": null
+    },
+    "dump": {
+     "schema_version": 2,
+     "enabled": true,
+     "mode": "train",
+     "counters": {
+      "switch_state_probe_1": 1.0,
+      "switch_state_probe_2": 2.5
+     },
+     "qualifications": [],
+     "retired": [],
+     "service": [],
+     "apprenticeships": [],
+     "archive": [],
+     "sites": [],
+     "events": [],
+     "frame_turn": null,
+     "frame": [],
+     "continuity": {},
+     "last_settled_turn": null
+    }
+   },
+   "repickle_sha256": "eb5409338d420da4023abacbb19f8dc9418956142b0b4462d46f79830b3765c2",
+   "repickle_hash_order_free": true
+  },
+  "transient": {
+   "pickle": "apprenticeship_state.ApprenticeshipState.transient.pkl",
+   "sha256": "23227f620d52e381d7b3694e817f86f4ab1c442ce97746588ad52281cf7a443f",
+   "hash_order_free": true,
+   "loaded": {
+    "type": "apprenticeship_state.ApprenticeshipState",
+    "dict_keys": [
+     "schema_version",
+     "enabled",
+     "mode",
+     "counters",
+     "qualifications",
+     "retired",
+     "service",
+     "apprenticeships",
+     "archive",
+     "sites",
+     "events",
+     "frame_turn",
+     "frame",
+     "continuity",
+     "last_settled_turn",
+     "graduates",
+     "detached"
+    ],
+    "fields_set": [],
+    "extra": null,
+    "private": {
+     "_pending": "probe:_pending"
+    },
+    "dump": {
+     "schema_version": 2,
+     "enabled": true,
+     "mode": "train",
+     "counters": {
+      "switch_state_probe_1": 1.0,
+      "switch_state_probe_2": 2.5
+     },
+     "qualifications": [],
+     "retired": [],
+     "service": [],
+     "apprenticeships": [],
+     "archive": [],
+     "sites": [],
+     "events": [],
+     "frame_turn": null,
+     "frame": [],
+     "continuity": {},
+     "last_settled_turn": null
+    }
+   },
+   "repickle_sha256": "23227f620d52e381d7b3694e817f86f4ab1c442ce97746588ad52281cf7a443f",
+   "repickle_hash_order_free": true
+  },
+  "old": {
+   "pickle": "apprenticeship_state.ApprenticeshipState.old.pkl",
+   "sha256": "fb1e3d7ce9c7a45ad50619eedeab19c65cf24e95f168cb8224b2c583f1c40952",
+   "hash_order_free": true,
+   "loaded": {
+    "type": "apprenticeship_state.ApprenticeshipState",
+    "dict_keys": [
+     "schema_version",
+     "enabled",
+     "mode",
+     "counters",
+     "qualifications",
+     "retired",
+     "service",
+     "apprenticeships",
+     "archive",
+     "sites",
+     "events",
+     "frame_turn",
+     "frame",
+     "continuity",
+     "last_settled_turn",
+     "graduates",
+     "detached"
+    ],
+    "fields_set": [],
+    "extra": null,
+    "private": null,
+    "dump": {
+     "schema_version": 2,
+     "enabled": true,
+     "mode": "train",
+     "counters": {},
+     "qualifications": [],
+     "retired": [],
+     "service": [],
+     "apprenticeships": [],
+     "archive": [],
+     "sites": [],
+     "events": [],
+     "frame_turn": null,
+     "frame": [],
+     "continuity": {},
+     "last_settled_turn": null
+    }
+   },
+   "repickle_sha256": "05f01913170eb7f157241cf8fb2cfc68431e8487f63e334493a6289733ca8115",
+   "repickle_hash_order_free": true
+  },
+  "partial": {
+   "pickle": "apprenticeship_state.ApprenticeshipState.partial.pkl",
+   "sha256": "7110533c667a4ccb763404e01ba5bf04f5ad19229b39609c26f4b8b74bf20eac",
+   "hash_order_free": true,
+   "loaded": {
+    "type": "apprenticeship_state.ApprenticeshipState",
+    "dict_keys": [
+     "schema_version",
+     "enabled",
+     "mode",
+     "counters",
+     "qualifications",
+     "retired",
+     "service",
+     "apprenticeships",
+     "archive",
+     "sites",
+     "events",
+     "frame_turn",
+     "frame",
+     "continuity",
+     "last_settled_turn",
+     "graduates",
+     "detached"
+    ],
+    "fields_set": [],
+    "extra": null,
+    "private": {},
+    "dump": {
+     "schema_version": 2,
+     "enabled": true,
+     "mode": "train",
+     "counters": {
+      "switch_state_probe_1": 1.0,
+      "switch_state_probe_2": 2.5
+     },
+     "qualifications": [],
+     "retired": [],
+     "service": [],
+     "apprenticeships": [],
+     "archive": [],
+     "sites": [],
+     "events": [],
+     "frame_turn": null,
+     "frame": [],
+     "continuity": {},
+     "last_settled_turn": null
+    }
+   },
+   "repickle_sha256": "86fdb5baea9434c6f098a33c5d1a911abeef02e044ee0cddb32a9517c79a2ba4",
+   "repickle_hash_order_free": true
+  }
+ }
+}

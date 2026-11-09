@@ -1,0 +1,76 @@
+{
+ "class": "harvest_cover_state.HarvestCoverState",
+ "schema_sha256": "5172ad42a790de2ffbcb556079d83c236ed538146603213172af3fc08a4fd1bc",
+ "variants": {
+  "populated": {
+   "pickle": "harvest_cover_state.HarvestCoverState.populated.pkl",
+   "sha256": "99b6075ca9d3945b674fa9da2f3bf2843718845692a8aa2101b0ea34078a51e9",
+   "hash_order_free": true,
+   "loaded": {
+    "type": "harvest_cover_state.HarvestCoverState",
+    "dict_keys": [
+     "enabled",
+     "mode",
+     "frame_turn",
+     "rows",
+     "counters"
+    ],
+    "fields_set": [],
+    "extra": null,
+    "private": null,
+    "dump": {
+     "enabled": true,
+     "mode": "loss",
+     "frame_turn": null,
+     "rows": [],
+     "counters": {
+      "switch_state_probe_1": 1.0,
+      "switch_state_probe_2": 2.5
+     }
+    }
+   },
+   "repickle_sha256": "99b6075ca9d3945b674fa9da2f3bf2843718845692a8aa2101b0ea34078a51e9",
+   "repickle_hash_order_free": true
+  },
+  "old": {
+   "pickle": "harvest_cover_state.HarvestCoverState.old.pkl",
+   "sha256": "9931012743e6c657800652a282952a087c1ce850d812f6512e730921f8739ddc",
+   "hash_order_free": true,
+   "loaded": {
+    "type": "harvest_cover_state.HarvestCoverState",
+    "dict_keys": [],
+    "fields_set": [],
+    "extra": null,
+    "private": null,
+    "dump": {}
+   },
+   "repickle_sha256": "9931012743e6c657800652a282952a087c1ce850d812f6512e730921f8739ddc",
+   "repickle_hash_order_free": true
+  },
+  "partial": {
+   "pickle": "harvest_cover_state.HarvestCoverState.partial.pkl",
+   "sha256": "801f54361407ac8d34460bc1397072346eb0c8f919dbf4d26e8929a8de9eb658",
+   "hash_order_free": true,
+   "loaded": {
+    "type": "harvest_cover_state.HarvestCoverState",
+    "dict_keys": [
+     "enabled",
+     "mode",
+     "frame_turn",
+     "rows"
+    ],
+    "fields_set": [],
+    "extra": null,
+    "private": null,
+    "dump": {
+     "enabled": true,
+     "mode": "loss",
+     "frame_turn": null,
+     "rows": []
+    }
+   },
+   "repickle_sha256": "801f54361407ac8d34460bc1397072346eb0c8f919dbf4d26e8929a8de9eb658",
+   "repickle_hash_order_free": true
+  }
+ }
+}

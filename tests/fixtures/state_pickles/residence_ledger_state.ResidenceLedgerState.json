@@ -1,0 +1,168 @@
+{
+ "class": "residence_ledger_state.ResidenceLedgerState",
+ "schema_sha256": "18c526d6252dffce6278d0c1d8f51731419321268c104ab7cd9e1bfb179c9d54",
+ "variants": {
+  "populated": {
+   "pickle": "residence_ledger_state.ResidenceLedgerState.populated.pkl",
+   "sha256": "b1e357d6594690e606acebe7f92eff350b4e668aba19427653908f237019046a",
+   "hash_order_free": true,
+   "loaded": {
+    "type": "residence_ledger_state.ResidenceLedgerState",
+    "dict_keys": [
+     "schema_version",
+     "enabled",
+     "observed_from",
+     "watch_from",
+     "last_turn",
+     "arrival_coverage_since",
+     "frame_turn",
+     "frame",
+     "events",
+     "events_dropped",
+     "rows",
+     "deferred",
+     "travelling",
+     "attached",
+     "rows_held",
+     "open_spells_held",
+     "regions",
+     "pending",
+     "counters",
+     "log",
+     "log_dropped"
+    ],
+    "fields_set": [],
+    "extra": null,
+    "private": null,
+    "dump": {
+     "schema_version": 1,
+     "enabled": true,
+     "observed_from": null,
+     "watch_from": null,
+     "last_turn": null,
+     "arrival_coverage_since": null,
+     "frame_turn": null,
+     "events_dropped": 0,
+     "rows_held": 0,
+     "open_spells_held": 0,
+     "regions": [],
+     "counters": {
+      "switch_state_probe_1": 1,
+      "switch_state_probe_2": 2
+     },
+     "log": [],
+     "log_dropped": 0
+    }
+   },
+   "repickle_sha256": "b1e357d6594690e606acebe7f92eff350b4e668aba19427653908f237019046a",
+   "repickle_hash_order_free": true
+  },
+  "old": {
+   "pickle": "residence_ledger_state.ResidenceLedgerState.old.pkl",
+   "sha256": "e24581be98d3cc29eb19e7d34499d70e0f530cbe080ab2df810f980937b431fe",
+   "hash_order_free": true,
+   "loaded": {
+    "type": "residence_ledger_state.ResidenceLedgerState",
+    "dict_keys": [
+     "schema_version",
+     "enabled",
+     "observed_from",
+     "watch_from",
+     "last_turn",
+     "arrival_coverage_since",
+     "frame_turn",
+     "frame",
+     "events",
+     "events_dropped",
+     "rows",
+     "deferred",
+     "travelling",
+     "attached",
+     "rows_held",
+     "open_spells_held",
+     "regions",
+     "pending",
+     "counters",
+     "log",
+     "log_dropped"
+    ],
+    "fields_set": [],
+    "extra": null,
+    "private": null,
+    "dump": {
+     "schema_version": 1,
+     "enabled": true,
+     "observed_from": null,
+     "watch_from": null,
+     "last_turn": null,
+     "arrival_coverage_since": null,
+     "frame_turn": null,
+     "events_dropped": 0,
+     "rows_held": 0,
+     "open_spells_held": 0,
+     "regions": [],
+     "counters": {},
+     "log": [],
+     "log_dropped": 0
+    }
+   },
+   "repickle_sha256": "ba337f2acfd51a132312b723c4bf54a7a1ea4e42e405e14da1dc1908aeacb1b9",
+   "repickle_hash_order_free": true
+  },
+  "partial": {
+   "pickle": "residence_ledger_state.ResidenceLedgerState.partial.pkl",
+   "sha256": "71f9fc97ed17fb0a6fc682674f7f07b3a1d27f67a3dfd8d545786e0f3eef0f5b",
+   "hash_order_free": true,
+   "loaded": {
+    "type": "residence_ledger_state.ResidenceLedgerState",
+    "dict_keys": [
+     "schema_version",
+     "enabled",
+     "observed_from",
+     "watch_from",
+     "last_turn",
+     "arrival_coverage_since",
+     "frame_turn",
+     "frame",
+     "events",
+     "events_dropped",
+     "rows",
+     "deferred",
+     "travelling",
+     "attached",
+     "rows_held",
+     "open_spells_held",
+     "regions",
+     "pending",
+     "counters",
+     "log",
+     "log_dropped"
+    ],
+    "fields_set": [],
+    "extra": null,
+    "private": null,
+    "dump": {
+     "schema_version": 1,
+     "enabled": true,
+     "observed_from": null,
+     "watch_from": null,
+     "last_turn": null,
+     "arrival_coverage_since": null,
+     "frame_turn": null,
+     "events_dropped": 0,
+     "rows_held": 0,
+     "open_spells_held": 0,
+     "regions": [],
+     "counters": {
+      "switch_state_probe_1": 1,
+      "switch_state_probe_2": 2
+     },
+     "log": [],
+     "log_dropped": 0
+    }
+   },
+   "repickle_sha256": "b1e357d6594690e606acebe7f92eff350b4e668aba19427653908f237019046a",
+   "repickle_hash_order_free": true
+  }
+ }
+}

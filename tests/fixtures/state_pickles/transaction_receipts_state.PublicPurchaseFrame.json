@@ -1,0 +1,142 @@
+{
+ "class": "transaction_receipts_state.PublicPurchaseFrame",
+ "schema_sha256": "80ae8c0cac9041cea9e021cec16e09abd37fc2b3eb3841b4c0f412d313f97c31",
+ "variants": {
+  "populated": {
+   "pickle": "transaction_receipts_state.PublicPurchaseFrame.populated.pkl",
+   "sha256": "3b6badbfa5152f007573b923eca89a8704ba4cc34f7e71480f9137de707804c3",
+   "hash_order_free": false,
+   "loaded": {
+    "type": "transaction_receipts_state.PublicPurchaseFrame",
+    "dict_keys": [
+     "source_turn",
+     "phase",
+     "available",
+     "complete",
+     "unavailable_reason",
+     "max_rows",
+     "dropped_rows",
+     "retained_key_duplicates",
+     "duplicate_detection_complete",
+     "observed_purchases",
+     "rows",
+     "frame_digest",
+     "counters"
+    ],
+    "fields_set": [
+     "available",
+     "complete",
+     "frame_digest",
+     "max_rows",
+     "source_turn"
+    ],
+    "extra": null,
+    "private": null,
+    "dump": {
+     "source_turn": 1,
+     "phase": "phase10_granary_procurement",
+     "available": false,
+     "complete": false,
+     "unavailable_reason": null,
+     "max_rows": 1,
+     "dropped_rows": 0,
+     "retained_key_duplicates": 0,
+     "duplicate_detection_complete": false,
+     "observed_purchases": 0,
+     "rows": [],
+     "frame_digest": "probe",
+     "counters": {
+      "switch_state_probe_1": 1.0,
+      "switch_state_probe_2": 2.5
+     }
+    }
+   },
+   "repickle_sha256": "3b6badbfa5152f007573b923eca89a8704ba4cc34f7e71480f9137de707804c3",
+   "repickle_hash_order_free": false
+  },
+  "old": {
+   "pickle": "transaction_receipts_state.PublicPurchaseFrame.old.pkl",
+   "sha256": "ff723ea2e149c35616d1ffa28444696df211f80c28800aabf6eba3707f0ce152",
+   "hash_order_free": false,
+   "loaded": {
+    "type": "transaction_receipts_state.PublicPurchaseFrame",
+    "dict_keys": [
+     "source_turn",
+     "available",
+     "complete",
+     "max_rows",
+     "frame_digest",
+     "retained_key_duplicates",
+     "duplicate_detection_complete"
+    ],
+    "fields_set": [
+     "available",
+     "complete",
+     "frame_digest",
+     "max_rows",
+     "source_turn"
+    ],
+    "extra": null,
+    "private": null,
+    "dump": {
+     "source_turn": 1,
+     "available": false,
+     "complete": false,
+     "max_rows": 1,
+     "frame_digest": "probe",
+     "retained_key_duplicates": 0,
+     "duplicate_detection_complete": false
+    }
+   },
+   "repickle_sha256": "c10f5d52fbbe31a67dece04b449262fac16bf9d179223a373c0ec571df59a071",
+   "repickle_hash_order_free": false
+  },
+  "partial": {
+   "pickle": "transaction_receipts_state.PublicPurchaseFrame.partial.pkl",
+   "sha256": "fb2b698a46c3e09df08e8c54205b3fdfbe930324cbc7423326f229ec7a483d19",
+   "hash_order_free": false,
+   "loaded": {
+    "type": "transaction_receipts_state.PublicPurchaseFrame",
+    "dict_keys": [
+     "source_turn",
+     "phase",
+     "available",
+     "complete",
+     "unavailable_reason",
+     "max_rows",
+     "dropped_rows",
+     "retained_key_duplicates",
+     "duplicate_detection_complete",
+     "observed_purchases",
+     "rows",
+     "frame_digest"
+    ],
+    "fields_set": [
+     "available",
+     "complete",
+     "frame_digest",
+     "max_rows",
+     "source_turn"
+    ],
+    "extra": null,
+    "private": null,
+    "dump": {
+     "source_turn": 1,
+     "phase": "phase10_granary_procurement",
+     "available": false,
+     "complete": false,
+     "unavailable_reason": null,
+     "max_rows": 1,
+     "dropped_rows": 0,
+     "retained_key_duplicates": 0,
+     "duplicate_detection_complete": false,
+     "observed_purchases": 0,
+     "rows": [],
+     "frame_digest": "probe"
+    }
+   },
+   "repickle_sha256": "fb2b698a46c3e09df08e8c54205b3fdfbe930324cbc7423326f229ec7a483d19",
+   "repickle_hash_order_free": false
+  }
+ }
+}

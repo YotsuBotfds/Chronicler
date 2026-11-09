@@ -1,0 +1,144 @@
+{
+ "class": "apprenticeship_state.Seat",
+ "schema_sha256": "71a1f6fca0800b1665abdf5d833b2b656aada9156a5325cf51d62059a0dc24dd",
+ "variants": {
+  "populated": {
+   "pickle": "apprenticeship_state.Seat.populated.pkl",
+   "sha256": "cb2aee7df7e329e969242986e4fd53c23ebf99fc7c5f1567ecebf6c11126da9b",
+   "hash_order_free": false,
+   "loaded": {
+    "type": "apprenticeship_state.Seat",
+    "dict_keys": [
+     "agent_id",
+     "new",
+     "veteran",
+     "mentor",
+     "outcome",
+     "reason",
+     "ending",
+     "share",
+     "income_forgone",
+     "stipend_due",
+     "stipend_paid",
+     "stipend_status",
+     "aboard",
+     "transferred_from"
+    ],
+    "fields_set": [
+     "agent_id",
+     "outcome"
+    ],
+    "extra": null,
+    "private": null,
+    "dump": {
+     "agent_id": 1,
+     "new": false,
+     "veteran": false,
+     "mentor": null,
+     "outcome": "attended",
+     "reason": null,
+     "ending": null,
+     "share": 0.0,
+     "income_forgone": null,
+     "stipend_due": 0,
+     "stipend_paid": 0,
+     "stipend_status": null
+    }
+   },
+   "repickle_sha256": "cb2aee7df7e329e969242986e4fd53c23ebf99fc7c5f1567ecebf6c11126da9b",
+   "repickle_hash_order_free": false
+  },
+  "old": {
+   "pickle": "apprenticeship_state.Seat.old.pkl",
+   "sha256": "c10e91303726fadbab30d7971d6b02997320d57c5cb2b969430e333a7676c147",
+   "hash_order_free": false,
+   "loaded": {
+    "type": "apprenticeship_state.Seat",
+    "dict_keys": [
+     "agent_id",
+     "outcome",
+     "new",
+     "veteran",
+     "mentor",
+     "reason",
+     "ending",
+     "share",
+     "income_forgone",
+     "stipend_due",
+     "stipend_paid",
+     "stipend_status",
+     "aboard",
+     "transferred_from"
+    ],
+    "fields_set": [
+     "agent_id",
+     "outcome"
+    ],
+    "extra": null,
+    "private": null,
+    "dump": {
+     "agent_id": 1,
+     "outcome": "attended",
+     "new": false,
+     "veteran": false,
+     "mentor": null,
+     "reason": null,
+     "ending": null,
+     "share": 0.0,
+     "income_forgone": null,
+     "stipend_due": 0,
+     "stipend_paid": 0,
+     "stipend_status": null
+    }
+   },
+   "repickle_sha256": "e9d1bb8a0683d5183c7432efa20c0bf755a59efef0f600a87e0d3c2ab21c1a8b",
+   "repickle_hash_order_free": false
+  },
+  "partial": {
+   "pickle": "apprenticeship_state.Seat.partial.pkl",
+   "sha256": "c0d68fd2069ed9245356c7e89d86f6ba88123fc222df9b0ab4f52deec300bc56",
+   "hash_order_free": false,
+   "loaded": {
+    "type": "apprenticeship_state.Seat",
+    "dict_keys": [
+     "agent_id",
+     "new",
+     "veteran",
+     "mentor",
+     "outcome",
+     "reason",
+     "ending",
+     "share",
+     "income_forgone",
+     "stipend_due",
+     "stipend_paid",
+     "stipend_status",
+     "aboard",
+     "transferred_from"
+    ],
+    "fields_set": [
+     "agent_id",
+     "outcome"
+    ],
+    "extra": null,
+    "private": null,
+    "dump": {
+     "agent_id": 1,
+     "new": false,
+     "veteran": false,
+     "mentor": null,
+     "outcome": "attended",
+     "reason": null,
+     "ending": null,
+     "share": 0.0,
+     "income_forgone": null,
+     "stipend_due": 0,
+     "stipend_paid": 0,
+     "stipend_status": null
+    }
+   },
+   "repickle_sha256": "cb2aee7df7e329e969242986e4fd53c23ebf99fc7c5f1567ecebf6c11126da9b",
+   "repickle_hash_order_free": false
+  }
+ }
+}

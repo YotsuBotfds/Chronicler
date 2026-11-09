@@ -1,0 +1,240 @@
+{
+ "class": "timber_supply_state.TimberSupplyState",
+ "schema_sha256": "be196065c7cc131837c2f5c3f8723300025a0e063ba7ee161d019d7351eaa8f4",
+ "variants": {
+  "populated": {
+   "pickle": "timber_supply_state.TimberSupplyState.populated.pkl",
+   "sha256": "ff2c631ef353e4cd094d39a1c6cd5ecc0ebb53894d8f854f7cd4caf8955c6e82",
+   "hash_order_free": true,
+   "loaded": {
+    "type": "timber_supply_state.TimberSupplyState",
+    "dict_keys": [
+     "schema_version",
+     "enabled",
+     "mode",
+     "next_eid",
+     "expeditions",
+     "closed",
+     "store",
+     "prepaid",
+     "frame_turn",
+     "receipts",
+     "ledger",
+     "stores",
+     "deposits",
+     "pending_deposits",
+     "needs",
+     "needs_dropped",
+     "switched_off",
+     "last_settled_turn",
+     "counters"
+    ],
+    "fields_set": [],
+    "extra": null,
+    "private": {
+     "_turn": null
+    },
+    "dump": {
+     "schema_version": 1,
+     "enabled": true,
+     "mode": "supply",
+     "next_eid": 0,
+     "expeditions": [],
+     "closed": [],
+     "store": {},
+     "prepaid": {},
+     "frame_turn": null,
+     "receipts": null,
+     "ledger": null,
+     "stores": [],
+     "deposits": [],
+     "pending_deposits": {},
+     "needs": [],
+     "needs_dropped": 0,
+     "switched_off": [],
+     "last_settled_turn": null,
+     "counters": {
+      "switch_state_probe_1": 1.0,
+      "switch_state_probe_2": 2.5
+     }
+    }
+   },
+   "repickle_sha256": "ff2c631ef353e4cd094d39a1c6cd5ecc0ebb53894d8f854f7cd4caf8955c6e82",
+   "repickle_hash_order_free": true
+  },
+  "transient": {
+   "pickle": "timber_supply_state.TimberSupplyState.transient.pkl",
+   "sha256": "ff2c631ef353e4cd094d39a1c6cd5ecc0ebb53894d8f854f7cd4caf8955c6e82",
+   "hash_order_free": true,
+   "loaded": {
+    "type": "timber_supply_state.TimberSupplyState",
+    "dict_keys": [
+     "schema_version",
+     "enabled",
+     "mode",
+     "next_eid",
+     "expeditions",
+     "closed",
+     "store",
+     "prepaid",
+     "frame_turn",
+     "receipts",
+     "ledger",
+     "stores",
+     "deposits",
+     "pending_deposits",
+     "needs",
+     "needs_dropped",
+     "switched_off",
+     "last_settled_turn",
+     "counters"
+    ],
+    "fields_set": [],
+    "extra": null,
+    "private": {
+     "_turn": null
+    },
+    "dump": {
+     "schema_version": 1,
+     "enabled": true,
+     "mode": "supply",
+     "next_eid": 0,
+     "expeditions": [],
+     "closed": [],
+     "store": {},
+     "prepaid": {},
+     "frame_turn": null,
+     "receipts": null,
+     "ledger": null,
+     "stores": [],
+     "deposits": [],
+     "pending_deposits": {},
+     "needs": [],
+     "needs_dropped": 0,
+     "switched_off": [],
+     "last_settled_turn": null,
+     "counters": {
+      "switch_state_probe_1": 1.0,
+      "switch_state_probe_2": 2.5
+     }
+    }
+   },
+   "repickle_sha256": "ff2c631ef353e4cd094d39a1c6cd5ecc0ebb53894d8f854f7cd4caf8955c6e82",
+   "repickle_hash_order_free": true
+  },
+  "old": {
+   "pickle": "timber_supply_state.TimberSupplyState.old.pkl",
+   "sha256": "11a1d3161b6bde21d44e2ea06f70350dd64fc696fdcbf5397cfba6417ca2db4a",
+   "hash_order_free": true,
+   "loaded": {
+    "type": "timber_supply_state.TimberSupplyState",
+    "dict_keys": [
+     "schema_version",
+     "enabled",
+     "mode",
+     "next_eid",
+     "expeditions",
+     "closed",
+     "store",
+     "prepaid",
+     "frame_turn",
+     "receipts",
+     "ledger",
+     "stores",
+     "deposits",
+     "pending_deposits",
+     "needs",
+     "needs_dropped",
+     "switched_off",
+     "last_settled_turn",
+     "counters"
+    ],
+    "fields_set": [],
+    "extra": null,
+    "private": {
+     "_turn": null
+    },
+    "dump": {
+     "schema_version": 1,
+     "enabled": true,
+     "mode": "supply",
+     "next_eid": 0,
+     "expeditions": [],
+     "closed": [],
+     "store": {},
+     "prepaid": {},
+     "frame_turn": null,
+     "receipts": null,
+     "ledger": null,
+     "stores": [],
+     "deposits": [],
+     "pending_deposits": {},
+     "needs": [],
+     "needs_dropped": 0,
+     "switched_off": [],
+     "last_settled_turn": null,
+     "counters": {}
+    }
+   },
+   "repickle_sha256": "7f3aa692d66528da07cd6316018624a34bbeda8309cf2052d3a0548358550b6e",
+   "repickle_hash_order_free": true
+  },
+  "partial": {
+   "pickle": "timber_supply_state.TimberSupplyState.partial.pkl",
+   "sha256": "82ffe246477632095108a04b1f745bc68d1995f8532e00ddbc6983b0fb809a20",
+   "hash_order_free": true,
+   "loaded": {
+    "type": "timber_supply_state.TimberSupplyState",
+    "dict_keys": [
+     "schema_version",
+     "enabled",
+     "mode",
+     "next_eid",
+     "expeditions",
+     "closed",
+     "store",
+     "prepaid",
+     "frame_turn",
+     "receipts",
+     "ledger",
+     "stores",
+     "deposits",
+     "pending_deposits",
+     "needs",
+     "needs_dropped",
+     "switched_off",
+     "last_settled_turn",
+     "counters"
+    ],
+    "fields_set": [],
+    "extra": null,
+    "private": {
+     "_turn": null
+    },
+    "dump": {
+     "schema_version": 1,
+     "enabled": true,
+     "mode": "supply",
+     "next_eid": 0,
+     "expeditions": [],
+     "closed": [],
+     "store": {},
+     "prepaid": {},
+     "frame_turn": null,
+     "receipts": null,
+     "ledger": null,
+     "stores": [],
+     "deposits": [],
+     "pending_deposits": {},
+     "needs": [],
+     "needs_dropped": 0,
+     "switched_off": [],
+     "last_settled_turn": null,
+     "counters": {}
+    }
+   },
+   "repickle_sha256": "7f3aa692d66528da07cd6316018624a34bbeda8309cf2052d3a0548358550b6e",
+   "repickle_hash_order_free": true
+  }
+ }
+}

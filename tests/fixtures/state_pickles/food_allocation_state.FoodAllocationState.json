@@ -1,0 +1,145 @@
+{
+ "class": "food_allocation_state.FoodAllocationState",
+ "schema_sha256": "01a3ca1a10b2679eb03bf1a825d3d34bc27f9e3b9bfb43ab7b15de787fba7cde",
+ "variants": {
+  "populated": {
+   "pickle": "food_allocation_state.FoodAllocationState.populated.pkl",
+   "sha256": "a28f36b22ce4b66415078058b458273669aadde3faec8ab3a0df974abc617a28",
+   "hash_order_free": true,
+   "loaded": {
+    "type": "food_allocation_state.FoodAllocationState",
+    "dict_keys": [
+     "schema_version",
+     "enabled",
+     "regime",
+     "frame_turn",
+     "regions",
+     "totals",
+     "sample",
+     "sample_dropped",
+     "counters"
+    ],
+    "fields_set": [],
+    "extra": null,
+    "private": {
+     "_phase2": null,
+     "_installed": null
+    },
+    "dump": {
+     "schema_version": 1,
+     "enabled": true,
+     "regime": "floor_means",
+     "frame_turn": null,
+     "regions": [],
+     "totals": {
+      "switch_state_probe_1": 1.0,
+      "switch_state_probe_2": 2.5
+     },
+     "sample": [],
+     "sample_dropped": 0,
+     "counters": {
+      "switch_state_probe_1": 1.0,
+      "switch_state_probe_2": 2.5
+     }
+    }
+   },
+   "repickle_sha256": "a28f36b22ce4b66415078058b458273669aadde3faec8ab3a0df974abc617a28",
+   "repickle_hash_order_free": true
+  },
+  "transient": {
+   "pickle": "food_allocation_state.FoodAllocationState.transient.pkl",
+   "sha256": "f57f7c2d26e40832681ee9eb9cf5210dbd6b1d63818dc846659cd44c46e2cd21",
+   "hash_order_free": true,
+   "loaded": {
+    "type": "food_allocation_state.FoodAllocationState",
+    "dict_keys": [
+     "schema_version",
+     "enabled",
+     "regime",
+     "frame_turn",
+     "regions",
+     "totals",
+     "sample",
+     "sample_dropped",
+     "counters"
+    ],
+    "fields_set": [],
+    "extra": null,
+    "private": {
+     "_phase2": "probe:_phase2",
+     "_installed": "probe:_installed"
+    },
+    "dump": {
+     "schema_version": 1,
+     "enabled": true,
+     "regime": "floor_means",
+     "frame_turn": null,
+     "regions": [],
+     "totals": {
+      "switch_state_probe_1": 1.0,
+      "switch_state_probe_2": 2.5
+     },
+     "sample": [],
+     "sample_dropped": 0,
+     "counters": {
+      "switch_state_probe_1": 1.0,
+      "switch_state_probe_2": 2.5
+     }
+    }
+   },
+   "repickle_sha256": "f57f7c2d26e40832681ee9eb9cf5210dbd6b1d63818dc846659cd44c46e2cd21",
+   "repickle_hash_order_free": true
+  },
+  "old": {
+   "pickle": "food_allocation_state.FoodAllocationState.old.pkl",
+   "sha256": "3a2a60653953635517f685729e6d845baf669c51af798e002b950cbd24167475",
+   "hash_order_free": true,
+   "loaded": {
+    "type": "food_allocation_state.FoodAllocationState",
+    "dict_keys": [],
+    "fields_set": [],
+    "extra": null,
+    "private": null,
+    "dump": {}
+   },
+   "repickle_sha256": "3a2a60653953635517f685729e6d845baf669c51af798e002b950cbd24167475",
+   "repickle_hash_order_free": true
+  },
+  "partial": {
+   "pickle": "food_allocation_state.FoodAllocationState.partial.pkl",
+   "sha256": "2f641e0c24f8423afaa6752da69df647bc1c92d88797fd16786f241aeefa2ab6",
+   "hash_order_free": true,
+   "loaded": {
+    "type": "food_allocation_state.FoodAllocationState",
+    "dict_keys": [
+     "schema_version",
+     "enabled",
+     "regime",
+     "frame_turn",
+     "regions",
+     "totals",
+     "sample",
+     "sample_dropped"
+    ],
+    "fields_set": [],
+    "extra": null,
+    "private": {},
+    "dump": {
+     "schema_version": 1,
+     "enabled": true,
+     "regime": "floor_means",
+     "frame_turn": null,
+     "regions": [],
+     "totals": {
+      "switch_state_probe_1": 1.0,
+      "switch_state_probe_2": 2.5
+     },
+     "sample": [],
+     "sample_dropped": 0
+    }
+   },
+   "repickle_sha256": "2f641e0c24f8423afaa6752da69df647bc1c92d88797fd16786f241aeefa2ab6",
+   "repickle_hash_order_free": true
+  }
+ }
+}

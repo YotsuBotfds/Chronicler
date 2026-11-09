@@ -1,0 +1,87 @@
+{
+ "class": "gp_agendas_state.GPAgendaState",
+ "schema_sha256": "fee8786cabaefdc5198e0143307ebca0675984f0581009a3c7ade6d8128a7f00",
+ "variants": {
+  "populated": {
+   "pickle": "gp_agendas_state.GPAgendaState.populated.pkl",
+   "sha256": "47e35d1a8e5cd849fb63c1e76ff7ef3a0e4b6d5e29aaf28a75d8f78440f1ff54",
+   "hash_order_free": true,
+   "loaded": {
+    "type": "gp_agendas_state.GPAgendaState",
+    "dict_keys": [
+     "version",
+     "records",
+     "bonds",
+     "evidence_cursor",
+     "counts",
+     "log",
+     "houses"
+    ],
+    "fields_set": [],
+    "extra": null,
+    "private": null,
+    "dump": {
+     "version": 1,
+     "records": {},
+     "bonds": [],
+     "evidence_cursor": 0,
+     "counts": {
+      "switch_state_probe_1": 1,
+      "switch_state_probe_2": 2
+     },
+     "log": [],
+     "houses": {}
+    }
+   },
+   "repickle_sha256": "47e35d1a8e5cd849fb63c1e76ff7ef3a0e4b6d5e29aaf28a75d8f78440f1ff54",
+   "repickle_hash_order_free": true
+  },
+  "old": {
+   "pickle": "gp_agendas_state.GPAgendaState.old.pkl",
+   "sha256": "ab82eb09d0dc3cdb8e990c126938e6d2235ab0cc9adeb8ef0ad3b68803a63aac",
+   "hash_order_free": true,
+   "loaded": {
+    "type": "gp_agendas_state.GPAgendaState",
+    "dict_keys": [],
+    "fields_set": [],
+    "extra": null,
+    "private": null,
+    "dump": {}
+   },
+   "repickle_sha256": "ab82eb09d0dc3cdb8e990c126938e6d2235ab0cc9adeb8ef0ad3b68803a63aac",
+   "repickle_hash_order_free": true
+  },
+  "partial": {
+   "pickle": "gp_agendas_state.GPAgendaState.partial.pkl",
+   "sha256": "9be19a52734cec525829d8041256a9bcb8bebc80a90e04c8a32b7396da3375b3",
+   "hash_order_free": true,
+   "loaded": {
+    "type": "gp_agendas_state.GPAgendaState",
+    "dict_keys": [
+     "version",
+     "records",
+     "bonds",
+     "evidence_cursor",
+     "counts",
+     "log"
+    ],
+    "fields_set": [],
+    "extra": null,
+    "private": null,
+    "dump": {
+     "version": 1,
+     "records": {},
+     "bonds": [],
+     "evidence_cursor": 0,
+     "counts": {
+      "switch_state_probe_1": 1,
+      "switch_state_probe_2": 2
+     },
+     "log": []
+    }
+   },
+   "repickle_sha256": "9be19a52734cec525829d8041256a9bcb8bebc80a90e04c8a32b7396da3375b3",
+   "repickle_hash_order_free": true
+  }
+ }
+}

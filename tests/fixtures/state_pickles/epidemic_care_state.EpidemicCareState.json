@@ -1,0 +1,186 @@
+{
+ "class": "epidemic_care_state.EpidemicCareState",
+ "schema_sha256": "42bcbb09158b4478e10c827b0ebd63a4c4f38e0595edf963711b68503862ea00",
+ "variants": {
+  "populated": {
+   "pickle": "epidemic_care_state.EpidemicCareState.populated.pkl",
+   "sha256": "80a3cc2260c5c8392541b5f2a07d6863b5d0edcfd5ac108fe854a63f7040becc",
+   "hash_order_free": true,
+   "loaded": {
+    "type": "epidemic_care_state.EpidemicCareState",
+    "dict_keys": [
+     "schema_version",
+     "enabled",
+     "mode",
+     "capacity",
+     "tick_turn",
+     "applied",
+     "refused",
+     "regions",
+     "frame_turn",
+     "frame",
+     "ledger",
+     "rows_dropped",
+     "book",
+     "counters"
+    ],
+    "fields_set": [],
+    "extra": null,
+    "private": {
+     "_turn": null
+    },
+    "dump": {
+     "schema_version": 1,
+     "enabled": true,
+     "mode": "care",
+     "capacity": [],
+     "tick_turn": null,
+     "applied": [],
+     "refused": [],
+     "regions": [],
+     "frame_turn": null,
+     "rows_dropped": 0,
+     "book": {
+      "settled": [],
+      "carry": {},
+      "sinks": {},
+      "flows_turn": null,
+      "flows": [],
+      "flows_dropped": 0,
+      "totals": []
+     },
+     "counters": {
+      "switch_state_probe_1": 1.0,
+      "switch_state_probe_2": 2.5
+     }
+    }
+   },
+   "repickle_sha256": "80a3cc2260c5c8392541b5f2a07d6863b5d0edcfd5ac108fe854a63f7040becc",
+   "repickle_hash_order_free": true
+  },
+  "transient": {
+   "pickle": "epidemic_care_state.EpidemicCareState.transient.pkl",
+   "sha256": "80a3cc2260c5c8392541b5f2a07d6863b5d0edcfd5ac108fe854a63f7040becc",
+   "hash_order_free": true,
+   "loaded": {
+    "type": "epidemic_care_state.EpidemicCareState",
+    "dict_keys": [
+     "schema_version",
+     "enabled",
+     "mode",
+     "capacity",
+     "tick_turn",
+     "applied",
+     "refused",
+     "regions",
+     "frame_turn",
+     "frame",
+     "ledger",
+     "rows_dropped",
+     "book",
+     "counters"
+    ],
+    "fields_set": [],
+    "extra": null,
+    "private": {
+     "_turn": null
+    },
+    "dump": {
+     "schema_version": 1,
+     "enabled": true,
+     "mode": "care",
+     "capacity": [],
+     "tick_turn": null,
+     "applied": [],
+     "refused": [],
+     "regions": [],
+     "frame_turn": null,
+     "rows_dropped": 0,
+     "book": {
+      "settled": [],
+      "carry": {},
+      "sinks": {},
+      "flows_turn": null,
+      "flows": [],
+      "flows_dropped": 0,
+      "totals": []
+     },
+     "counters": {
+      "switch_state_probe_1": 1.0,
+      "switch_state_probe_2": 2.5
+     }
+    }
+   },
+   "repickle_sha256": "80a3cc2260c5c8392541b5f2a07d6863b5d0edcfd5ac108fe854a63f7040becc",
+   "repickle_hash_order_free": true
+  },
+  "old": {
+   "pickle": "epidemic_care_state.EpidemicCareState.old.pkl",
+   "sha256": "2b9473ad59d0368d693a9af97bbbf84d53ba5a9d0aa35ff2b2e5344b605afe87",
+   "hash_order_free": true,
+   "loaded": {
+    "type": "epidemic_care_state.EpidemicCareState",
+    "dict_keys": [],
+    "fields_set": [],
+    "extra": null,
+    "private": {
+     "_turn": null
+    },
+    "dump": {}
+   },
+   "repickle_sha256": "7f5dca500158efaa5b706c7e73959778df05b30eba7d58ec9dbcc1c820337e4b",
+   "repickle_hash_order_free": true
+  },
+  "partial": {
+   "pickle": "epidemic_care_state.EpidemicCareState.partial.pkl",
+   "sha256": "261d1043bffbadb42a0dd71759bfef56fa62b19c249a7c46050bd98e90556226",
+   "hash_order_free": true,
+   "loaded": {
+    "type": "epidemic_care_state.EpidemicCareState",
+    "dict_keys": [
+     "schema_version",
+     "enabled",
+     "mode",
+     "capacity",
+     "tick_turn",
+     "applied",
+     "refused",
+     "regions",
+     "frame_turn",
+     "frame",
+     "ledger",
+     "rows_dropped",
+     "book"
+    ],
+    "fields_set": [],
+    "extra": null,
+    "private": {
+     "_turn": null
+    },
+    "dump": {
+     "schema_version": 1,
+     "enabled": true,
+     "mode": "care",
+     "capacity": [],
+     "tick_turn": null,
+     "applied": [],
+     "refused": [],
+     "regions": [],
+     "frame_turn": null,
+     "rows_dropped": 0,
+     "book": {
+      "settled": [],
+      "carry": {},
+      "sinks": {},
+      "flows_turn": null,
+      "flows": [],
+      "flows_dropped": 0,
+      "totals": []
+     }
+    }
+   },
+   "repickle_sha256": "7b2407e259cec31d1478981dbacca71453d8d01a3855ee5a7da58b7739605710",
+   "repickle_hash_order_free": true
+  }
+ }
+}

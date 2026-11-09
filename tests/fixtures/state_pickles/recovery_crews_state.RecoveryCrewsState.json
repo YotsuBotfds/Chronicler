@@ -1,0 +1,160 @@
+{
+ "class": "recovery_crews_state.RecoveryCrewsState",
+ "schema_sha256": "c6b70bd1ea6a0191a3f4f092650d117b49992f51856bb2c26995c778e28cda01",
+ "variants": {
+  "populated": {
+   "pickle": "recovery_crews_state.RecoveryCrewsState.populated.pkl",
+   "sha256": "d5278bbe1019efe07555e145c2a27e4f15100a48b45de48075b7969ba05f4daa",
+   "hash_order_free": true,
+   "loaded": {
+    "type": "recovery_crews_state.RecoveryCrewsState",
+    "dict_keys": [
+     "schema_version",
+     "enabled",
+     "mode",
+     "frame_turn",
+     "receipts",
+     "ledger",
+     "rows_dropped",
+     "last_settled_turn",
+     "counters"
+    ],
+    "fields_set": [],
+    "extra": null,
+    "private": {
+     "_turn": null
+    },
+    "dump": {
+     "schema_version": 1,
+     "enabled": true,
+     "mode": "paid",
+     "frame_turn": null,
+     "receipts": null,
+     "ledger": null,
+     "rows_dropped": 0,
+     "last_settled_turn": null,
+     "counters": {
+      "switch_state_probe_1": 1.0,
+      "switch_state_probe_2": 2.5
+     }
+    }
+   },
+   "repickle_sha256": "d5278bbe1019efe07555e145c2a27e4f15100a48b45de48075b7969ba05f4daa",
+   "repickle_hash_order_free": true
+  },
+  "transient": {
+   "pickle": "recovery_crews_state.RecoveryCrewsState.transient.pkl",
+   "sha256": "d5278bbe1019efe07555e145c2a27e4f15100a48b45de48075b7969ba05f4daa",
+   "hash_order_free": true,
+   "loaded": {
+    "type": "recovery_crews_state.RecoveryCrewsState",
+    "dict_keys": [
+     "schema_version",
+     "enabled",
+     "mode",
+     "frame_turn",
+     "receipts",
+     "ledger",
+     "rows_dropped",
+     "last_settled_turn",
+     "counters"
+    ],
+    "fields_set": [],
+    "extra": null,
+    "private": {
+     "_turn": null
+    },
+    "dump": {
+     "schema_version": 1,
+     "enabled": true,
+     "mode": "paid",
+     "frame_turn": null,
+     "receipts": null,
+     "ledger": null,
+     "rows_dropped": 0,
+     "last_settled_turn": null,
+     "counters": {
+      "switch_state_probe_1": 1.0,
+      "switch_state_probe_2": 2.5
+     }
+    }
+   },
+   "repickle_sha256": "d5278bbe1019efe07555e145c2a27e4f15100a48b45de48075b7969ba05f4daa",
+   "repickle_hash_order_free": true
+  },
+  "old": {
+   "pickle": "recovery_crews_state.RecoveryCrewsState.old.pkl",
+   "sha256": "3079fc4c178ad9402665110759ffe3da305882b371a3b19d205c30f9bc29f528",
+   "hash_order_free": true,
+   "loaded": {
+    "type": "recovery_crews_state.RecoveryCrewsState",
+    "dict_keys": [
+     "schema_version",
+     "enabled",
+     "mode",
+     "frame_turn",
+     "receipts",
+     "ledger",
+     "rows_dropped",
+     "last_settled_turn",
+     "counters"
+    ],
+    "fields_set": [],
+    "extra": null,
+    "private": {
+     "_turn": null
+    },
+    "dump": {
+     "schema_version": 1,
+     "enabled": true,
+     "mode": "paid",
+     "frame_turn": null,
+     "receipts": null,
+     "ledger": null,
+     "rows_dropped": 0,
+     "last_settled_turn": null,
+     "counters": {}
+    }
+   },
+   "repickle_sha256": "111c4293adca749a751a0f5c769f4b351e4462ca81d804ae8a39e6e146922090",
+   "repickle_hash_order_free": true
+  },
+  "partial": {
+   "pickle": "recovery_crews_state.RecoveryCrewsState.partial.pkl",
+   "sha256": "b89b215eeb33ea5d553c6806db4ab9ce12a89a5b952dbbbcd113a562ef6d31aa",
+   "hash_order_free": true,
+   "loaded": {
+    "type": "recovery_crews_state.RecoveryCrewsState",
+    "dict_keys": [
+     "schema_version",
+     "enabled",
+     "mode",
+     "frame_turn",
+     "receipts",
+     "ledger",
+     "rows_dropped",
+     "last_settled_turn",
+     "counters"
+    ],
+    "fields_set": [],
+    "extra": null,
+    "private": {
+     "_turn": null
+    },
+    "dump": {
+     "schema_version": 1,
+     "enabled": true,
+     "mode": "paid",
+     "frame_turn": null,
+     "receipts": null,
+     "ledger": null,
+     "rows_dropped": 0,
+     "last_settled_turn": null,
+     "counters": {}
+    }
+   },
+   "repickle_sha256": "111c4293adca749a751a0f5c769f4b351e4462ca81d804ae8a39e6e146922090",
+   "repickle_hash_order_free": true
+  }
+ }
+}

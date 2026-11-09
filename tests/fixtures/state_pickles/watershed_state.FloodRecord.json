@@ -1,0 +1,161 @@
+{
+ "class": "watershed_state.FloodRecord",
+ "schema_sha256": "3146d88a376dd83e9f8de69efb7d14bcfb8f1f3bce4a8bdc60afe387d0d00fbd",
+ "variants": {
+  "populated": {
+   "pickle": "watershed_state.FloodRecord.populated.pkl",
+   "sha256": "9240dcb0563aba2e7c8606ef9ec79a8248cd140a0e7864bb029cba05a2e0467b",
+   "hash_order_free": false,
+   "loaded": {
+    "type": "watershed_state.FloodRecord",
+    "dict_keys": [
+     "turn",
+     "region",
+     "excess",
+     "arrivals",
+     "channel",
+     "precipitation",
+     "inflow",
+     "external_in",
+     "storage_open",
+     "capacity",
+     "tributaries",
+     "upstream_cover",
+     "upstream_deforested",
+     "consequence",
+     "withheld_by"
+    ],
+    "fields_set": [
+     "arrivals",
+     "capacity",
+     "channel",
+     "excess",
+     "inflow",
+     "precipitation",
+     "region",
+     "storage_open",
+     "turn"
+    ],
+    "extra": null,
+    "private": null,
+    "dump": {
+     "turn": 1,
+     "region": 1,
+     "excess": 0.5,
+     "arrivals": 0.5,
+     "channel": 0.5,
+     "precipitation": 0.5,
+     "inflow": 0.5,
+     "storage_open": 0.5,
+     "capacity": 0.5,
+     "tributaries": [],
+     "upstream_cover": null,
+     "upstream_deforested": 0
+    }
+   },
+   "repickle_sha256": "1f45ec2361b6df8eabd596fc5ef19c1132125d0b87754e575e4e7631565cc781",
+   "repickle_hash_order_free": false
+  },
+  "old": {
+   "pickle": "watershed_state.FloodRecord.old.pkl",
+   "sha256": "a75f21bfb30b1d25c7a987ce12b40681f9cd70f6820cbee7b508471bae430234",
+   "hash_order_free": false,
+   "loaded": {
+    "type": "watershed_state.FloodRecord",
+    "dict_keys": [
+     "turn",
+     "region",
+     "excess",
+     "arrivals",
+     "channel",
+     "precipitation",
+     "inflow",
+     "storage_open",
+     "capacity",
+     "consequence",
+     "withheld_by"
+    ],
+    "fields_set": [
+     "arrivals",
+     "capacity",
+     "channel",
+     "excess",
+     "inflow",
+     "precipitation",
+     "region",
+     "storage_open",
+     "turn"
+    ],
+    "extra": null,
+    "private": null,
+    "dump": {
+     "turn": 1,
+     "region": 1,
+     "excess": 0.5,
+     "arrivals": 0.5,
+     "channel": 0.5,
+     "precipitation": 0.5,
+     "inflow": 0.5,
+     "storage_open": 0.5,
+     "capacity": 0.5
+    }
+   },
+   "repickle_sha256": "f4c0b3eabcfbeeecb736d635b6121c45efb607ff1cb2e41b1815242bc2084178",
+   "repickle_hash_order_free": false
+  },
+  "partial": {
+   "pickle": "watershed_state.FloodRecord.partial.pkl",
+   "sha256": "036371dfe00329f9691aeaf3278ebdc80edc049edc2067884ae541ff9aaabccd",
+   "hash_order_free": false,
+   "loaded": {
+    "type": "watershed_state.FloodRecord",
+    "dict_keys": [
+     "turn",
+     "region",
+     "excess",
+     "arrivals",
+     "channel",
+     "precipitation",
+     "inflow",
+     "external_in",
+     "storage_open",
+     "capacity",
+     "tributaries",
+     "upstream_cover",
+     "upstream_deforested",
+     "consequence",
+     "withheld_by"
+    ],
+    "fields_set": [
+     "arrivals",
+     "capacity",
+     "channel",
+     "excess",
+     "inflow",
+     "precipitation",
+     "region",
+     "storage_open",
+     "turn"
+    ],
+    "extra": null,
+    "private": null,
+    "dump": {
+     "turn": 1,
+     "region": 1,
+     "excess": 0.5,
+     "arrivals": 0.5,
+     "channel": 0.5,
+     "precipitation": 0.5,
+     "inflow": 0.5,
+     "storage_open": 0.5,
+     "capacity": 0.5,
+     "tributaries": [],
+     "upstream_cover": null,
+     "upstream_deforested": 0
+    }
+   },
+   "repickle_sha256": "1f45ec2361b6df8eabd596fc5ef19c1132125d0b87754e575e4e7631565cc781",
+   "repickle_hash_order_free": false
+  }
+ }
+}

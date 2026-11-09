@@ -1,0 +1,125 @@
+{
+ "class": "health_care_state.HealthCareState",
+ "schema_sha256": "99051e25e34ec9148fba46fbab6385656e8f432bb2fba3865c2856a07d42c9a3",
+ "variants": {
+  "populated": {
+   "pickle": "health_care_state.HealthCareState.populated.pkl",
+   "sha256": "8617538ddda2bd34247b2e6d048974dcc42b8c022c5d9fec32d6e79259a7dfaa",
+   "hash_order_free": true,
+   "loaded": {
+    "type": "health_care_state.HealthCareState",
+    "dict_keys": [
+     "episodes",
+     "injury_rate",
+     "impairment",
+     "care_fraction",
+     "recovery_work",
+     "care_enabled",
+     "care_policy",
+     "last_tick_turn",
+     "summary"
+    ],
+    "fields_set": [],
+    "extra": null,
+    "private": {
+     "_prepared": null
+    },
+    "dump": {
+     "episodes": [],
+     "injury_rate": 0.01,
+     "impairment": 0.5,
+     "care_fraction": 0.2,
+     "recovery_work": 2.0,
+     "care_enabled": true,
+     "last_tick_turn": -1,
+     "summary": {}
+    }
+   },
+   "repickle_sha256": "8617538ddda2bd34247b2e6d048974dcc42b8c022c5d9fec32d6e79259a7dfaa",
+   "repickle_hash_order_free": true
+  },
+  "transient": {
+   "pickle": "health_care_state.HealthCareState.transient.pkl",
+   "sha256": "2b0daecf7166a00b7eb366011aae440d8f8de9a9048741bba57fe7bafbe6017b",
+   "hash_order_free": true,
+   "loaded": {
+    "type": "health_care_state.HealthCareState",
+    "dict_keys": [
+     "episodes",
+     "injury_rate",
+     "impairment",
+     "care_fraction",
+     "recovery_work",
+     "care_enabled",
+     "care_policy",
+     "last_tick_turn",
+     "summary"
+    ],
+    "fields_set": [],
+    "extra": null,
+    "private": {
+     "_prepared": "probe:_prepared"
+    },
+    "dump": {
+     "episodes": [],
+     "injury_rate": 0.01,
+     "impairment": 0.5,
+     "care_fraction": 0.2,
+     "recovery_work": 2.0,
+     "care_enabled": true,
+     "last_tick_turn": -1,
+     "summary": {}
+    }
+   },
+   "repickle_sha256": "2b0daecf7166a00b7eb366011aae440d8f8de9a9048741bba57fe7bafbe6017b",
+   "repickle_hash_order_free": true
+  },
+  "old": {
+   "pickle": "health_care_state.HealthCareState.old.pkl",
+   "sha256": "921ccad341823fe57c10343523e0b0af772eb185f02ad7bec5179424c39e199f",
+   "hash_order_free": true,
+   "loaded": {
+    "type": "health_care_state.HealthCareState",
+    "dict_keys": [],
+    "fields_set": [],
+    "extra": null,
+    "private": null,
+    "dump": {}
+   },
+   "repickle_sha256": "921ccad341823fe57c10343523e0b0af772eb185f02ad7bec5179424c39e199f",
+   "repickle_hash_order_free": true
+  },
+  "partial": {
+   "pickle": "health_care_state.HealthCareState.partial.pkl",
+   "sha256": "703590912821b81b1e2dcc51cdb742e493023097f2559cf5b672fd76b173cec6",
+   "hash_order_free": true,
+   "loaded": {
+    "type": "health_care_state.HealthCareState",
+    "dict_keys": [
+     "episodes",
+     "injury_rate",
+     "impairment",
+     "care_fraction",
+     "recovery_work",
+     "care_enabled",
+     "care_policy",
+     "last_tick_turn"
+    ],
+    "fields_set": [],
+    "extra": null,
+    "private": {},
+    "dump": {
+     "episodes": [],
+     "injury_rate": 0.01,
+     "impairment": 0.5,
+     "care_fraction": 0.2,
+     "recovery_work": 2.0,
+     "care_enabled": true,
+     "last_tick_turn": -1
+    }
+   },
+   "repickle_sha256": "703590912821b81b1e2dcc51cdb742e493023097f2559cf5b672fd76b173cec6",
+   "repickle_hash_order_free": true
+  }
+ }
+}

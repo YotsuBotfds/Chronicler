@@ -1,0 +1,279 @@
+{
+ "class": "war_requisition_state.WarRequisitionState",
+ "schema_sha256": "48f50bb88bad2df62efb0b5a6e90b56a3247cfad0af80cb97ef4014848617960",
+ "variants": {
+  "populated": {
+   "pickle": "war_requisition_state.WarRequisitionState.populated.pkl",
+   "sha256": "f7186f258311ea88976d7758589af69d134f6d99bb8c05bca7d151db707c3631",
+   "hash_order_free": true,
+   "loaded": {
+    "type": "war_requisition_state.WarRequisitionState",
+    "dict_keys": [
+     "schema_version",
+     "enabled",
+     "mode",
+     "next_claim",
+     "claims",
+     "book",
+     "counters",
+     "frame_turn",
+     "frame",
+     "events_turn",
+     "events",
+     "events_dropped",
+     "last_settled_turn",
+     "supply_turn",
+     "supplied",
+     "feeding_turn",
+     "feeding",
+     "fed_ids",
+     "census_turn",
+     "census_ids"
+    ],
+    "fields_set": [],
+    "extra": null,
+    "private": {
+     "_sim": null
+    },
+    "dump": {
+     "schema_version": 1,
+     "enabled": true,
+     "mode": "transfer",
+     "next_claim": 0,
+     "claims": [],
+     "book": {
+      "settled": [],
+      "carry": {},
+      "sinks": {},
+      "flows_turn": null,
+      "flows": [],
+      "flows_dropped": 0,
+      "totals": []
+     },
+     "counters": {
+      "switch_state_probe_1": 1,
+      "switch_state_probe_2": 2
+     },
+     "frame_turn": null,
+     "frame": null,
+     "events_turn": null,
+     "events": [],
+     "events_dropped": 0,
+     "last_settled_turn": null,
+     "supply_turn": null,
+     "supplied": [],
+     "feeding_turn": null,
+     "feeding": {},
+     "fed_ids": {},
+     "census_turn": null,
+     "census_ids": []
+    }
+   },
+   "repickle_sha256": "f7186f258311ea88976d7758589af69d134f6d99bb8c05bca7d151db707c3631",
+   "repickle_hash_order_free": true
+  },
+  "transient": {
+   "pickle": "war_requisition_state.WarRequisitionState.transient.pkl",
+   "sha256": "a05ad982b17aa552597a2cc1df547a74fddfcfebf6d8342ca775477b113b863a",
+   "hash_order_free": true,
+   "loaded": {
+    "type": "war_requisition_state.WarRequisitionState",
+    "dict_keys": [
+     "schema_version",
+     "enabled",
+     "mode",
+     "next_claim",
+     "claims",
+     "book",
+     "counters",
+     "frame_turn",
+     "frame",
+     "events_turn",
+     "events",
+     "events_dropped",
+     "last_settled_turn",
+     "supply_turn",
+     "supplied",
+     "feeding_turn",
+     "feeding",
+     "fed_ids",
+     "census_turn",
+     "census_ids"
+    ],
+    "fields_set": [],
+    "extra": null,
+    "private": {
+     "_sim": "probe:_sim"
+    },
+    "dump": {
+     "schema_version": 1,
+     "enabled": true,
+     "mode": "transfer",
+     "next_claim": 0,
+     "claims": [],
+     "book": {
+      "settled": [],
+      "carry": {},
+      "sinks": {},
+      "flows_turn": null,
+      "flows": [],
+      "flows_dropped": 0,
+      "totals": []
+     },
+     "counters": {
+      "switch_state_probe_1": 1,
+      "switch_state_probe_2": 2
+     },
+     "frame_turn": null,
+     "frame": null,
+     "events_turn": null,
+     "events": [],
+     "events_dropped": 0,
+     "last_settled_turn": null,
+     "supply_turn": null,
+     "supplied": [],
+     "feeding_turn": null,
+     "feeding": {},
+     "fed_ids": {},
+     "census_turn": null,
+     "census_ids": []
+    }
+   },
+   "repickle_sha256": "a05ad982b17aa552597a2cc1df547a74fddfcfebf6d8342ca775477b113b863a",
+   "repickle_hash_order_free": true
+  },
+  "old": {
+   "pickle": "war_requisition_state.WarRequisitionState.old.pkl",
+   "sha256": "e8edfc6c1087c011215b23dc65044e379ef2acf37b724239cd6ed962002211b0",
+   "hash_order_free": true,
+   "loaded": {
+    "type": "war_requisition_state.WarRequisitionState",
+    "dict_keys": [
+     "schema_version",
+     "enabled",
+     "mode",
+     "next_claim",
+     "claims",
+     "book",
+     "counters",
+     "frame_turn",
+     "frame",
+     "events_turn",
+     "events",
+     "events_dropped",
+     "last_settled_turn",
+     "supply_turn",
+     "supplied",
+     "feeding_turn",
+     "feeding",
+     "fed_ids",
+     "census_turn",
+     "census_ids"
+    ],
+    "fields_set": [],
+    "extra": null,
+    "private": null,
+    "dump": {
+     "schema_version": 1,
+     "enabled": true,
+     "mode": "transfer",
+     "next_claim": 0,
+     "claims": [],
+     "book": {
+      "settled": [],
+      "carry": {},
+      "sinks": {},
+      "flows_turn": null,
+      "flows": [],
+      "flows_dropped": 0,
+      "totals": []
+     },
+     "counters": {},
+     "frame_turn": null,
+     "frame": null,
+     "events_turn": null,
+     "events": [],
+     "events_dropped": 0,
+     "last_settled_turn": null,
+     "supply_turn": null,
+     "supplied": [],
+     "feeding_turn": null,
+     "feeding": {},
+     "fed_ids": {},
+     "census_turn": null,
+     "census_ids": []
+    }
+   },
+   "repickle_sha256": "bb9dad2a2514bb0b6e31cc0897a55fea154b8fe4a5c1f19430327e328976077a",
+   "repickle_hash_order_free": true
+  },
+  "partial": {
+   "pickle": "war_requisition_state.WarRequisitionState.partial.pkl",
+   "sha256": "394d437b4cd7af77068e11a658c12cbd4b988114ffeffd40115c3b9988ed7cf4",
+   "hash_order_free": true,
+   "loaded": {
+    "type": "war_requisition_state.WarRequisitionState",
+    "dict_keys": [
+     "schema_version",
+     "enabled",
+     "mode",
+     "next_claim",
+     "claims",
+     "book",
+     "counters",
+     "frame_turn",
+     "frame",
+     "events_turn",
+     "events",
+     "events_dropped",
+     "last_settled_turn",
+     "supply_turn",
+     "supplied",
+     "feeding_turn",
+     "feeding",
+     "fed_ids",
+     "census_turn",
+     "census_ids"
+    ],
+    "fields_set": [],
+    "extra": null,
+    "private": {},
+    "dump": {
+     "schema_version": 1,
+     "enabled": true,
+     "mode": "transfer",
+     "next_claim": 0,
+     "claims": [],
+     "book": {
+      "settled": [],
+      "carry": {},
+      "sinks": {},
+      "flows_turn": null,
+      "flows": [],
+      "flows_dropped": 0,
+      "totals": []
+     },
+     "counters": {
+      "switch_state_probe_1": 1,
+      "switch_state_probe_2": 2
+     },
+     "frame_turn": null,
+     "frame": null,
+     "events_turn": null,
+     "events": [],
+     "events_dropped": 0,
+     "last_settled_turn": null,
+     "supply_turn": null,
+     "supplied": [],
+     "feeding_turn": null,
+     "feeding": {},
+     "fed_ids": {},
+     "census_turn": null,
+     "census_ids": []
+    }
+   },
+   "repickle_sha256": "567c3ace28bfc580b462c481d77b2fb480fe45b8fbe662e0bd511057f42b1b36",
+   "repickle_hash_order_free": true
+  }
+ }
+}

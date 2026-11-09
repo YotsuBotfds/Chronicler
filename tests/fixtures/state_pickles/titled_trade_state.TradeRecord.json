@@ -1,0 +1,90 @@
+{
+ "class": "titled_trade_state.TradeRecord",
+ "schema_sha256": "93ec0bb5750226448fc6e6a1aec7b99baaa04ae0dc7432a0f11b84ca54a94eae",
+ "variants": {
+  "populated": {
+   "pickle": "titled_trade_state.TradeRecord.populated.pkl",
+   "sha256": "e9fe052c593c7f00305da0ae722396173b7e8726e8990211db25ed3ca60e011d",
+   "hash_order_free": false,
+   "loaded": {
+    "type": "titled_trade_state.TradeRecord",
+    "dict_keys": [
+     "turn",
+     "kind",
+     "shipment",
+     "detail"
+    ],
+    "fields_set": [
+     "kind",
+     "turn"
+    ],
+    "extra": null,
+    "private": null,
+    "dump": {
+     "turn": 1,
+     "kind": "probe",
+     "shipment": null,
+     "detail": {}
+    }
+   },
+   "repickle_sha256": "e9fe052c593c7f00305da0ae722396173b7e8726e8990211db25ed3ca60e011d",
+   "repickle_hash_order_free": false
+  },
+  "old": {
+   "pickle": "titled_trade_state.TradeRecord.old.pkl",
+   "sha256": "2719088431d246c082fef1688210922e032625c5c4d2117d994cea9dd464add5",
+   "hash_order_free": false,
+   "loaded": {
+    "type": "titled_trade_state.TradeRecord",
+    "dict_keys": [
+     "turn",
+     "kind",
+     "shipment",
+     "detail"
+    ],
+    "fields_set": [
+     "kind",
+     "turn"
+    ],
+    "extra": null,
+    "private": null,
+    "dump": {
+     "turn": 1,
+     "kind": "probe",
+     "shipment": null,
+     "detail": {}
+    }
+   },
+   "repickle_sha256": "e9fe052c593c7f00305da0ae722396173b7e8726e8990211db25ed3ca60e011d",
+   "repickle_hash_order_free": false
+  },
+  "partial": {
+   "pickle": "titled_trade_state.TradeRecord.partial.pkl",
+   "sha256": "0f66125b3dc50a2d00dd99c14a94d1c0be7656d4880269a3430bc446f6b4ed03",
+   "hash_order_free": false,
+   "loaded": {
+    "type": "titled_trade_state.TradeRecord",
+    "dict_keys": [
+     "turn",
+     "kind",
+     "shipment",
+     "detail"
+    ],
+    "fields_set": [
+     "kind",
+     "turn"
+    ],
+    "extra": null,
+    "private": null,
+    "dump": {
+     "turn": 1,
+     "kind": "probe",
+     "shipment": null,
+     "detail": {}
+    }
+   },
+   "repickle_sha256": "e9fe052c593c7f00305da0ae722396173b7e8726e8990211db25ed3ca60e011d",
+   "repickle_hash_order_free": false
+  }
+ }
+}

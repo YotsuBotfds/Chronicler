@@ -1,0 +1,138 @@
+{
+ "class": "household_retail_state.RetailRegion",
+ "schema_sha256": "6663c6e8601416f009bf03584579b6ff4dd239236a391dabf0491b0a67fe5e34",
+ "variants": {
+  "populated": {
+   "pickle": "household_retail_state.RetailRegion.populated.pkl",
+   "sha256": "20c884ff83890833dae7db8650921fa0f0584a12489e2096840df5747466a081",
+   "hash_order_free": false,
+   "loaded": {
+    "type": "household_retail_state.RetailRegion",
+    "dict_keys": [
+     "region",
+     "opened_turn",
+     "reason",
+     "goods",
+     "claims",
+     "totals",
+     "war_loss_turn",
+     "war_events"
+    ],
+    "fields_set": [
+     "opened_turn",
+     "reason",
+     "region"
+    ],
+    "extra": null,
+    "private": null,
+    "dump": {
+     "region": 1,
+     "opened_turn": 1,
+     "reason": "probe",
+     "goods": [
+      0,
+      0,
+      0,
+      0,
+      0
+     ],
+     "claims": {},
+     "totals": {
+      "switch_state_probe_1": 1,
+      "switch_state_probe_2": 2
+     },
+     "war_loss_turn": -1
+    }
+   },
+   "repickle_sha256": "20c884ff83890833dae7db8650921fa0f0584a12489e2096840df5747466a081",
+   "repickle_hash_order_free": false
+  },
+  "old": {
+   "pickle": "household_retail_state.RetailRegion.old.pkl",
+   "sha256": "9a3d1e1f6f2a7c81026364b6d721378957f0f5c164f4f6388dbf9faa1b035b9b",
+   "hash_order_free": false,
+   "loaded": {
+    "type": "household_retail_state.RetailRegion",
+    "dict_keys": [
+     "region",
+     "opened_turn",
+     "reason",
+     "goods",
+     "claims",
+     "totals",
+     "war_loss_turn",
+     "war_events"
+    ],
+    "fields_set": [
+     "opened_turn",
+     "reason",
+     "region"
+    ],
+    "extra": null,
+    "private": null,
+    "dump": {
+     "region": 1,
+     "opened_turn": 1,
+     "reason": "probe",
+     "goods": [
+      0,
+      0,
+      0,
+      0,
+      0
+     ],
+     "claims": {},
+     "totals": {},
+     "war_loss_turn": -1
+    }
+   },
+   "repickle_sha256": "37f63d8cd68e70895ee1aa7165d7358e51b59b5e10b3f41e208f07d3ff919135",
+   "repickle_hash_order_free": false
+  },
+  "partial": {
+   "pickle": "household_retail_state.RetailRegion.partial.pkl",
+   "sha256": "7bf703e3ce0f9ee550c1f6778c281ef6bd35fd0cb6b80e3bd0d2cfbe613e39e9",
+   "hash_order_free": false,
+   "loaded": {
+    "type": "household_retail_state.RetailRegion",
+    "dict_keys": [
+     "region",
+     "opened_turn",
+     "reason",
+     "goods",
+     "claims",
+     "totals",
+     "war_loss_turn",
+     "war_events"
+    ],
+    "fields_set": [
+     "opened_turn",
+     "reason",
+     "region"
+    ],
+    "extra": null,
+    "private": null,
+    "dump": {
+     "region": 1,
+     "opened_turn": 1,
+     "reason": "probe",
+     "goods": [
+      0,
+      0,
+      0,
+      0,
+      0
+     ],
+     "claims": {},
+     "totals": {
+      "switch_state_probe_1": 1,
+      "switch_state_probe_2": 2
+     },
+     "war_loss_turn": -1
+    }
+   },
+   "repickle_sha256": "20c884ff83890833dae7db8650921fa0f0584a12489e2096840df5747466a081",
+   "repickle_hash_order_free": false
+  }
+ }
+}

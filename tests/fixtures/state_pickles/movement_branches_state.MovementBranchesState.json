@@ -1,0 +1,104 @@
+{
+ "class": "movement_branches_state.MovementBranchesState",
+ "schema_sha256": "98d030ec1780cf64dacc2369ba903e7de5c20bceecb1a5c37361741143a7db53",
+ "variants": {
+  "populated": {
+   "pickle": "movement_branches_state.MovementBranchesState.populated.pkl",
+   "sha256": "09fc87d781e763ddc6843dbe1928cb22978a48088244b7cd23fa84883e62cf94",
+   "hash_order_free": true,
+   "loaded": {
+    "type": "movement_branches_state.MovementBranchesState",
+    "dict_keys": [
+     "enabled",
+     "mode",
+     "next_branch",
+     "branches",
+     "book",
+     "frame",
+     "frame_turn",
+     "counters"
+    ],
+    "fields_set": [],
+    "extra": null,
+    "private": null,
+    "dump": {
+     "enabled": true,
+     "mode": "funded",
+     "next_branch": 1,
+     "branches": [],
+     "book": {
+      "settled": [],
+      "carry": {},
+      "sinks": {},
+      "flows_turn": null,
+      "flows": [],
+      "flows_dropped": 0,
+      "totals": []
+     },
+     "frame": null,
+     "frame_turn": null,
+     "counters": {
+      "switch_state_probe_1": 1,
+      "switch_state_probe_2": 2
+     }
+    }
+   },
+   "repickle_sha256": "09fc87d781e763ddc6843dbe1928cb22978a48088244b7cd23fa84883e62cf94",
+   "repickle_hash_order_free": true
+  },
+  "old": {
+   "pickle": "movement_branches_state.MovementBranchesState.old.pkl",
+   "sha256": "aa41fab4fbf343ab4a234ec957a1c93b7ddac39459922d7bca0018a07c969c2c",
+   "hash_order_free": true,
+   "loaded": {
+    "type": "movement_branches_state.MovementBranchesState",
+    "dict_keys": [],
+    "fields_set": [],
+    "extra": null,
+    "private": null,
+    "dump": {}
+   },
+   "repickle_sha256": "aa41fab4fbf343ab4a234ec957a1c93b7ddac39459922d7bca0018a07c969c2c",
+   "repickle_hash_order_free": true
+  },
+  "partial": {
+   "pickle": "movement_branches_state.MovementBranchesState.partial.pkl",
+   "sha256": "cbca562bb3de40f1c7a3248df44c5eb7f1a8f969d3e45e93c3d100a049e8c1cf",
+   "hash_order_free": true,
+   "loaded": {
+    "type": "movement_branches_state.MovementBranchesState",
+    "dict_keys": [
+     "enabled",
+     "mode",
+     "next_branch",
+     "branches",
+     "book",
+     "frame",
+     "frame_turn"
+    ],
+    "fields_set": [],
+    "extra": null,
+    "private": null,
+    "dump": {
+     "enabled": true,
+     "mode": "funded",
+     "next_branch": 1,
+     "branches": [],
+     "book": {
+      "settled": [],
+      "carry": {},
+      "sinks": {},
+      "flows_turn": null,
+      "flows": [],
+      "flows_dropped": 0,
+      "totals": []
+     },
+     "frame": null,
+     "frame_turn": null
+    }
+   },
+   "repickle_sha256": "cbca562bb3de40f1c7a3248df44c5eb7f1a8f969d3e45e93c3d100a049e8c1cf",
+   "repickle_hash_order_free": true
+  }
+ }
+}

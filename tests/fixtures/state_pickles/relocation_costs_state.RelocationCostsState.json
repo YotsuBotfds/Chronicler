@@ -1,0 +1,178 @@
+{
+ "class": "relocation_costs_state.RelocationCostsState",
+ "schema_sha256": "7a6118813d8e6efff20eb27d445587660170a9b9f84fc77d867d8d067f689868",
+ "variants": {
+  "populated": {
+   "pickle": "relocation_costs_state.RelocationCostsState.populated.pkl",
+   "sha256": "1ad927062a11315a78ecb183e1bbc16fc7bd9bfc50d5de3c22b1325b9175e756",
+   "hash_order_free": true,
+   "loaded": {
+    "type": "relocation_costs_state.RelocationCostsState",
+    "dict_keys": [
+     "schema_version",
+     "enabled",
+     "mode",
+     "last_settled_turn",
+     "last_assistance_turn",
+     "frame_turn",
+     "gate",
+     "households",
+     "households_dropped",
+     "regions",
+     "services",
+     "assistance",
+     "tracked",
+     "tracked_turn",
+     "origins",
+     "counters"
+    ],
+    "fields_set": [],
+    "extra": null,
+    "private": {
+     "_pending": null,
+     "_assist": null
+    },
+    "dump": {
+     "schema_version": 1,
+     "enabled": true,
+     "mode": "paid",
+     "last_settled_turn": null,
+     "last_assistance_turn": null,
+     "frame_turn": null,
+     "gate": {},
+     "households": [],
+     "households_dropped": 0,
+     "regions": [],
+     "services": null,
+     "assistance": [],
+     "tracked": [],
+     "tracked_turn": null,
+     "origins": {},
+     "counters": {
+      "switch_state_probe_1": 1,
+      "switch_state_probe_2": 2
+     }
+    }
+   },
+   "repickle_sha256": "1ad927062a11315a78ecb183e1bbc16fc7bd9bfc50d5de3c22b1325b9175e756",
+   "repickle_hash_order_free": true
+  },
+  "transient": {
+   "pickle": "relocation_costs_state.RelocationCostsState.transient.pkl",
+   "sha256": "bd505fd6d39cdbc463977a563860fcbf84c1192494b25e6d3b9de41bcee9a325",
+   "hash_order_free": true,
+   "loaded": {
+    "type": "relocation_costs_state.RelocationCostsState",
+    "dict_keys": [
+     "schema_version",
+     "enabled",
+     "mode",
+     "last_settled_turn",
+     "last_assistance_turn",
+     "frame_turn",
+     "gate",
+     "households",
+     "households_dropped",
+     "regions",
+     "services",
+     "assistance",
+     "tracked",
+     "tracked_turn",
+     "origins",
+     "counters"
+    ],
+    "fields_set": [],
+    "extra": null,
+    "private": {
+     "_pending": "probe:_pending",
+     "_assist": "probe:_assist"
+    },
+    "dump": {
+     "schema_version": 1,
+     "enabled": true,
+     "mode": "paid",
+     "last_settled_turn": null,
+     "last_assistance_turn": null,
+     "frame_turn": null,
+     "gate": {},
+     "households": [],
+     "households_dropped": 0,
+     "regions": [],
+     "services": null,
+     "assistance": [],
+     "tracked": [],
+     "tracked_turn": null,
+     "origins": {},
+     "counters": {
+      "switch_state_probe_1": 1,
+      "switch_state_probe_2": 2
+     }
+    }
+   },
+   "repickle_sha256": "bd505fd6d39cdbc463977a563860fcbf84c1192494b25e6d3b9de41bcee9a325",
+   "repickle_hash_order_free": true
+  },
+  "old": {
+   "pickle": "relocation_costs_state.RelocationCostsState.old.pkl",
+   "sha256": "8cad89eef310b3f5414c3168025e0dc183d0828f9c73196b1209afcadcbb3431",
+   "hash_order_free": true,
+   "loaded": {
+    "type": "relocation_costs_state.RelocationCostsState",
+    "dict_keys": [],
+    "fields_set": [],
+    "extra": null,
+    "private": null,
+    "dump": {}
+   },
+   "repickle_sha256": "8cad89eef310b3f5414c3168025e0dc183d0828f9c73196b1209afcadcbb3431",
+   "repickle_hash_order_free": true
+  },
+  "partial": {
+   "pickle": "relocation_costs_state.RelocationCostsState.partial.pkl",
+   "sha256": "601d6ef0c70a89a1d6867c23ffdc5a8b8897b158508f9dd46316636aa3a24c80",
+   "hash_order_free": true,
+   "loaded": {
+    "type": "relocation_costs_state.RelocationCostsState",
+    "dict_keys": [
+     "schema_version",
+     "enabled",
+     "mode",
+     "last_settled_turn",
+     "last_assistance_turn",
+     "frame_turn",
+     "gate",
+     "households",
+     "households_dropped",
+     "regions",
+     "services",
+     "assistance",
+     "tracked",
+     "tracked_turn",
+     "origins"
+    ],
+    "fields_set": [],
+    "extra": null,
+    "private": {},
+    "dump": {
+     "schema_version": 1,
+     "enabled": true,
+     "mode": "paid",
+     "last_settled_turn": null,
+     "last_assistance_turn": null,
+     "frame_turn": null,
+     "gate": {},
+     "households": [],
+     "households_dropped": 0,
+     "regions": [],
+     "services": null,
+     "assistance": [],
+     "tracked": [],
+     "tracked_turn": null,
+     "origins": {}
+    }
+   },
+   "repickle_sha256": "601d6ef0c70a89a1d6867c23ffdc5a8b8897b158508f9dd46316636aa3a24c80",
+   "repickle_hash_order_free": true
+  }
+ }
+}

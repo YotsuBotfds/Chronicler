@@ -1,0 +1,130 @@
+{
+ "class": "techniques_state.TechniqueState",
+ "schema_sha256": "99bde4eae7febab58c730de8aa746a42c9540bf627f705b17eb0d0c88721f3ba",
+ "variants": {
+  "populated": {
+   "pickle": "techniques_state.TechniqueState.populated.pkl",
+   "sha256": "7ef7d9db0ccee1725ba2b0dc0e5f9321d28e784524722b813ce5eddc2f2aa6e0",
+   "hash_order_free": true,
+   "loaded": {
+    "type": "techniques_state.TechniqueState",
+    "dict_keys": [
+     "initialized_turn",
+     "last_tick_turn",
+     "rows",
+     "known",
+     "controllers",
+     "civ_levels",
+     "era_strain",
+     "counts"
+    ],
+    "fields_set": [],
+    "extra": null,
+    "private": {
+     "_cache": {
+      "__object__": "chronicler.techniques_state._StateCache"
+     }
+    },
+    "dump": {
+     "initialized_turn": null,
+     "last_tick_turn": -1,
+     "rows": [],
+     "known": [],
+     "controllers": [],
+     "civ_levels": [],
+     "era_strain": [],
+     "counts": {
+      "switch_state_probe_1": 1,
+      "switch_state_probe_2": 2
+     }
+    }
+   },
+   "repickle_sha256": "7ef7d9db0ccee1725ba2b0dc0e5f9321d28e784524722b813ce5eddc2f2aa6e0",
+   "repickle_hash_order_free": true
+  },
+  "transient": {
+   "pickle": "techniques_state.TechniqueState.transient.pkl",
+   "sha256": "cafc21d5626238e5c25b2755101fd4cee437a4745b40059423d812c42a59db52",
+   "hash_order_free": true,
+   "loaded": {
+    "type": "techniques_state.TechniqueState",
+    "dict_keys": [
+     "initialized_turn",
+     "last_tick_turn",
+     "rows",
+     "known",
+     "controllers",
+     "civ_levels",
+     "era_strain",
+     "counts"
+    ],
+    "fields_set": [],
+    "extra": null,
+    "private": {
+     "_cache": "probe:_cache"
+    },
+    "dump": {
+     "initialized_turn": null,
+     "last_tick_turn": -1,
+     "rows": [],
+     "known": [],
+     "controllers": [],
+     "civ_levels": [],
+     "era_strain": [],
+     "counts": {
+      "switch_state_probe_1": 1,
+      "switch_state_probe_2": 2
+     }
+    }
+   },
+   "repickle_sha256": "cafc21d5626238e5c25b2755101fd4cee437a4745b40059423d812c42a59db52",
+   "repickle_hash_order_free": true
+  },
+  "old": {
+   "pickle": "techniques_state.TechniqueState.old.pkl",
+   "sha256": "ac9745e3b719af32295544e37754c9d39273c39e4e4fef42a05cda595b382b24",
+   "hash_order_free": true,
+   "loaded": {
+    "type": "techniques_state.TechniqueState",
+    "dict_keys": [],
+    "fields_set": [],
+    "extra": null,
+    "private": null,
+    "dump": {}
+   },
+   "repickle_sha256": "ac9745e3b719af32295544e37754c9d39273c39e4e4fef42a05cda595b382b24",
+   "repickle_hash_order_free": true
+  },
+  "partial": {
+   "pickle": "techniques_state.TechniqueState.partial.pkl",
+   "sha256": "d6bccc265eae45a3c093bd43145572bc01d15697aee3a338858e7abe6c846e68",
+   "hash_order_free": true,
+   "loaded": {
+    "type": "techniques_state.TechniqueState",
+    "dict_keys": [
+     "initialized_turn",
+     "last_tick_turn",
+     "rows",
+     "known",
+     "controllers",
+     "civ_levels",
+     "era_strain"
+    ],
+    "fields_set": [],
+    "extra": null,
+    "private": {},
+    "dump": {
+     "initialized_turn": null,
+     "last_tick_turn": -1,
+     "rows": [],
+     "known": [],
+     "controllers": [],
+     "civ_levels": [],
+     "era_strain": []
+    }
+   },
+   "repickle_sha256": "d6bccc265eae45a3c093bd43145572bc01d15697aee3a338858e7abe6c846e68",
+   "repickle_hash_order_free": true
+  }
+ }
+}

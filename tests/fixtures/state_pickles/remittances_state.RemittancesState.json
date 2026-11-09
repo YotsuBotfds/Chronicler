@@ -1,0 +1,138 @@
+{
+ "class": "remittances_state.RemittancesState",
+ "schema_sha256": "20260aa4cdbb3143b1f13e29edb379f5672766c0b5131ab66c999ca86f7d9dc5",
+ "variants": {
+  "populated": {
+   "pickle": "remittances_state.RemittancesState.populated.pkl",
+   "sha256": "b609aa4ad057ea296cd7466c31ca982463154bc3a86192ab2ff3768bcb755994",
+   "hash_order_free": true,
+   "loaded": {
+    "type": "remittances_state.RemittancesState",
+    "dict_keys": [
+     "schema_version",
+     "enabled",
+     "mode",
+     "last_settled_turn",
+     "entries",
+     "frame_turn",
+     "moves",
+     "moves_dropped",
+     "closures",
+     "closures_dropped",
+     "receipts",
+     "receipts_dropped",
+     "unmet",
+     "unmet_dropped",
+     "regions",
+     "funnel",
+     "totals",
+     "last_pool_reset",
+     "counters"
+    ],
+    "fields_set": [],
+    "extra": null,
+    "private": null,
+    "dump": {
+     "schema_version": 1,
+     "enabled": true,
+     "mode": "send",
+     "last_settled_turn": null,
+     "entries": [],
+     "frame_turn": null,
+     "moves": [],
+     "moves_dropped": 0,
+     "closures": [],
+     "closures_dropped": 0,
+     "receipts": [],
+     "receipts_dropped": 0,
+     "unmet": [],
+     "unmet_dropped": 0,
+     "regions": [],
+     "funnel": {},
+     "totals": {
+      "switch_state_probe_1": 1,
+      "switch_state_probe_2": 2
+     },
+     "last_pool_reset": null,
+     "counters": {
+      "switch_state_probe_1": 1,
+      "switch_state_probe_2": 2
+     }
+    }
+   },
+   "repickle_sha256": "b609aa4ad057ea296cd7466c31ca982463154bc3a86192ab2ff3768bcb755994",
+   "repickle_hash_order_free": true
+  },
+  "old": {
+   "pickle": "remittances_state.RemittancesState.old.pkl",
+   "sha256": "b2c8b17e1f16512c94060b7d2aecd902ef6b263c4a4c2d1a88c0a2cc0b4a78a1",
+   "hash_order_free": true,
+   "loaded": {
+    "type": "remittances_state.RemittancesState",
+    "dict_keys": [],
+    "fields_set": [],
+    "extra": null,
+    "private": null,
+    "dump": {}
+   },
+   "repickle_sha256": "b2c8b17e1f16512c94060b7d2aecd902ef6b263c4a4c2d1a88c0a2cc0b4a78a1",
+   "repickle_hash_order_free": true
+  },
+  "partial": {
+   "pickle": "remittances_state.RemittancesState.partial.pkl",
+   "sha256": "e83d68bf3b40b3a718ea78fa25c2274016fd4ff744a8b235f63a00e603118840",
+   "hash_order_free": true,
+   "loaded": {
+    "type": "remittances_state.RemittancesState",
+    "dict_keys": [
+     "schema_version",
+     "enabled",
+     "mode",
+     "last_settled_turn",
+     "entries",
+     "frame_turn",
+     "moves",
+     "moves_dropped",
+     "closures",
+     "closures_dropped",
+     "receipts",
+     "receipts_dropped",
+     "unmet",
+     "unmet_dropped",
+     "regions",
+     "funnel",
+     "totals",
+     "last_pool_reset"
+    ],
+    "fields_set": [],
+    "extra": null,
+    "private": null,
+    "dump": {
+     "schema_version": 1,
+     "enabled": true,
+     "mode": "send",
+     "last_settled_turn": null,
+     "entries": [],
+     "frame_turn": null,
+     "moves": [],
+     "moves_dropped": 0,
+     "closures": [],
+     "closures_dropped": 0,
+     "receipts": [],
+     "receipts_dropped": 0,
+     "unmet": [],
+     "unmet_dropped": 0,
+     "regions": [],
+     "funnel": {},
+     "totals": {
+      "switch_state_probe_1": 1,
+      "switch_state_probe_2": 2
+     },
+     "last_pool_reset": null
+    }
+   },
+   "repickle_sha256": "e83d68bf3b40b3a718ea78fa25c2274016fd4ff744a8b235f63a00e603118840",
+   "repickle_hash_order_free": true
+  }
+ }
+}

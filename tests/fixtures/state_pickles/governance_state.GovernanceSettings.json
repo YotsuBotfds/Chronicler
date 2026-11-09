@@ -1,0 +1,65 @@
+{
+ "class": "governance_state.GovernanceSettings",
+ "schema_sha256": "66be1e93c53546e63162aa9dd2dbd3c0f4939e3b663385a404bdbfac531b256d",
+ "variants": {
+  "populated": {
+   "pickle": "governance_state.GovernanceSettings.populated.pkl",
+   "sha256": "5fd4bf26917b2689081eb2eae9b30359974090df152f9d0bff29716b9039d0cc",
+   "hash_order_free": true,
+   "loaded": {
+    "type": "governance_state.GovernanceSettings",
+    "dict_keys": [
+     "enabled",
+     "version",
+     "policy_id"
+    ],
+    "fields_set": [],
+    "extra": null,
+    "private": null,
+    "dump": {
+     "enabled": true,
+     "version": 1,
+     "policy_id": "chronicler-governance-runtime-v1"
+    }
+   },
+   "repickle_sha256": "5fd4bf26917b2689081eb2eae9b30359974090df152f9d0bff29716b9039d0cc",
+   "repickle_hash_order_free": true
+  },
+  "old": {
+   "pickle": "governance_state.GovernanceSettings.old.pkl",
+   "sha256": "62527bbf2d4b2697e53e72b3a3de71058b173d16232d0c05d79ab3461d4cbca1",
+   "hash_order_free": true,
+   "loaded": {
+    "type": "governance_state.GovernanceSettings",
+    "dict_keys": [],
+    "fields_set": [],
+    "extra": null,
+    "private": null,
+    "dump": {}
+   },
+   "repickle_sha256": "62527bbf2d4b2697e53e72b3a3de71058b173d16232d0c05d79ab3461d4cbca1",
+   "repickle_hash_order_free": true
+  },
+  "partial": {
+   "pickle": "governance_state.GovernanceSettings.partial.pkl",
+   "sha256": "2bc3be250d2b2a8d03a961a07180ac2eb4755f57836c2645449f36e9764f8a2f",
+   "hash_order_free": true,
+   "loaded": {
+    "type": "governance_state.GovernanceSettings",
+    "dict_keys": [
+     "enabled",
+     "version"
+    ],
+    "fields_set": [],
+    "extra": null,
+    "private": null,
+    "dump": {
+     "enabled": true,
+     "version": 1
+    }
+   },
+   "repickle_sha256": "2bc3be250d2b2a8d03a961a07180ac2eb4755f57836c2645449f36e9764f8a2f",
+   "repickle_hash_order_free": true
+  }
+ }
+}

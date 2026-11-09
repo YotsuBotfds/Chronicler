@@ -1,0 +1,194 @@
+{
+ "class": "commons_rules_state.CommonsRulesState",
+ "schema_sha256": "cb446289c894b54a1258a41b4ff55187d69e030b70110dbe4e76cbf5d57b020a",
+ "variants": {
+  "populated": {
+   "pickle": "commons_rules_state.CommonsRulesState.populated.pkl",
+   "sha256": "4c3d2242e1068116b3c4393ab4132964bcfcd3bdf42ec5dd615cb1e238403d93",
+   "hash_order_free": true,
+   "loaded": {
+    "type": "commons_rules_state.CommonsRulesState",
+    "dict_keys": [
+     "schema_version",
+     "enabled",
+     "mode",
+     "rules",
+     "cooldowns",
+     "decisions",
+     "frame_turn",
+     "frame",
+     "counters"
+    ],
+    "fields_set": [],
+    "extra": null,
+    "private": {
+     "_plan": null
+    },
+    "dump": {
+     "schema_version": 1,
+     "enabled": true,
+     "mode": "enforced",
+     "rules": [],
+     "cooldowns": [],
+     "decisions": [],
+     "frame_turn": null,
+     "frame": [],
+     "counters": {
+      "observed_turns": 1,
+      "eligible_slot_turns": 0,
+      "adoption_candidates": 0,
+      "adoption_unaffordable": 0,
+      "adopted": 0,
+      "rule_slot_turns": 0,
+      "quota_turns": 0,
+      "rest_turns": 0,
+      "required": 0,
+      "institution_cover": 0,
+      "billed": 0,
+      "paid": 0,
+      "coverage_sum": 0,
+      "full_coverage_turns": 0,
+      "partial_coverage_turns": 0,
+      "zero_coverage_turns": 0,
+      "tightened_turns": 0,
+      "binding_turns": 0,
+      "would_bind_turns": 0,
+      "excess": 0,
+      "extraction_under_rule": 0,
+      "grievance_added": 0,
+      "grievance_turns": 0,
+      "repealed_recovered": 0,
+      "repealed_unfunded": 0,
+      "repealed_idle": 0,
+      "repealed_unrest": 0,
+      "lapsed_owner_changed": 0,
+      "lapsed_slot_removed": 0,
+      "switch_state_probe_2": 2.5
+     }
+    }
+   },
+   "repickle_sha256": "4c3d2242e1068116b3c4393ab4132964bcfcd3bdf42ec5dd615cb1e238403d93",
+   "repickle_hash_order_free": true
+  },
+  "transient": {
+   "pickle": "commons_rules_state.CommonsRulesState.transient.pkl",
+   "sha256": "4c3d2242e1068116b3c4393ab4132964bcfcd3bdf42ec5dd615cb1e238403d93",
+   "hash_order_free": true,
+   "loaded": {
+    "type": "commons_rules_state.CommonsRulesState",
+    "dict_keys": [
+     "schema_version",
+     "enabled",
+     "mode",
+     "rules",
+     "cooldowns",
+     "decisions",
+     "frame_turn",
+     "frame",
+     "counters"
+    ],
+    "fields_set": [],
+    "extra": null,
+    "private": {
+     "_plan": null
+    },
+    "dump": {
+     "schema_version": 1,
+     "enabled": true,
+     "mode": "enforced",
+     "rules": [],
+     "cooldowns": [],
+     "decisions": [],
+     "frame_turn": null,
+     "frame": [],
+     "counters": {
+      "observed_turns": 1,
+      "eligible_slot_turns": 0,
+      "adoption_candidates": 0,
+      "adoption_unaffordable": 0,
+      "adopted": 0,
+      "rule_slot_turns": 0,
+      "quota_turns": 0,
+      "rest_turns": 0,
+      "required": 0,
+      "institution_cover": 0,
+      "billed": 0,
+      "paid": 0,
+      "coverage_sum": 0,
+      "full_coverage_turns": 0,
+      "partial_coverage_turns": 0,
+      "zero_coverage_turns": 0,
+      "tightened_turns": 0,
+      "binding_turns": 0,
+      "would_bind_turns": 0,
+      "excess": 0,
+      "extraction_under_rule": 0,
+      "grievance_added": 0,
+      "grievance_turns": 0,
+      "repealed_recovered": 0,
+      "repealed_unfunded": 0,
+      "repealed_idle": 0,
+      "repealed_unrest": 0,
+      "lapsed_owner_changed": 0,
+      "lapsed_slot_removed": 0,
+      "switch_state_probe_2": 2.5
+     }
+    }
+   },
+   "repickle_sha256": "4c3d2242e1068116b3c4393ab4132964bcfcd3bdf42ec5dd615cb1e238403d93",
+   "repickle_hash_order_free": true
+  },
+  "old": {
+   "pickle": "commons_rules_state.CommonsRulesState.old.pkl",
+   "sha256": "439268b818aee654ee60a83d580389121b9c8965284f24d89419b4655723f0bf",
+   "hash_order_free": true,
+   "loaded": {
+    "type": "commons_rules_state.CommonsRulesState",
+    "dict_keys": [],
+    "fields_set": [],
+    "extra": null,
+    "private": {
+     "_plan": null
+    },
+    "dump": {}
+   },
+   "repickle_sha256": "7dd80d376d101ecbda591144ce69859f53c83af9974fb69e56deab8b37fd0b73",
+   "repickle_hash_order_free": true
+  },
+  "partial": {
+   "pickle": "commons_rules_state.CommonsRulesState.partial.pkl",
+   "sha256": "f83f639133d04b9f323ca753bb330e735ed8bb3460116d954be7730add8d5a53",
+   "hash_order_free": true,
+   "loaded": {
+    "type": "commons_rules_state.CommonsRulesState",
+    "dict_keys": [
+     "schema_version",
+     "enabled",
+     "mode",
+     "rules",
+     "cooldowns",
+     "decisions",
+     "frame_turn",
+     "frame"
+    ],
+    "fields_set": [],
+    "extra": null,
+    "private": {
+     "_plan": null
+    },
+    "dump": {
+     "schema_version": 1,
+     "enabled": true,
+     "mode": "enforced",
+     "rules": [],
+     "cooldowns": [],
+     "decisions": [],
+     "frame_turn": null,
+     "frame": []
+    }
+   },
+   "repickle_sha256": "f9c5ccd9942e2434597ba693971bbace9969e060a6257eb2a7eaaa0a23d64ce3",
+   "repickle_hash_order_free": true
+  }
+ }
+}

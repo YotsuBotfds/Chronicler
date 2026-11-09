@@ -1,0 +1,126 @@
+{
+ "class": "household_retail_state.RetailRecord",
+ "schema_sha256": "416459db8c3b6c698a5f00298eb0780de27129853044dc8ea0e1ed3c272db0c5",
+ "variants": {
+  "populated": {
+   "pickle": "household_retail_state.RetailRecord.populated.pkl",
+   "sha256": "c77ee33c1787c502e5bbbe08da9934cbe0f3734205d05b5588bae8976eb52cca",
+   "hash_order_free": false,
+   "loaded": {
+    "type": "household_retail_state.RetailRecord",
+    "dict_keys": [
+     "turn",
+     "region",
+     "kind",
+     "milli",
+     "owner",
+     "other",
+     "note",
+     "cause",
+     "actor",
+     "actor_name",
+     "victim",
+     "victim_name"
+    ],
+    "fields_set": [
+     "kind",
+     "region",
+     "turn"
+    ],
+    "extra": null,
+    "private": null,
+    "dump": {
+     "turn": 1,
+     "region": 1,
+     "kind": "probe",
+     "milli": 0,
+     "owner": null,
+     "other": null,
+     "note": null
+    }
+   },
+   "repickle_sha256": "c77ee33c1787c502e5bbbe08da9934cbe0f3734205d05b5588bae8976eb52cca",
+   "repickle_hash_order_free": false
+  },
+  "old": {
+   "pickle": "household_retail_state.RetailRecord.old.pkl",
+   "sha256": "8827c4d03c3e650ce2a92c1771c692ef97f4a1bae78f5504e519063a2a6678fa",
+   "hash_order_free": false,
+   "loaded": {
+    "type": "household_retail_state.RetailRecord",
+    "dict_keys": [
+     "turn",
+     "region",
+     "kind",
+     "milli",
+     "owner",
+     "other",
+     "note",
+     "cause",
+     "actor",
+     "actor_name",
+     "victim",
+     "victim_name"
+    ],
+    "fields_set": [
+     "kind",
+     "region",
+     "turn"
+    ],
+    "extra": null,
+    "private": null,
+    "dump": {
+     "turn": 1,
+     "region": 1,
+     "kind": "probe",
+     "milli": 0,
+     "owner": null,
+     "other": null,
+     "note": null
+    }
+   },
+   "repickle_sha256": "c77ee33c1787c502e5bbbe08da9934cbe0f3734205d05b5588bae8976eb52cca",
+   "repickle_hash_order_free": false
+  },
+  "partial": {
+   "pickle": "household_retail_state.RetailRecord.partial.pkl",
+   "sha256": "885e74a2054fc8d36a92e0fd36c6abcea20b911506b2ad43a0833e74c87350a9",
+   "hash_order_free": false,
+   "loaded": {
+    "type": "household_retail_state.RetailRecord",
+    "dict_keys": [
+     "turn",
+     "region",
+     "kind",
+     "milli",
+     "owner",
+     "other",
+     "note",
+     "cause",
+     "actor",
+     "actor_name",
+     "victim",
+     "victim_name"
+    ],
+    "fields_set": [
+     "kind",
+     "region",
+     "turn"
+    ],
+    "extra": null,
+    "private": null,
+    "dump": {
+     "turn": 1,
+     "region": 1,
+     "kind": "probe",
+     "milli": 0,
+     "owner": null,
+     "other": null,
+     "note": null
+    }
+   },
+   "repickle_sha256": "c77ee33c1787c502e5bbbe08da9934cbe0f3734205d05b5588bae8976eb52cca",
+   "repickle_hash_order_free": false
+  }
+ }
+}

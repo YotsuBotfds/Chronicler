@@ -1,0 +1,255 @@
+{
+ "class": "household_retail_state.HouseholdRetailState",
+ "schema_sha256": "4eb21ee9722e346ce689aa38cc3c09139cfeca042c6fc7ead8bf919a28179238",
+ "variants": {
+  "populated": {
+   "pickle": "household_retail_state.HouseholdRetailState.populated.pkl",
+   "sha256": "f44bcbc093bb8c0c524337187197f90301b95226facec061b69a77040d3e4711",
+   "hash_order_free": true,
+   "loaded": {
+    "type": "household_retail_state.HouseholdRetailState",
+    "dict_keys": [
+     "schema_version",
+     "enabled",
+     "mode",
+     "boundary",
+     "rules_version",
+     "schedule",
+     "schedule_sha256",
+     "opened_turn",
+     "intervals",
+     "regions",
+     "last_title_turn",
+     "last_settled_turn",
+     "last_procured_turn",
+     "frame_turn",
+     "frame",
+     "money",
+     "income",
+     "sample",
+     "sample_dropped",
+     "log",
+     "log_dropped",
+     "counters",
+     "income_replaced_total"
+    ],
+    "fields_set": [],
+    "extra": null,
+    "private": {
+     "_turn": null
+    },
+    "dump": {
+     "schema_version": 1,
+     "enabled": true,
+     "mode": "retail",
+     "boundary": "market",
+     "regions": [],
+     "last_title_turn": null,
+     "last_settled_turn": null,
+     "last_procured_turn": null,
+     "frame_turn": null,
+     "frame": [],
+     "money": {},
+     "income": {},
+     "sample": [],
+     "sample_dropped": 0,
+     "log": [],
+     "log_dropped": 0,
+     "counters": {
+      "switch_state_probe_1": 1,
+      "switch_state_probe_2": 2
+     },
+     "income_replaced_total": 0.0
+    }
+   },
+   "repickle_sha256": "f44bcbc093bb8c0c524337187197f90301b95226facec061b69a77040d3e4711",
+   "repickle_hash_order_free": true
+  },
+  "transient": {
+   "pickle": "household_retail_state.HouseholdRetailState.transient.pkl",
+   "sha256": "f44bcbc093bb8c0c524337187197f90301b95226facec061b69a77040d3e4711",
+   "hash_order_free": true,
+   "loaded": {
+    "type": "household_retail_state.HouseholdRetailState",
+    "dict_keys": [
+     "schema_version",
+     "enabled",
+     "mode",
+     "boundary",
+     "rules_version",
+     "schedule",
+     "schedule_sha256",
+     "opened_turn",
+     "intervals",
+     "regions",
+     "last_title_turn",
+     "last_settled_turn",
+     "last_procured_turn",
+     "frame_turn",
+     "frame",
+     "money",
+     "income",
+     "sample",
+     "sample_dropped",
+     "log",
+     "log_dropped",
+     "counters",
+     "income_replaced_total"
+    ],
+    "fields_set": [],
+    "extra": null,
+    "private": {
+     "_turn": null
+    },
+    "dump": {
+     "schema_version": 1,
+     "enabled": true,
+     "mode": "retail",
+     "boundary": "market",
+     "regions": [],
+     "last_title_turn": null,
+     "last_settled_turn": null,
+     "last_procured_turn": null,
+     "frame_turn": null,
+     "frame": [],
+     "money": {},
+     "income": {},
+     "sample": [],
+     "sample_dropped": 0,
+     "log": [],
+     "log_dropped": 0,
+     "counters": {
+      "switch_state_probe_1": 1,
+      "switch_state_probe_2": 2
+     },
+     "income_replaced_total": 0.0
+    }
+   },
+   "repickle_sha256": "f44bcbc093bb8c0c524337187197f90301b95226facec061b69a77040d3e4711",
+   "repickle_hash_order_free": true
+  },
+  "old": {
+   "pickle": "household_retail_state.HouseholdRetailState.old.pkl",
+   "sha256": "ce4756ec7f4b16e0841aedd43658e17928e87f312c424da115aa75da996caaba",
+   "hash_order_free": true,
+   "loaded": {
+    "type": "household_retail_state.HouseholdRetailState",
+    "dict_keys": [
+     "schema_version",
+     "enabled",
+     "mode",
+     "boundary",
+     "rules_version",
+     "schedule",
+     "schedule_sha256",
+     "opened_turn",
+     "intervals",
+     "regions",
+     "last_title_turn",
+     "last_settled_turn",
+     "last_procured_turn",
+     "frame_turn",
+     "frame",
+     "money",
+     "income",
+     "sample",
+     "sample_dropped",
+     "log",
+     "log_dropped",
+     "counters",
+     "income_replaced_total"
+    ],
+    "fields_set": [],
+    "extra": null,
+    "private": {
+     "_turn": null
+    },
+    "dump": {
+     "schema_version": 1,
+     "enabled": true,
+     "mode": "retail",
+     "boundary": "market",
+     "regions": [],
+     "last_title_turn": null,
+     "last_settled_turn": null,
+     "last_procured_turn": null,
+     "frame_turn": null,
+     "frame": [],
+     "money": {},
+     "income": {},
+     "sample": [],
+     "sample_dropped": 0,
+     "log": [],
+     "log_dropped": 0,
+     "counters": {},
+     "income_replaced_total": 0.0
+    }
+   },
+   "repickle_sha256": "f99985c9adeca6eda4a14ddc438599b0f2e45bd4eca5cc4a640a2149d591ead3",
+   "repickle_hash_order_free": true
+  },
+  "partial": {
+   "pickle": "household_retail_state.HouseholdRetailState.partial.pkl",
+   "sha256": "7d2aed7eb7affbfbfff45c0712989a1c5129fa7cfeba5a95da61543b389c2ee7",
+   "hash_order_free": true,
+   "loaded": {
+    "type": "household_retail_state.HouseholdRetailState",
+    "dict_keys": [
+     "schema_version",
+     "enabled",
+     "mode",
+     "boundary",
+     "rules_version",
+     "schedule",
+     "schedule_sha256",
+     "opened_turn",
+     "intervals",
+     "regions",
+     "last_title_turn",
+     "last_settled_turn",
+     "last_procured_turn",
+     "frame_turn",
+     "frame",
+     "money",
+     "income",
+     "sample",
+     "sample_dropped",
+     "log",
+     "log_dropped",
+     "counters",
+     "income_replaced_total"
+    ],
+    "fields_set": [],
+    "extra": null,
+    "private": {
+     "_turn": null
+    },
+    "dump": {
+     "schema_version": 1,
+     "enabled": true,
+     "mode": "retail",
+     "boundary": "market",
+     "regions": [],
+     "last_title_turn": null,
+     "last_settled_turn": null,
+     "last_procured_turn": null,
+     "frame_turn": null,
+     "frame": [],
+     "money": {},
+     "income": {},
+     "sample": [],
+     "sample_dropped": 0,
+     "log": [],
+     "log_dropped": 0,
+     "counters": {
+      "switch_state_probe_1": 1,
+      "switch_state_probe_2": 2
+     },
+     "income_replaced_total": 0.0
+    }
+   },
+   "repickle_sha256": "f44bcbc093bb8c0c524337187197f90301b95226facec061b69a77040d3e4711",
+   "repickle_hash_order_free": true
+  }
+ }
+}

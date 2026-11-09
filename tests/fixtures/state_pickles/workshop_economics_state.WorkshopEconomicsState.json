@@ -1,0 +1,239 @@
+{
+ "class": "workshop_economics_state.WorkshopEconomicsState",
+ "schema_sha256": "81fea7589bbc5e97e21b818814c74e9f0f9bc6bceab3cfe93dbe1a282f093727",
+ "variants": {
+  "populated": {
+   "pickle": "workshop_economics_state.WorkshopEconomicsState.populated.pkl",
+   "sha256": "0fdba6b46bb54fdcfc22ed2a708e5e5cc8ca0ddec3bfdf0ac9d2ce21acd912a3",
+   "hash_order_free": true,
+   "loaded": {
+    "type": "workshop_economics_state.WorkshopEconomicsState",
+    "dict_keys": [
+     "schema_version",
+     "enabled",
+     "mode",
+     "rules_version",
+     "firms",
+     "closed",
+     "prices",
+     "closed_settlements",
+     "population",
+     "frame_turn",
+     "frame",
+     "book",
+     "counters",
+     "log",
+     "log_dropped"
+    ],
+    "fields_set": [],
+    "extra": null,
+    "private": {
+     "_turn": null
+    },
+    "dump": {
+     "schema_version": 1,
+     "enabled": true,
+     "mode": "market",
+     "firms": [],
+     "closed": [],
+     "prices": [],
+     "closed_settlements": [],
+     "population": [],
+     "frame_turn": null,
+     "frame": [],
+     "book": {
+      "settled": [],
+      "carry": {},
+      "sinks": {},
+      "flows_turn": null,
+      "flows": [],
+      "flows_dropped": 0,
+      "totals": []
+     },
+     "counters": {
+      "switch_state_probe_1": 1,
+      "switch_state_probe_2": 2
+     },
+     "log": [],
+     "log_dropped": 0
+    }
+   },
+   "repickle_sha256": "0fdba6b46bb54fdcfc22ed2a708e5e5cc8ca0ddec3bfdf0ac9d2ce21acd912a3",
+   "repickle_hash_order_free": true
+  },
+  "transient": {
+   "pickle": "workshop_economics_state.WorkshopEconomicsState.transient.pkl",
+   "sha256": "0fdba6b46bb54fdcfc22ed2a708e5e5cc8ca0ddec3bfdf0ac9d2ce21acd912a3",
+   "hash_order_free": true,
+   "loaded": {
+    "type": "workshop_economics_state.WorkshopEconomicsState",
+    "dict_keys": [
+     "schema_version",
+     "enabled",
+     "mode",
+     "rules_version",
+     "firms",
+     "closed",
+     "prices",
+     "closed_settlements",
+     "population",
+     "frame_turn",
+     "frame",
+     "book",
+     "counters",
+     "log",
+     "log_dropped"
+    ],
+    "fields_set": [],
+    "extra": null,
+    "private": {
+     "_turn": null
+    },
+    "dump": {
+     "schema_version": 1,
+     "enabled": true,
+     "mode": "market",
+     "firms": [],
+     "closed": [],
+     "prices": [],
+     "closed_settlements": [],
+     "population": [],
+     "frame_turn": null,
+     "frame": [],
+     "book": {
+      "settled": [],
+      "carry": {},
+      "sinks": {},
+      "flows_turn": null,
+      "flows": [],
+      "flows_dropped": 0,
+      "totals": []
+     },
+     "counters": {
+      "switch_state_probe_1": 1,
+      "switch_state_probe_2": 2
+     },
+     "log": [],
+     "log_dropped": 0
+    }
+   },
+   "repickle_sha256": "0fdba6b46bb54fdcfc22ed2a708e5e5cc8ca0ddec3bfdf0ac9d2ce21acd912a3",
+   "repickle_hash_order_free": true
+  },
+  "old": {
+   "pickle": "workshop_economics_state.WorkshopEconomicsState.old.pkl",
+   "sha256": "e375b41a483f57e3b3c1ed412623d86fba441a7ed650d277e13878addd7e1079",
+   "hash_order_free": true,
+   "loaded": {
+    "type": "workshop_economics_state.WorkshopEconomicsState",
+    "dict_keys": [
+     "schema_version",
+     "enabled",
+     "mode",
+     "rules_version",
+     "firms",
+     "closed",
+     "prices",
+     "closed_settlements",
+     "population",
+     "frame_turn",
+     "frame",
+     "book",
+     "counters",
+     "log",
+     "log_dropped"
+    ],
+    "fields_set": [],
+    "extra": null,
+    "private": {
+     "_turn": null
+    },
+    "dump": {
+     "schema_version": 1,
+     "enabled": true,
+     "mode": "market",
+     "firms": [],
+     "closed": [],
+     "prices": [],
+     "closed_settlements": [],
+     "population": [],
+     "frame_turn": null,
+     "frame": [],
+     "book": {
+      "settled": [],
+      "carry": {},
+      "sinks": {},
+      "flows_turn": null,
+      "flows": [],
+      "flows_dropped": 0,
+      "totals": []
+     },
+     "counters": {},
+     "log": [],
+     "log_dropped": 0
+    }
+   },
+   "repickle_sha256": "11ac61e94518624056bcd16b34e04e364a24938037433e8843a03aaa806efcae",
+   "repickle_hash_order_free": true
+  },
+  "partial": {
+   "pickle": "workshop_economics_state.WorkshopEconomicsState.partial.pkl",
+   "sha256": "ca73a9ebd5bbee51930cfe7ba9af745e5f75e58c4c3c3b0360903d7e59440df9",
+   "hash_order_free": true,
+   "loaded": {
+    "type": "workshop_economics_state.WorkshopEconomicsState",
+    "dict_keys": [
+     "schema_version",
+     "enabled",
+     "mode",
+     "rules_version",
+     "firms",
+     "closed",
+     "prices",
+     "closed_settlements",
+     "population",
+     "frame_turn",
+     "frame",
+     "book",
+     "counters",
+     "log",
+     "log_dropped"
+    ],
+    "fields_set": [],
+    "extra": null,
+    "private": {
+     "_turn": null
+    },
+    "dump": {
+     "schema_version": 1,
+     "enabled": true,
+     "mode": "market",
+     "firms": [],
+     "closed": [],
+     "prices": [],
+     "closed_settlements": [],
+     "population": [],
+     "frame_turn": null,
+     "frame": [],
+     "book": {
+      "settled": [],
+      "carry": {},
+      "sinks": {},
+      "flows_turn": null,
+      "flows": [],
+      "flows_dropped": 0,
+      "totals": []
+     },
+     "counters": {
+      "switch_state_probe_1": 1,
+      "switch_state_probe_2": 2
+     },
+     "log": [],
+     "log_dropped": 0
+    }
+   },
+   "repickle_sha256": "0fdba6b46bb54fdcfc22ed2a708e5e5cc8ca0ddec3bfdf0ac9d2ce21acd912a3",
+   "repickle_hash_order_free": true
+  }
+ }
+}

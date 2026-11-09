@@ -1,0 +1,140 @@
+{
+ "class": "learning_cohorts_state.LearningCohortState",
+ "schema_sha256": "ec718e14b946fe9697590899139e28678718eac42b9ca787ae6a085426c187ef",
+ "variants": {
+  "populated": {
+   "pickle": "learning_cohorts_state.LearningCohortState.populated.pkl",
+   "sha256": "8524c43d6ae579dbbd3d67be40a7d73f39072c23e0ab72d3e3649c0e6ff9bdff",
+   "hash_order_free": true,
+   "loaded": {
+    "type": "learning_cohorts_state.LearningCohortState",
+    "dict_keys": [
+     "schema_version",
+     "enabled",
+     "mode",
+     "cohorts",
+     "archive",
+     "graduates",
+     "next_cohort_id",
+     "frame_turn",
+     "frame",
+     "counters"
+    ],
+    "fields_set": [],
+    "extra": null,
+    "private": {
+     "_pending": null
+    },
+    "dump": {
+     "schema_version": 1,
+     "enabled": true,
+     "mode": "learn",
+     "cohorts": [],
+     "archive": [],
+     "graduates": [],
+     "next_cohort_id": 0,
+     "frame_turn": null,
+     "frame": [],
+     "counters": {
+      "switch_state_probe_1": 1.0,
+      "switch_state_probe_2": 2.5
+     }
+    }
+   },
+   "repickle_sha256": "8524c43d6ae579dbbd3d67be40a7d73f39072c23e0ab72d3e3649c0e6ff9bdff",
+   "repickle_hash_order_free": true
+  },
+  "transient": {
+   "pickle": "learning_cohorts_state.LearningCohortState.transient.pkl",
+   "sha256": "3cfbd454289b04305c8cab0a3d993f85fe5458db0fcf1dfa9058981ecbb29729",
+   "hash_order_free": true,
+   "loaded": {
+    "type": "learning_cohorts_state.LearningCohortState",
+    "dict_keys": [
+     "schema_version",
+     "enabled",
+     "mode",
+     "cohorts",
+     "archive",
+     "graduates",
+     "next_cohort_id",
+     "frame_turn",
+     "frame",
+     "counters"
+    ],
+    "fields_set": [],
+    "extra": null,
+    "private": {
+     "_pending": "probe:_pending"
+    },
+    "dump": {
+     "schema_version": 1,
+     "enabled": true,
+     "mode": "learn",
+     "cohorts": [],
+     "archive": [],
+     "graduates": [],
+     "next_cohort_id": 0,
+     "frame_turn": null,
+     "frame": [],
+     "counters": {
+      "switch_state_probe_1": 1.0,
+      "switch_state_probe_2": 2.5
+     }
+    }
+   },
+   "repickle_sha256": "3cfbd454289b04305c8cab0a3d993f85fe5458db0fcf1dfa9058981ecbb29729",
+   "repickle_hash_order_free": true
+  },
+  "old": {
+   "pickle": "learning_cohorts_state.LearningCohortState.old.pkl",
+   "sha256": "ddfa4c275f6867ad0a8d1f9e0062a49d11735c70ce0607c0410d58ff30c26766",
+   "hash_order_free": true,
+   "loaded": {
+    "type": "learning_cohorts_state.LearningCohortState",
+    "dict_keys": [],
+    "fields_set": [],
+    "extra": null,
+    "private": null,
+    "dump": {}
+   },
+   "repickle_sha256": "ddfa4c275f6867ad0a8d1f9e0062a49d11735c70ce0607c0410d58ff30c26766",
+   "repickle_hash_order_free": true
+  },
+  "partial": {
+   "pickle": "learning_cohorts_state.LearningCohortState.partial.pkl",
+   "sha256": "7a00d7c178a2fa6a2fe88db905a9a0c7b36fe7882357b5ae2e92d28d6284592c",
+   "hash_order_free": true,
+   "loaded": {
+    "type": "learning_cohorts_state.LearningCohortState",
+    "dict_keys": [
+     "schema_version",
+     "enabled",
+     "mode",
+     "cohorts",
+     "archive",
+     "graduates",
+     "next_cohort_id",
+     "frame_turn",
+     "frame"
+    ],
+    "fields_set": [],
+    "extra": null,
+    "private": {},
+    "dump": {
+     "schema_version": 1,
+     "enabled": true,
+     "mode": "learn",
+     "cohorts": [],
+     "archive": [],
+     "graduates": [],
+     "next_cohort_id": 0,
+     "frame_turn": null,
+     "frame": []
+    }
+   },
+   "repickle_sha256": "7a00d7c178a2fa6a2fe88db905a9a0c7b36fe7882357b5ae2e92d28d6284592c",
+   "repickle_hash_order_free": true
+  }
+ }
+}

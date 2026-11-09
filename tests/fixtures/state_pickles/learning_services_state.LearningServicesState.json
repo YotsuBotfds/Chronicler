@@ -1,0 +1,92 @@
+{
+ "class": "learning_services_state.LearningServicesState",
+ "schema_sha256": "98abc6f9b3b8954155a830d8717394a0a1fd7eab2688608c6c986fe9f0a8116e",
+ "variants": {
+  "populated": {
+   "pickle": "learning_services_state.LearningServicesState.populated.pkl",
+   "sha256": "e0dbec0b83303fd7b977b786dcc6683f4979753a82ada4fc9379560ce02c788d",
+   "hash_order_free": true,
+   "loaded": {
+    "type": "learning_services_state.LearningServicesState",
+    "dict_keys": [
+     "enabled",
+     "last_source_turn",
+     "receipts",
+     "inventories",
+     "procurement_receipts",
+     "supply_losses",
+     "teaching_receipts",
+     "last_procurement_turn",
+     "last_service_turn",
+     "material_balance"
+    ],
+    "fields_set": [],
+    "extra": null,
+    "private": {
+     "_active_plan": null
+    },
+    "dump": {
+     "last_source_turn": null,
+     "receipts": []
+    }
+   },
+   "repickle_sha256": "e0dbec0b83303fd7b977b786dcc6683f4979753a82ada4fc9379560ce02c788d",
+   "repickle_hash_order_free": true
+  },
+  "transient": {
+   "pickle_error": "ValueError: cannot checkpoint pending academy teaching work"
+  },
+  "old": {
+   "pickle": "learning_services_state.LearningServicesState.old.pkl",
+   "sha256": "bdca53861a5780546729ca7d6675e2550b0b65f10d13c948e56ba46298288963",
+   "hash_order_free": true,
+   "loaded": {
+    "type": "learning_services_state.LearningServicesState",
+    "dict_keys": [
+     "enabled",
+     "inventories",
+     "procurement_receipts",
+     "supply_losses",
+     "teaching_receipts",
+     "last_procurement_turn",
+     "last_service_turn"
+    ],
+    "fields_set": [],
+    "extra": null,
+    "private": null,
+    "dump": {}
+   },
+   "repickle": {
+    "error": "TypeError: 'NoneType' object is not subscriptable"
+   }
+  },
+  "partial": {
+   "pickle": "learning_services_state.LearningServicesState.partial.pkl",
+   "sha256": "ca59903063027f7daeb20b3e17057028505e74163ab9b8596548b1996facbb69",
+   "hash_order_free": true,
+   "loaded": {
+    "type": "learning_services_state.LearningServicesState",
+    "dict_keys": [
+     "enabled",
+     "last_source_turn",
+     "receipts",
+     "inventories",
+     "procurement_receipts",
+     "supply_losses",
+     "teaching_receipts",
+     "last_procurement_turn",
+     "last_service_turn"
+    ],
+    "fields_set": [],
+    "extra": null,
+    "private": {},
+    "dump": {
+     "last_source_turn": null,
+     "receipts": []
+    }
+   },
+   "repickle_sha256": "ca59903063027f7daeb20b3e17057028505e74163ab9b8596548b1996facbb69",
+   "repickle_hash_order_free": true
+  }
+ }
+}

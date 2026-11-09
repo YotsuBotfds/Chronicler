@@ -1,0 +1,211 @@
+{
+ "class": "war_consequences_state.WarConsequencesState",
+ "schema_sha256": "b52cf4102676cfeebae7acb1328d8539805cee5c6ffc7c55cb01b36039a19382",
+ "variants": {
+  "populated": {
+   "pickle": "war_consequences_state.WarConsequencesState.populated.pkl",
+   "sha256": "5633113c652db6776d7b9f45f048bd0a0c2954b525a102c4143734e0d5ce2cce",
+   "hash_order_free": true,
+   "loaded": {
+    "type": "war_consequences_state.WarConsequencesState",
+    "dict_keys": [
+     "enabled",
+     "mode",
+     "last_turn",
+     "pending",
+     "history",
+     "history_dropped",
+     "frame",
+     "separation",
+     "counters",
+     "threats",
+     "pending_threats",
+     "returns",
+     "noted_turn",
+     "noted_keys"
+    ],
+    "fields_set": [],
+    "extra": null,
+    "private": {
+     "_key_set": {
+      "__set__": []
+     }
+    },
+    "dump": {
+     "enabled": true,
+     "mode": "active",
+     "last_turn": -1,
+     "pending": [],
+     "history": [],
+     "history_dropped": 0,
+     "frame": null,
+     "separation": null,
+     "counters": {
+      "switch_state_probe_1": 1,
+      "switch_state_probe_2": 2
+     },
+     "threats": {},
+     "pending_threats": {},
+     "returns": {},
+     "noted_turn": null,
+     "noted_keys": []
+    }
+   },
+   "repickle_sha256": "5633113c652db6776d7b9f45f048bd0a0c2954b525a102c4143734e0d5ce2cce",
+   "repickle_hash_order_free": true
+  },
+  "transient": {
+   "pickle": "war_consequences_state.WarConsequencesState.transient.pkl",
+   "sha256": "d674cf536165535fb11cb262f926de1acce4445847e6517f692c04b5bedddb96",
+   "hash_order_free": true,
+   "loaded": {
+    "type": "war_consequences_state.WarConsequencesState",
+    "dict_keys": [
+     "enabled",
+     "mode",
+     "last_turn",
+     "pending",
+     "history",
+     "history_dropped",
+     "frame",
+     "separation",
+     "counters",
+     "threats",
+     "pending_threats",
+     "returns",
+     "noted_turn",
+     "noted_keys"
+    ],
+    "fields_set": [],
+    "extra": null,
+    "private": {
+     "_key_set": {
+      "__set__": []
+     }
+    },
+    "dump": {
+     "enabled": true,
+     "mode": "active",
+     "last_turn": -1,
+     "pending": [],
+     "history": [],
+     "history_dropped": 0,
+     "frame": null,
+     "separation": null,
+     "counters": {
+      "switch_state_probe_1": 1,
+      "switch_state_probe_2": 2
+     },
+     "threats": {},
+     "pending_threats": {},
+     "returns": {},
+     "noted_turn": null,
+     "noted_keys": []
+    }
+   },
+   "repickle_sha256": "5633113c652db6776d7b9f45f048bd0a0c2954b525a102c4143734e0d5ce2cce",
+   "repickle_hash_order_free": true
+  },
+  "old": {
+   "pickle": "war_consequences_state.WarConsequencesState.old.pkl",
+   "sha256": "60e72002538074de82cf3a196b278d0f83841aebe48caedd32b30936cda44a6b",
+   "hash_order_free": true,
+   "loaded": {
+    "type": "war_consequences_state.WarConsequencesState",
+    "dict_keys": [
+     "enabled",
+     "mode",
+     "last_turn",
+     "pending",
+     "history",
+     "history_dropped",
+     "frame",
+     "separation",
+     "counters",
+     "threats",
+     "pending_threats",
+     "returns",
+     "noted_turn",
+     "noted_keys"
+    ],
+    "fields_set": [],
+    "extra": null,
+    "private": {
+     "_key_set": {
+      "__set__": []
+     }
+    },
+    "dump": {
+     "enabled": true,
+     "mode": "active",
+     "last_turn": -1,
+     "pending": [],
+     "history": [],
+     "history_dropped": 0,
+     "frame": null,
+     "separation": null,
+     "counters": {},
+     "threats": {},
+     "pending_threats": {},
+     "returns": {},
+     "noted_turn": null,
+     "noted_keys": []
+    }
+   },
+   "repickle_sha256": "be6c745b70c344cf35d5cec214839cc870452a1a2924c2d282f186ba2a2689ca",
+   "repickle_hash_order_free": true
+  },
+  "partial": {
+   "pickle": "war_consequences_state.WarConsequencesState.partial.pkl",
+   "sha256": "e7579f164718c17dcf3b106168a13179ba86817813c23c8427a322a26037f1d7",
+   "hash_order_free": true,
+   "loaded": {
+    "type": "war_consequences_state.WarConsequencesState",
+    "dict_keys": [
+     "enabled",
+     "mode",
+     "last_turn",
+     "pending",
+     "history",
+     "history_dropped",
+     "frame",
+     "separation",
+     "counters",
+     "threats",
+     "pending_threats",
+     "returns",
+     "noted_turn",
+     "noted_keys"
+    ],
+    "fields_set": [],
+    "extra": null,
+    "private": {
+     "_key_set": {
+      "__set__": []
+     }
+    },
+    "dump": {
+     "enabled": true,
+     "mode": "active",
+     "last_turn": -1,
+     "pending": [],
+     "history": [],
+     "history_dropped": 0,
+     "frame": null,
+     "separation": null,
+     "counters": {
+      "switch_state_probe_1": 1,
+      "switch_state_probe_2": 2
+     },
+     "threats": {},
+     "pending_threats": {},
+     "returns": {},
+     "noted_turn": null,
+     "noted_keys": []
+    }
+   },
+   "repickle_sha256": "5633113c652db6776d7b9f45f048bd0a0c2954b525a102c4143734e0d5ce2cce",
+   "repickle_hash_order_free": true
+  }
+ }
+}

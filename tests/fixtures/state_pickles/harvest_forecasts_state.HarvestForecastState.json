@@ -1,0 +1,166 @@
+{
+ "class": "harvest_forecasts_state.HarvestForecastState",
+ "schema_sha256": "c291a3e10fdc1a9c1f993a71f2236484aaa78c76f90c1b49e43c8240c69922ea",
+ "variants": {
+  "populated": {
+   "pickle": "harvest_forecasts_state.HarvestForecastState.populated.pkl",
+   "sha256": "ea3d86d4d0d5f37fef368773be17a07f39907764bc3ee339c6d85755f3493b3b",
+   "hash_order_free": true,
+   "loaded": {
+    "type": "harvest_forecasts_state.HarvestForecastState",
+    "dict_keys": [
+     "policy",
+     "preparation_policy",
+     "report_delay",
+     "observers",
+     "reports",
+     "outcomes",
+     "preparedness",
+     "counters",
+     "calibration",
+     "last_tick_turn",
+     "procurement_decisions"
+    ],
+    "fields_set": [],
+    "extra": null,
+    "private": null,
+    "dump": {
+     "policy": "normal",
+     "observers": [],
+     "reports": [],
+     "outcomes": [],
+     "preparedness": [],
+     "counters": {
+      "issued": 1.0,
+      "delivered": 0,
+      "withheld": 0,
+      "cancelled": 0,
+      "resolved": 0,
+      "unscored": 0,
+      "brier_sum": 0.0,
+      "bought_during_warning": 0.0,
+      "paid_during_warning": 0.0,
+      "switch_state_probe_2": 2.5
+     },
+     "calibration": [
+      [
+       0.0,
+       0.0,
+       0.0
+      ],
+      [
+       0.0,
+       0.0,
+       0.0
+      ],
+      [
+       0.0,
+       0.0,
+       0.0
+      ],
+      [
+       0.0,
+       0.0,
+       0.0
+      ],
+      [
+       0.0,
+       0.0,
+       0.0
+      ]
+     ],
+     "last_tick_turn": null
+    }
+   },
+   "repickle_sha256": "ea3d86d4d0d5f37fef368773be17a07f39907764bc3ee339c6d85755f3493b3b",
+   "repickle_hash_order_free": true
+  },
+  "old": {
+   "pickle": "harvest_forecasts_state.HarvestForecastState.old.pkl",
+   "sha256": "89e53d22c0cff5c6f103f1e099bf104d2cc7d4fa25f114b19c93bb0e7f009796",
+   "hash_order_free": true,
+   "loaded": {
+    "type": "harvest_forecasts_state.HarvestForecastState",
+    "dict_keys": [],
+    "fields_set": [],
+    "extra": null,
+    "private": null,
+    "dump": {}
+   },
+   "repickle_sha256": "89e53d22c0cff5c6f103f1e099bf104d2cc7d4fa25f114b19c93bb0e7f009796",
+   "repickle_hash_order_free": true
+  },
+  "partial": {
+   "pickle": "harvest_forecasts_state.HarvestForecastState.partial.pkl",
+   "sha256": "b626b420c329393e1bf47185ea80b773a55739d52abe3968fb159e5175e6055b",
+   "hash_order_free": true,
+   "loaded": {
+    "type": "harvest_forecasts_state.HarvestForecastState",
+    "dict_keys": [
+     "policy",
+     "preparation_policy",
+     "report_delay",
+     "observers",
+     "reports",
+     "outcomes",
+     "preparedness",
+     "counters",
+     "calibration",
+     "last_tick_turn"
+    ],
+    "fields_set": [],
+    "extra": null,
+    "private": null,
+    "dump": {
+     "policy": "normal",
+     "observers": [],
+     "reports": [],
+     "outcomes": [],
+     "preparedness": [],
+     "counters": {
+      "issued": 1.0,
+      "delivered": 0,
+      "withheld": 0,
+      "cancelled": 0,
+      "resolved": 0,
+      "unscored": 0,
+      "brier_sum": 0.0,
+      "bought_during_warning": 0.0,
+      "paid_during_warning": 0.0,
+      "switch_state_probe_2": 2.5
+     },
+     "calibration": [
+      [
+       0.0,
+       0.0,
+       0.0
+      ],
+      [
+       0.0,
+       0.0,
+       0.0
+      ],
+      [
+       0.0,
+       0.0,
+       0.0
+      ],
+      [
+       0.0,
+       0.0,
+       0.0
+      ],
+      [
+       0.0,
+       0.0,
+       0.0
+      ]
+     ],
+     "last_tick_turn": null
+    }
+   },
+   "repickle_sha256": "b626b420c329393e1bf47185ea80b773a55739d52abe3968fb159e5175e6055b",
+   "repickle_hash_order_free": true
+  }
+ }
+}

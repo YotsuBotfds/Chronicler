@@ -1,0 +1,164 @@
+{
+ "class": "maintenance_obligation_state.MaintenanceObligationState",
+ "schema_sha256": "2a054be9492c518d9c70f56d28ef1ebb27af0afa91c676a1db71b3fc52a0d906",
+ "variants": {
+  "populated": {
+   "pickle": "maintenance_obligation_state.MaintenanceObligationState.populated.pkl",
+   "sha256": "fa93357148a66e56b5d9fc260e7b47df1f7288fcb307843770fdddba89641aba",
+   "hash_order_free": true,
+   "loaded": {
+    "type": "maintenance_obligation_state.MaintenanceObligationState",
+    "dict_keys": [
+     "schema_version",
+     "enabled",
+     "mode",
+     "decision_turn",
+     "decisions",
+     "frame_turn",
+     "uses",
+     "last_settled_turn",
+     "counters"
+    ],
+    "fields_set": [],
+    "extra": null,
+    "private": {
+     "_staged": null,
+     "_turn": null
+    },
+    "dump": {
+     "schema_version": 1,
+     "enabled": true,
+     "mode": "reserve",
+     "decision_turn": null,
+     "decisions": [],
+     "frame_turn": null,
+     "uses": null,
+     "last_settled_turn": null,
+     "counters": {
+      "switch_state_probe_1": 1.0,
+      "switch_state_probe_2": 2.5
+     }
+    }
+   },
+   "repickle_sha256": "fa93357148a66e56b5d9fc260e7b47df1f7288fcb307843770fdddba89641aba",
+   "repickle_hash_order_free": true
+  },
+  "transient": {
+   "pickle": "maintenance_obligation_state.MaintenanceObligationState.transient.pkl",
+   "sha256": "fa93357148a66e56b5d9fc260e7b47df1f7288fcb307843770fdddba89641aba",
+   "hash_order_free": true,
+   "loaded": {
+    "type": "maintenance_obligation_state.MaintenanceObligationState",
+    "dict_keys": [
+     "schema_version",
+     "enabled",
+     "mode",
+     "decision_turn",
+     "decisions",
+     "frame_turn",
+     "uses",
+     "last_settled_turn",
+     "counters"
+    ],
+    "fields_set": [],
+    "extra": null,
+    "private": {
+     "_staged": null,
+     "_turn": null
+    },
+    "dump": {
+     "schema_version": 1,
+     "enabled": true,
+     "mode": "reserve",
+     "decision_turn": null,
+     "decisions": [],
+     "frame_turn": null,
+     "uses": null,
+     "last_settled_turn": null,
+     "counters": {
+      "switch_state_probe_1": 1.0,
+      "switch_state_probe_2": 2.5
+     }
+    }
+   },
+   "repickle_sha256": "fa93357148a66e56b5d9fc260e7b47df1f7288fcb307843770fdddba89641aba",
+   "repickle_hash_order_free": true
+  },
+  "old": {
+   "pickle": "maintenance_obligation_state.MaintenanceObligationState.old.pkl",
+   "sha256": "5f9d578f97a1c31b9ad5dd6520cacff5771635d1871affc58ba1da8d4caa11cd",
+   "hash_order_free": true,
+   "loaded": {
+    "type": "maintenance_obligation_state.MaintenanceObligationState",
+    "dict_keys": [
+     "schema_version",
+     "enabled",
+     "mode",
+     "decision_turn",
+     "decisions",
+     "frame_turn",
+     "uses",
+     "last_settled_turn",
+     "counters"
+    ],
+    "fields_set": [],
+    "extra": null,
+    "private": {
+     "_turn": null,
+     "_staged": null
+    },
+    "dump": {
+     "schema_version": 1,
+     "enabled": true,
+     "mode": "reserve",
+     "decision_turn": null,
+     "decisions": [],
+     "frame_turn": null,
+     "uses": null,
+     "last_settled_turn": null,
+     "counters": {}
+    }
+   },
+   "repickle_sha256": "9ce40996d37d5bddb7c73599b0e7651422ffec826feac4819dfb9017daf56112",
+   "repickle_hash_order_free": true
+  },
+  "partial": {
+   "pickle": "maintenance_obligation_state.MaintenanceObligationState.partial.pkl",
+   "sha256": "53f3c94700d19d898f4cb0d9665762768ee00f8cc59a3d0bd7806550a538d9a7",
+   "hash_order_free": true,
+   "loaded": {
+    "type": "maintenance_obligation_state.MaintenanceObligationState",
+    "dict_keys": [
+     "schema_version",
+     "enabled",
+     "mode",
+     "decision_turn",
+     "decisions",
+     "frame_turn",
+     "uses",
+     "last_settled_turn",
+     "counters"
+    ],
+    "fields_set": [],
+    "extra": null,
+    "private": {
+     "_turn": null,
+     "_staged": null
+    },
+    "dump": {
+     "schema_version": 1,
+     "enabled": true,
+     "mode": "reserve",
+     "decision_turn": null,
+     "decisions": [],
+     "frame_turn": null,
+     "uses": null,
+     "last_settled_turn": null,
+     "counters": {}
+    }
+   },
+   "repickle_sha256": "9ce40996d37d5bddb7c73599b0e7651422ffec826feac4819dfb9017daf56112",
+   "repickle_hash_order_free": true
+  }
+ }
+}

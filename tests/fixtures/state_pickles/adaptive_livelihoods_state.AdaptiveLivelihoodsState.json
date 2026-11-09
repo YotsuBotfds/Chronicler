@@ -1,0 +1,231 @@
+{
+ "class": "adaptive_livelihoods_state.AdaptiveLivelihoodsState",
+ "schema_sha256": "39ea5958cddcb01a3ace94f50fab4fcbfa60704e7f816406236527a779c85131",
+ "variants": {
+  "populated": {
+   "pickle": "adaptive_livelihoods_state.AdaptiveLivelihoodsState.populated.pkl",
+   "sha256": "7b1cec410b1aeb5186ebf954b480993b114a59400a739f1c9ae4a03e568e5fad",
+   "hash_order_free": true,
+   "loaded": {
+    "type": "adaptive_livelihoods_state.AdaptiveLivelihoodsState",
+    "dict_keys": [
+     "enabled",
+     "mode",
+     "rules",
+     "decision_channels",
+     "memory",
+     "work",
+     "known_residences",
+     "trade_experience",
+     "last_turn",
+     "frame",
+     "counters",
+     "offer_turn",
+     "offers",
+     "offers_dropped"
+    ],
+    "fields_set": [],
+    "extra": null,
+    "private": {
+     "_index_turn": null,
+     "_work_index": {},
+     "_offer_cache": {},
+     "_record_turn": null,
+     "_record_keys": {
+      "__set__": []
+     },
+     "_work_heap": []
+    },
+    "dump": {
+     "enabled": true,
+     "mode": "adapt",
+     "rules": "2",
+     "decision_channels": "all",
+     "memory": [],
+     "work": [],
+     "known_residences": {},
+     "trade_experience": [],
+     "last_turn": -1,
+     "frame": null,
+     "counters": {
+      "switch_state_probe_1": 1,
+      "switch_state_probe_2": 2
+     },
+     "offer_turn": null,
+     "offers": [],
+     "offers_dropped": 0
+    }
+   },
+   "repickle_sha256": "7b1cec410b1aeb5186ebf954b480993b114a59400a739f1c9ae4a03e568e5fad",
+   "repickle_hash_order_free": true
+  },
+  "transient": {
+   "pickle": "adaptive_livelihoods_state.AdaptiveLivelihoodsState.transient.pkl",
+   "sha256": "c60521810927990307d1b359b4ba2d0dccde346455541d3f4fdd4ff66aba0629",
+   "hash_order_free": true,
+   "loaded": {
+    "type": "adaptive_livelihoods_state.AdaptiveLivelihoodsState",
+    "dict_keys": [
+     "enabled",
+     "mode",
+     "rules",
+     "decision_channels",
+     "memory",
+     "work",
+     "known_residences",
+     "trade_experience",
+     "last_turn",
+     "frame",
+     "counters",
+     "offer_turn",
+     "offers",
+     "offers_dropped"
+    ],
+    "fields_set": [],
+    "extra": null,
+    "private": {
+     "_index_turn": null,
+     "_work_index": {},
+     "_offer_cache": {},
+     "_record_turn": null,
+     "_record_keys": {
+      "__set__": []
+     },
+     "_work_heap": []
+    },
+    "dump": {
+     "enabled": true,
+     "mode": "adapt",
+     "rules": "2",
+     "decision_channels": "all",
+     "memory": [],
+     "work": [],
+     "known_residences": {},
+     "trade_experience": [],
+     "last_turn": -1,
+     "frame": null,
+     "counters": {
+      "switch_state_probe_1": 1,
+      "switch_state_probe_2": 2
+     },
+     "offer_turn": null,
+     "offers": [],
+     "offers_dropped": 0
+    }
+   },
+   "repickle_sha256": "7b1cec410b1aeb5186ebf954b480993b114a59400a739f1c9ae4a03e568e5fad",
+   "repickle_hash_order_free": true
+  },
+  "old": {
+   "pickle": "adaptive_livelihoods_state.AdaptiveLivelihoodsState.old.pkl",
+   "sha256": "e9b97fed13cf1710072eab2a62a18229535d14fc4768633391365809bdd07f15",
+   "hash_order_free": true,
+   "loaded": {
+    "type": "adaptive_livelihoods_state.AdaptiveLivelihoodsState",
+    "dict_keys": [
+     "enabled",
+     "mode",
+     "rules",
+     "decision_channels",
+     "memory",
+     "work",
+     "known_residences",
+     "trade_experience",
+     "last_turn",
+     "frame",
+     "counters",
+     "offer_turn",
+     "offers",
+     "offers_dropped"
+    ],
+    "fields_set": [],
+    "extra": null,
+    "private": {
+     "_index_turn": null,
+     "_work_index": {},
+     "_offer_cache": {},
+     "_record_turn": null,
+     "_record_keys": {
+      "__set__": []
+     },
+     "_work_heap": []
+    },
+    "dump": {
+     "enabled": true,
+     "mode": "adapt",
+     "rules": "2",
+     "decision_channels": "all",
+     "memory": [],
+     "work": [],
+     "known_residences": {},
+     "trade_experience": [],
+     "last_turn": -1,
+     "frame": null,
+     "counters": {},
+     "offer_turn": null,
+     "offers": [],
+     "offers_dropped": 0
+    }
+   },
+   "repickle_sha256": "1e2c106cdb42e765652aa52ca112609b092219249271d18b05f30b8c9e06fc3a",
+   "repickle_hash_order_free": true
+  },
+  "partial": {
+   "pickle": "adaptive_livelihoods_state.AdaptiveLivelihoodsState.partial.pkl",
+   "sha256": "4aa13735f81bc5b07cfba121de559f07be498a6128e53394847a37d91077c5f9",
+   "hash_order_free": true,
+   "loaded": {
+    "type": "adaptive_livelihoods_state.AdaptiveLivelihoodsState",
+    "dict_keys": [
+     "enabled",
+     "mode",
+     "rules",
+     "decision_channels",
+     "memory",
+     "work",
+     "known_residences",
+     "trade_experience",
+     "last_turn",
+     "frame",
+     "counters",
+     "offer_turn",
+     "offers",
+     "offers_dropped"
+    ],
+    "fields_set": [],
+    "extra": null,
+    "private": {
+     "_index_turn": null,
+     "_work_index": {},
+     "_offer_cache": {},
+     "_record_turn": null,
+     "_record_keys": {
+      "__set__": []
+     },
+     "_work_heap": []
+    },
+    "dump": {
+     "enabled": true,
+     "mode": "adapt",
+     "rules": "2",
+     "decision_channels": "all",
+     "memory": [],
+     "work": [],
+     "known_residences": {},
+     "trade_experience": [],
+     "last_turn": -1,
+     "frame": null,
+     "counters": {
+      "switch_state_probe_1": 1,
+      "switch_state_probe_2": 2
+     },
+     "offer_turn": null,
+     "offers": [],
+     "offers_dropped": 0
+    }
+   },
+   "repickle_sha256": "7b1cec410b1aeb5186ebf954b480993b114a59400a739f1c9ae4a03e568e5fad",
+   "repickle_hash_order_free": true
+  }
+ }
+}
