@@ -4,6 +4,8 @@ import {
   progress, repairFunnel, type RepairProjectRecord, type RepairReceiptRecord,
 } from "../../lib/repairProjects";
 import { show, words } from "./formatters";
+import { SystemSection } from "./SystemSection";
+import { SystemTable } from "./SystemTable";
 
 const coins = (milli: number) => (milli / 1000).toLocaleString(undefined, { maximumFractionDigits: 3 });
 const MODE_NOTE: Record<string, string> = {
@@ -23,9 +25,7 @@ export function RepairProjects({ bundle, snapshot, currentTurn, onSelectRegion }
   const regions = bundle.world_state.regions ?? [];
   const civs = bundle.world_state.civilizations ?? [];
   const reading = readRepairProjects(bundle, snapshot, currentTurn);
-  if (reading.record === null) return <section className="systems-section" aria-label="Repair projects">
-    <h3>Repair projects</h3><p className="systems-note">{reading.note}</p>
-  </section>;
+  if (reading.record === null) return <SystemSection label="Repair projects" emptyText={reading.note} />;
   const record = reading.record;
   const turn = record.source_turn + 1;
   const region = (index: number) => regions[index]?.name ?? `Region ${index}`;
@@ -66,16 +66,16 @@ export function RepairProjects({ bundle, snapshot, currentTurn, onSelectRegion }
     <p className="systems-note">Simulation turn {record.source_turn}. {MODE_NOTE[record.mode]}</p>
     {reading.state === "recorded_zero" ? <p className="systems-note">{reading.note}</p> : null}
     <p className="systems-note">Workshop sites and public granaries only. A project opens when an asset's condition falls below {show(record.parameters.open_below)} or after recorded war damage, and is sized to the actual deficit. Workshop repairs are done by named residents reserved for the turn and paid a wage that replaces part of their income; granary repairs use farm labour, timber and coins. Opening a project does not by itself repair anything.</p>
-    <div className="systems-table-wrap"><table className="systems-table" aria-label={`Repair funnel at snapshot ${turn}`}>
+    <SystemTable label={`Repair funnel at snapshot ${turn}`}>
       <thead><tr><th>Stage (lifetime)</th><th>Count</th></tr></thead>
       <tbody>{repairFunnel(record).map(([label, value]) => <tr key={label}><td>{label}</td><td>{show(value)}</td></tr>)}
         <tr><td>Work delivered</td><td>{show(record.counters.work_delivered ?? 0)}</td></tr>
         <tr><td>Coins charged</td><td>{show(record.counters.charged ?? 0)}</td></tr>
       </tbody>
-    </table></div>
+    </SystemTable>
     {record.receipts === null ? <p className="systems-note">No repair work was planned in simulation turn {record.source_turn}; this turn's work, crews and spending are unknown, not zero.</p> : null}
     {record.projects.length === 0 ? <p className="systems-note">No project is open.</p> :
-      <div className="systems-table-wrap"><table className="systems-table" aria-label={`Open repair projects at snapshot ${turn}`}>
+      <SystemTable label={`Open repair projects at snapshot ${turn}`}>
         <thead><tr><th>Project</th><th>Asset</th><th>Cause</th><th>Scope and progress</th><th>This turn</th><th>Crew</th><th>Funding</th><th>Stalls</th></tr></thead>
         <tbody>{record.projects.map((p) => {
           const r = receipts.get(p.pid);
@@ -90,21 +90,21 @@ export function RepairProjects({ bundle, snapshot, currentTurn, onSelectRegion }
             <td>{Object.keys(p.stalls).length === 0 ? "None" : Object.entries(p.stalls).map(([k, v]) => `${REASON[k] ?? words(k)} ${v}`).join("; ")}</td>
           </tr>;
         })}</tbody>
-      </table></div>}
+      </SystemTable>}
     {record.ledger && record.ledger.length > 0 ?
-      <div className="systems-table-wrap"><table className="systems-table" aria-label={`Repair accounts at snapshot ${turn}`}>
+      <SystemTable label={`Repair accounts at snapshot ${turn}`}>
         <thead><tr><th>Ruler</th><th>Projects</th><th>Work</th><th>Timber</th><th>Wages</th><th>Coins for work</th><th>Charged (whole units, prepaid remainder)</th></tr></thead>
         <tbody>{record.ledger.map((l) => <tr key={l.civ}>
           <td>{civ(l.civ)}</td><td>{l.projects}</td><td>{show(l.work_delivered)}</td><td>{show(l.timber_used)}</td>
           <td>{coins(l.wages_applied_milli)}</td><td>{coins(l.coin_cost_milli)}</td>
           <td>{`${l.charged} (prepaid ${coins(l.prepaid_before_milli)} → ${coins(l.prepaid_after_milli)})${l.envelope !== null ? ` of envelope ${l.envelope}` : ""}`}</td>
         </tr>)}</tbody>
-      </table></div> : null}
+      </SystemTable> : null}
     {record.unmet === null ? null : record.unmet.length === 0 ? null :
       <p className="systems-note">Unmet needs: {record.unmet.map((u) =>
         `${u.kind === "granary" ? "granary" : `workshop site ${u.asset}`} in ${region(u.region)} at ${show(u.condition)} (${words(u.reason)})`).join("; ")}.</p>}
     {record.damages.length > 0 ?
-      <div className="systems-table-wrap"><table className="systems-table" aria-label={`Recent war damage at snapshot ${turn}`}>
+      <SystemTable label={`Recent war damage at snapshot ${turn}`}>
         <thead><tr><th>Turn</th><th>Asset</th><th>Event</th><th>War</th><th>Condition</th><th>Project</th></tr></thead>
         <tbody>{record.damages.slice(-8).map((d) => <tr key={d.did}>
           <td>{d.turn}</td><td>{place(d)}</td><td>{words(d.event)}</td>
@@ -112,7 +112,7 @@ export function RepairProjects({ bundle, snapshot, currentTurn, onSelectRegion }
           <td>{`${show(d.condition_before)} → ${show(d.condition_after)}`}</td>
           <td>{d.project === null ? "None yet" : `#${d.project}`}</td>
         </tr>)}</tbody>
-      </table></div> : null}
+      </SystemTable> : null}
     {record.closed.length > 0 ? <p className="systems-note">Closed projects: {record.closed.slice(-8).map((p) =>
       `#${p.pid} ${p.kind} in ${region(p.region)} (${p.status === "completed" ? "completed" : `abandoned, ${words(p.closed_reason)}`} turn ${p.closed_turn}: ${show(p.delivered)} of ${show(p.scope)} work)`).join("; ")}.</p> : null}
   </section>;

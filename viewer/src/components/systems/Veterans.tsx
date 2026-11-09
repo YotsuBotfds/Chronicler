@@ -4,6 +4,8 @@ import {
   type VeteranOutcomeRecord, type VeteranRecord,
 } from "../../lib/veterans";
 import { show } from "./formatters";
+import { SystemSection } from "./SystemSection";
+import { SystemTable } from "./SystemTable";
 
 const words = (text: string | null | undefined) => (text ?? "").replace(/_/g, " ").replace("placed:", "placed as ");
 const MODE_NOTE: Record<string, string> = {
@@ -30,9 +32,7 @@ export function Veterans({ bundle, snapshot, currentTurn, onSelectRegion }: {
   const regions = bundle.world_state.regions ?? [];
   const civs = bundle.world_state.civilizations ?? [];
   const record = veteransAt(snapshot, regions.length);
-  if (!record) return <section className="systems-section" aria-label="Veterans">
-    <h3>Veterans</h3><p className="systems-note">Veteran reintegration is not observed or is unavailable at snapshot {snapshot?.turn ?? currentTurn}.</p>
-  </section>;
+  if (!record) return <SystemSection label="Veterans" emptyText={<>Veteran reintegration is not observed or is unavailable at snapshot {snapshot?.turn ?? currentTurn}.</>} />;
   const turn = record.source_turn + 1;
   const region = (index: number) => regions[index]?.name ?? `Region ${index}`;
   const civ = (index: number) => (index < 0 ? "Unknown" : civs[index]?.name ?? `Civ ${index}`);
@@ -57,16 +57,16 @@ export function Veterans({ bundle, snapshot, currentTurn, onSelectRegion }: {
     <h3>Veterans · snapshot {turn}</h3>
     <p className="systems-note">Simulation turn {record.source_turn}. {MODE_NOTE[record.mode]}</p>
     <p className="systems-note">Veterans are named people who left a real army alive: deserters, survivors of a broken army and soldiers sent home. They stay eligible for {show(Number(record.parameters.eligible_turns))} turns while adult, off every roster and living in land ruled by the civilization they served. Nothing is guaranteed: with no opening there is no placement, and no person, money or skill is created.</p>
-    <div className="systems-table-wrap"><table className="systems-table" aria-label={`Veteran funnel at snapshot ${turn}`}>
+    <SystemTable label={`Veteran funnel at snapshot ${turn}`}>
       <thead><tr><th>Stage (lifetime)</th><th>Count</th></tr></thead>
       <tbody>{veteranFunnel(record).map(([label, value]) => <tr key={label}><td>{label}</td><td>{show(value)}</td></tr>)}</tbody>
-    </table></div>
-    <div className="systems-table-wrap"><table className="systems-table" aria-label={`Veteran outcomes at snapshot ${turn}`}>
+    </SystemTable>
+    <SystemTable label={`Veteran outcomes at snapshot ${turn}`}>
       <thead><tr><th>Outcome (lifetime)</th><th>Count</th></tr></thead>
       <tbody>{veteranOutcomeCounts(record).map(([label, value]) => <tr key={label}><td>{label}</td><td>{show(value)}</td></tr>)}</tbody>
-    </table></div>
+    </SystemTable>
     {frame === null ? <p className="systems-note">No veteran turn was recorded in simulation turn {record.source_turn}; releases, placements and waiting are unknown, not zero.</p> :
-      <div className="systems-table-wrap"><table className="systems-table" aria-label={`Veterans this turn at snapshot ${turn}`}>
+      <SystemTable label={`Veterans this turn at snapshot ${turn}`}>
         <thead><tr><th>This turn</th><th>People</th></tr></thead>
         <tbody>
           <tr><td>Released alive</td><td>{frame.captured_total}{frame.captured_total ? ` (${Object.entries(frame.captured_by_cause).map(([k, n]) => `${n} ${words(k)}`).join(", ")})` : ""}</td></tr>
@@ -75,17 +75,17 @@ export function Veterans({ bundle, snapshot, currentTurn, onSelectRegion }: {
           <tr><td>Waiting with no opening</td><td>{noOpening === null ? "Unknown" : `${noOpening} (${NO_OPENING.map((k) => `${unmet?.get(k)?.length ?? 0} ${words(k)}`).join(", ")})`}</td></tr>
           <tr><td>Waiting, an opening existed</td><td>{unmet === null ? "Unknown" : [...unmet].filter(([k]) => !NO_OPENING.includes(k)).map(([k, ids]) => `${ids.length} ${words(k)}`).join(", ") || "0"}</td></tr>
         </tbody>
-      </table></div>}
+      </SystemTable>}
     {record.veterans.length === 0 ? <p className="systems-note">No veteran record is open.</p> :
-      <div className="systems-table-wrap"><table className="systems-table" aria-label={`Open veteran records at snapshot ${turn}`}>
+      <SystemTable label={`Open veteran records at snapshot ${turn}`}>
         <thead><tr><th>Person</th><th>Served</th><th>War</th><th>Left by</th><th>Released</th><th>Lives in</th><th>Status</th><th>Placements</th><th>Dated outcomes</th></tr></thead>
         <tbody>{record.veterans.map(row)}</tbody>
-      </table></div>}
+      </SystemTable>}
     {record.veterans_omitted ? <p className="systems-note">{record.veterans_omitted} more open records are not shown in this snapshot.</p> : null}
     {record.closed.length > 0 ?
-      <div className="systems-table-wrap"><table className="systems-table" aria-label={`Veteran records closed at snapshot ${turn}`}>
+      <SystemTable label={`Veteran records closed at snapshot ${turn}`}>
         <thead><tr><th>Person</th><th>Served</th><th>War</th><th>Left by</th><th>Released</th><th>Lived in</th><th>Status</th><th>Placements</th><th>Dated outcomes</th></tr></thead>
         <tbody>{record.closed.map(row)}</tbody>
-      </table></div> : null}
+      </SystemTable> : null}
   </section>;
 }

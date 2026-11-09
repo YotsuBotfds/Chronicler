@@ -1,6 +1,8 @@
 import type { Bundle, TurnSnapshot } from "../../types";
 import { awardedServices, localBudgetsAt, type BudgetCommitmentRecord } from "../../lib/localBudgets";
 import { show, words } from "./formatters";
+import { SystemSection } from "./SystemSection";
+import { SystemTable } from "./SystemTable";
 
 const MODE_NOTE: Record<string, string> = {
   bargained: "Bargained: each constituency proposes its own feasible allocation from its measured burden; the ruler adopts the one with the highest influence-weighted satisfaction. Delivered or broken promises move the judging city's grievance.",
@@ -24,9 +26,7 @@ export function LocalBudgets({ bundle, snapshot, currentTurn, onSelectRegion }: 
   const regions = bundle.world_state.regions ?? [];
   const civs = bundle.world_state.civilizations ?? [];
   const record = localBudgetsAt(snapshot, civs.length);
-  if (!record) return <section className="systems-section" aria-label="Local budgets">
-    <h3>Local budgets</h3><p className="systems-note">Local budgets are not observed or are unavailable at snapshot {snapshot?.turn ?? currentTurn}.</p>
-  </section>;
+  if (!record) return <SystemSection label="Local budgets" emptyText={<>Local budgets are not observed or are unavailable at snapshot {snapshot?.turn ?? currentTurn}.</>} />;
   const turn = record.source_turn + 1;
   const civ = (index: number) => civs[index]?.name ?? `Civ ${index}`;
   const region = (index: number) => regions[index]?.name ?? `Region ${index}`;
@@ -46,7 +46,7 @@ export function LocalBudgets({ bundle, snapshot, currentTurn, onSelectRegion }: 
     <p className="systems-note">Phase 10 of simulation turn {record.source_turn}: each ruler settles last turn's envelopes from the services' own receipts, then commits one projected budget to next turn's. {MODE_NOTE[record.mode]}</p>
     <p className="systems-note">Granary purchases, granary works, workshop bills and, when their switches are on, commons wardens and academies' purchases from workshop firms spend only within an accepted envelope; academies' own market purchases are reserved first, not bargained.</p>
     {record.decisions === null ? <p className="systems-note">No budget decision was recorded in simulation turn {record.source_turn}; allocations are unknown, not zero.</p> :
-      <div className="systems-table-wrap"><table className="systems-table" aria-label={`Budget decisions at snapshot ${turn}`}>
+      <SystemTable label={`Budget decisions at snapshot ${turn}`}>
         <thead><tr><th>Ruler</th><th>Budget</th><th>Commons burden</th><th>Patricians burden</th><th>Influence (commons / patricians)</th><th>Proposals</th><th>Adopted</th><th>Funded</th></tr></thead>
         <tbody>{record.decisions.map((d) => <tr key={d.civ}>
           <td>{civ(d.civ)}</td>
@@ -57,18 +57,18 @@ export function LocalBudgets({ bundle, snapshot, currentTurn, onSelectRegion }: 
           <td>{OUTCOME[d.outcome ?? ""] ?? words(d.outcome)}</td>
           <td>{d.awards.length === 0 ? "Nothing" : awardedServices(d).join("; ")}</td>
         </tr>)}</tbody>
-      </table></div>}
+      </SystemTable>}
     {record.settled === null ? <p className="systems-note">No envelope was settled in simulation turn {record.source_turn}; deliveries are unknown, not zero.</p> :
       record.settled.length === 0 ? <p className="systems-note">No envelope was due in simulation turn {record.source_turn}.</p> :
-      <div className="systems-table-wrap"><table className="systems-table" aria-label={`Settled envelopes at snapshot ${turn}`}>
+      <SystemTable label={`Settled envelopes at snapshot ${turn}`}>
         <thead><tr><th>Ruler</th><th>Service</th><th>Recipients</th><th>Envelope</th><th>Spent</th><th>Delivered</th><th>Outcome</th><th>Promised to</th><th>Grievance</th></tr></thead>
         <tbody>{record.settled.map(settledRow)}</tbody>
-      </table></div>}
+      </SystemTable>}
     {record.responses && record.responses.length > 0 ? <p className="systems-note">City grievance after observed delivery: {record.responses.map((r) =>
       `${civ(r.civ)}'s city ${r.settlement_id} ${show(r.before)} → ${show(r.after)}`).join("; ")}.</p> : null}
-    <div className="systems-table-wrap"><table className="systems-table" aria-label={`Budget funnel at snapshot ${turn}`}>
+    <SystemTable label={`Budget funnel at snapshot ${turn}`}>
       <thead><tr><th>Since the switch</th><th>Count</th></tr></thead>
       <tbody>{FUNNEL.map(([key, label]) => <tr key={key}><td>{label}</td><td>{show(record.counters[key] ?? 0)}</td></tr>)}</tbody>
-    </table></div>
+    </SystemTable>
   </section>;
 }
