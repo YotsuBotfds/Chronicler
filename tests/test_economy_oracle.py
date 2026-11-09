@@ -346,3 +346,29 @@ def test_oracle_module_exposes_every_oracle_name():
             elif isinstance(node, ast.Attribute) and node.attr == "compute_economy":
                 importers.append(f"{rel}:{node.lineno}")
     assert importers == []
+
+
+def test_economy_module_resolves_moved_oracle_names_lazily():
+    """Old ``chronicler.economy`` imports of the moved oracle names still work."""
+    import ast
+    import inspect
+
+    import pytest
+
+    from chronicler import economy, economy_oracle
+
+    for name in economy._ORACLE_NAMES:
+        assert getattr(economy, name) is getattr(economy_oracle, name), name
+    from chronicler.economy import compute_economy as via_shim
+    assert via_shim is compute_economy is economy_oracle.compute_economy
+    with pytest.raises(AttributeError):
+        economy.not_an_oracle_name  # noqa: B018
+
+    # The bodies live only in the oracle; economy.py defines none of them.
+    defined = {node.name for node in ast.parse(inspect.getsource(economy)).body
+               if isinstance(node, ast.FunctionDef)}
+    assert defined.isdisjoint(economy._ORACLE_NAMES)
+    oracle_defined = {name for name, value in vars(economy_oracle).items()
+                      if inspect.isfunction(value)
+                      and value.__module__ == "chronicler.economy_oracle"}
+    assert economy._ORACLE_NAMES <= oracle_defined
