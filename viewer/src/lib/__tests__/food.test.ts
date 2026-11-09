@@ -3,7 +3,7 @@ import systemsFixture from "../../__fixtures__/systems_bundle.json";
 import sampleFixture from "../../__fixtures__/sample_bundle.json";
 import type { Bundle, Event, TurnSnapshot } from "../../types";
 import {
-  aidFlows, crisesAtSnapshot, DEARTH_COLOR, FAMINE_COLOR, famineRows, faminesAt, famineSpans, foodCrisisSpans,
+  aidFlows, crisesAtSnapshot, DEARTH_COLOR, FAMINE_COLOR, famineRows, faminesAt, foodCrisisSpans,
   foodSeries,
   hasFamineRecord, hasFoodRecord, hasMigrationRecord, massMigrations, migrationDriverKind, migrationFlows, netMigration,
   spansOfKind, sufficiencyByRegion,
@@ -23,7 +23,7 @@ function snap(turn: number, extra: Partial<TurnSnapshot> = {}): TurnSnapshot {
 
 describe("famine spans", () => {
   it("opens a span at onset, counts repeat reports and closes it at the recorded end", () => {
-    const spans = famineSpans([
+    const spans = spansOfKind(foodCrisisSpans([
       famine(2, "A", "onset"),
       famine(4, "A", "tick"),
       famine(5, "B", "onset"),
@@ -31,7 +31,7 @@ describe("famine spans", () => {
       famine(11, "A", "onset"),
       famine(12, null, "onset"),
       famine(13, "C", "tick"),
-    ]);
+    ]), "famine");
     expect(spans.map((span) => [span.region, span.start, span.end, span.reports, span.kind])).toEqual([
       ["A", 2, 9, 2, "famine"], ["B", 5, null, 1, "famine"], ["A", 11, null, 1, "famine"],
     ]);
@@ -63,7 +63,7 @@ describe("famine spans", () => {
     expect(spans.map((span) => [span.region, span.kind, span.start, span.end, span.reports])).toEqual([
       ["A", "dearth", 0, 10, 2], ["B", "dearth", 3, 12, 1], ["A", "famine", 10, 20, 2], ["A", "dearth", 20, 30, 1],
     ]);
-    expect(famineSpans(events).map((span) => [span.start, span.end])).toEqual([[10, 20]]);
+    expect(spansOfKind(foodCrisisSpans(events), "famine").map((span) => [span.start, span.end])).toEqual([[10, 20]]);
     expect(spansOfKind(faminesAt(spans, 11), "dearth").map((span) => span.region)).toEqual(["B"]);
     expect(hasFamineRecord([famine(0, "A", "onset", "dearth")])).toBe(true);
     const row = famineRows(spans, ["A", "B"], 40)[0];
@@ -74,7 +74,7 @@ describe("famine spans", () => {
   it("finds famine records only where events carry region and episode", () => {
     expect(hasFamineRecord(systems.events_timeline)).toBe(true);
     expect(hasFamineRecord(sample.events_timeline)).toBe(false);
-    const spans = famineSpans(systems.events_timeline);
+    const spans = spansOfKind(foodCrisisSpans(systems.events_timeline), "famine");
     expect(spans.length).toBeGreaterThan(0);
     expect(spans.every((span) => span.end === null || span.end > span.start)).toBe(true);
   });

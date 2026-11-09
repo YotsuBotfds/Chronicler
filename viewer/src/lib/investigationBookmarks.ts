@@ -156,9 +156,3 @@ export async function saveInvestigationBookmark(storage: BookmarkStorage | null,
   }
   return result;
 }
-
-/** Safe reference for optional future sharing. Private notes are excluded by construction. */
-export function investigationBookmarkReference(bookmark: InvestigationBookmark): Omit<InvestigationBookmark, "notes"> | null {
-  return validInvestigationBookmark(bookmark) ? { world: { sha256: bookmark.world.sha256, filename: bookmark.world.filename },
-    target: { kind: bookmark.target.kind, index: bookmark.target.index, name: bookmark.target.name }, turn: bookmark.turn, panel: bookmark.panel } : null;
-}

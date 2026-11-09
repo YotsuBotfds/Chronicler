@@ -1,7 +1,7 @@
 import { bookmarkIdbStub } from "./bookmarkIdbStub";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ArtifactIdentity } from "../artifactIdentity";
-import { bookmarkRestoreStatus, INVESTIGATION_BOOKMARKS_KEY, investigationBookmarkKey, investigationBookmarkReference, portableBookmarkArtifact,
+import { bookmarkRestoreStatus, INVESTIGATION_BOOKMARKS_KEY, investigationBookmarkKey, portableBookmarkArtifact,
   readInvestigationBookmarks, readStoredInvestigationBookmarks, saveInvestigationBookmark as saveWithLock, validInvestigationBookmark, type BookmarkStorage, type InvestigationBookmark } from "../investigationBookmarks";
 
 const identity: ArtifactIdentity = { name: "world.json", byteLength: 123, sha256: "a".repeat(64) };
@@ -64,9 +64,7 @@ describe("local investigation bookmark schema", () => {
     const read = await readStoredInvestigationBookmarks(local.api);
     if (!read.ok) throw new Error(read.error);
     expect(read.bookmarks).toHaveLength(1);
-    const reference = investigationBookmarkReference(read.bookmarks[0]);
-    expect(reference).toEqual({ world: bookmark().world, target: { ...target, name: "Display label" }, turn: 4, panel: "history" });
-    expect(JSON.stringify(reference)).not.toContain("private note");
+    expect(read.bookmarks[0]).toMatchObject({ world: bookmark().world, target: { ...target, name: "Display label" }, turn: 4, panel: "history" });
     expect(read.bookmarks[0].notes).toBe("Revised private note");
   });
   it("stores only a bounded display filename rather than a supplied private path", async () => {
@@ -123,6 +121,5 @@ describe("local investigation bookmark schema", () => {
     const malformed = { ...bookmark(), target: { ...target, kind: "unknown" } };
     expect(validInvestigationBookmark(malformed)).toBe(false);
     expect(bookmarkRestoreStatus(malformed as InvestigationBookmark, identity).canRestore).toBe(false);
-    expect(investigationBookmarkReference(malformed as InvestigationBookmark)).toBeNull();
   });
 });

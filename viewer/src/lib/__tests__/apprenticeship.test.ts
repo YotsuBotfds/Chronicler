@@ -1,11 +1,15 @@
 import { describe, expect, it } from "vitest";
 import type { TurnSnapshot } from "../../types";
-import { apprenticeshipAt, apprenticeshipFunnel, apprenticeshipOutcomes, readApprenticeship, usefulWork } from "../apprenticeship";
+import { apprenticeshipFunnel, apprenticeshipOutcomes, readApprenticeship, usefulWork } from "../apprenticeship";
 import { apprentice, receipt, record, seat } from "./apprenticeshipFixture";
 import { attachedSeat, crewSeat, v2Receipt, v2Record } from "./productiveRecoveryFixture";
 
 const snap = (apprenticeship: unknown, turn = 5) =>
   ({ turn, livelihoods: { schema_version: 1, apprenticeship } } as unknown as TurnSnapshot);
+const apprenticeshipAt = (snapshot: TurnSnapshot | null, regions: number) => {
+  const r = readApprenticeship(snapshot, regions);
+  return r.status === "ok" ? r.record : null;
+};
 const reason = (x: unknown, regions = 3) => {
   const r = readApprenticeship(snap(x), regions);
   return r.status === "malformed" ? r.reason : r.status;

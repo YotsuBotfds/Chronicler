@@ -131,11 +131,6 @@ export function governanceOf(snapshot: TurnSnapshot | null, civ: string): Govern
   return snapshot?.civ_stats[civ]?.governance ?? null;
 }
 
-/** True when any civilization row carries governance stats. */
-export function hasGovernanceRecord(history: TurnSnapshot[]): boolean {
-  return history.some((snapshot) => Object.values(snapshot.civ_stats).some((row) => row.governance != null));
-}
-
 /** Civilizations with governance stats anywhere, in world order. */
 export function governanceCivs(history: TurnSnapshot[], worldCivs: string[]): string[] {
   const names = new Set<string>();

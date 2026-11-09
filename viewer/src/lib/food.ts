@@ -86,11 +86,6 @@ export function foodCrisisSpans(events: Event[]): FamineSpan[] {
   return spans.sort((left, right) => left.start - right.start || left.region.localeCompare(right.region));
 }
 
-/** Famine spans only (see `foodCrisisSpans`). */
-export function famineSpans(events: Event[]): FamineSpan[] {
-  return foodCrisisSpans(events).filter((span) => span.kind === "famine");
-}
-
 /** Spans of one label. */
 export function spansOfKind(spans: FamineSpan[], kind: FoodCrisisKind): FamineSpan[] {
   return spans.filter((span) => span.kind === kind);

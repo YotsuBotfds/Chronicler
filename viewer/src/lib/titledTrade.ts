@@ -24,7 +24,6 @@ export const OUTCOMES = ["delivered", "returned", "escheated", "pool_reset", "sw
 export const RETURN_CAUSES = ["destination_conquered", "quarantine_closure", "route_lost",
   "destination_left_pilot"] as const;
 export const RELEASE_REASONS = ["migrated", "occupation", "enlisted", "on_trip", "other_work"] as const;
-export const DEPOSIT_REASONS = ["claims_refused", "not_pilot", "holder_died", "pool_reset", "switched_off"] as const;
 const EVENTS = ["moved", ...OUTCOMES];
 export const GOODS = ["grain", "fish", "salt", "botanicals", "exotic"] as const;
 

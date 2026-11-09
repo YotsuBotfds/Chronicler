@@ -17,11 +17,6 @@ export function factionColor(civName: string): string {
   return `hsl(${hue}, 70%, 55%)`;
 }
 
-export function factionColorDark(civName: string): string {
-  const hue = hashString(civName) % 360;
-  return `hsl(${hue}, 70%, 35%)`;
-}
-
 export const DISPOSITION_COLORS: Record<string, string> = {
   hostile: "#ef4444",
   suspicious: "#eab308",

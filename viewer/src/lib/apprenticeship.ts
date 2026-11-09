@@ -331,12 +331,6 @@ export function readApprenticeship(snapshot: TurnSnapshot | null, regionCount: n
   return { status: "ok", record: x as unknown as ApprenticeshipSnapshotRecord };
 }
 
-/** The record, or null when absent or malformed. */
-export function apprenticeshipAt(snapshot: TurnSnapshot | null, regionCount: number): ApprenticeshipSnapshotRecord | null {
-  const reading = readApprenticeship(snapshot, regionCount);
-  return reading.status === "ok" ? reading.record : null;
-}
-
 /** Lifetime activation funnel from the scalar counters (zero only once the record exists). */
 export function apprenticeshipFunnel(record: ApprenticeshipSnapshotRecord): Array<[string, number]> {
   const c = (key: string) => record.counters[key] ?? 0;

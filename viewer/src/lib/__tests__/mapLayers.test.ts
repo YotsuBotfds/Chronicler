@@ -2,14 +2,14 @@ import { describe, expect, it } from "vitest";
 import systemsFixture from "../../__fixtures__/systems_bundle.json";
 import sampleFixture from "../../__fixtures__/sample_bundle.json";
 import type { Bundle, TurnSnapshot } from "../../types";
-import { crisesAtSnapshot, DEARTH_COLOR, famineSpans, FAMINE_COLOR } from "../food";
+import { crisesAtSnapshot, DEARTH_COLOR, FAMINE_COLOR, foodCrisisSpans, spansOfKind } from "../food";
 import {
   availableMapLayers, buildMapLayer, defaultTechnique, practisedTechniques, type MapLayerKey,
 } from "../mapLayers";
 
 const systems = systemsFixture as unknown as Bundle;
 const sample = sampleFixture as unknown as Bundle;
-const famine = famineSpans(systems.events_timeline);
+const famine = spansOfKind(foodCrisisSpans(systems.events_timeline), "famine");
 const names = systems.world_state.regions.map((region) => region.name);
 
 function at(turn: number): TurnSnapshot {

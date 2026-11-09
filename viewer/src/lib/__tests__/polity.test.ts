@@ -3,7 +3,7 @@ import systemsFixture from "../../__fixtures__/systems_bundle.json";
 import sampleFixture from "../../__fixtures__/sample_bundle.json";
 import type { Bundle, CampaignWar, TurnSnapshot } from "../../types";
 import {
-  agendaGoal, agendaRegion, formPalette, formRows, governanceCivs, hasGovernanceRecord, herdCivs, modeRows,
+  agendaGoal, agendaRegion, formPalette, formRows, governanceCivs, herdCivs, modeRows,
 } from "../polity";
 import { battleLosses, battlesUpTo, hasCampaignRecord, warLeader, warRows } from "../wars";
 
@@ -83,8 +83,6 @@ describe("agendas", () => {
 
 describe("governance", () => {
   it("reads forms of government and PSI-crisis marks from civ rows", () => {
-    expect(hasGovernanceRecord(systems.history)).toBe(true);
-    expect(hasGovernanceRecord(sample.history)).toBe(false);
     const civs = governanceCivs(systems.history, worldCivs);
     expect(civs.length).toBeGreaterThan(0);
     const palette = formPalette(systems.history);

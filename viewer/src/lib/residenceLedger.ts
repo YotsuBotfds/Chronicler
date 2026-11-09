@@ -17,7 +17,6 @@ import type { TurnSnapshot } from "../types";
  */
 export const CAUSES = ["flight", "hunger"] as const;
 export const ANCHORS = ["war", "famine", "persecution", "none"] as const;
-export const MOVE_GROUPS = ["flight", "hunger", "voluntary", "other"] as const;
 /** Optional physical-arrival diagnostics added after the original X1 records. */
 export const ARRIVAL_COUNT_KEYS = ["recent_residence_arrivals", "recent_residence_arrivals_unknown_reason"] as const;
 export const CLOSURES = ["returned", "resettled", "died", "pool_reset", "unobserved_gap"] as const;
