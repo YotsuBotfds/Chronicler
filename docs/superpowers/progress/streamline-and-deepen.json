@@ -214,9 +214,10 @@
       "depends_on": [],
       "risk": "low",
       "size": "~+15",
-      "status": "active",
+      "status": "review",
       "spec": "docs/superpowers/specs/2026-11-08-workstation-environments-design.md",
-      "plan": "docs/superpowers/plans/2026-11-08-workstation-environments.md"
+      "plan": "docs/superpowers/plans/2026-11-08-workstation-environments.md",
+      "integrated": "lead branch claude/exciting-mayer-nolksw, integration 2 (2026-11-09), reviewed head 2dcc5227"
     },
     {
       "id": "ENV-5",
@@ -368,9 +369,10 @@
       "depends_on": [],
       "risk": "med",
       "size": "up to ~7 min CI",
-      "status": "active",
+      "status": "review",
       "spec": "docs/superpowers/specs/2026-11-08-repo-hygiene-design.md",
-      "plan": "docs/superpowers/plans/2026-11-08-repo-hygiene.md"
+      "plan": "docs/superpowers/plans/2026-11-08-repo-hygiene.md",
+      "integrated": "lead branch claude/exciting-mayer-nolksw, integration 2 (2026-11-09), reviewed head 05bf9a31; CI proof pending a PR"
     },
     {
       "id": "DEAD-1",
@@ -892,9 +894,10 @@
       "depends_on": [],
       "risk": "low",
       "size": "~0",
-      "status": "active",
+      "status": "review",
       "spec": "docs/superpowers/specs/2026-11-08-economy-depth-and-measurement-design.md",
-      "plan": "docs/superpowers/plans/2026-11-08-economy-depth-and-measurement.md"
+      "plan": "docs/superpowers/plans/2026-11-08-economy-depth-and-measurement.md",
+      "integrated": "lead branch claude/exciting-mayer-nolksw, integration 2 (2026-11-09), reviewed head 35307b63"
     },
     {
       "id": "CON-9",
@@ -988,9 +991,10 @@
       "depends_on": [],
       "risk": "med",
       "size": "tooling",
-      "status": "active",
+      "status": "review",
       "spec": "docs/superpowers/specs/2026-11-08-economy-depth-and-measurement-design.md",
-      "plan": "docs/superpowers/plans/2026-11-08-economy-depth-and-measurement.md"
+      "plan": "docs/superpowers/plans/2026-11-08-economy-depth-and-measurement.md",
+      "integrated": "lead branch claude/exciting-mayer-nolksw, integration 2 (2026-11-09), reviewed head 3bec6e62; CI proof pending a PR"
     },
     {
       "id": "DEP-8",

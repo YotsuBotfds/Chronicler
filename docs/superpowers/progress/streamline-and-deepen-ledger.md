@@ -35,3 +35,27 @@ Not run: viewer lanes (no viewer change in this batch), the 200-seed gate (no ou
 Integration notes:
 - A disk-full error during workflow A stopped worktree creation for HYG-1/HYG-3, HYG-5/HYG-6, DEAD-2b, DEP-7 and the FIX-7 review. They were relaunched, and those agents now remove their venvs when they finish.
 - FIX-7 is held back for the scope ruling recorded in the decision record.
+
+## 2026-11-09 — integration 2 (tooling chain)
+
+Merged `sd/HYG-8`, which carries the sequential tooling chain. Each step was approved by an independent reviewer with no blocker or major findings:
+
+| Task | Reviewed head | Class | Notes |
+|---|---|---|---|
+| CON-8 | `35307b63` | tooling/test | Pins the frozen screen scripts by SHA-256; tests the runner's state files; the single-runner docs list the unspent cohorts |
+| DEP-9 | `3bec6e62` | tooling | Seed-registry gate check (a `full` run off its gate range is refused), with the 14 existing reuses on an explicit allowlist; Holm-adjusted needs p-values, reported only; `best_of` documented as never a gate; `--hash-seed`, default `0`, so the default env is unchanged; `hashseed-sweep.yml`, kept off with `if: false` until COR-1; nightly `regression-smoke.yml` with a locally generated fixture; a real two-process batch test under hash seeds 0 and 1 |
+| ENV-4 | `2dcc5227` | fix | Parallel batch workers start with `spawn` and `PYTHONHASHSEED=0` |
+| HYG-8 | `05bf9a31` | ci | Five later-added native modules moved from shard 0 to shard 1. The timings are real per-module JUnit times from main Tests runs 42431233265, 42428257952 and 42417310582. Projected shard times are 628.5 s and 620.6 s, a 1.2 percent gap |
+
+Gates on the merged head `78caa287`:
+- Preflight against `4e8e76b` (70 paths): no content pin or digest touched outside in-place shard and chunk ownership.
+- Oracle lane `--jobs 2`: PASS in 280.2 s. 76 chunks; 8,177 passed, 69 skipped, 0 failed.
+- `pytest -m real_process tests/test_batch_parallel_real.py`: 1 passed.
+- Focused new and shard tests (`test_native_ci_shards`, `test_seed_registry_check`, `test_validation_multiplicity`, `test_screen_frozen_evidence`): 243 passed.
+- Identity for off_s42, off_s7, hybrid_s42 and proc48_off_s7, using the integration-1 native (no Rust change since): 144 files compared, 0 differences.
+
+Not run here:
+- `actionlint` (not installed) on the new workflows.
+- The first dispatch of `regression-smoke.yml`, so runner minutes are unmeasured.
+- The shard balance on CI (needs a PR).
+- The 200-seed gate (no outcome change).
