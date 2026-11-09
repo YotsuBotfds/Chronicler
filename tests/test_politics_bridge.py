@@ -1545,7 +1545,7 @@ class TestCallRustPolitics:
         for step, seq, family, payload in ops:
             assert isinstance(step, int), f"step should be int, got {type(step)}"
             assert isinstance(seq, int), f"seq should be int, got {type(seq)}"
-            assert 1 <= step <= 11, f"step {step} out of range"
+            assert 1 <= step <= 10, f"step {step} out of range"
 
     def test_off_mode_simulator_exists(self):
         """PoliticsSimulator can be constructed and has tick_politics."""
@@ -1590,8 +1590,9 @@ class TestCallRustPolitics:
             "severity_multiplier": 1.0,
         }
 
-    def test_forced_collapse_through_ffi(self):
-        """Forced collapse fires through the Rust FFI path."""
+    def test_no_forced_collapse_through_ffi(self):
+        """The Rust FFI path emits no forced collapse (COR-7): the collapse
+        runs in Python after apply_asabiya_dynamics."""
         from chronicler.politics import call_rust_politics
         sim = self._get_simulator()
         world = _make_world(num_civs=1, num_regions=3)
@@ -1600,10 +1601,9 @@ class TestCallRustPolitics:
         world.civilizations[0].military = 50
         world.civilizations[0].economy = 30
         ops = call_rust_politics(sim, world, hybrid_mode=False)
-        # Should have a StripToFirstRegion op (step 11)
+        assert [o for o in ops if o[0] == 11] == [], "No op may have step 11"
         strip_ops = [o for o in ops if o[2] == "civ_op" and o[3].get("op_type") == CIV_OP_STRIP_TO_FIRST_REGION]
-        assert len(strip_ops) == 1, "Expected forced collapse StripToFirstRegion"
-        assert strip_ops[0][0] == 11, "Forced collapse should be step 11"
+        assert strip_ops == [], "Rust must not emit StripToFirstRegion"
 
     def test_decline_tracking_through_ffi(self):
         """Decline tracking bookkeeping comes through the FFI."""
@@ -1798,8 +1798,9 @@ class TestPhase10RuntimeRouting:
 
         assert secession_found, "Expected at least one seed to trigger secession bridge op"
 
-    def test_forced_collapse_dead_civ_semantics(self):
-        """Forced collapse preserves dead-civ-with-empty-regions via StripToFirstRegion."""
+    def test_rust_pass_leaves_collapse_eligible_civ_intact(self):
+        """A collapse-eligible civ keeps its regions and stats after the Rust
+        ops are applied; the forced collapse runs in Python (COR-7)."""
         try:
             from chronicler_agents import PoliticsSimulator
         except ImportError:
@@ -1816,17 +1817,18 @@ class TestPhase10RuntimeRouting:
         civ.military = 50
         civ.economy = 30
 
+        regions_before = list(civ.regions)
         ops = call_rust_politics(sim, world, hybrid_mode=False)
         apply_politics_ops(world, ops)
 
-        # After forced collapse, civ should have exactly 1 region (not 0)
-        assert len(civ.regions) == 1, f"Expected 1 region after collapse, got {len(civ.regions)}"
-        # Stats should be halved via integer division
-        assert civ.military == 25  # 50 // 2
-        assert civ.economy == 15  # 30 // 2
+        assert len(regions_before) == 3
+        assert civ.regions == regions_before
+        assert civ.military == 50
+        assert civ.economy == 30
 
-    def test_forced_collapse_hybrid_shock_routing(self):
-        """In hybrid mode, forced collapse routes shocks to pending_shocks."""
+    def test_rust_hybrid_pass_queues_no_collapse_shocks(self):
+        """In hybrid mode the Rust pass queues no collapse shocks for a
+        collapse-eligible civ; the forced collapse runs in Python (COR-7)."""
         try:
             from chronicler_agents import PoliticsSimulator
         except ImportError:
@@ -1844,18 +1846,17 @@ class TestPhase10RuntimeRouting:
         civ.military = 50
         civ.economy = 30
 
+        regions_before = list(civ.regions)
         ops = call_rust_politics(sim, world, hybrid_mode=True)
         apply_politics_ops(world, ops)
 
-        # After forced collapse in hybrid, stats should NOT be halved
-        # (shocks go to pending_shocks instead)
-        assert civ.military == 50, "Hybrid: military should not be directly halved"
-        assert civ.economy == 30, "Hybrid: economy should not be directly halved"
-        # Should have pending_shocks
+        assert civ.regions == regions_before
+        assert civ.military == 50
+        assert civ.economy == 30
         shock_shocks = [s for s in world.pending_shocks
                         if getattr(s, "military_shock", 0) != 0
                         or getattr(s, "economy_shock", 0) != 0]
-        assert len(shock_shocks) >= 1, "Expected military/economy shocks in pending_shocks"
+        assert shock_shocks == [], "Expected no military/economy collapse shocks"
 
     def test_seceded_this_turn_clears_on_next_builder_read(self):
         """_seceded_this_turn set by apply_politics_ops clears when build_region_batch is called."""
