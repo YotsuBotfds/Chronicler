@@ -23,7 +23,7 @@ import { granaryPolicyValue, readWhatIfManifest, readWhatIfResult, validWhatIfHo
 
 /** Failed attempts without ever opening before the viewer explains the refusal. */
 const REFUSED_ATTEMPTS = 2;
-export const LIVE_REFUSED_MESSAGE =
+const LIVE_REFUSED_MESSAGE =
   "Could not connect to the live server. It accepts the viewer only from the link the CLI prints "
   + "(it carries the session token) and from the local dev or preview origin; see "
   + "docs/integration/historical-parity.md.";

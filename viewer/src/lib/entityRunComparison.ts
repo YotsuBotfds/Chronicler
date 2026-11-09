@@ -53,7 +53,7 @@ export interface EntityRunComparisonSummary {
   counts: { entities: number; numericPairs: number; unknownDifferences: number; ambiguous: number };
   limits: readonly string[];
 }
-export const ENTITY_RUN_LIMITS = [
+const ENTITY_RUN_LIMITS = [
   "Right minus left compares one chosen measure at an exact completed snapshot. Higher/lower is not an overall winner, utility score or causal conclusion.",
   "Only entities observed through this selected turn are listed. Missing snapshots, pruned civilization rows, shorter tails and unsupported regional observations stay unknown, never zero or carried forward.",
   "Recorded alive=false means landless/fallen in the snapshot writer; it does not prove permanent extinction. First observation is not foundation.",

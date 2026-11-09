@@ -157,7 +157,7 @@ export function largestRelativeChanges(changes: MetricChange[]): MetricChange[] 
 }
 
 /** Snapshot T contains completed tick T-1. Keep original event records intact. */
-export function changeEventSnapshotTurn(event: Pick<Event, "turn">): number { return event.turn + 1; }
+function changeEventSnapshotTurn(event: Pick<Event, "turn">): number { return event.turn + 1; }
 
 /** Only explicit timeline attribution; proximity is not causation. Window (from, to]. */
 export function changeEvents(bundle: Bundle, entity: HistoryEntity, from: number, to: number, through: number): ChangeEvent[] {

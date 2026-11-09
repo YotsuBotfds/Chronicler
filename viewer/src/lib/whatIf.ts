@@ -196,7 +196,7 @@ export function artifactBasename(value: unknown): string | null {
   const name = value.replace(/\\/g, "/").split("/").at(-1) ?? "";
   return name && name !== "." && name !== ".." && !/[?:#]/.test(name) ? name : null;
 }
-export function portableArtifact(value: unknown): ArtifactIdentity | null {
+function portableArtifact(value: unknown): ArtifactIdentity | null {
   if (!record(value)) return null;
   const name = artifactBasename(value.name);
   return name && Number.isSafeInteger(value.byteLength) && (value.byteLength as number) > 0
@@ -428,7 +428,4 @@ export async function checkPreparedRecipe(recipe: WhatIfRecipe, manifest: WhatIf
     return { current, mismatch: "plan", message: "The prepared control or horizon differs from the imported recipe." };
   }
   return { current, mismatch: null, message: null };
-}
-export async function recipePreparedMismatch(recipe: WhatIfRecipe, manifest: WhatIfManifest): Promise<string | null> {
-  return (await checkPreparedRecipe(recipe, manifest)).message;
 }
