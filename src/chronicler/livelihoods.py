@@ -983,21 +983,6 @@ def _check_prerequisites(world: Any, values: dict, agent_mode: str, args: Any = 
     # same prerequisites as a request, refused with the option that ends it.
     _check_switch_gates(world, values, agent_mode, args,
                         lambda name: values[name] is None and _on(world, values, name))
-    # Every mode option belongs to an on switch (requested or saved) and keeps
-    # a saved world's value, as an exact resume does
-    # (``livelihoods_resume_conflicts``). Last, so the module checks' texts win.
-    for key, (name, field) in _CHOICE_FIELDS.items():
-        given = getattr(args, key, None)
-        if given is None:
-            continue
-        if not _on(world, values, name):
-            raise ValueError(f"--{key.replace('_', '-')} requires --{name.replace('_', '-')}")
-        sub = getattr(livelihoods_state(world), name, None)
-        if sub is not None:
-            saved = getattr(sub, field)
-            if given != saved and str(given) != str(saved):
-                raise ValueError(f"--{key.replace('_', '-')} {given!r} conflicts with the saved world "
-                                 f"({field}: {saved!r})")
 
 
 def configure_livelihoods(world: Any, args: Any, *, agent_mode: str) -> None:
