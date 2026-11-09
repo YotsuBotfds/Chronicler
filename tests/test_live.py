@@ -588,3 +588,94 @@ def test_coerce_set_value_without_a_thread():
     assert _coerce_set_value("42") == 42
     for bad in (float("inf"), float("nan"), 1e999, "Infinity", [1], {}, None, "4.5"):
         assert _coerce_set_value(bad) is None
+
+
+@pytest.fixture
+def held_port():
+    """A localhost port another socket is listening on."""
+    import socket
+
+    holder = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    holder.bind(("localhost", 0))
+    holder.listen()
+    try:
+        yield holder.getsockname()[1]
+    finally:
+        holder.close()
+
+
+def test_live_server_start_raises_when_port_is_taken(held_port):
+    """A bind failure reaches the caller instead of dying in the server thread (FIX-10)."""
+    from chronicler.live import LiveServer, LiveServerStartError
+
+    server = LiveServer(port=held_port)
+    with pytest.raises(LiveServerStartError):
+        server.start()
+    server.thread.join(timeout=5)
+    assert not server.thread.is_alive()
+    assert isinstance(server._start_error, OSError)
+    server.stop()  # nothing to stop; does not raise on the closed loop
+
+
+def test_live_server_start_raises_when_not_listening_in_time(monkeypatch):
+    """start() no longer ignores its wait: a server that never listens is an error."""
+    from chronicler import live
+    from chronicler.live import LiveServer, LiveServerStartError
+
+    gate = threading.Event()
+    monkeypatch.setattr(live, "_START_TIMEOUT_SECONDS", 0.05)
+    monkeypatch.setattr(LiveServer, "_run_loop", lambda self, ready: gate.wait(5))
+    server = LiveServer(port=0)
+    try:
+        with pytest.raises(LiveServerStartError, match="not listening after"):
+            server.start()
+    finally:
+        gate.set()
+        server.thread.join(timeout=5)
+
+
+def test_run_live_reports_a_server_that_cannot_start(held_port, tmp_path, capsys):
+    """run_live prints the cause and returns None instead of announcing a lobby."""
+    import argparse
+    from chronicler.live import run_live
+
+    args = argparse.Namespace(
+        seed=42, turns=5, civs=2, regions=3, output=str(tmp_path / "chronicle.md"),
+        state=str(tmp_path / "state.json"), resume=None, reflection_interval=10,
+        llm_actions=False, scenario=None, pause_every=None, live_port=held_port)
+    assert run_live(args) is None
+    captured = capsys.readouterr()
+    assert "Live server could not start: " in captured.err
+    assert "Lobby ready" not in captured.out
+
+
+@pytest.mark.parametrize("name", ["../x.yaml", "../../etc/passwd", "/etc/passwd", "a/../../x.yaml"])
+def test_scenario_names_outside_scenarios_are_refused(name):
+    """A lobby or batch scenario cannot name a file outside scenarios/ (FIX-10)."""
+    from chronicler.live import LiveServer, _scenario_file
+
+    with pytest.raises(ValueError, match="Scenario must be within scenarios/"):
+        _scenario_file(name)
+    server = LiveServer(port=0)
+    err = server._handle_start({"type": "start", "scenario": name, "turns": 5, "civs": 2,
+                                "regions": 3, "seed": 1})
+    assert err == {"type": "error",
+                   "message": "Start field 'scenario': Scenario must be within scenarios/"}
+    assert server._server_state == "lobby" and not server.start_event.is_set()
+    assert server._validate_batch_config({"scenario": name}) == (
+        "batch_start config 'scenario': Scenario must be within scenarios/")
+
+
+@pytest.mark.parametrize("name", ["dead_miles.yaml", "sub/x.yaml", "sub/../x.yaml"])
+def test_scenario_names_inside_scenarios_keep_their_path(name):
+    """Accepted names keep the relative path the session always used."""
+    from pathlib import Path
+    from chronicler.live import LiveServer, _record_live_world_args, _scenario_file
+
+    assert _scenario_file(name) == Path("scenarios") / name
+    server = LiveServer(port=0)
+    assert server._validate_batch_config({"scenario": name}) is None
+    import argparse
+    args = argparse.Namespace()
+    _record_live_world_args(args, {"scenario": name})
+    assert args.scenario == str(Path("scenarios") / name)

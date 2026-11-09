@@ -842,6 +842,97 @@ async def test_narrate_range_offloads_work_and_keeps_queue_drain_alive(running_l
         release_worker.set()
 
 
+@pytest.mark.asyncio
+async def test_narrate_range_deep_copies_in_the_worker_thread(running_live_server, monkeypatch):
+    """The narration input is a private deep copy made off the event loop (FIX-10)."""
+    import copy
+    from types import SimpleNamespace
+    from chronicler import live
+    from chronicler.live import LiveServer
+
+    live_data = running_live_server._init_data
+    seen = {"copied_on": []}
+
+    def recording_deepcopy(value):
+        seen["copied_on"].append(threading.current_thread())
+        return copy.deepcopy(value)
+
+    def capture(self, init_data, client_config, start_turn, end_turn):
+        seen["thread"] = threading.current_thread()
+        seen["init_data"] = init_data
+        return None
+
+    monkeypatch.setattr(live, "copy", SimpleNamespace(deepcopy=recording_deepcopy))
+    monkeypatch.setattr(LiveServer, "_narrate_range_sync", capture)
+    async with ws_client.connect(running_live_server.ws_url()) as ws:
+        assert json.loads(await asyncio.wait_for(ws.recv(), timeout=5.0))["state"] == "running"
+        await ws.send(json.dumps({"type": "narrate_range", "start_turn": 1, "end_turn": 2}))
+        started = json.loads(await asyncio.wait_for(ws.recv(), timeout=5.0))
+        assert started["type"] == "narration_started"
+        await ws.send(json.dumps({"type": "narrate_range", "start_turn": 0, "end_turn": 1}))
+        refused = json.loads(await asyncio.wait_for(ws.recv(), timeout=5.0))
+        assert refused["message"] == "narrate_range must stay within available turns 1-3"
+
+    assert seen["thread"] not in (running_live_server.thread, threading.main_thread())
+    assert seen["copied_on"] == [seen["thread"]]
+    copied = seen["init_data"]
+    assert copied == live_data and copied is not live_data
+    for key in ("history", "world_state", "metadata", "events_timeline"):
+        assert copied[key] is not live_data[key]
+    assert all(a is not b for a, b in zip(copied["history"], live_data["history"]))
+
+
+@pytest.mark.asyncio
+async def test_batch_load_bundle_reads_off_the_event_loop(tmp_path, monkeypatch):
+    """A slow bundle read and parse does not stop the queue drain (FIX-10)."""
+    from chronicler import live
+    from chronicler.live import LiveServer
+
+    monkeypatch.chdir(tmp_path)
+    bundle_dir = tmp_path / "output" / "batch_gui_test" / "seed_103"
+    bundle_dir.mkdir(parents=True)
+    bundle_path = bundle_dir / "chronicle_bundle.json"
+    bundle_path.write_text(json.dumps({
+        "world_state": {"name": "Slow World", "seed": 103, "turn": 4, "regions": [],
+                        "civilizations": [], "relationships": {}, "events_timeline": [],
+                        "named_events": [], "scenario_name": None},
+        "history": [], "events_timeline": [], "named_events": [], "chronicle_entries": {},
+        "era_reflections": {},
+        "metadata": {"seed": 103, "total_turns": 4, "generated_at": "2026-03-31T00:00:00",
+                     "sim_model": "sim-test", "narrative_model": "narr-test",
+                     "scenario_name": None, "interestingness_score": None},
+    }))
+
+    reading = threading.Event()
+    release = threading.Event()
+    validate = live._validate_legacy_live_bundle
+
+    def gated_validate(payload):
+        reading.set()
+        assert release.wait(timeout=5.0)
+        return validate(payload)
+
+    monkeypatch.setattr(live, "_validate_legacy_live_bundle", gated_validate)
+    server = LiveServer(port=0)
+    server.start()
+    try:
+        async with ws_client.connect(server.ws_url()) as ws:
+            await ws.send(json.dumps({"type": "batch_load_bundle", "path": str(bundle_path)}))
+            await asyncio.wait_for(asyncio.to_thread(reading.wait, 5.0), timeout=6.0)
+            # The load is in progress; the loop still delivers queued messages.
+            server.status_queue.put({"type": "paused", "turn": 1, "civs": []})
+            paused = json.loads(await asyncio.wait_for(ws.recv(), timeout=5.0))
+            assert paused["type"] == "paused"
+            release.set()
+            loaded = json.loads(await asyncio.wait_for(ws.recv(), timeout=5.0))
+        assert loaded["type"] == "bundle_loaded"
+        assert loaded["bundle"]["world_state"]["name"] == "Slow World"
+        assert server._init_data["current_turn"] == 4
+    finally:
+        release.set()
+        server.stop()
+
+
 # --- exact checkpoints over a real connection (chronicler.live_checkpoints) ------
 
 def _checkpoint_session_args(tmp_path):

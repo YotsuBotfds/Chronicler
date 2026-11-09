@@ -16,6 +16,7 @@ import hmac
 import json
 import queue
 import secrets
+import sys
 import threading
 import time
 from pathlib import Path
@@ -61,6 +62,35 @@ def _write_batch_report(batch_dir: Path, report: dict[str, Any]) -> Path:
     report_path = batch_dir / "batch_report.json"
     atomic_write_text(report_path, json.dumps(report, indent=2))
     return report_path
+
+
+class LiveServerStartError(RuntimeError):
+    """The live WebSocket server did not start (for example, its port is in use)."""
+
+
+#: How long ``LiveServer.start`` waits for the server thread to listen.
+_START_TIMEOUT_SECONDS = 5
+
+
+def _scenario_file(name: str) -> Path:
+    """The lobby scenario ``name`` under ``scenarios/``, as the live session
+    has always joined it; a name that resolves outside that directory (``..``
+    segments, an absolute path, a symlink out) is refused."""
+    path = Path("scenarios") / name
+    if not path.resolve().is_relative_to(Path("scenarios").resolve()):
+        raise ValueError("Scenario must be within scenarios/")
+    return path
+
+
+def _narration_snapshot(init_data: dict[str, Any]) -> dict[str, Any]:
+    """The reconnect data's top level with its containers copied, taken on the
+    event loop. The loop extends those containers in place
+    (``apply_turn_message``) and replaces top-level values
+    (``apply_completed_message``), never the items already in them, so a
+    worker thread can deep-copy the result while the loop goes on."""
+    return {key: list(value) if isinstance(value, list)
+            else dict(value) if isinstance(value, dict) else value
+            for key, value in init_data.items()}
 
 
 def _coerce_set_value(value: Any) -> int | None:
@@ -201,6 +231,8 @@ class LiveServer:
         self._speed: float = 1.0
         self._speed_lock = threading.Lock()
         self.thread: threading.Thread | None = None
+        # Why the server thread failed before it was listening (see start()).
+        self._start_error: BaseException | None = None
         self._loop: asyncio.AbstractEventLoop | None = None
         self._stop_event: asyncio.Event | None = None
         self._actual_port: int | None = None
@@ -378,6 +410,13 @@ class LiveServer:
                 value = config.get(field)
                 if value is not None and not isinstance(value, str):
                     return f"batch_start config '{field}' must be a string or null"
+        if config.get("scenario"):
+            # The batch passes the name on unchanged (relative to the working
+            # directory); a name that escapes scenarios/ is refused here.
+            try:
+                _scenario_file(config["scenario"])
+            except ValueError as exc:
+                return f"batch_start config 'scenario': {exc}"
 
         if "narrator" in config:
             narrator = config.get("narrator")
@@ -491,17 +530,38 @@ class LiveServer:
         return entries[0].model_dump()
 
     def start(self) -> None:
-        """Start the WebSocket server in a daemon thread."""
+        """Start the WebSocket server in a daemon thread.
+
+        Raises ``LiveServerStartError`` when the server fails before it is
+        listening (a bind error, for example) or is not listening in time.
+        """
         ready = threading.Event()
+        self._start_error = None
         self.thread = threading.Thread(target=self._run_loop, args=(ready,), daemon=True)
         self.thread.start()
-        ready.wait(timeout=5)
+        if not ready.wait(timeout=_START_TIMEOUT_SECONDS):
+            raise LiveServerStartError(
+                f"the server was not listening after {_START_TIMEOUT_SECONDS} seconds")
+        if self._start_error is not None:
+            raise LiveServerStartError(str(self._start_error) or type(self._start_error).__name__)
+
+    def _narrate_range_copy(
+        self,
+        snapshot: dict[str, Any],
+        client_config: dict[str, Any],
+        start_turn: int,
+        end_turn: int,
+    ) -> dict[str, Any] | None:
+        """``_narrate_range_sync`` on a private deep copy, made in the worker thread."""
+        return self._narrate_range_sync(copy.deepcopy(snapshot), client_config, start_turn, end_turn)
 
     def stop(self) -> None:
         """Signal the server to stop."""
         if self.what_if is not None:
             self.what_if.close()
-        if self._loop is not None and self._stop_event is not None:
+        # A server that failed to start has a closed loop and nothing to stop.
+        if (self._loop is not None and self._stop_event is not None
+                and not self._loop.is_closed()):
             self._loop.call_soon_threadsafe(self._stop_event.set)
 
     def _handle_start(self, msg: dict) -> dict | None:
@@ -522,6 +582,12 @@ class LiveServer:
         narrator = msg.get("narrator")
         if narrator is not None and narrator not in _SUPPORTED_NARRATORS:
             return {"type": "error", "message": "Start field 'narrator' must be one of local, api, gemini"}
+        scenario = msg.get("scenario")
+        if scenario:
+            try:
+                _scenario_file(scenario)
+            except ValueError as exc:
+                return {"type": "error", "message": f"Start field 'scenario': {exc}"}
         resume_state = msg.get("resume_state")
         if resume_state is not None and not isinstance(resume_state, dict):
             return {"type": "error", "message": "Start field 'resume_state' must be an object or null"}
@@ -659,14 +725,24 @@ class LiveServer:
         return None
 
     def _run_loop(self, ready: threading.Event) -> None:
-        """Entry point for the server thread — creates and runs the event loop."""
-        self._loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(self._loop)
-        self._stop_event = asyncio.Event()
+        """Entry point for the server thread — creates and runs the event loop.
+
+        A failure before the server is listening is kept for ``start()``,
+        which raises it in the caller; a later failure propagates as before.
+        """
         try:
-            self._loop.run_until_complete(self._serve(ready))
-        finally:
-            self._loop.close()
+            self._loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(self._loop)
+            self._stop_event = asyncio.Event()
+            try:
+                self._loop.run_until_complete(self._serve(ready))
+            finally:
+                self._loop.close()
+        except BaseException as exc:
+            if ready.is_set():
+                raise
+            self._start_error = exc
+            ready.set()
 
     async def _serve(self, ready: threading.Event) -> None:
         """Run the async WebSocket server."""
@@ -771,7 +847,8 @@ class LiveServer:
                             allowed = Path("output").resolve()
                             if not resolved.is_relative_to(allowed):
                                 raise ValueError(f"Path must be within output/: {report_path}")
-                            report = json.loads(resolved.read_text(encoding="utf-8"))
+                            report = await asyncio.to_thread(
+                                lambda: json.loads(resolved.read_text(encoding="utf-8")))
                             await websocket.send(json.dumps({
                                 "type": "batch_report_loaded",
                                 "report": report,
@@ -794,9 +871,9 @@ class LiveServer:
                             allowed = Path("output").resolve()
                             if not resolved.is_relative_to(allowed):
                                 raise ValueError(f"Path must be within output/: {bundle_path}")
-                            bundle = _validate_legacy_live_bundle(
-                                json.loads(resolved.read_text(encoding="utf-8"))
-                            )
+                            bundle = await asyncio.to_thread(
+                                lambda: _validate_legacy_live_bundle(
+                                    json.loads(resolved.read_text(encoding="utf-8"))))
                             self._init_data = _build_init_data_from_bundle(bundle)
                             await websocket.send(json.dumps({
                                 "type": "bundle_loaded",
@@ -832,7 +909,8 @@ class LiveServer:
                         if not self._init_data:
                             await self._send_error(websocket, "narrate_range requires initialized history")
                             continue
-                        init_data = copy.deepcopy(self._init_data)
+                        # The deep copy is made in the worker thread (_narrate_range_copy).
+                        init_data = _narration_snapshot(self._init_data)
                         history_turns = [
                             snap.get("turn")
                             for snap in init_data.get("history", [])
@@ -859,7 +937,7 @@ class LiveServer:
                             metadata if isinstance(metadata, dict) else None
                         )
                         entry = await asyncio.to_thread(
-                            self._narrate_range_sync,
+                            self._narrate_range_copy,
                             init_data,
                             client_config,
                             start_turn,
@@ -1319,7 +1397,7 @@ def _live_world(args: Any, params: dict) -> tuple[WorldState, Any]:
         )
         if params.get("scenario"):
             from chronicler.scenario import load_scenario, apply_scenario
-            scenario_config = load_scenario(Path("scenarios") / params["scenario"])
+            scenario_config = load_scenario(_scenario_file(params["scenario"]))
             apply_scenario(world, scenario_config)
         # M60: new live worlds default to campaigns (--no-campaigns opts out).
         from chronicler.war.params import CAMPAIGNS_DEFAULT_FOR_NEW_WORLDS
@@ -1507,7 +1585,7 @@ def _record_live_world_args(args: Any, params: dict) -> None:
     worldgen = params.get("worldgen")
     args.worldgen = worldgen if isinstance(worldgen, str) else None
     scenario = params.get("scenario")
-    args.scenario = str(Path("scenarios") / scenario) if isinstance(scenario, str) and scenario else None
+    args.scenario = str(_scenario_file(scenario)) if isinstance(scenario, str) and scenario else None
 
 
 def run_live(
@@ -1555,7 +1633,11 @@ def run_live(
     if state is None:
         # --- Phase 1: Lobby ---
         server._lobby_init = build_lobby_init(args)
-        server.start()
+        try:
+            server.start()
+        except LiveServerStartError as exc:
+            print(f"Live server could not start: {exc}", file=sys.stderr)
+            return None
         actual_port = server._actual_port or port
         print(f"Lobby ready on ws://localhost:{actual_port} (session token required)")
         print(f"Open viewer: {server.viewer_url()}")
@@ -1651,7 +1733,11 @@ def run_live(
         server._server_state = "running"
         server.checkpoints = LiveCheckpoints(output_dir, server.status_queue, view,
                                              lambda: server.speed, pause_every)
-        server.start()
+        try:
+            server.start()
+        except LiveServerStartError as exc:
+            print(f"Live server could not start: {exc}", file=sys.stderr)
+            return None
         actual_port = server._actual_port or port
         print(f"Resumed live session at turn {world.turn} of {total_turns} on "
               f"ws://localhost:{actual_port} (session token required); viewers see {how}")
