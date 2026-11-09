@@ -569,20 +569,6 @@ def _world_settlements(world: WorldState, civ_name: str) -> list[SettlementSumma
     return candidates[:3]
 
 
-def build_before_summary(
-    history: Sequence[TurnSnapshot],
-    moment: NarrativeMoment,
-    prev_moment: NarrativeMoment | None,
-) -> str:
-    """Mechanical before-context from snapshot diffs.
-
-    Compare prev_moment.anchor_turn (or turn 1 if None) to moment.anchor_turn.
-    Report stat changes > 10, territory gains/losses. Return 3-5 bullet points.
-    """
-    _ref, _target, bullets = before_changes(history, moment, prev_moment)
-    return "\n".join(f"- {text}" for _key, _attr, text in bullets) if bullets else ""
-
-
 def before_changes(
     history: Sequence[TurnSnapshot],
     moment: NarrativeMoment,
@@ -649,20 +635,6 @@ def before_changes(
 
     # Cap at 5 bullets
     return ref_snap.turn, target_snap.turn, bullets[:5]
-
-
-def build_after_summary(
-    history: Sequence[TurnSnapshot],
-    moment: NarrativeMoment,
-    next_moment: NarrativeMoment | None,
-) -> str:
-    """Mechanical after-context for foreshadowing.
-
-    Compare moment.anchor_turn to next_moment.anchor_turn (or final turn if None).
-    Forward-looking: "will rise/fall to X".
-    """
-    _now, _later, bullets = after_changes(history, moment, next_moment)
-    return "\n".join(f"- {text}" for _key, _attr, text in bullets) if bullets else ""
 
 
 def after_changes(
@@ -823,18 +795,6 @@ def get_dominant_era(moment: NarrativeMoment, snapshot: TurnSnapshot) -> str:
         return "tribal"
 
     return max(eras, key=lambda e: ERA_ORDER.index(e) if e in ERA_ORDER else 0)
-
-
-def thread_domains(text: str, civ_name: str, civ_domains: dict[str, list[str]]) -> str:
-    """Weave civilization domain keywords into narrative text.
-
-    This is a post-processing hint — the real domain threading happens
-    in the LLM prompt where we instruct it to reference domains.
-    For non-LLM contexts (testing), returns text unchanged.
-    """
-    if civ_name not in civ_domains:
-        return text
-    return text
 
 
 def build_chronicle_prompt(world: WorldState, events: list[Event]) -> str:
