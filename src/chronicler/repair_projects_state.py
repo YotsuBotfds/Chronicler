@@ -27,9 +27,11 @@ never reorder.
 """
 from __future__ import annotations
 
-from typing import Literal
+from typing import ClassVar, Literal
 
 from pydantic import BaseModel, Field, PrivateAttr
+
+from chronicler.switch_state import SwitchStateMixin
 
 #: Modes (first: the default when enabled).
 MODES: tuple[str, ...] = ("repair", "cost_only")
@@ -208,7 +210,7 @@ class UnmetNeed(BaseModel):
     reason: str
 
 
-class RepairProjectsState(BaseModel):
+class RepairProjectsState(SwitchStateMixin, BaseModel):
     schema_version: Literal[1] = 1
     enabled: bool = True
     mode: Literal["repair", "cost_only"] = "repair"
@@ -238,21 +240,7 @@ class RepairProjectsState(BaseModel):
     # after the agent tick, read by the same Phase 10's L9 proposal.
     _labour: object | None = PrivateAttr(default=None)
 
-    def __getstate__(self):
-        state = super().__getstate__()
-        private = state.get("__pydantic_private__")
-        if private and (private.get("_turn") is not None or private.get("_labour") is not None):
-            state = {**state, "__pydantic_private__": {**private, "_turn": None, "_labour": None}}
-        return state
-
-    def __setstate__(self, state):
-        super().__setstate__(state)
-        # An RS0 pickle holds only the switch, mode and counters.
-        for name, field in type(self).model_fields.items():
-            if name not in self.__dict__:
-                self.__dict__[name] = field.get_default(call_default_factory=True)
-        if getattr(self, "__pydantic_private__", None) is None:
-            object.__setattr__(self, "__pydantic_private__", {"_turn": None, "_labour": None})
-        else:
-            self.__pydantic_private__.setdefault("_turn", None)
-            self.__pydantic_private__.setdefault("_labour", None)
+    _FILL_DEFAULTS: ClassVar[bool] = True
+    _FILL_PRIVATE: ClassVar[tuple[str, ...]] = ("_turn", "_labour")
+    _TRANSIENT: ClassVar[tuple[str, ...]] = ("_turn", "_labour")
+    _BUMP: ClassVar[dict] = {"allowed": COUNTERS, "message": "undeclared repair-projects counter {key!r}"}

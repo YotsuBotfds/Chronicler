@@ -121,9 +121,7 @@ _state = sub_state_getter("recovery_crews")
 
 
 def _bump(state, key: str, amount=1) -> None:
-    if key not in COUNTERS:
-        raise KeyError(f"undeclared recovery-crews counter {key!r}")
-    state.counters[key] = state.counters.get(key, 0) + amount
+    state.bump(key, amount)
 
 
 def set_recovery_crews_enabled(world, value: bool, *, args=None, agent_mode=None) -> None:

@@ -55,7 +55,7 @@ import math
 
 from chronicler.local_budgets import Provider
 from chronicler.maintenance_obligation_state import (
-    COUNTERS, MODES, MaintenanceObligationState, ReservationDecision, ReservationUse,
+    MODES, MaintenanceObligationState, ReservationDecision, ReservationUse,
 )
 from chronicler.switch_state import sub_state_getter
 
@@ -80,9 +80,7 @@ _state = sub_state_getter("maintenance_obligation")
 
 
 def _bump(state, key: str, amount=1) -> None:
-    if key not in COUNTERS:
-        raise KeyError(f"undeclared maintenance-obligation counter {key!r}")
-    state.counters[key] = state.counters.get(key, 0) + amount
+    state.bump(key, amount)
 
 
 def set_maintenance_obligation_enabled(world, value: bool, *, args=None, agent_mode=None) -> None:

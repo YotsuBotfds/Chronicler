@@ -139,9 +139,7 @@ _state = sub_state_getter("attribution_records")
 
 
 def _bump(state: AttributionRecordsState, key: str, amount: int = 1) -> None:
-    if key not in COUNTERS:
-        raise KeyError(f"undeclared attribution-records counter {key!r}")
-    state.counters[key] = state.counters.get(key, 0) + amount
+    state.bump(key, amount)
 
 
 def _total(state: AttributionRecordsState, key: str, amount) -> None:

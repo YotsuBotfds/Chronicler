@@ -13,9 +13,11 @@ Tuple orders below are declaration orders: append new values at the end.
 """
 from __future__ import annotations
 
-from typing import Literal
+from typing import ClassVar, Literal
 
 from pydantic import BaseModel, Field, PrivateAttr
+
+from chronicler.switch_state import SwitchStateMixin
 
 #: Modes (first: the default when enabled). ``reserve_only`` is the
 #: crowding-out control: the same reservation, repairs held to their
@@ -63,7 +65,7 @@ class ReservationUse(BaseModel):
     envelope_share: float = 1.0
 
 
-class MaintenanceObligationState(BaseModel):
+class MaintenanceObligationState(SwitchStateMixin, BaseModel):
     schema_version: Literal[1] = 1
     enabled: bool = True
     mode: Literal["reserve", "reserve_only"] = "reserve"
@@ -80,21 +82,7 @@ class MaintenanceObligationState(BaseModel):
     _staged: object | None = PrivateAttr(default=None)
     _turn: object | None = PrivateAttr(default=None)
 
-    def __getstate__(self):
-        state = super().__getstate__()
-        private = state.get("__pydantic_private__")
-        if private and (private.get("_turn") is not None or private.get("_staged") is not None):
-            state = {**state, "__pydantic_private__": {**private, "_turn": None, "_staged": None}}
-        return state
-
-    def __setstate__(self, state):
-        super().__setstate__(state)
-        for name, field in type(self).model_fields.items():
-            if name not in self.__dict__:
-                self.__dict__[name] = field.get_default(call_default_factory=True)
-        private = getattr(self, "__pydantic_private__", None)
-        if private is None:
-            object.__setattr__(self, "__pydantic_private__", {"_turn": None, "_staged": None})
-        else:
-            private.setdefault("_turn", None)
-            private.setdefault("_staged", None)
+    _FILL_DEFAULTS: ClassVar[bool] = True
+    _FILL_PRIVATE: ClassVar[tuple[str, ...]] = ("_turn", "_staged")
+    _TRANSIENT: ClassVar[tuple[str, ...]] = ("_turn", "_staged")
+    _BUMP: ClassVar[dict] = {"allowed": COUNTERS, "message": "undeclared maintenance-obligation counter {key!r}"}

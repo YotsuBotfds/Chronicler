@@ -174,9 +174,7 @@ _state = sub_state_getter("residence_ledger")
 
 
 def _bump(state: ResidenceLedgerState, key: str, amount: int = 1) -> None:
-    if key not in COUNTERS:
-        raise KeyError(f"undeclared residence-ledger counter {key!r}")
-    state.counters[key] = state.counters.get(key, 0) + amount
+    state.bump(key, amount)
 
 
 def _log(state: ResidenceLedgerState, turn: int, kind: str, **detail) -> None:

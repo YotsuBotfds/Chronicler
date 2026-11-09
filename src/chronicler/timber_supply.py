@@ -118,7 +118,7 @@ from __future__ import annotations
 import math
 
 from chronicler.timber_supply_state import (
-    COUNTERS, MAX_CLOSED, MAX_DROPS, MAX_HISTORY, MAX_NEEDS, MODES, Expedition, ExpeditionReceipt,
+    MAX_CLOSED, MAX_DROPS, MAX_HISTORY, MAX_NEEDS, MODES, Expedition, ExpeditionReceipt,
     NeedRow, StoreRow, TimberSupplyState, WageLedger,
 )
 from chronicler.switch_state import lane_active, sub_state_getter
@@ -232,9 +232,7 @@ _state = sub_state_getter("timber_supply")
 
 
 def _bump(state, key: str, amount=1) -> None:
-    if key not in COUNTERS:
-        raise KeyError(f"undeclared timber-supply counter {key!r}")
-    state.counters[key] = state.counters.get(key, 0) + amount
+    state.bump(key, amount)
 
 
 def _note(exp: Expedition, turn: int, event: str) -> None:

@@ -115,9 +115,7 @@ _state = sub_state_getter("wealth_accounting")
 
 
 def _bump(state: WealthAccountingState, key: str, amount: int = 1) -> None:
-    if key not in COUNTERS:
-        raise KeyError(f"undeclared wealth-accounting counter {key!r}")
-    state.counters[key] = state.counters.get(key, 0) + amount
+    state.bump(key, amount)
 
 
 def _total(state: WealthAccountingState, key: str, amount) -> None:

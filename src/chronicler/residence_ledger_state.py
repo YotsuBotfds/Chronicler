@@ -17,9 +17,11 @@ the end, never reorder (``CAUSES`` will take D3's ``evacuated``).
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Literal
+from typing import Any, ClassVar, Literal
 
 from pydantic import BaseModel, Field
+
+from chronicler.switch_state import SwitchStateMixin
 
 #: Declared, uncalibrated constants (audit A6 section 11.1).
 #: A displacement spell resettles after this many turns at one residence.
@@ -167,7 +169,7 @@ class LogRecord(BaseModel):
     detail: dict[str, Any] = Field(default_factory=dict)
 
 
-class ResidenceLedgerState(BaseModel):
+class ResidenceLedgerState(SwitchStateMixin, BaseModel):
     schema_version: Literal[1] = 1
     enabled: bool = True
     #: The first turn of the current observation epoch (None: nothing observed
@@ -221,10 +223,7 @@ class ResidenceLedgerState(BaseModel):
     log: list[LogRecord] = Field(default_factory=list)
     log_dropped: int = 0
 
-    def __setstate__(self, state):
-        # Exact pickle restoration bypasses Pydantic defaults: fields appended
-        # later take their defaults.
-        super().__setstate__(state)
-        for name, field in type(self).model_fields.items():
-            if name not in self.__dict__:
-                self.__dict__[name] = field.get_default(call_default_factory=True)
+    # Exact pickle restoration bypasses Pydantic defaults: fields appended
+    # later take their defaults.
+    _FILL_DEFAULTS: ClassVar[bool] = True
+    _BUMP: ClassVar[dict] = {"allowed": COUNTERS, "message": "undeclared residence-ledger counter {key!r}"}
