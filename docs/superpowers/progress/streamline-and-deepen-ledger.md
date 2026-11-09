@@ -182,3 +182,21 @@ Gates on the merged head `f1002e5`:
 - Preflight: no source pin. It reports the corpus pickles' own digests and literal digests of four relocated lab modules; the tests that check those digests now read the new paths and pass.
 
 Not run: the native Python shards, the 200-seed gate, and GitHub CI.
+
+## 2026-11-09 — integration 8 (viewer pinned slice)
+
+Merged `sd/VIEW-PR6` (reviewed head `4fd8de6f`). Two independent reviewers, one for scope and one for contracts, approved it with no blocker or major findings. It is viewer plan PR 6, the slice that touches formerly pinned files (FIX-8, DEAD-4 and CON-9):
+- `useLiveConnection.ts` now validates running `init` and `turn` messages with `parseLiveInit` and `parseLiveTurn`. A malformed message is dropped with a warning instead of replacing the bundle or appending a turn-0 row. This is the one intended behaviour change, and the new tests fail against the old hook.
+- Dead and internal-only exports removed from formerly pinned libraries.
+- `exactSnapshot` now delegates to `snapshotAtTurn`.
+- `downloadText` gained an optional `revokeAfterMs`; both callers pass 0, so their revoke timing is unchanged.
+- Shared record guards are used where the bodies are identical.
+- The entry chunk grew by about 1.5 KB, because the live hook now imports the guard module.
+
+Gates on the merged head `065055ec`:
+- `npm ci`, `tsc`, lint and build pass.
+- `npm test -- --maxWorkers=2`: **202 files; 1,922 passed, 2 skipped, 0 failed**.
+- `test_native_build_lanes` and `test_docs_status`: 28 passed.
+- Oracle lane `--jobs 2`: PASS in 168.9 s. 78 chunks; 8,333 passed, 70 skipped, 0 failed.
+
+Not run: browser QA and equivalence scripts, Node 20.19.0, and GitHub CI.
