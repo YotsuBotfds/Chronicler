@@ -23,5 +23,14 @@ to its default (`multiplier.aggression_bias: 1.0`), makes `off_s42` diverge from
 `--tuning`, from the action history onward. This predates COR-8. It is board item FIX-14
 (investigation; a fix would be a correction).
 
+**Correction (2026-11-09, FIX-14 diagnosis): not reproduced.** At `b7be5d1d` and at `9ef19e11`,
+a run with a file that sets keys only to their defaults has the same simulated state as a run
+without `--tuning`. This holds on the Python and native lanes for aggregate, hybrid and batch runs,
+and with 196 keys at their defaults. The only difference is the recorded configuration:
+`tuning_overrides` in `state.json`, in the bundle's `world_state` and in the batch manifest, which
+is intended provenance. The "every file differs" pattern appears only when a native-ecology run is
+compared with a Python-fallback run. That points to a mismatched environment in the COR-8b check,
+not to a code path.
+
 Not run: the 200-seed gate; a `river` world (no generator produces one); a mutated Rust tithe
 constant against the COR-8c test.

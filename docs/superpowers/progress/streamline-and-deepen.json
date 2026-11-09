@@ -629,16 +629,16 @@
     },
     {
       "id": "FIX-14",
-      "title": "Any --tuning file changes the run, even one that only sets a default value",
+      "title": "Regression test: a tuning file that only sets defaults changes no simulated field (reported divergence not reproduced)",
       "phase": "R2",
-      "class": "fix",
+      "class": "test",
       "depends_on": [],
-      "risk": "med",
-      "size": "investigation",
-      "status": "proposed",
+      "risk": "low",
+      "size": "small",
+      "status": "ready",
       "spec": null,
       "plan": null,
-      "note": "Found during COR-8b (2026-11-09): off_s42 with a tuning file setting multiplier.aggression_bias: 1.0 (its default) diverges from the run without --tuning from the action history onward. Predates COR-8. Diagnose first; a fix that changes outcomes is a correction and needs a baseline report and owner go-ahead."
+      "note": "2026-11-09 diagnosis at b7be5d1d: the reported divergence (COR-8b) is not reproduced. A neutral tuning file gives the same simulated state on the Python and native lanes (aggregate, hybrid, batch; 196 keys at their defaults). Only the recorded tuning_overrides (state, bundle, batch manifest) differ, which is intended provenance. The reported pattern matches a native-vs-Python comparison mistake. Remaining work is a cheap regression test (off-mode run with defaults-only overrides equals {} except tuning_overrides) and optional hygiene: copy args.tuning_overrides instead of aliasing it (main.py ~1583, batch children). No correction is needed."
     },
     {
       "id": "FIX-15",

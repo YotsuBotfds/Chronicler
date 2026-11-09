@@ -279,3 +279,13 @@ Carried forward:
 - **API removals for release notes.** DEAD-5a removed `chronicler.main.run_chronicle`, whose docstring promised backward compatibility; its replacement is test-only. It also removed the `chronicler.simulation` re-exports of the event-roll helpers. So import compatibility is not universal.
 - **Spec deviation recorded at integration 10.** The dead-code spec says to move the three economy helpers into the oracle if CON-7 lands first. CON-7 did merge first (integration 9), but the helpers were deleted rather than moved, because the oracle's `compute_economy` does not call them either. The H-4 zero-farmer rule stays covered through `compute_economy`.
 - **COR-9 limit.** Some non-printable Unicode names, such as NBSP and zero-width space, remain outside its repr parity, as its baseline report discloses.
+
+## 2026-11-09 — FIX-14 diagnosis: not reproduced (correction to integration 9)
+
+The integration-9 entry and the COR-8 baseline report recorded a finding from the COR-8b work: any `--tuning` file changes the run. A high-effort investigation at `b7be5d1d` did not reproduce it.
+- **Same simulation.** With a file that sets keys only to their defaults, the simulated state is byte-identical to a run without `--tuning`. Checked with `off_s42`, `g_off_s42`, `g_off_proc_s7`, `g_hybrid_s42`, `g_grain_s7` and `g_batch_off`, on the Python lane and with a fresh native build that reproduces the committed native goldens; one test file sets 196 keys at their defaults.
+- **Only the record differs.** The run stores the overrides it was given: `tuning_overrides` in `state.json`, in the bundle's `world_state`, and the batch manifest's tuning fields and digests. This is intended provenance.
+- **Code reading agrees.** `get_override`/`get_multiplier` treat a missing key and a key at its default the same way. The only presence checks are `main.py` (copies the dict onto the world) and the hybrid `configure_merchant_cargo`, which sends the native defaults when the values are defaults.
+- **Likely source of the report.** The pattern "every file differs from turn 1" appears only when a native-ecology run is compared with a Python-fallback run. The COR-8b scratch commands are gone, so this cannot be confirmed.
+
+FIX-14 is re-scoped to a cheap regression test, plus optional hygiene: copy `args.tuning_overrides` instead of aliasing it. The aliasing has no current effect on outcomes. No correction is needed. The COR-8 baseline report has a dated correction note.
