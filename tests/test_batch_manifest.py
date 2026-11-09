@@ -183,6 +183,46 @@ def test_every_cli_argument_is_classified():
     assert destinations == set().union(*groups), "classify new arguments in chronicler.batch_manifest"
 
 
+#: The inline tuple ``simulation_config`` used before CON-1 derived it.
+_OMITTED_BEFORE_CON1 = (
+    "scientific_research_agendas", "public_grain_shipments", "grain_storage",
+    "grain_storage_policy", "grain_storage_work_budget", "household_mobility_liquid_requirement",
+    "academy_services", "harvest_report_delay", "workshops", "workshop_mode", "food_allocation",
+    "food_allocation_regime", "timber_stock", "grain_convoys", "convoy_route_policy",
+    "commons_rules", "commons_rule_mode", "learning_cohorts", "learning_cohort_mode",
+    "workshop_payroll", "workshop_payroll_mode", "relocation_costs", "relocation_mode",
+    "local_budgets", "local_budget_mode", "apprenticeship", "apprenticeship_mode",
+    "repair_projects", "repair_mode", "veteran_reintegration", "veteran_mode", "remittances",
+    "remittance_mode", "clearing_protection", "clearing_protection_mode", "operating_wear",
+    "timber_supply", "timber_orders", "timber_supply_mode", "recovery_crews", "recovery_crew_mode",
+    "maintenance_obligation", "maintenance_obligation_mode", "apprenticeship_rules",
+    "household_retail", "household_retail_mode", "household_retail_boundary",
+    "household_retail_rules", "household_retail_schedule", "watershed", "watershed_mode",
+    "quarantine_mode", "workshop_economics", "workshop_economics_mode", "workshop_economics_rules",
+    "titled_trade", "infrastructure_condition", "infrastructure_condition_mode", "harvest_cover",
+    "harvest_cover_mode", "epidemic_care", "epidemic_care_mode", "reform_services",
+    "reform_services_mode", "guild_leagues", "guild_league_mode", "war_requisition",
+    "war_requisition_mode", "war_consequences", "war_consequences_mode", "adaptive_livelihoods",
+    "adaptive_livelihoods_mode", "adaptive_livelihoods_rules",
+    "adaptive_livelihoods_decision_channels", "public_health", "public_health_mode",
+    "public_health_policy", "public_health_report_delay", "public_health_crowding",
+    "movement_branches", "movement_branches_mode", "residence_ledger", "attribution_records",
+    "wealth_accounting", "wealth_accounting_mode", "quarantine_channels",
+)
+
+
+def test_unspecified_omissions_equal_the_former_inline_tuple():
+    from chronicler.batch_manifest import _omitted_when_unspecified, simulation_config
+    from chronicler.livelihoods import LIVELIHOODS_ARG_KEYS
+
+    assert len(_OMITTED_BEFORE_CON1) == len(set(_OMITTED_BEFORE_CON1)) == 86
+    assert _omitted_when_unspecified() == frozenset(_OMITTED_BEFORE_CON1)
+    assert set(LIVELIHOODS_ARG_KEYS) <= _omitted_when_unspecified() <= set(SIMULATION_ARG_KEYS)
+    blank = simulation_config(argparse.Namespace())
+    assert not set(blank) & _omitted_when_unspecified()
+    assert set(blank) == set(SIMULATION_ARG_KEYS) - _omitted_when_unspecified() | {"tuning_overrides"}
+
+
 def test_a_failed_batch_preserves_completed_evidence_and_reraises(tmp_path, monkeypatch):
     from chronicler import main as cli
 

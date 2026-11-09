@@ -22,6 +22,7 @@ import os
 import platform
 import sys
 from datetime import datetime, timezone
+from functools import lru_cache
 from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import Any, Iterable
 
@@ -260,33 +261,33 @@ def _json_value(value: Any) -> Any:
     return str(value)
 
 
+#: Simulation keys besides the livelihoods ones that ``simulation_config``
+#: omits while unspecified (None), so manifests and checkpoints written
+#: before the switch existed keep their exact shape.
+_OMITTED_WHEN_UNSPECIFIED_KEYS = (
+    "scientific_research_agendas", "public_grain_shipments", "grain_storage", "grain_storage_policy",
+    "grain_storage_work_budget", "household_mobility_liquid_requirement", "academy_services",
+    "harvest_report_delay", "household_retail_schedule", "quarantine_mode", "quarantine_channels",
+)
+
+
+@lru_cache(maxsize=1)
+def _omitted_when_unspecified() -> frozenset[str]:
+    """Every livelihoods parser destination (``LIVELIHOODS_ARG_KEYS``) and
+    ``_OMITTED_WHEN_UNSPECIFIED_KEYS``."""
+    from chronicler.livelihoods import LIVELIHOODS_ARG_KEYS
+    return frozenset(LIVELIHOODS_ARG_KEYS) | frozenset(_OMITTED_WHEN_UNSPECIFIED_KEYS)
+
+
 def simulation_config(args: Any, tuning_overrides: dict | None = None) -> dict[str, Any]:
     """The requested simulation configuration of a run namespace: each
     ``SIMULATION_ARG_KEYS`` value as given (None: the CLI default) and the
-    tuning overrides in effect. The new nested research switch is omitted
-    when unspecified so legacy manifests/checkpoints keep their exact shape."""
+    tuning overrides in effect. Switches added after the first manifests
+    (``_omitted_when_unspecified``) are omitted when unspecified so legacy
+    manifests/checkpoints keep their exact shape."""
+    omitted = _omitted_when_unspecified()
     config = {key: _json_value(getattr(args, key, None)) for key in SIMULATION_ARG_KEYS
-              if key not in ("scientific_research_agendas", "public_grain_shipments", "grain_storage", "grain_storage_policy", "grain_storage_work_budget", "household_mobility_liquid_requirement", "academy_services", "harvest_report_delay",
-                             "workshops", "workshop_mode", "food_allocation", "food_allocation_regime", "timber_stock", "grain_convoys", "convoy_route_policy",
-                             "commons_rules", "commons_rule_mode", "learning_cohorts", "learning_cohort_mode",
-                             "workshop_payroll", "workshop_payroll_mode", "relocation_costs", "relocation_mode",
-                             "local_budgets", "local_budget_mode",
-                             "apprenticeship", "apprenticeship_mode", "repair_projects", "repair_mode",
-                             "veteran_reintegration", "veteran_mode", "remittances", "remittance_mode",
-                             "clearing_protection", "clearing_protection_mode", "operating_wear",
-                             "timber_supply", "timber_orders", "timber_supply_mode",
-                             "recovery_crews", "recovery_crew_mode", "maintenance_obligation",
-                             "maintenance_obligation_mode", "apprenticeship_rules",
-                             "household_retail", "household_retail_mode", "household_retail_boundary",
-                             "household_retail_rules", "household_retail_schedule", "watershed", "watershed_mode",
-                             "quarantine_mode", "workshop_economics", "workshop_economics_mode",
-                             "workshop_economics_rules", "titled_trade",
-                             "infrastructure_condition", "infrastructure_condition_mode",
-                             "harvest_cover", "harvest_cover_mode",
-                             "epidemic_care", "epidemic_care_mode",
-                             "reform_services", "reform_services_mode", "guild_leagues", "guild_league_mode",
-                             "war_requisition", "war_requisition_mode", "war_consequences", "war_consequences_mode", "adaptive_livelihoods", "adaptive_livelihoods_mode", "adaptive_livelihoods_rules", "adaptive_livelihoods_decision_channels", "public_health", "public_health_mode", "public_health_policy", "public_health_report_delay", "public_health_crowding", "movement_branches", "movement_branches_mode", "residence_ledger", "attribution_records", "wealth_accounting", "wealth_accounting_mode", "quarantine_channels")
-              or getattr(args, key, None) is not None}
+              if key not in omitted or getattr(args, key, None) is not None}
     overrides = tuning_overrides if tuning_overrides is not None else getattr(args, "tuning_overrides", None)
     config["tuning_overrides"] = _json_value(overrides or {})
     return config
