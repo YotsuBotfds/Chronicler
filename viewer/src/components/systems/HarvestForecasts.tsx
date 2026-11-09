@@ -6,6 +6,8 @@ import type { SystemPanelProps } from "../../lib/systems";
 import { CivLineChart, StatTile } from "./SystemParts";
 import { ForecastDecisions } from "./ForecastDecisions";
 import { ForecastConstruction } from "./ForecastConstruction";
+import { SystemSection } from "./SystemSection";
+import { SystemTable } from "./SystemTable";
 
 const show = (value: number) => value.toLocaleString(undefined, { maximumFractionDigits: 2 });
 const percent = (value: number) => `${show(value * 100)}%`;
@@ -18,9 +20,7 @@ export function HarvestForecasts({ bundle, snapshot, currentTurn, onSelectRegion
   const at = snapshot?.turn ?? currentTurn;
   const series = useMemo(() => harvestForecastSeries(bundle.history, at), [bundle.history, at]);
   if (!hasObservation(bundle.history, "harvest_forecasts")) return null;
-  if (!record) return <section className="systems-section" aria-label="Harvest forecasts">
-    <h3>Harvest forecasts</h3><p className="systems-note">No usable harvest-forecast observation at turn {currentTurn}. Missing, stale or future-dated evidence is unknown here, including aggregate scores and preparedness.</p>
-  </section>;
+  if (!record) return <SystemSection label="Harvest forecasts" emptyText={<>No usable harvest-forecast observation at turn {currentTurn}. Missing, stale or future-dated evidence is unknown here, including aggregate scores and preparedness.</>} />;
   const totals = forecastTotals(record);
   const reports = record.reports.filter((row) => row.issued_turn <= record.source_turn);
   const outcomes = record.outcomes.filter((row) => row.resolved_turn != null && row.resolved_turn <= record.source_turn);
@@ -57,14 +57,14 @@ export function HarvestForecasts({ bundle, snapshot, currentTurn, onSelectRegion
       </table></div>}
     <h4>Preparedness in simulation turn {record.source_turn}</h4>
     {record.preparedness.length === 0 ? <p className="systems-note">No warning-driven target increment recorded in this turn.</p> :
-      <div className="systems-table-wrap"><table className="systems-table" aria-label={`Harvest preparedness at snapshot ${at}`}>
+      <SystemTable label={`Harvest preparedness at snapshot ${at}`}>
         <thead><tr><th>Region</th><th>Ruler</th><th>Report</th><th>Base stock target</th><th>Extra target</th><th>Grain received</th><th>Treasury paid</th></tr></thead>
         <tbody>{record.preparedness.map((row) => <tr key={row.region}>
           <td><button type="button" className="systems-link" onClick={() => onSelectRegion(row.region_name)}>{row.region_name}</button></td>
           <td>{row.owner_name}</td><td>{row.forecast_id}</td><td>{show(row.base_target)}</td><td>{show(row.extra_target)}</td>
           <td>{show(row.bought_during_warning)}</td><td>{show(row.paid_during_warning)}</td>
         </tr>)}</tbody>
-      </table></div>}
+      </SystemTable>}
     <p className="systems-note">Purchases and payments are actual completed-turn flows during an active warning. They are not estimated extra purchases or losses avoided by the report. Treasury units and grain units stay separate.</p>
     <h4>Resolved assessments retained by this snapshot</h4>
     {outcomes.length === 0 ? <p className="systems-note">No resolved assessment retained yet.</p> :
@@ -79,13 +79,13 @@ export function HarvestForecasts({ bundle, snapshot, currentTurn, onSelectRegion
     <p className="systems-note">Outcomes measure winter production ÷ demand before trade and reserve releases. Severe shortfall means below the recorded threshold; a ratio above it may still be below full demand. Household meals are not measured. This bounded table can omit older resolved reports. Charts stop at this snapshot; missing history stays unknown.</p>
     {record.calibration.some(([count]) => count > 0) && <>
       <h4>Calibration of scored reports</h4>
-      <div className="systems-table-wrap"><table className="systems-table" aria-label={`Forecast calibration at snapshot ${at}`}>
+      <SystemTable label={`Forecast calibration at snapshot ${at}`}>
         <thead><tr><th>Probability bin</th><th>Scored reports</th><th>Mean predicted risk</th><th>Observed severe shortfall share</th></tr></thead>
         <tbody>{record.calibration.map(([count, probability, shortfalls], index) => <tr key={index}>
           <td>{index * 20}–{(index + 1) * 20}%</td><td>{count}</td><td>{count ? percent(probability / count) : "Unknown"}</td>
           <td>{count ? percent(shortfalls / count) : "Unknown"}</td>
         </tr>)}</tbody>
-      </table></div>
+      </SystemTable>
     </>}
   </section>;
 }

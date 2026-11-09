@@ -3,6 +3,8 @@ import { granaryAmounts, granaryKeeper, granaryOwnerRows, granarySeries, granary
 import type { SystemPanelProps } from "../../lib/systems";
 import { CivLineChart, StatTile, TurnStrip } from "./SystemParts";
 import { GranaryStorage } from "./GranaryStorage";
+import { SystemSection } from "./SystemSection";
+import { SystemTable } from "./SystemTable";
 
 const COLORS: Record<string, string> = {
   Stocks: "#e8b84a", Targets: "#7d8a96", Bought: "#5aa88f", Released: "#5a8fd9", Spoiled: "#d9644a",
@@ -28,14 +30,10 @@ export function Granaries({ bundle, snapshot, currentTurn, onSeek, onSelectRegio
   const series = useMemo(() => granarySeries(bundle.history, at, region), [bundle.history, at, region]);
   const owners = useMemo(() => granaryOwnerRows(bundle.history, at, region), [bundle.history, at, region]);
   if (!recorded) {
-    return <section className="systems-section" aria-label="Public granaries">
-      <h3>Public granaries</h3><p className="systems-note">This bundle has no per-turn granary record. New runs record it with grain reserves enabled and an agent economy.</p>
-    </section>;
+    return <SystemSection label="Public granaries" emptyText="This bundle has no per-turn granary record. New runs record it with grain reserves enabled and an agent economy." />;
   }
   if (!record) {
-    return <section className="systems-section" aria-label="Public granaries">
-      <h3>Public granaries</h3><p className="systems-note">No granary record at turn {currentTurn}. Stocks and ownership are unknown at this point.</p>
-    </section>;
+    return <SystemSection label="Public granaries" emptyText={<>No granary record at turn {currentTurn}. Stocks and ownership are unknown at this point.</>} />;
   }
   const totals = granaryAmounts(record);
   const shipments = granaryShipmentsAt(snapshot);
@@ -66,7 +64,7 @@ export function Granaries({ bundle, snapshot, currentTurn, onSeek, onSelectRegio
     <TurnStrip rows={owners} firstTurn={bundle.history[0]?.turn ?? at} endTurn={at + 1} currentTurn={at}
       label="Granary ownership over time" emptyText="No keeper observations by this turn." onSeek={onSeek}
       onSelectRow={(row) => setSelected(Number(row.id))} isRowSelected={(row) => Number(row.id) === region} />
-    <div className="systems-table-wrap"><table className="systems-table" aria-label={`Granaries at snapshot ${at}`}>
+    <SystemTable label={`Granaries at snapshot ${at}`}>
       <thead><tr><th>Region</th><th>Keeper</th><th>Controller</th><th>Stocks</th><th>Target</th><th>Bought</th><th>Released</th><th>Spoiled</th><th>Seized / abandoned</th></tr></thead>
       <tbody>{rows.map((row) => {
         const amounts = granaryAmounts(record, row.region);
@@ -77,7 +75,7 @@ export function Granaries({ bundle, snapshot, currentTurn, onSeek, onSelectRegio
           <td>{show(amounts.bought)}</td><td>{show(amounts.released)}</td><td>{show(amounts.spoiled)}</td><td>{show(amounts.seized)} / {show(amounts.abandoned)}</td>
         </tr>;
       })}</tbody>
-    </table></div>
+    </SystemTable>
     <GranaryStorage bundle={bundle} snapshot={snapshot} region={region} />
     {record.shipments !== undefined && <section className="systems-stack" aria-label="Public grain shipments">
       <h4>Public grain shipments · all granaries</h4>
@@ -90,7 +88,7 @@ export function Granaries({ bundle, snapshot, currentTurn, onSeek, onSelectRegio
           <StatTile label="Grain arrived" value={show(shipments.arrived)} detail="received this turn" />
         </div>
         {shipments.transitions.length === 0 ? <p className="systems-note">No shipment movements recorded in this turn.</p> :
-          <div className="systems-table-wrap"><table className="systems-table" aria-label={`Public grain shipments in turn ${shipments.source_turn}`}>
+          <SystemTable label={`Public grain shipments in turn ${shipments.source_turn}`}>
             <caption>Paid at dispatch is the original payment; arrivals make no new payment.</caption>
             <thead><tr><th>Movement</th><th>From</th><th>To</th><th>Buyer</th><th>Seller</th><th>Net grain</th><th>Paid at dispatch</th><th>Dispatched turn</th><th>Due turn</th></tr></thead>
             <tbody>{shipments.transitions.map((row) => <tr key={`${row.id}:${row.operation}`}>
@@ -98,12 +96,12 @@ export function Granaries({ bundle, snapshot, currentTurn, onSeek, onSelectRegio
               <td>{row.source_name}</td><td>{row.dest_name}</td><td>{row.buyer_name}</td><td>{row.seller_name}</td>
               <td>{show(row.net)}</td><td>{row.paid}</td><td>{row.dispatch_turn}</td><td>{row.due_turn}</td>
             </tr>)}</tbody>
-          </table></div>}
+          </SystemTable>}
       </>}
     </section>}
     <h4>Movements in simulation turn {record.source_turn}</h4>
     {flows.length === 0 ? <p className="systems-note">No granary movements recorded in this turn.</p> :
-      <div className="systems-table-wrap"><table className="systems-table" aria-label={`Granary movements in turn ${record.source_turn}`}>
+      <SystemTable label={`Granary movements in turn ${record.source_turn}`}>
         <thead><tr><th>Kind</th><th>Granary</th><th>Amount</th><th>Market / previous keeper</th><th>Sent</th><th>Treasury paid</th><th>Food before → after</th></tr></thead>
         <tbody>{flows.map((flow, index) => <tr key={index}>
           <td>{flow.kind === "dispatched" ? "dispatched (in transit)" : flow.kind === "storage_returned" ? "capacity return to market" : flow.kind}</td><td>{names.get(flow.region) ?? `Region ${flow.region}`}</td><td>{show(flow.amount)}</td>
@@ -111,7 +109,7 @@ export function Granaries({ bundle, snapshot, currentTurn, onSeek, onSelectRegio
           <td>{flow.kind === "bought" || flow.kind === "dispatched" ? show(flow.sent) : "—"}</td><td>{flow.kind === "bought" || flow.kind === "dispatched" ? flow.cost : "—"}</td>
           <td>{flow.kind === "released" ? `${show(flow.before)} → ${show(flow.after)}` : "—"}</td>
         </tr>)}</tbody>
-      </table></div>}
+      </SystemTable>}
     <p className="systems-note">{record.shipments
       ? <>Immediate purchases and dispatches lost {show(totals.transit)} grain in transit; {totals.paid} treasury paid this turn. Arrivals make no new payment. </>
       : <>Procurement receives grain after transit loss (this turn: {show(totals.transit)} lost, {totals.paid} treasury paid). </>}Captured grain changes keeper without adding stock; seized and abandoned grain leave the granary. Capacity returns move grain to the regional market after the opening, not as spoilage or a purchase. Missing older records remain gaps. Charts stop at the selected snapshot.</p>

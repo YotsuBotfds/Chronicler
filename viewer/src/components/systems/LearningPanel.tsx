@@ -7,6 +7,7 @@ import { eventsOfTypes, recordedSpan, SYSTEM_EVENT_TYPES, type SystemPanelProps 
 import { CivLineChart, StatTile, StripLegend, SystemEventList, TurnStrip } from "./SystemParts";
 import { ScientificClaims } from "./ScientificClaims";
 import { AcademyServices } from "./AcademyServices";
+import { SystemTable } from "./SystemTable";
 
 const SCHOLARS = "Scholars";
 
@@ -81,8 +82,7 @@ export function LearningPanel({
           {living.length === 0 ? (
             <div className="phase75-empty-state">No seat of learning stands at turn {at}.</div>
           ) : (
-            <div className="systems-table-wrap">
-              <table className="systems-table" aria-label={`Seats of learning at turn ${at}`}>
+            <SystemTable label={`Seats of learning at turn ${at}`}>
                 <thead>
                   <tr>
                     <th>Seat</th><th>Kind</th><th>Region</th><th>Ruler</th><th>Kept by</th><th>Level</th>
@@ -112,8 +112,7 @@ export function LearningPanel({
                     </tr>
                   ))}
                 </tbody>
-              </table>
-            </div>
+            </SystemTable>
           )}
           <div className="systems-counters" aria-label={`Seat totals by turn ${at}`}>
             {SEAT_COUNTERS.map(([key, label]) => (
