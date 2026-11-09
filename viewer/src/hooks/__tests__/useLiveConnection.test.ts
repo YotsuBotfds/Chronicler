@@ -320,6 +320,53 @@ describe("useLiveConnection", () => {
     }
   });
 
+  it("drops malformed turn messages instead of recording them as turn 0", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const { result } = renderHook(() => useLiveConnection("ws://localhost:8765"));
+    await vi.advanceTimersByTimeAsync(10);
+    const ws = MockWebSocket.instances[0];
+    act(() => ws.simulateMessage(SAMPLE_INIT));
+    const valid = { type: "turn", turn: 1, civ_stats: {}, region_control: {}, relationships: {}, events: [], named_events: [] };
+    const malformed: object[] = [
+      { ...valid, turn: undefined },
+      { ...valid, turn: "2" },
+      { ...valid, turn: 0 },
+      { ...valid, turn: 1.5 },
+      { ...valid, civ_stats: [] },
+      { ...valid, region_control: undefined },
+      { ...valid, events: "war" },
+    ];
+    for (const message of malformed) {
+      act(() => ws.simulateMessage(message));
+    }
+    expect(result.current.bundle?.history).toHaveLength(0);
+    expect(result.current.bundle?.events_timeline).toHaveLength(0);
+    expect(warn).toHaveBeenCalledTimes(malformed.length);
+
+    act(() => ws.simulateMessage(valid));
+    expect(result.current.bundle?.history.map((snapshot) => snapshot.turn)).toEqual([1]);
+    warn.mockRestore();
+  });
+
+  it("drops a malformed running init without replacing the live bundle", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const { result } = renderHook(() => useLiveConnection("ws://localhost:8765"));
+    await vi.advanceTimersByTimeAsync(10);
+    const ws = MockWebSocket.instances[0];
+    act(() => ws.simulateMessage({ ...SAMPLE_INIT, metadata: undefined }));
+    expect(result.current.bundle).toBeNull();
+    expect(result.current.serverState).toBe("connecting");
+
+    act(() => ws.simulateMessage(SAMPLE_INIT));
+    const bundle = result.current.bundle;
+    act(() => ws.simulateMessage({ ...SAMPLE_INIT, world_state: { ...SAMPLE_INIT.world_state, regions: undefined } }));
+    act(() => ws.simulateMessage({ ...SAMPLE_INIT, history: [{ civ_stats: {} }] }));
+    expect(result.current.bundle).toBe(bundle);
+    expect(result.current.serverState).toBe("running");
+    expect(warn).toHaveBeenCalledTimes(3);
+    warn.mockRestore();
+  });
+
   it("sets paused state on paused message", async () => {
     const { result } = renderHook(() => useLiveConnection("ws://localhost:8765"));
     await vi.advanceTimersByTimeAsync(10);
