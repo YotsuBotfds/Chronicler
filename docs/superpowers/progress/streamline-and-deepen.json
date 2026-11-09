@@ -804,9 +804,11 @@
       ],
       "risk": "med",
       "size": "~13k moved",
-      "status": "active",
+      "status": "review",
       "spec": "docs/superpowers/specs/2026-11-08-lab-package-relocation-design.md",
-      "plan": "docs/superpowers/plans/2026-11-08-lab-package-relocation.md"
+      "plan": "docs/superpowers/plans/2026-11-08-lab-package-relocation.md",
+      "integrated": "lead branch, integration 7 (2026-11-09), LAB-1a..1f",
+      "note": "PR 7 (shim removal) waits for the first tagged release after PR 6 (DEC-6)."
     },
     {
       "id": "CON-1",
@@ -832,7 +834,8 @@
       "size": "~-400",
       "status": "active",
       "spec": "docs/superpowers/specs/2026-11-08-switch-state-base-design.md",
-      "plan": "docs/superpowers/plans/2026-11-08-switch-state-base.md"
+      "plan": "docs/superpowers/plans/2026-11-08-switch-state-base.md",
+      "note": "Unpinned batches A-D integrated (integration 7); pinned states (plan PR 5) are unblocked by PIN-1 and not started."
     },
     {
       "id": "CON-3",
@@ -984,9 +987,10 @@
       ],
       "risk": "low",
       "size": "~-100",
-      "status": "blocked",
+      "status": "review",
       "spec": "docs/superpowers/specs/2026-11-08-switch-state-base-design.md",
-      "plan": "docs/superpowers/plans/2026-11-08-switch-state-base.md"
+      "plan": "docs/superpowers/plans/2026-11-08-switch-state-base.md",
+      "integrated": "lead branch, integration 7 (2026-11-09), reviewed head 3ec7b820"
     },
     {
       "id": "CON-12",

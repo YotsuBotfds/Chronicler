@@ -154,3 +154,31 @@ Not run:
 - Browser QA scripts.
 - Node 20.19.0, the floor that CI uses.
 - The pinned viewer slice (plan PR 6), which is now unblocked by PIN-1.
+
+## 2026-11-09 — integration 7 (CON-2, CON-14, LAB-1)
+
+Merged two chains. Each task was approved by an independent reviewer with no blocker or major findings:
+
+| Task | Reviewed head | Notes |
+|---|---|---|
+| CON-2.0, CON-2.1 | `ae761aa1` | `switch_state.py` (`bump_counter`, `lane_active`, `sub_state_getter`, `health_holders`, `SwitchStateMixin` with opt-in `_FILL_DEFAULTS`/`_FILL_PRIVATE`/`_TRANSIENT`/`_BUMP`); `scripts/switch_state_identity.py`; golden pickle corpus `tests/fixtures/state_pickles` (71 classes) dumped from `3e0ef5e9` |
+| CON-2.2 | `5c18f8c5` | Shared `lane_active`/`health_holders`; `sub_state_getter` in 36 owners (4 keep their own) |
+| CON-2.3 A–D | `2194653e`, `73276663`, `67f8d04b`, `1a50e661` | The unpinned `*_state` classes and their owners moved onto the mixin batch by batch, each with pickle-corpus and switched identity proofs |
+| CON-14 | `3ec7b820` | Shared `_shuffle_rows`; `settlement_util.py` for cities and agent_movements; `_controller` kept as the scan form (the probe showed duplicate-name worlds differ) |
+| LAB-1a–1f | `1b6edda9` … `4f98aaf7` | 27 detached modules moved to `src/chronicler_lab/` with `sys.modules` shims listed in `SHIMS`; boundary guard in `tests/test_import_compatibility.py`; wheel ships both packages. Per DEC-6, `validation_compare` and `community_admissibility` stay. PR 7 (shim removal) waits for the first tagged release |
+
+Integration fixes by the lead:
+- `ce3c3b3` / `77aa7696`: `adaptive_livelihoods._bump` uses `bump_counter(state.counters, …)` again. CON-2 batch C made it call `state.bump()`, which broke three `tests/test_timber_orders.py` tests that pass a `SimpleNamespace` state. The CON-14 implementer and reviewer reproduced this on `sd/CON-2.3D`; the batch C reviewer had not run those tests. The new form behaves exactly like the mixin method for this class.
+- `f1002e5`: two deleted legacy viewer tests removed from `tests/fixtures/identity/coverage.json`.
+- **Correction to integration 6.** The viewer merge was recorded as needing no Python gate, and the oracle lane was not run then. That merge did break `test_identity_coverage_map_names_every_witnessed_path`: PIN-2's coverage map named `SetupLobby.test.tsx` and `components.test.tsx`, which DEAD-1 had deleted. The integration-7 oracle lane found it. From now on the lead runs the oracle lane on every integration.
+- Merge conflicts were resolved by addition: the module count is now 471, and DEVELOPMENT.md keeps both the identity-gate and the lab-package sections.
+
+Gates on the merged head `f1002e5`:
+- Oracle lane `--jobs 2`: PASS in 327.2 s on a loaded host. 78 chunks; 8,333 passed, 70 skipped, 0 failed.
+- `switch_state_identity.py check tests/fixtures/state_pickles`: PASS, 71 classes, 0 differences.
+- Import compatibility, timber orders, switch state, cities, agent movements and adaptive livelihoods: 244 passed, 8 skipped.
+- Identity, all 9 cases against the post-correction baseline (integration 5): **399 files, 0 differences**.
+- Identity gate: Python lane 53 files, 0 differences; native lane 133 files, 0 differences.
+- Preflight: no source pin. It reports the corpus pickles' own digests and literal digests of four relocated lab modules; the tests that check those digests now read the new paths and pass.
+
+Not run: the native Python shards, the 200-seed gate, and GitHub CI.
