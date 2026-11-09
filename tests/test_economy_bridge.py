@@ -94,7 +94,7 @@ def test_economy_result_conservation_has_expected_fields():
 
 def test_accumulate_stockpile_returns_clamp_floor_loss():
     """accumulate_stockpile returns clamp_floor_loss when exports exceed stock + production."""
-    from chronicler.economy import accumulate_stockpile
+    from chronicler.economy_oracle import accumulate_stockpile
     goods = {"grain": 5.0}
     loss = accumulate_stockpile(goods, production={}, exports={"grain": 10.0}, imports={})
     assert loss == pytest.approx(5.0)
@@ -103,7 +103,7 @@ def test_accumulate_stockpile_returns_clamp_floor_loss():
 
 def test_accumulate_stockpile_no_loss_returns_zero():
     """accumulate_stockpile returns 0.0 when no clamping occurs."""
-    from chronicler.economy import accumulate_stockpile
+    from chronicler.economy_oracle import accumulate_stockpile
     goods = {"grain": 50.0}
     loss = accumulate_stockpile(goods, production={"grain": 10.0}, exports={"grain": 5.0}, imports={})
     assert loss == 0.0
@@ -113,7 +113,7 @@ def test_accumulate_stockpile_no_loss_returns_zero():
 def test_conservation_with_clamp_floor_loss():
     """compute_economy tracks clamp_floor_loss in the conservation dict."""
     import pyarrow as pa
-    from chronicler.economy import compute_economy
+    from chronicler.economy_oracle import compute_economy
     world = _make_two_region_world()
 
     # Make a snapshot with agents

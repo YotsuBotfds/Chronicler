@@ -25,8 +25,8 @@ from chronicler.economy import (
     settle_pending_stockpile_bootstraps,
     compute_transport_cost,
     build_river_route_set,
-    allocate_trade_flow,
 )
+from chronicler.economy_oracle import allocate_trade_flow
 
 
 # --- Task 1: RegionStockpile ---
@@ -178,7 +178,7 @@ def test_effective_margin_filters_expensive_routes():
 
 # --- Task 6: Transit decay ---
 
-from chronicler.economy import apply_transit_decay
+from chronicler.economy_oracle import apply_transit_decay
 
 
 def test_transit_decay_grain():
@@ -197,7 +197,8 @@ def test_transit_decay_zero_shipped():
 
 # --- Task 7: Storage decay with salt preservation ---
 
-from chronicler.economy import apply_storage_decay, STORAGE_DECAY, FOOD_GOODS
+from chronicler.economy import STORAGE_DECAY, FOOD_GOODS
+from chronicler.economy_oracle import apply_storage_decay
 
 
 def test_storage_decay_grain_no_salt():
@@ -256,7 +257,7 @@ def test_storage_decay_timber_not_salt_affected():
 
 # --- Task 8: Stockpile accumulation ---
 
-from chronicler.economy import accumulate_stockpile
+from chronicler.economy_oracle import accumulate_stockpile
 
 
 def test_accumulate_stockpile_basic():
@@ -279,11 +280,11 @@ def test_accumulate_stockpile_export_only():
 
 # --- Task 9: food_sufficiency from stockpile + consumption + cap ---
 
-from chronicler.economy import (
+from chronicler.economy import PER_GOOD_CAP_FACTOR
+from chronicler.economy_oracle import (
     derive_food_sufficiency_from_stockpile,
     consume_from_stockpile,
     apply_stockpile_cap,
-    PER_GOOD_CAP_FACTOR,
 )
 
 
@@ -522,7 +523,8 @@ def test_compute_economy_stockpile_integration():
     from unittest.mock import MagicMock
     import numpy as np
     import pyarrow as pa
-    from chronicler.economy import compute_economy, PER_CAPITA_FOOD
+    from chronicler.economy import PER_CAPITA_FOOD
+    from chronicler.economy_oracle import compute_economy
     from chronicler.models import RegionStockpile
 
     r1 = MagicMock()
@@ -590,7 +592,8 @@ def test_conservation_law():
     from unittest.mock import MagicMock
     import numpy as np
     import pyarrow as pa
-    from chronicler.economy import compute_economy, ALL_GOODS
+    from chronicler.economy import ALL_GOODS
+    from chronicler.economy_oracle import compute_economy
     from chronicler.models import Region, RegionStockpile
 
     r1 = Region(name="Breadbasket", terrain="plains", carrying_capacity=50, resources="fertile",
@@ -661,7 +664,8 @@ def test_food_sufficiency_backward_compat_full_path():
     import numpy as np
     import pyarrow as pa
     from chronicler.ecology import harvest_normal_index
-    from chronicler.economy import compute_economy, PER_CAPITA_FOOD
+    from chronicler.economy import PER_CAPITA_FOOD
+    from chronicler.economy_oracle import compute_economy
     from chronicler.models import Region, RegionStockpile
 
     pop = 20

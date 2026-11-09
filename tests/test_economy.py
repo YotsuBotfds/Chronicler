@@ -12,18 +12,20 @@ from chronicler.economy import (
     RegionGoods,
     EconomyResult,
     _empty_category_dict,
+    BASE_PRICE,
+    decompose_trade_routes,
+    FARMER_INCOME_MODIFIER_FLOOR,
+    FARMER_INCOME_MODIFIER_CAP,
+)
+from chronicler.economy_oracle import (
     compute_production,
     compute_demand,
     compute_prices,
     compute_economy,
-    BASE_PRICE,
-    decompose_trade_routes,
     allocate_trade_flow,
     derive_farmer_income_modifier,
     derive_merchant_margin,
     derive_merchant_trade_income,
-    FARMER_INCOME_MODIFIER_FLOOR,
-    FARMER_INCOME_MODIFIER_CAP,
 )
 
 

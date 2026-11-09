@@ -126,7 +126,7 @@ class TestZeroFarmerIncomeModifier:
     """H-4: derive_farmer_income_modifier returns 1.0 for zero-farmer regions."""
 
     def test_zero_farmers_returns_neutral(self):
-        from chronicler.economy import derive_farmer_income_modifier
+        from chronicler.economy_oracle import derive_farmer_income_modifier
         result = derive_farmer_income_modifier(
             resource_type=0,  # GRAIN
             post_trade_supply={"food": 0.0, "raw_material": 0.0, "luxury": 0.0},
@@ -136,7 +136,8 @@ class TestZeroFarmerIncomeModifier:
         assert result == 1.0
 
     def test_nonzero_farmers_computes_normally(self):
-        from chronicler.economy import derive_farmer_income_modifier, FARMER_INCOME_MODIFIER_FLOOR
+        from chronicler.economy import FARMER_INCOME_MODIFIER_FLOOR
+        from chronicler.economy_oracle import derive_farmer_income_modifier
         result = derive_farmer_income_modifier(
             resource_type=0,
             post_trade_supply={"food": 5.0, "raw_material": 0.0, "luxury": 0.0},
@@ -149,7 +150,7 @@ class TestZeroFarmerIncomeModifier:
 
     def test_backward_compatible_default(self):
         """When farmer_count is not passed (default -1), should compute normally."""
-        from chronicler.economy import derive_farmer_income_modifier
+        from chronicler.economy_oracle import derive_farmer_income_modifier
         result = derive_farmer_income_modifier(
             resource_type=0,
             post_trade_supply={"food": 5.0, "raw_material": 0.0, "luxury": 0.0},
@@ -652,7 +653,7 @@ class TestComputeEconomyZeroFarmers:
 
     def test_zero_farmer_region_gets_neutral_modifier(self):
         """A region with zero farmers should get farmer_income_modifier = 1.0."""
-        from chronicler.economy import derive_farmer_income_modifier
+        from chronicler.economy_oracle import derive_farmer_income_modifier
         # Zero-farmer region
         mod = derive_farmer_income_modifier(
             resource_type=0,

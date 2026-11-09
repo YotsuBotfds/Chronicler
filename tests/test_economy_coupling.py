@@ -14,9 +14,9 @@ import pytest
 
 from chronicler.ecology import goods_per_worker, harvest_normal_index, refresh_resource_yields
 from chronicler.economy import (
-    FIXED_GOODS, compute_allocated_production,
-    compute_economy, build_economy_region_input_batch,
+    FIXED_GOODS, compute_allocated_production, build_economy_region_input_batch,
 )
+from chronicler.economy_oracle import compute_economy
 from chronicler.models import ClimatePhase
 
 

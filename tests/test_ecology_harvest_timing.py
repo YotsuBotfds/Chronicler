@@ -14,7 +14,8 @@ from chronicler.ecology import (
     refresh_resource_yields,
     tick_ecology,
 )
-from chronicler.economy import EconomyResult, compute_economy
+from chronicler.economy import EconomyResult
+from chronicler.economy_oracle import compute_economy
 from chronicler.models import (
     EMPTY_SLOT,
     FOOD_CRISIS_EVENT_TYPES,

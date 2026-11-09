@@ -234,7 +234,7 @@ def test_old_native_full_turn_fails_before_any_phase(fish_world):
     (.65, 200, 200), (1.0, 1600, 1600), (.6, 20, 2000), (1.0, 200, 20),
 ])
 def test_economy_production_never_exceeds_stock_debit(fish_world, potential, proxy_workers, farmers):
-    from chronicler.economy import compute_economy
+    from chronicler.economy_oracle import compute_economy
     fish_world.fishery_experiment.enabled = True
     region = fish_world.regions[0]
     region.resource_types = [ResourceType.FISH, EMPTY_SLOT, EMPTY_SLOT]
@@ -261,8 +261,9 @@ def test_native_economy_honors_lagged_budget(fish_world):
     from chronicler.agent_bridge import build_region_batch
     from chronicler.ecology import refresh_resource_yields
     from chronicler.economy import (
-        build_economy_region_input_batch, build_economy_trade_route_batch, compute_economy,
+        build_economy_region_input_batch, build_economy_trade_route_batch,
     )
+    from chronicler.economy_oracle import compute_economy
     runtime = _native_class("AgentSimulator")(1, 42)
     fish_world.fishery_experiment.enabled = True
     region = fish_world.regions[0]
@@ -343,7 +344,7 @@ def test_fishing_effort_uses_the_production_labor_share(fish_world):
 
 
 def test_python_economy_caps_each_fish_slot_after_labor_split(fish_world):
-    from chronicler.economy import compute_economy
+    from chronicler.economy_oracle import compute_economy
     fish_world.fishery_experiment.enabled = True
     region = fish_world.regions[0]
     region.resource_types = [ResourceType.FISH, ResourceType.ORE, ResourceType.FISH]

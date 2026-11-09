@@ -54,7 +54,10 @@ def run_fixture(source: Path, enabled: bool, resume_at: int | None = None) -> di
         from chronicler.ecology import refresh_resource_yields
     except ImportError:  # Pre-integration sources produced from permanent yields.
         refresh_resource_yields = None
-    from chronicler.economy import compute_economy
+    try:  # Sources since CON-7 expose the oracle from its own module.
+        from chronicler.economy_oracle import compute_economy
+    except ImportError:  # Older baseline sources define it in economy.py only.
+        from chronicler.economy import compute_economy
     from chronicler.models import (
         Civilization, ClimatePhase, Leader, Region, RegionStockpile, TechEra, WorldState,
     )
