@@ -449,3 +449,35 @@ def test_fixed_goods_has_9_entries():
 def test_fixed_goods_is_tuple():
     """FIXED_GOODS is a tuple (immutable, ordered)."""
     assert isinstance(FIXED_GOODS, tuple)
+
+
+# ---------------------------------------------------------------------------
+# COR-8c: tithe constant parity between Python and the Rust economy kernel
+# ---------------------------------------------------------------------------
+
+def _rust_f32_const(source: str, name: str) -> float:
+    import re
+
+    matches = re.findall(rf"^\s*const\s+{name}\s*:\s*f32\s*=\s*([0-9.]+)\s*;", source, re.M)
+    assert len(matches) == 1, f"expected exactly one `const {name}` in economy.rs, found {matches}"
+    return float(matches[0])
+
+
+def test_tithe_constants_match_rust_economy():
+    """`TITHE_RATE` and `TITHE_FOOD_GATE` must agree across runtimes.
+
+    No tuning key exists for either; a future `economy.tithe_rate` key goes through CON-5.
+    """
+    import inspect
+    import re
+    from pathlib import Path
+
+    from chronicler import economy, factions
+
+    rs_path = Path(__file__).resolve().parents[1] / "chronicler-agents" / "src" / "economy.rs"
+    rust = rs_path.read_text(encoding="utf-8")
+    assert _rust_f32_const(rust, "TITHE_RATE") == pytest.approx(factions.TITHE_RATE)
+
+    py_gates = re.findall(r"^\s*TITHE_FOOD_GATE\s*=\s*([0-9.]+)\s*$", inspect.getsource(economy), re.M)
+    assert len(py_gates) == 1, f"expected one TITHE_FOOD_GATE literal in economy.py, found {py_gates}"
+    assert _rust_f32_const(rust, "TITHE_FOOD_GATE") == pytest.approx(float(py_gates[0]))
