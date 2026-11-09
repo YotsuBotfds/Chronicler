@@ -26,7 +26,7 @@ from chronicler.models import (
 )
 from chronicler.resources import get_season_step, get_season_id
 from chronicler.shadow import ShadowLogger
-from chronicler.utils import resolve_civ_faith_id
+from chronicler.utils import clear_region_transients, resolve_civ_faith_id
 
 if TYPE_CHECKING:
     from chronicler.models import WorldState
@@ -541,20 +541,12 @@ def build_region_batch(world: WorldState, economy_result=None) -> pa.RecordBatch
                 return True
         return False
 
-    # Read culture investment flags into locals, then clear (one-turn signal)
+    # Read the one-turn signals into locals, then clear them all at once
+    # (utils.clear_region_transients, the same reset an --agents off turn
+    # applies): culture investment, schism conversion, M48 memory signals.
     culture_investment_vals = [getattr(r, '_culture_investment_active', False) for r in world.regions]
-    for r in world.regions:
-        if hasattr(r, '_culture_investment_active'):
-            del r._culture_investment_active
-
-    # Read schism values into locals, then clear (one-turn signals)
     schism_from_vals = [r.schism_convert_from for r in world.regions]
     schism_to_vals = [r.schism_convert_to for r in world.regions]
-    for r in world.regions:
-        r.schism_convert_from = 0xFF
-        r.schism_convert_to = 0xFF
-
-    # M48: Read per-region memory transient signals into locals, then clear
     controller_changed_vals = [getattr(r, '_controller_changed_this_turn', False) for r in world.regions]
     war_won_vals = [getattr(r, '_war_won_this_turn', False) for r in world.regions]
     seceded_vals = [getattr(r, '_seceded_this_turn', False) for r in world.regions]
@@ -563,12 +555,7 @@ def build_region_batch(world: WorldState, economy_result=None) -> pa.RecordBatch
         max(0, min(int(getattr(r, '_catastrophe_deaths_this_turn', 0) or 0), 0xFFFF))
         for r in world.regions
     ]
-    for r in world.regions:
-        r._controller_changed_this_turn = False
-        r._war_won_this_turn = False
-        r._seceded_this_turn = False
-        r._raided_this_turn = False
-        r._catastrophe_deaths_this_turn = 0
+    clear_region_transients(world)
 
     # Needs calibration: harsh rule by the controller (martial law), 0..1,
     # pressure on the autonomy need of people of other civs.

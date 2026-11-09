@@ -77,6 +77,7 @@ from chronicler.utils import (
     drain_region_pop,
     add_region_pop,
     stage_region_catastrophe_deaths,
+    clear_region_transients,
 )
 from chronicler.diplomacy_state import diplomacy_on as _diplomacy_on
 from chronicler.techniques_state import techniques_on as _techniques_on
@@ -2375,14 +2376,7 @@ def run_turn_result(
         _emit(finish_health_care(world, agent_bridge))
 
     if agent_bridge is None:
-        for region in world.regions:
-            region.schism_convert_from = 0xFF
-            region.schism_convert_to = 0xFF
-            region._controller_changed_this_turn = False
-            region._war_won_this_turn = False
-            region._seceded_this_turn = False
-            if hasattr(region, '_culture_investment_active'):
-                del region._culture_investment_active
+        clear_region_transients(world)
 
     from chronicler.economy import settle_pending_stockpile_bootstraps
     settle_pending_stockpile_bootstraps(world.regions)

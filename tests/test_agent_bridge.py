@@ -1090,6 +1090,24 @@ class TestM48TransientMemorySignals:
         vals2 = batch2.column("catastrophe_deaths_this_turn").to_pylist()
         assert vals2[0] == 0
 
+    def test_catastrophe_deaths_and_raid_clear_after_each_of_three_builds(self, sample_world):
+        """Each build reads only the signals staged since the previous one (FIX-3)."""
+        from chronicler.utils import stage_region_catastrophe_deaths
+
+        staged = [(7, True), (0, False), (3, True)]
+        for deaths, raided in staged:
+            stage_region_catastrophe_deaths(sample_world.regions[0], deaths)
+            if raided:
+                sample_world.regions[1]._raided_this_turn = True
+            batch = build_region_batch(sample_world)
+            death_vals = batch.column("catastrophe_deaths_this_turn").to_pylist()
+            raid_vals = batch.column("raided_this_turn").to_pylist()
+            assert death_vals == [deaths] + [0] * (len(death_vals) - 1)
+            assert raid_vals == [False, raided] + [False] * (len(raid_vals) - 2)
+            for region in sample_world.regions:
+                assert region._catastrophe_deaths_this_turn == 0
+                assert region._raided_this_turn is False
+
     def test_all_three_signals_default_false(self, sample_world):
         """When no signals are set, all columns default to False."""
         batch = build_region_batch(sample_world)
