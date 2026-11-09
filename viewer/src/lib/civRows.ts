@@ -127,13 +127,6 @@ export function civDisplayRow(history: TurnSnapshot[], civName: string, turn: nu
  * (`--guilds`).
  */
 export const FACTION_ORDER = ["military", "merchant", "cultural", "clergy", "burgher"] as const;
-export const FACTION_COLORS: Record<string, string> = {
-  military: "#d9644a",
-  merchant: "#e8b84a",
-  cultural: "#5a8fd9",
-  clergy: "#b07ad9",
-  burgher: "#5aa88f",
-};
 
 /** A civ's faction influence at a snapshot row, in declaration order ([] unrecorded). */
 export function factionShares(influence: Record<string, number> | undefined | null): [string, number][] {
