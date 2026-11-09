@@ -5,8 +5,12 @@ from chronicler.models import (
     TurnSnapshot, CivSnapshot, NarrativeMoment, NarrativeRole,
     Event, CausalLink, ChronicleEntry, GapSummary,
 )
-from chronicler.narrative import build_before_summary, build_after_summary, NarrativeEngine
+from chronicler.narrative import before_changes, after_changes, NarrativeEngine
 from chronicler.curator import curate
+
+
+def _bullets(changes):
+    return "\n".join(f"- {t}" for _k, _a, t in changes[2]) if changes[2] else ""
 
 
 def _make_snap(turn, civ, pop, mil, stab, regions):
@@ -32,7 +36,7 @@ def test_before_summary_reports_stat_changes():
         anchor_turn=10, turn_range=(10, 10), events=[], named_events=[],
         score=5.0, causal_links=[], narrative_role=NarrativeRole.CLIMAX, bonus_applied=0,
     )
-    summary = build_before_summary(history, moment, prev_moment=None)
+    summary = _bullets(before_changes(history, moment, None))
     assert summary.splitlines() == [
         "- A population fell from 100 to 80",
         "- A military rose from 50 to 70",
@@ -54,7 +58,7 @@ def test_after_summary_looks_forward():
         anchor_turn=30, turn_range=(30, 30), events=[], named_events=[],
         score=5.0, causal_links=[], narrative_role=NarrativeRole.RESOLUTION, bonus_applied=0,
     )
-    summary = build_after_summary(history, moment, next_moment)
+    summary = _bullets(after_changes(history, moment, next_moment))
     assert summary.splitlines() == [
         "- A population will fall to 50",
         "- A military will fall to 30",

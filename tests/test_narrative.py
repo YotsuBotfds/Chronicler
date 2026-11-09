@@ -4,25 +4,11 @@ from unittest.mock import MagicMock
 from chronicler.narrative import (
     NarrativeEngine,
     build_chronicle_prompt,
-    thread_domains,
 )
 from chronicler.models import (
     Event,
     NamedEvent,
 )
-
-
-class TestDomainThreading:
-    def test_thread_domains_preserves_text_with_known_domains(self):
-        text = "The civilization faced a great crisis."
-        civ_domains = {"TestCiv": ["maritime", "commerce"]}
-        result = thread_domains(text, "TestCiv", civ_domains)
-        assert result == text
-
-    def test_thread_domains_no_civ_returns_unchanged(self):
-        text = "Something happened."
-        result = thread_domains(text, "Unknown", {})
-        assert result == text
 
 
 class TestBuildChroniclePrompt:
