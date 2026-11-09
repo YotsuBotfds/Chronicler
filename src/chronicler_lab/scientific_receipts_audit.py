@@ -9,7 +9,7 @@ from collections import Counter
 import math
 from typing import Mapping
 
-from chronicler.scientific_research_audit import ResearchAgendasAudit
+from chronicler_lab.scientific_research_audit import ResearchAgendasAudit
 
 SYSTEM = "scientific_claims"
 LEGACY_RULE = "current-context-v1"

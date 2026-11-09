@@ -12,10 +12,10 @@ import sys
 from typing import Mapping
 
 from chronicler.bundle_codec import decode_bundle
-from chronicler.expansion_audit import AuditError, Limits, _md, audit_bundle
+from chronicler_lab.expansion_audit import AuditError, Limits, _md, audit_bundle
 from chronicler.historical_context import AsOf
-from chronicler.scientific_receipts_audit import COUNTERS as SCIENCE_COUNTERS, LEGACY_RULE, PUBLICATION_RULES
-from chronicler.scientific_research_audit import research_agenda_identity
+from chronicler_lab.scientific_receipts_audit import COUNTERS as SCIENCE_COUNTERS, LEGACY_RULE, PUBLICATION_RULES
+from chronicler_lab.scientific_research_audit import research_agenda_identity
 
 FEATURES = {
     "harvest_forecasts": ("policy",),

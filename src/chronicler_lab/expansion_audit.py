@@ -17,7 +17,7 @@ from typing import Any, Mapping
 
 from chronicler.bundle_codec import decode_bundle
 from chronicler.historical_context import AsOf, Phase
-from chronicler.scientific_receipts_audit import EVENT_KINDS as SCIENCE_EVENTS, ScientificReceiptsAudit, observed_defaults
+from chronicler_lab.scientific_receipts_audit import EVENT_KINDS as SCIENCE_EVENTS, ScientificReceiptsAudit, observed_defaults
 
 SYSTEMS = ("health_care", "harvest_forecasts", "ritual_gatherings", "scientific_claims")
 HEALTH_METRICS = ("episodes", "new_injuries", "recoveries", "impaired_work", "care_work",
