@@ -1,6 +1,6 @@
 /** Exact recorded endpoints only: never borrow a later/final world value. */
 import type { Bundle, Event, TurnSnapshot } from "../types";
-import { eventKey, eventKeyCount } from "./bundleIndex";
+import { eventKey, eventKeyCount, snapshotAtTurn } from "./bundleIndex";
 import { populationWeightedFood, readRegionalPopulation, weightedFoodNote } from "./regionalPopulation";
 import { foodAccountingAt } from "./foodAccounting";
 
@@ -23,8 +23,7 @@ const metric = (id: string, label: string, value: unknown, note?: string): Recor
 
 /** Duplicate turns are ambiguous, rather than arbitrarily choosing a record. */
 export function exactSnapshot(bundle: Bundle, turn: number): TurnSnapshot | null {
-  const rows = bundle.history.filter((row) => row.turn === turn);
-  return rows.length === 1 ? rows[0] : null;
+  return snapshotAtTurn(bundle.history, turn);
 }
 
 export function comparisonTurns(bundle: Bundle, through: number): number[] {

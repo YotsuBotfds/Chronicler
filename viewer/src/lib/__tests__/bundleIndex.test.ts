@@ -15,7 +15,6 @@ import { buildEventFeed, eventProvenance, terrainAt } from "../../components/pha
 import {
   actorEventsUpTo, eventByKey, eventKey, eventKeyCount, eventsOfType, eventsUpTo, snapshotAtTurn, typedEventsUpTo,
 } from "../bundleIndex";
-import { exactSnapshot } from "../historyComparison";
 import { decodeBundlePayload } from "../bundleCodec";
 import { massMigrations } from "../food";
 import { practisedTechniques, practisedTechniquesBy } from "../mapLayers";
@@ -380,6 +379,11 @@ describe("snapshot at a turn", () => {
   });
 
   it("matches the exact-snapshot filter at every turn of each fixture", () => {
+    // The filter `historyComparison.exactSnapshot` used before it delegated here.
+    const exactSnapshot = (bundle: Bundle, turn: number) => {
+      const rows = bundle.history.filter((row) => row.turn === turn);
+      return rows.length === 1 ? rows[0] : null;
+    };
     for (const [, bundle] of fixtures) {
       const last = Math.max(0, ...bundle.history.map((snapshot) => snapshot.turn));
       for (let turn = -1; turn <= last + 1; turn += 1) {
