@@ -15,7 +15,7 @@ import traceback
 import unittest
 from unittest import mock
 import pytest
-from chronicler import experiment_sessions as es
+from chronicler_lab import experiment_sessions as es
 import test_campaign_order_preview as p
 import test_experiment_receipt_inspector as d
 import test_operator_submission_workflow as r

@@ -26,7 +26,7 @@ if __name__ == "__main__":
 import pyarrow as pa
 
 from chronicler.artifact_io import strict_json_loads
-from chronicler.campaign_snapshot_adapter import (
+from chronicler_lab.campaign_snapshot_adapter import (
     CONTRACT, STAGE, CampaignSnapshotError, admit_snapshot_plan, parse_side_inputs,
     plan_document,
 )

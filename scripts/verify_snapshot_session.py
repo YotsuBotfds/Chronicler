@@ -13,14 +13,14 @@ from pyarrow import ArrowException
 if __name__ == "__main__":
     sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from chronicler.campaign_snapshot_adapter import (
+from chronicler_lab.campaign_snapshot_adapter import (
     STAGE, CampaignSnapshotError, parse_side_inputs,
 )
-from chronicler.experiment_sessions import (
+from chronicler_lab.experiment_sessions import (
     CampaignSession, decode_envelope, decode_envelope_text,
     submission_from_bytes, transport_policy_from_text,
 )
-from chronicler.snapshot_campaign_sessions import (
+from chronicler_lab.snapshot_campaign_sessions import (
     prepare_snapshot_session, read_bounded_bytes, read_snapshot,
     validate_snapshot_byte_limit,
 )

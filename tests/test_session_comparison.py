@@ -15,10 +15,10 @@ import sys
 import pytest
 
 from chronicler import campaign_logistics as cl
-from chronicler import experiment_sessions as es
-from chronicler import memome_experiment as mm
-from chronicler import session_comparison as comparison
-from chronicler import session_operations as operations
+from chronicler_lab import experiment_sessions as es
+from chronicler_lab import memome_experiment as mm
+from chronicler_lab import session_comparison as comparison
+from chronicler_lab import session_operations as operations
 from test_experiment_sessions import (
     campaign_session, campaign_trace, campaign_tick, canonical, memome_batches,
     memome_session, memome_trace, plain, reseal,
@@ -427,9 +427,9 @@ def test_fresh_import_has_no_input_kernel_rng_or_fixture_work():
 import builtins, io, importlib, importlib.util, random, sys
 from contextlib import redirect_stdout
 from pathlib import Path
-from chronicler import experiment_sessions as es
+from chronicler_lab import experiment_sessions as es
 from chronicler import campaign_logistics as cl
-from chronicler import memome_experiment as mm
+from chronicler_lab import memome_experiment as mm
 def forbidden(*args, **kwargs):
     raise AssertionError("forbidden work")
 before = random.getstate()
@@ -437,7 +437,7 @@ builtins.open = Path.open = forbidden
 es.load_session = es.read_regular_file_bytes = es.decode_envelope = es.commit_session = forbidden
 cl.admit = cl.advance = mm.advance = forbidden
 sys.stderr.write("boundary-start\n")
-module = importlib.import_module("chronicler.session_comparison")
+module = importlib.import_module("chronicler_lab.session_comparison")
 spec = importlib.util.spec_from_file_location("session_compare_cli", "scripts/compare_experiment_sessions.py")
 driver = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(driver)
@@ -446,7 +446,7 @@ with redirect_stdout(output):
     assert driver.main(["--left", "--format", "bad"]) == 0
 assert random.getstate() == before
 for name in ("chronicler.main", "chronicler.models", "chronicler.agent_bridge", "chronicler.world_gen",
-             "chronicler.snapshot_campaign_sessions", "campaign_logistics_demo", "memome_demo"):
+             "chronicler_lab.snapshot_campaign_sessions", "campaign_logistics_demo", "memome_demo"):
     assert name not in sys.modules, name
 sys.stderr.write("boundary-end\n")
 '''

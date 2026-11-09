@@ -18,9 +18,9 @@ import time
 import unittest
 from unittest import mock
 
-from chronicler import experiment_sessions as es
-from chronicler import memome_experiment as mm
-from chronicler import session_operations as operations
+from chronicler_lab import experiment_sessions as es
+from chronicler_lab import memome_experiment as mm
+from chronicler_lab import session_operations as operations
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -815,8 +815,8 @@ class SessionOperationCliTests(_SessionCase):
         code = (
             "import sys, runpy\n"
             "from pathlib import Path\n"
-            "from chronicler import session_operations as operations\n"
-            "from chronicler import experiment_sessions as es\n"
+            "from chronicler_lab import session_operations as operations\n"
+            "from chronicler_lab import experiment_sessions as es\n"
             "def forbidden(*args, **kwargs): raise AssertionError('unexpected runtime call')\n"
             "es.load_session = es.commit_session = es.create_campaign_session = forbidden\n"
             "es.create_memome_session = es.apply_campaign_tick = es.apply_memome_batch = forbidden\n"

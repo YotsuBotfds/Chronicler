@@ -17,14 +17,14 @@ import unittest
 from unittest import mock
 
 from chronicler import campaign_logistics as cl
-from chronicler import experiment_sessions as es
-from chronicler.campaign_order_preview import (
+from chronicler_lab import experiment_sessions as es
+from chronicler_lab.campaign_order_preview import (
     Alternative, CONTRACT, PreviewError, PreviewReport, preview_json, preview_orders, preview_text,
 )
 
 ROOT = Path(__file__).resolve().parents[1]
 DRIVER = ROOT / "scripts/campaign_order_preview.py"
-MODULE = ROOT / "src/chronicler/campaign_order_preview.py"
+MODULE = ROOT / "src/chronicler_lab/campaign_order_preview.py"
 DEMO = runpy.run_path(str(ROOT / "scripts/campaign_logistics_demo.py"))
 
 

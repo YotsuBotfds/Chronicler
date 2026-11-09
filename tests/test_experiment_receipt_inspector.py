@@ -12,9 +12,9 @@ import sys
 import pytest
 
 from chronicler import campaign_logistics as cl
-from chronicler import experiment_receipt_inspector as inspector
-from chronicler import experiment_sessions as es
-from chronicler import memome_experiment as mm
+from chronicler_lab import experiment_receipt_inspector as inspector
+from chronicler_lab import experiment_sessions as es
+from chronicler_lab import memome_experiment as mm
 from test_experiment_sessions import (
     campaign_session, campaign_tick, campaign_trace, memome_trace,
     plain, reseal, canonical,
@@ -343,9 +343,9 @@ def test_fresh_process_json_text_and_default_are_hash_seed_deterministic(tmp_pat
 def test_fresh_imports_only_existing_session_and_detached_kernel_modules():
     env = dict(os.environ, PYTHONDONTWRITEBYTECODE="1")
     result = subprocess.run([sys.executable, "-c",
-                             "import sys,json; import chronicler.experiment_receipt_inspector; "
-                             "print(json.dumps(sorted(n for n in sys.modules if n.startswith('chronicler.'))))"],
+                             "import sys,json; import chronicler_lab.experiment_receipt_inspector; "
+                             "print(json.dumps(sorted(n for n in sys.modules if n.startswith(('chronicler.', 'chronicler_lab.')))))"],
                             env=env, capture_output=True, text=True, timeout=30)
     assert result.returncode == 0, result.stderr
-    assert json.loads(result.stdout) == ["chronicler.campaign_logistics", "chronicler.experiment_receipt_inspector",
-                                        "chronicler.experiment_sessions", "chronicler.memome_experiment"]
+    assert json.loads(result.stdout) == ["chronicler.campaign_logistics", "chronicler_lab.experiment_receipt_inspector",
+                                        "chronicler_lab.experiment_sessions", "chronicler_lab.memome_experiment"]

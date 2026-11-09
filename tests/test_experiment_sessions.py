@@ -22,13 +22,13 @@ import unittest
 from unittest import mock
 
 from chronicler import campaign_logistics as cl
-from chronicler import experiment_sessions as es
-from chronicler import memome_experiment as mm
+from chronicler_lab import experiment_sessions as es
+from chronicler_lab import memome_experiment as mm
 
 
 ROOT = Path(__file__).resolve().parents[1]
 DRIVER = ROOT / "scripts" / "experiment_session.py"
-KERNEL = ROOT / "src" / "chronicler" / "experiment_sessions.py"
+KERNEL = ROOT / "src" / "chronicler_lab" / "experiment_sessions.py"
 CAMPAIGN_DEMO = runpy.run_path(str(ROOT / "scripts" / "campaign_logistics_demo.py"))
 MEMOME_DEMO = runpy.run_path(str(ROOT / "scripts" / "memome_demo.py"))
 
@@ -1360,9 +1360,9 @@ class ImportScopeTests(unittest.TestCase):
     )
     ALLOWED_IMPORTS = {
         str(KERNEL): {"__future__", "contextlib", "dataclasses", "fcntl", "hashlib", "json",
-                      "os", "pathlib", "stat", "chronicler"},
+                      "os", "pathlib", "stat", "chronicler", "chronicler_lab"},
         str(DRIVER): {"__future__", "argparse", "json", "pathlib", "runpy", "sys",
-                      "chronicler"},
+                      "chronicler_lab"},
     }
 
     def imported_names(self, path):
@@ -1373,10 +1373,10 @@ class ImportScopeTests(unittest.TestCase):
         return names
 
     def chronicler_import_targets(self, path):
-        """Exact ``from chronicler import X`` targets, for the mutual-lane ban."""
+        """Exact ``from chronicler[_lab] import X`` targets, for the mutual-lane ban."""
         parsed = ast.parse(Path(path).read_text(encoding="utf-8"))
         return {alias.name for node in ast.walk(parsed)
-                if isinstance(node, ast.ImportFrom) and node.module == "chronicler"
+                if isinstance(node, ast.ImportFrom) and node.module in ("chronicler", "chronicler_lab")
                 for alias in node.names} | {
             alias.name for node in ast.walk(parsed)
             if isinstance(node, ast.Import)
@@ -1412,7 +1412,7 @@ class ImportScopeTests(unittest.TestCase):
             "import json, os, random\n"
             "before = random.getstate()\n"
             "listing = sorted(os.listdir('.'))\n"
-            "from chronicler import experiment_sessions as es\n"
+            "from chronicler_lab import experiment_sessions as es\n"
             "policy = es.documented_transport_policy()\n"
             "assert random.getstate() == before\n"
             "assert sorted(os.listdir('.')) == listing\n"
@@ -1432,7 +1432,7 @@ class ImportScopeTests(unittest.TestCase):
             [sys.executable, "-c",
              "import random, sys\n"
              "before = random.getstate()\n"
-             "import chronicler.experiment_sessions\n"
+             "import chronicler_lab.experiment_sessions\n"
              "assert random.getstate() == before\n"
              "assert not any(n.startswith(('numpy', 'scipy', 'chronicler_agents',"
              " 'chronicler.models', 'chronicler.simulation', 'chronicler.main',"
@@ -1450,8 +1450,28 @@ class ImportScopeTests(unittest.TestCase):
         # Exact AST import targets, not a prose prefix search.
         driver_imports = self.imported_names(DRIVER)
         self.assertEqual(driver_imports, {"__future__", "argparse", "json", "pathlib",
-                                          "runpy", "sys", "chronicler"})
+                                          "runpy", "sys", "chronicler_lab"})
         self.assertNotIn("chronicler.experiment_session", driver_imports)
+
+
+class RelocationCompatibilityTests(_TempDirCase):
+    def test_old_and_new_import_paths_load_the_same_saved_session(self):
+        # LAB-1b moved the module to chronicler_lab; the old path is an alias.
+        import chronicler.experiment_sessions as old
+        import chronicler_lab.experiment_sessions as new
+        self.assertIs(old, new)
+        self.assertIs(old.load_session, new.load_session)
+        # A session committed through the old path loads identically through both.
+        applied, _ticks, _receipts = campaign_trace()
+        target = self.session_file()
+        old.commit_session(target, applied, transport=old.documented_transport_policy(),
+                           expected_generation=None, expected_digest=None)
+        loaded_old = old.load_session(target, transport=old.documented_transport_policy())
+        loaded_new = new.load_session(target, transport=new.documented_transport_policy())
+        self.assertEqual(loaded_old, loaded_new)
+        self.assertEqual(cl.canonical_bytes(loaded_new.session.session),
+                         cl.canonical_bytes(applied.session))
+        self.assertEqual(loaded_new.digest, hashlib.sha256(target.read_bytes()).hexdigest())
 
 
 if __name__ == "__main__":

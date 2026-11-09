@@ -9,7 +9,7 @@ import subprocess
 import sys
 import unittest
 
-from chronicler.memome_experiment import (
+from chronicler_lab.memome_experiment import (
     CONTRACT, Batch, Ledger, Participant, Policy, Proposal, advance,
     checkpoint_json, restore_checkpoint,
 )
@@ -248,13 +248,13 @@ class MemomeTests(unittest.TestCase):
         self.assertEqual(off["checkpoint"]["ledger"]["history"], [])
 
     def test_import_scope_and_global_rng_untouched(self):
-        kernel = ROOT / "src/chronicler/memome_experiment.py"
+        kernel = ROOT / "src/chronicler_lab/memome_experiment.py"
         parsed = ast.parse(kernel.read_text())
         modules = {n.module for n in ast.walk(parsed) if isinstance(n, ast.ImportFrom)}
         modules |= {a.name for n in ast.walk(parsed) if isinstance(n, ast.Import) for a in n.names}
         self.assertEqual(modules, {"dataclasses", "json"})
         code = ('import random; before=random.getstate(); '
-                'from chronicler.memome_experiment import *; '
+                'from chronicler_lab.memome_experiment import *; '
                 'import runpy; demo=runpy.run_path("scripts/memome_demo.py"); '
                 'demo["run"](True); assert random.getstate()==before; '
                 'import sys; assert not any(n.startswith(("numpy", "chronicler_agents", '

@@ -8,16 +8,16 @@ import sys
 import tempfile
 import unittest
 from unittest import mock
-from chronicler import experiment_sessions as es
-from chronicler import session_operations as operations
-from chronicler import experiment_receipt_inspector as inspector
+from chronicler_lab import experiment_sessions as es
+from chronicler_lab import session_operations as operations
+from chronicler_lab import experiment_receipt_inspector as inspector
 from test_session_read_bounds import TrackedHandle
 
 ROOT=Path(__file__).resolve().parents[1]
 class DefaultBoundaries(unittest.TestCase):
     def test_B_D_use_the_actual_integrated_bounded_public_session_loader(self):
         self.assertIs(operations.es,es);self.assertIs(inspector.es,es)
-        self.assertEqual(Path(es.__file__).resolve(),(ROOT/'src/chronicler/experiment_sessions.py').resolve())
+        self.assertEqual(Path(es.__file__).resolve(),(ROOT/'src/chronicler_lab/experiment_sessions.py').resolve())
         with tempfile.TemporaryDirectory() as directory:
             path=Path(directory)/'large.json';path.write_bytes(b' '*513);policy=replace(es.documented_transport_policy(),max_bytes=512);import builtins;original=builtins.open;requests=[]
             def opened(p,mode='r',*a,**kw):
@@ -40,7 +40,7 @@ class DefaultBoundaries(unittest.TestCase):
                 self.assertEqual(outputs[0],outputs[1])
                 self.assertEqual(list(Path(directory).iterdir()),[])
     def test_imports_do_not_activate_native_world_provider_or_rng(self):
-        code="import random,sys; before=random.getstate(); from chronicler import session_operations,experiment_receipt_inspector; assert random.getstate()==before; assert not any(n in sys.modules for n in ('chronicler_agents','chronicler.main','chronicler.simulation')); print('bounded operator imports only')"
+        code="import random,sys; before=random.getstate(); from chronicler_lab import session_operations,experiment_receipt_inspector; assert random.getstate()==before; assert not any(n in sys.modules for n in ('chronicler_agents','chronicler.main','chronicler.simulation')); print('bounded operator imports only')"
         with tempfile.TemporaryDirectory() as directory:
             run=subprocess.run([sys.executable,'-B','-c',code],cwd=directory,capture_output=True,timeout=20)
             self.assertEqual(run.returncode,0,run.stderr.decode());self.assertEqual(list(Path(directory).iterdir()),[])

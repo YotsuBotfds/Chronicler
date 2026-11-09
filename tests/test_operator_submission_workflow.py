@@ -19,9 +19,9 @@ import unittest
 from unittest import mock
 
 from chronicler import campaign_logistics as cl
-from chronicler import experiment_sessions as es
-from chronicler import memome_experiment as mm
-from chronicler import session_operations as operations
+from chronicler_lab import experiment_sessions as es
+from chronicler_lab import memome_experiment as mm
+from chronicler_lab import session_operations as operations
 import test_session_operations as existing
 
 ROOT = Path(__file__).resolve().parents[1]

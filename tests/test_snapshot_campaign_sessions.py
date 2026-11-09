@@ -14,9 +14,9 @@ import pyarrow as pa
 import pytest
 
 from chronicler import campaign_logistics as cl
-from chronicler import experiment_sessions as es
-from chronicler import snapshot_campaign_sessions as bridge
-from chronicler.campaign_snapshot_adapter import CampaignSnapshotError, parse_side_inputs, plan_document
+from chronicler_lab import experiment_sessions as es
+from chronicler_lab import snapshot_campaign_sessions as bridge
+from chronicler_lab.campaign_snapshot_adapter import CampaignSnapshotError, parse_side_inputs, plan_document
 from test_campaign_snapshot_adapter import side_document, snapshot, view, write_snapshot
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -344,10 +344,11 @@ def test_fresh_process_seed_determinism_and_unchanged_session_cli(tmp_path):
 
 
 def test_exact_experimental_import_contract_and_no_other_package_consumers():
-    path = ROOT / "src/chronicler/snapshot_campaign_sessions.py"
+    path = ROOT / "src/chronicler_lab/snapshot_campaign_sessions.py"
+    shim = ROOT / "src/chronicler/snapshot_campaign_sessions.py"
     tree = ast.parse(path.read_text(encoding="utf-8"))
     imports = [node for node in ast.walk(tree) if isinstance(node, ast.ImportFrom)
-               and node.module == "chronicler.campaign_snapshot_adapter"]
+               and node.module == "chronicler_lab.campaign_snapshot_adapter"]
     assert len(imports) == 1
     assert {alias.name for alias in imports[0].names} == {
         "CONTRACT", "AdmissionPlan", "CampaignSnapshotError", "SideInputs", "admit_snapshot_plan"}
@@ -356,12 +357,14 @@ def test_exact_experimental_import_contract_and_no_other_package_consumers():
                          for candidate in (ROOT / "src").rglob("*.py")
                          if candidate.name != "campaign_snapshot_adapter.py"
                          and "campaign_snapshot_adapter" in candidate.read_text(encoding="utf-8")}
-    assert adapter_consumers == {"src/chronicler/snapshot_campaign_sessions.py"}
+    assert adapter_consumers == {"src/chronicler_lab/snapshot_campaign_sessions.py"}
     bridge_consumers = {candidate.relative_to(ROOT).as_posix()
                         for candidate in (ROOT / "src").rglob("*.py")
-                        if candidate != path
+                        if candidate not in (path, shim)
                         and "snapshot_campaign_sessions" in candidate.read_text(encoding="utf-8")}
     assert bridge_consumers == set()
+    # The old path, while it exists, is only the chronicler_lab import alias.
+    assert not shim.exists() or "sys.modules[__name__] = _m" in shim.read_text(encoding="utf-8")
     for candidate in (ROOT / "src/chronicler/main.py", ROOT / "src/chronicler/__init__.py"):
         source = candidate.read_text(encoding="utf-8")
         assert "campaign_snapshot" not in source and "snapshot_campaign" not in source
@@ -374,8 +377,8 @@ from contextlib import redirect_stdout
 from pathlib import Path
 import pyarrow as pa
 from chronicler import campaign_logistics as kernel
-from chronicler import campaign_snapshot_adapter as adapter
-from chronicler import experiment_sessions as sessions
+from chronicler_lab import campaign_snapshot_adapter as adapter
+from chronicler_lab import experiment_sessions as sessions
 
 def forbidden(*args, **kwargs):
     raise AssertionError("forbidden input/kernel/commit/fixture work")
@@ -392,7 +395,7 @@ pa.ipc.open_file = forbidden
 sys.stderr.write("snapshot-boundary-start\n")
 sys.stderr.flush()
 
-import chronicler.snapshot_campaign_sessions
+import chronicler_lab.snapshot_campaign_sessions
 spec = importlib.util.spec_from_file_location("standalone_snapshot_session_driver", "scripts/snapshot_campaign_session.py")
 driver = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(driver)

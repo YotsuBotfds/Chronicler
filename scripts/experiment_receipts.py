@@ -9,8 +9,8 @@ import sys
 if __name__ == "__main__":
     sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from chronicler import experiment_sessions as es
-from chronicler.experiment_receipt_inspector import (
+from chronicler_lab import experiment_sessions as es
+from chronicler_lab.experiment_receipt_inspector import (
     disabled_receipt, inspect_receipts, inspection_json, inspection_text,
 )
 

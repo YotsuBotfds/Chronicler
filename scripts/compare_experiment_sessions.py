@@ -9,8 +9,8 @@ import sys
 if __name__ == "__main__":
     sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from chronicler import experiment_sessions as es
-from chronicler.session_comparison import (
+from chronicler_lab import experiment_sessions as es
+from chronicler_lab.session_comparison import (
     compare_sessions, comparison_json, comparison_text,
 )
 
