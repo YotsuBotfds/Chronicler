@@ -132,3 +132,22 @@ def test_real_checkout_pinned_and_unpinned_files():
     assert ("enforced", "expected skips") in _kinds(skipped)
     unpinned = pf.analyse(repo, "docs/README.md")
     assert not _kinds(unpinned, "enforced") and not _kinds(unpinned, "digest")
+
+
+def test_frozen_pin_sources_match_manifest_and_pinned_set():
+    # Integrity of the frozen witness snapshot: every copy hashes to its
+    # MANIFEST digest and MANIFEST names exactly the witnessed path set.
+    # Provenance against the freeze commit is checked by --verify (needs Git).
+    from scripts.testing import freeze_pin_sources as freeze
+    from scripts.testing import frozen_sources as frozen
+
+    files = frozen.MANIFEST["files"]
+    assert len(frozen.MANIFEST["freeze_commit"]) == 40
+    assert sorted(files) == freeze.pinned_paths(pf.ROOT)
+    copies = sorted(p.relative_to(frozen.FROZEN_ROOT).as_posix()
+                    for p in frozen.FROZEN_ROOT.rglob("*") if p.is_file())
+    assert copies == sorted(["MANIFEST.json", *(f"{rel}.txt" for rel in files)])
+    for rel, digest in files.items():
+        assert hashlib.sha256(frozen.frozen_bytes(rel)).hexdigest() == digest, rel
+    with pytest.raises(FileNotFoundError, match="no frozen copy"):
+        frozen.frozen_bytes("src/chronicler/not_frozen.py")
