@@ -9,6 +9,7 @@ from types import SimpleNamespace as NS
 import pytest
 
 from chronicler import main as M
+from scripts.testing.frozen_sources import frozen_text
 from scripts.testing.reviewed_main_witness import before_reviewed_live_callback_repair
 
 
@@ -441,7 +442,7 @@ def _assert_default_main_witness(source):
 
 
 def test_entire_default_main_AST_matches_qualified_parent():
-    _assert_default_main_witness(Path(M.__file__).read_text())
+    _assert_default_main_witness(frozen_text("src/chronicler/main.py"))
 
 
 @pytest.mark.parametrize("mutation", [
@@ -450,7 +451,7 @@ def test_entire_default_main_AST_matches_qualified_parent():
     "unrelated_result", "unrelated_documentation",
 ])
 def test_default_main_inverse_refuses_unreviewed_mutations(mutation):
-    source = Path(M.__file__).read_text()
+    source = frozen_text("src/chronicler/main.py")
     if mutation == "helper_location":
         helper = next(node for node in ast.parse(source).body
                       if isinstance(node, ast.FunctionDef)
@@ -495,7 +496,7 @@ def test_default_main_inverse_refuses_unreviewed_mutations(mutation):
 
 @pytest.mark.parametrize("mutation", ["wrong_helper", "wrong_location", "between_pair", "extra_effect"])
 def test_capacity_admission_projection_refuses_changed_shape_or_location(mutation):
-    tree = module_tree()
+    tree = ast.parse(frozen_text("src/chronicler/main.py"))
     owner = next(node for node in tree.body
                  if isinstance(node, ast.FunctionDef) and node.name == "execute_run")
     statements, index = _civ_admission_pairs(owner)[0]
@@ -515,7 +516,7 @@ def test_capacity_admission_projection_refuses_changed_shape_or_location(mutatio
 
 @pytest.mark.parametrize("mutation", ["predicate", "location", "extra_effect", "parser"])
 def test_public_grain_source_inverse_refuses_unreviewed_changes(mutation):
-    source = Path(M.__file__).read_text()
+    source = frozen_text("src/chronicler/main.py")
     setup = '    _shipments = getattr(args, "public_grain_shipments", None)\n    if _shipments is not None:\n        from chronicler.public_grain_shipments import set_public_grain_shipments_enabled\n        set_public_grain_shipments_enabled(world, _shipments, agent_mode=agent_mode)\n'
     if mutation == "predicate":
         changed = source.replace("if _shipments is not None:", "if _shipments is None:", 1)

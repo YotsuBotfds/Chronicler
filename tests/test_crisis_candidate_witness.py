@@ -4,7 +4,8 @@ import json
 
 import pytest
 
-from scripts.testing.crisis_candidate_witness import ROOT, WITNESS, before_crisis_candidate
+from scripts.testing.frozen_sources import frozen_text
+from scripts.testing.crisis_candidate_witness import WITNESS, before_crisis_candidate
 
 
 def test_candidate_projects_exact_reviewed_sources_and_rejects_mutations():
@@ -13,7 +14,7 @@ def test_candidate_projects_exact_reviewed_sources_and_rejects_mutations():
     assert witness["head"] == "ae3feb3bbadb60c82694634862b7b364b457d9a4"
     from scripts.testing.household_candidate_witness import before_household_candidate
     for path, row in witness["files"].items():
-        source = (ROOT / path).read_bytes().decode("utf-8")
+        source = frozen_text(path)
         parent = before_crisis_candidate(source, path)
         assert hashlib.sha256(parent.encode()).hexdigest() == row["sha256"]
         assert before_crisis_candidate(parent, path, allow_parent=True) == parent
@@ -36,7 +37,7 @@ def test_candidate_projects_exact_reviewed_sources_and_rejects_mutations():
     # still changes the digest.
     from scripts.testing.livelihoods_sprint_witness import before_livelihoods_sprint
     for path, digest in witness["new_files"].items():
-        source = (ROOT / path).read_bytes().decode("utf-8")
+        source = frozen_text(path)
         assert hashlib.sha256(before_livelihoods_sprint(source, path).encode("utf-8")).hexdigest() == digest
         with pytest.raises(AssertionError):
             changed = before_livelihoods_sprint(source + "\n# unrelated mutation\n", path)

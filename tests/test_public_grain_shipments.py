@@ -590,12 +590,13 @@ def test_composition_inverse_is_literal_complete_and_refuses_unrelated_edits():
     witness = json.loads((ROOT / "tests/fixtures/public_grain_shipments_composition_inverse.json").read_text())
     assert set(witness) == {"schema_version", "base", "files", "new_files"}
     assert witness["base"] == "061594a0606b9a9dfdbd1a63de2afb7dfcc3c3db"
+    from scripts.testing.frozen_sources import frozen_bytes, frozen_text
     for path, digest in witness["new_files"].items():
-        assert hashlib.sha256((ROOT / path).read_bytes()).hexdigest() == digest
+        assert hashlib.sha256(frozen_bytes(path)).hexdigest() == digest
     from scripts.testing.regional_population_witness import before_regional_population
     from scripts.testing.grain_release_witness import before_grain_release
     for path, row in witness["files"].items():
-        body = before_grain_release((ROOT / path).read_text(), path)
+        body = before_grain_release(frozen_text(path), path)
         body = before_regional_population(body, path)
         for patch in reversed(row["patches"]):
             assert set(patch) == {"old", "new"}

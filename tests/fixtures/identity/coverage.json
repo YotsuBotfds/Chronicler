@@ -1,0 +1,1114 @@
+{
+ "description": "Which identity-gate case executes each of the 91 source-witnessed paths (the files and new_files of tests/fixtures/*inverse*.json plus the four health-care files digested in tests/test_health_care_policy.py). identity is a list of lane:case (scripts/turn_speed_identity.py GATE_PYTHON / GATE_NATIVE), \"tests\" when only tests guard the path, or \"none\".",
+ "feature_case": "For default-off systems, the gate case whose switches enable the system.",
+ "methods": {
+  "rg": "Rust, viewer and scripts: call sites found with rg (cited), mapped to the cases whose switches reach them; viewer tests are the vitest files that import the module.",
+  "trace": "Python files: each gate case run in-process under a stdlib sys.monitoring PY_START tracer (coverage.py was not installed); a case is listed when any function of the file ran, not only its module body. File level, not line level. Traced runs reproduced the golden output digests exactly. Recorded locally at source 5eedc67.",
+  "trace+rg": "No gate case called into the file (trace); owning tests found with rg."
+ },
+ "paths": {
+  "chronicler-agents/src/ecology.rs": {
+   "evidence": "off mode: EcologySimulator (src/chronicler/main.py:341-354, simulation.py:2261); hybrid: AgentSimulator ecology config (ffi/mod.rs:143) and migration_drivers.rs:176",
+   "identity": [
+    "native:g_hybrid_s42",
+    "native:g_grain_s7",
+    "native:g_learning_s42",
+    "native:g_mobility_s1234",
+    "native:g_scaled_s42",
+    "native:g_off_s42"
+   ],
+   "method": "rg"
+  },
+  "chronicler-agents/src/economy.rs": {
+   "evidence": "AgentSimulator tick/pool/FFI path: every --agents hybrid case",
+   "identity": [
+    "native:g_hybrid_s42",
+    "native:g_grain_s7",
+    "native:g_learning_s42",
+    "native:g_mobility_s1234",
+    "native:g_scaled_s42"
+   ],
+   "method": "rg"
+  },
+  "chronicler-agents/src/ffi/batch.rs": {
+   "evidence": "AgentSimulator tick/pool/FFI path: every --agents hybrid case",
+   "identity": [
+    "native:g_hybrid_s42",
+    "native:g_grain_s7",
+    "native:g_learning_s42",
+    "native:g_mobility_s1234",
+    "native:g_scaled_s42"
+   ],
+   "method": "rg"
+  },
+  "chronicler-agents/src/ffi/ecology_sim.rs": {
+   "evidence": "EcologySimulator, built only for --agents off with the extension (main.py:341-354)",
+   "identity": [
+    "native:g_off_s42"
+   ],
+   "method": "rg"
+  },
+  "chronicler-agents/src/ffi/mod.rs": {
+   "evidence": "AgentSimulator tick/pool/FFI path: every --agents hybrid case",
+   "identity": [
+    "native:g_hybrid_s42",
+    "native:g_grain_s7",
+    "native:g_learning_s42",
+    "native:g_mobility_s1234",
+    "native:g_scaled_s42"
+   ],
+   "method": "rg"
+  },
+  "chronicler-agents/src/ffi/schema.rs": {
+   "evidence": "AgentSimulator tick/pool/FFI path: every --agents hybrid case",
+   "identity": [
+    "native:g_hybrid_s42",
+    "native:g_grain_s7",
+    "native:g_learning_s42",
+    "native:g_mobility_s1234",
+    "native:g_scaled_s42"
+   ],
+   "method": "rg"
+  },
+  "chronicler-agents/src/health_care.rs": {
+   "identity": "tests",
+   "method": "rg",
+   "note": "no gate case enables --health-care (owner note)",
+   "tests": [
+    "cargo test (health_care.rs:185 tests module)",
+    "tests/test_health_care_native.py"
+   ]
+  },
+  "chronicler-agents/src/health_care_observation.rs": {
+   "identity": "tests",
+   "method": "rg",
+   "note": "no gate case enables --health-care (owner note)",
+   "tests": [
+    "cargo test (health_care_observation.rs:416, health_care_observation_tests.rs)",
+    "tests/test_health_care_native.py"
+   ]
+  },
+  "chronicler-agents/src/household.rs": {
+   "evidence": "AgentSimulator tick/pool/FFI path: every --agents hybrid case",
+   "identity": [
+    "native:g_hybrid_s42",
+    "native:g_grain_s7",
+    "native:g_learning_s42",
+    "native:g_mobility_s1234",
+    "native:g_scaled_s42"
+   ],
+   "method": "rg"
+  },
+  "chronicler-agents/src/lib.rs": {
+   "evidence": "crate root: every native-lane case loads the extension",
+   "identity": [
+    "native:g_hybrid_s42",
+    "native:g_grain_s7",
+    "native:g_learning_s42",
+    "native:g_mobility_s1234",
+    "native:g_scaled_s42",
+    "native:g_off_s42"
+   ],
+   "method": "rg"
+  },
+  "chronicler-agents/src/merchant.rs": {
+   "evidence": "AgentSimulator tick/pool/FFI path: every --agents hybrid case",
+   "identity": [
+    "native:g_hybrid_s42",
+    "native:g_grain_s7",
+    "native:g_learning_s42",
+    "native:g_mobility_s1234",
+    "native:g_scaled_s42"
+   ],
+   "method": "rg"
+  },
+  "chronicler-agents/src/pool.rs": {
+   "evidence": "AgentSimulator tick/pool/FFI path: every --agents hybrid case",
+   "identity": [
+    "native:g_hybrid_s42",
+    "native:g_grain_s7",
+    "native:g_learning_s42",
+    "native:g_mobility_s1234",
+    "native:g_scaled_s42"
+   ],
+   "method": "rg"
+  },
+  "chronicler-agents/src/region.rs": {
+   "evidence": "AgentSimulator tick/pool/FFI path: every --agents hybrid case",
+   "identity": [
+    "native:g_hybrid_s42",
+    "native:g_grain_s7",
+    "native:g_learning_s42",
+    "native:g_mobility_s1234",
+    "native:g_scaled_s42"
+   ],
+   "method": "rg"
+  },
+  "chronicler-agents/src/teaching_work.rs": {
+   "evidence": "prepare_teaching_work (ffi/mod.rs:600-616) is called from simulation.py:2305-2320 for academy services",
+   "identity": [
+    "native:g_learning_s42"
+   ],
+   "method": "rg"
+  },
+  "chronicler-agents/src/tick.rs": {
+   "evidence": "AgentSimulator tick/pool/FFI path: every --agents hybrid case",
+   "identity": [
+    "native:g_hybrid_s42",
+    "native:g_grain_s7",
+    "native:g_learning_s42",
+    "native:g_mobility_s1234",
+    "native:g_scaled_s42"
+   ],
+   "method": "rg"
+  },
+  "chronicler-agents/src/transaction_receipts.rs": {
+   "evidence": "receipt frames (ffi/mod.rs:2056, 4445-4461; tick.rs:628-645) exist only with --transaction-receipts",
+   "identity": [
+    "native:g_grain_s7"
+   ],
+   "method": "rg"
+  },
+  "scripts/crisis_academy_example.py": {
+   "identity": "tests",
+   "method": "trace+rg",
+   "tests": [
+    "tests/test_crisis_academy_example.py"
+   ]
+  },
+  "scripts/crisis_distribution_summary.py": {
+   "identity": "tests",
+   "method": "trace+rg",
+   "tests": [
+    "tests/test_crisis_distribution_summary.py"
+   ]
+  },
+  "scripts/crisis_forecast_misleading_example.py": {
+   "identity": "tests",
+   "method": "trace+rg",
+   "tests": [
+    "tests/test_crisis_forecast_misleading_example.py"
+   ]
+  },
+  "scripts/crisis_labor_example.py": {
+   "identity": "tests",
+   "method": "trace+rg",
+   "tests": [
+    "tests/test_crisis_labor_example.py"
+   ]
+  },
+  "scripts/crisis_migration_example.py": {
+   "identity": "tests",
+   "method": "trace+rg",
+   "tests": [
+    "tests/test_crisis_migration_example.py"
+   ]
+  },
+  "scripts/crisis_receiving_service_admission.py": {
+   "identity": "tests",
+   "method": "trace+rg",
+   "tests": [
+    "tests/test_crisis_receiving_service_negative_native.py"
+   ]
+  },
+  "scripts/crisis_transport_example.py": {
+   "identity": "tests",
+   "method": "trace+rg",
+   "tests": [
+    "tests/test_crisis_transport_example.py"
+   ]
+  },
+  "src/chronicler/agent_bridge.py": {
+   "identity": [
+    "native:g_hybrid_s42",
+    "native:g_grain_s7",
+    "native:g_learning_s42",
+    "native:g_mobility_s1234",
+    "native:g_scaled_s42",
+    "native:g_off_s42"
+   ],
+   "method": "trace"
+  },
+  "src/chronicler/batch_manifest.py": {
+   "feature_case": "python:g_batch_off",
+   "identity": [
+    "python:g_off_s42",
+    "python:g_off_proc_s7",
+    "python:g_batch_off",
+    "native:g_hybrid_s42",
+    "native:g_grain_s7",
+    "native:g_learning_s42",
+    "native:g_mobility_s1234",
+    "native:g_scaled_s42",
+    "native:g_off_s42"
+   ],
+   "method": "trace"
+  },
+  "src/chronicler/ecology.py": {
+   "identity": [
+    "python:g_off_s42",
+    "python:g_off_proc_s7",
+    "python:g_batch_off",
+    "native:g_hybrid_s42",
+    "native:g_grain_s7",
+    "native:g_learning_s42",
+    "native:g_mobility_s1234",
+    "native:g_scaled_s42",
+    "native:g_off_s42"
+   ],
+   "method": "trace"
+  },
+  "src/chronicler/economy.py": {
+   "identity": [
+    "python:g_off_s42",
+    "python:g_off_proc_s7",
+    "python:g_batch_off",
+    "native:g_hybrid_s42",
+    "native:g_grain_s7",
+    "native:g_learning_s42",
+    "native:g_mobility_s1234",
+    "native:g_scaled_s42",
+    "native:g_off_s42"
+   ],
+   "method": "trace"
+  },
+  "src/chronicler/finance.py": {
+   "identity": [
+    "python:g_off_s42",
+    "python:g_off_proc_s7",
+    "python:g_batch_off",
+    "native:g_hybrid_s42",
+    "native:g_grain_s7",
+    "native:g_learning_s42",
+    "native:g_mobility_s1234",
+    "native:g_scaled_s42",
+    "native:g_off_s42"
+   ],
+   "method": "trace"
+  },
+  "src/chronicler/food_accounting.py": {
+   "identity": [
+    "python:g_off_s42",
+    "python:g_off_proc_s7",
+    "python:g_batch_off",
+    "native:g_hybrid_s42",
+    "native:g_grain_s7",
+    "native:g_learning_s42",
+    "native:g_mobility_s1234",
+    "native:g_scaled_s42",
+    "native:g_off_s42"
+   ],
+   "method": "trace"
+  },
+  "src/chronicler/grain_reserves.py": {
+   "feature_case": "native:g_grain_s7",
+   "identity": [
+    "python:g_off_s42",
+    "python:g_off_proc_s7",
+    "python:g_batch_off",
+    "native:g_hybrid_s42",
+    "native:g_grain_s7",
+    "native:g_learning_s42",
+    "native:g_mobility_s1234",
+    "native:g_scaled_s42",
+    "native:g_off_s42"
+   ],
+   "method": "trace",
+   "note": "g_grain_s7 enables the system, but in 120 turns its granaries never fill: grain purchases, releases and shipment dispatches all stay 0. Branches that buy, release or ship grain are not exercised; their tests remain the guard (owner note)"
+  },
+  "src/chronicler/grain_reserves_state.py": {
+   "feature_case": "native:g_grain_s7",
+   "identity": [
+    "python:g_off_s42",
+    "python:g_off_proc_s7",
+    "python:g_batch_off",
+    "native:g_hybrid_s42",
+    "native:g_grain_s7",
+    "native:g_learning_s42",
+    "native:g_mobility_s1234",
+    "native:g_scaled_s42",
+    "native:g_off_s42"
+   ],
+   "method": "trace",
+   "note": "g_grain_s7 enables the system, but in 120 turns its granaries never fill: grain purchases, releases and shipment dispatches all stay 0. Branches that buy, release or ship grain are not exercised; their tests remain the guard (owner note)"
+  },
+  "src/chronicler/grain_storage.py": {
+   "feature_case": "native:g_grain_s7",
+   "identity": [
+    "native:g_grain_s7"
+   ],
+   "method": "trace",
+   "note": "g_grain_s7 enables the system, but in 120 turns its granaries never fill: grain purchases, releases and shipment dispatches all stay 0. Branches that buy, release or ship grain are not exercised; their tests remain the guard (owner note)"
+  },
+  "src/chronicler/grain_storage_state.py": {
+   "feature_case": "native:g_grain_s7",
+   "identity": [
+    "python:g_off_s42",
+    "python:g_off_proc_s7",
+    "python:g_batch_off",
+    "native:g_hybrid_s42",
+    "native:g_grain_s7",
+    "native:g_learning_s42",
+    "native:g_mobility_s1234",
+    "native:g_scaled_s42",
+    "native:g_off_s42"
+   ],
+   "method": "trace",
+   "note": "g_grain_s7 enables the system, but in 120 turns its granaries never fill: grain purchases, releases and shipment dispatches all stay 0. Branches that buy, release or ship grain are not exercised; their tests remain the guard (owner note)"
+  },
+  "src/chronicler/harvest_forecasts.py": {
+   "feature_case": "native:g_grain_s7",
+   "identity": [
+    "native:g_grain_s7"
+   ],
+   "method": "trace",
+   "note": "g_grain_s7 enables the system, but in 120 turns its granaries never fill: grain purchases, releases and shipment dispatches all stay 0. Branches that buy, release or ship grain are not exercised; their tests remain the guard (owner note)"
+  },
+  "src/chronicler/harvest_forecasts_state.py": {
+   "feature_case": "native:g_grain_s7",
+   "identity": [
+    "python:g_off_s42",
+    "python:g_off_proc_s7",
+    "python:g_batch_off",
+    "native:g_hybrid_s42",
+    "native:g_grain_s7",
+    "native:g_learning_s42",
+    "native:g_mobility_s1234",
+    "native:g_scaled_s42",
+    "native:g_off_s42"
+   ],
+   "method": "trace",
+   "note": "g_grain_s7 enables the system, but in 120 turns its granaries never fill: grain purchases, releases and shipment dispatches all stay 0. Branches that buy, release or ship grain are not exercised; their tests remain the guard (owner note)"
+  },
+  "src/chronicler/health_care.py": {
+   "identity": "tests",
+   "method": "trace+rg",
+   "note": "no gate case enables --health-care (owner note)",
+   "tests": [
+    "tests/test_health_care.py",
+    "tests/test_health_care_native.py",
+    "tests/test_health_care_policy.py",
+    "tests/test_epidemic_care.py",
+    "tests/test_epidemic_care_native.py"
+   ]
+  },
+  "src/chronicler/health_care_state.py": {
+   "identity": [
+    "python:g_off_s42",
+    "python:g_off_proc_s7",
+    "python:g_batch_off",
+    "native:g_hybrid_s42",
+    "native:g_grain_s7",
+    "native:g_learning_s42",
+    "native:g_mobility_s1234",
+    "native:g_scaled_s42",
+    "native:g_off_s42"
+   ],
+   "method": "trace",
+   "note": "only its default-off state paths run: no gate case enables --health-care; health_care.py and the Rust health-care files stay on their tests (owner note)"
+  },
+  "src/chronicler/household_mobility_state.py": {
+   "feature_case": "native:g_mobility_s1234",
+   "identity": [
+    "python:g_off_s42",
+    "python:g_off_proc_s7",
+    "python:g_batch_off",
+    "native:g_hybrid_s42",
+    "native:g_grain_s7",
+    "native:g_learning_s42",
+    "native:g_mobility_s1234",
+    "native:g_scaled_s42",
+    "native:g_off_s42"
+   ],
+   "method": "trace"
+  },
+  "src/chronicler/interactive.py": {
+   "identity": "tests",
+   "method": "trace+rg",
+   "tests": [
+    "tests/test_interactive.py",
+    "tests/test_interactive_checkpoints.py",
+    "tests/test_interactive_checkpoints_native.py"
+   ]
+  },
+  "src/chronicler/lab_academy.py": {
+   "identity": "tests",
+   "method": "trace+rg",
+   "tests": [
+    "tests/test_lab_academy.py",
+    "tests/test_what_if_academy.py"
+   ]
+  },
+  "src/chronicler/lab_transport.py": {
+   "identity": "tests",
+   "method": "trace+rg",
+   "tests": [
+    "tests/test_lab_transport.py",
+    "tests/test_what_if_transport.py",
+    "tests/test_crisis_transport_example.py"
+   ]
+  },
+  "src/chronicler/learning_services.py": {
+   "feature_case": "native:g_learning_s42",
+   "identity": [
+    "native:g_learning_s42"
+   ],
+   "method": "trace"
+  },
+  "src/chronicler/learning_services_state.py": {
+   "feature_case": "native:g_learning_s42",
+   "identity": [
+    "python:g_off_s42",
+    "python:g_off_proc_s7",
+    "python:g_batch_off",
+    "native:g_hybrid_s42",
+    "native:g_grain_s7",
+    "native:g_learning_s42",
+    "native:g_mobility_s1234",
+    "native:g_scaled_s42",
+    "native:g_off_s42"
+   ],
+   "method": "trace"
+  },
+  "src/chronicler/live.py": {
+   "identity": "tests",
+   "method": "trace+rg",
+   "tests": [
+    "tests/test_live.py",
+    "tests/test_live_checkpoints.py",
+    "tests/test_live_checkpoints_native.py",
+    "tests/test_live_integration.py",
+    "scripts/checkpoint_identity.py live_* cases"
+   ]
+  },
+  "src/chronicler/main.py": {
+   "identity": [
+    "python:g_off_s42",
+    "python:g_off_proc_s7",
+    "python:g_batch_off",
+    "native:g_hybrid_s42",
+    "native:g_grain_s7",
+    "native:g_learning_s42",
+    "native:g_mobility_s1234",
+    "native:g_scaled_s42",
+    "native:g_off_s42"
+   ],
+   "method": "trace"
+  },
+  "src/chronicler/models.py": {
+   "identity": [
+    "python:g_off_s42",
+    "python:g_off_proc_s7",
+    "python:g_batch_off",
+    "native:g_hybrid_s42",
+    "native:g_grain_s7",
+    "native:g_learning_s42",
+    "native:g_mobility_s1234",
+    "native:g_scaled_s42",
+    "native:g_off_s42"
+   ],
+   "method": "trace"
+  },
+  "src/chronicler/pause_academy.py": {
+   "identity": "tests",
+   "method": "trace+rg",
+   "tests": [
+    "tests/test_what_if_academy.py"
+   ]
+  },
+  "src/chronicler/pause_transport.py": {
+   "identity": "tests",
+   "method": "trace+rg",
+   "tests": [
+    "tests/test_what_if_transport.py"
+   ]
+  },
+  "src/chronicler/public_grain_shipments.py": {
+   "feature_case": "native:g_grain_s7",
+   "identity": [
+    "native:g_grain_s7"
+   ],
+   "method": "trace",
+   "note": "g_grain_s7 enables the system, but in 120 turns its granaries never fill: grain purchases, releases and shipment dispatches all stay 0. Branches that buy, release or ship grain are not exercised; their tests remain the guard (owner note)"
+  },
+  "src/chronicler/public_grain_shipments_state.py": {
+   "feature_case": "native:g_grain_s7",
+   "identity": [
+    "python:g_off_s42",
+    "python:g_off_proc_s7",
+    "python:g_batch_off",
+    "native:g_hybrid_s42",
+    "native:g_grain_s7",
+    "native:g_learning_s42",
+    "native:g_mobility_s1234",
+    "native:g_scaled_s42",
+    "native:g_off_s42"
+   ],
+   "method": "trace",
+   "note": "g_grain_s7 enables the system, but in 120 turns its granaries never fill: grain purchases, releases and shipment dispatches all stay 0. Branches that buy, release or ship grain are not exercised; their tests remain the guard (owner note)"
+  },
+  "src/chronicler/public_purchase_receipts.py": {
+   "feature_case": "native:g_grain_s7",
+   "identity": [
+    "native:g_grain_s7"
+   ],
+   "method": "trace",
+   "note": "g_grain_s7 enables the system, but in 120 turns its granaries never fill: grain purchases, releases and shipment dispatches all stay 0. Branches that buy, release or ship grain are not exercised; their tests remain the guard (owner note)"
+  },
+  "src/chronicler/regional_population.py": {
+   "feature_case": "native:g_mobility_s1234",
+   "identity": [
+    "python:g_off_s42",
+    "python:g_off_proc_s7",
+    "python:g_batch_off",
+    "native:g_hybrid_s42",
+    "native:g_grain_s7",
+    "native:g_learning_s42",
+    "native:g_mobility_s1234",
+    "native:g_scaled_s42",
+    "native:g_off_s42"
+   ],
+   "method": "trace"
+  },
+  "src/chronicler/run_checkpoint.py": {
+   "identity": "tests",
+   "method": "trace+rg",
+   "tests": [
+    "tests/test_run_checkpoint.py",
+    "tests/test_run_checkpoint_native.py",
+    "tests/test_checkpoint_replay.py",
+    "scripts/checkpoint_identity.py (hybrid_s42_long, off_s42_long, proc48_hybrid_s42_scholarship)"
+   ]
+  },
+  "src/chronicler/scholarship.py": {
+   "feature_case": "native:g_learning_s42",
+   "identity": [
+    "python:g_off_s42",
+    "python:g_off_proc_s7",
+    "python:g_batch_off",
+    "native:g_hybrid_s42",
+    "native:g_grain_s7",
+    "native:g_learning_s42",
+    "native:g_mobility_s1234",
+    "native:g_scaled_s42",
+    "native:g_off_s42"
+   ],
+   "method": "trace"
+  },
+  "src/chronicler/scholarship_state.py": {
+   "feature_case": "native:g_learning_s42",
+   "identity": [
+    "python:g_off_s42",
+    "python:g_off_proc_s7",
+    "python:g_batch_off",
+    "native:g_hybrid_s42",
+    "native:g_grain_s7",
+    "native:g_learning_s42",
+    "native:g_mobility_s1234",
+    "native:g_scaled_s42",
+    "native:g_off_s42"
+   ],
+   "method": "trace"
+  },
+  "src/chronicler/sidecar.py": {
+   "identity": [
+    "native:g_hybrid_s42",
+    "native:g_scaled_s42"
+   ],
+   "method": "trace"
+  },
+  "src/chronicler/simulation.py": {
+   "identity": [
+    "python:g_off_s42",
+    "python:g_off_proc_s7",
+    "python:g_batch_off",
+    "native:g_hybrid_s42",
+    "native:g_grain_s7",
+    "native:g_learning_s42",
+    "native:g_mobility_s1234",
+    "native:g_scaled_s42",
+    "native:g_off_s42"
+   ],
+   "method": "trace"
+  },
+  "src/chronicler/transaction_receipts.py": {
+   "feature_case": "native:g_grain_s7",
+   "identity": [
+    "native:g_hybrid_s42",
+    "native:g_grain_s7",
+    "native:g_learning_s42",
+    "native:g_mobility_s1234",
+    "native:g_scaled_s42"
+   ],
+   "method": "trace",
+   "note": "g_grain_s7 enables the system, but in 120 turns its granaries never fill: grain purchases, releases and shipment dispatches all stay 0. Branches that buy, release or ship grain are not exercised; their tests remain the guard (owner note)"
+  },
+  "src/chronicler/transaction_receipts_state.py": {
+   "feature_case": "native:g_grain_s7",
+   "identity": [
+    "python:g_off_s42",
+    "python:g_off_proc_s7",
+    "python:g_batch_off",
+    "native:g_hybrid_s42",
+    "native:g_grain_s7",
+    "native:g_learning_s42",
+    "native:g_mobility_s1234",
+    "native:g_scaled_s42",
+    "native:g_off_s42"
+   ],
+   "method": "trace",
+   "note": "g_grain_s7 enables the system, but in 120 turns its granaries never fill: grain purchases, releases and shipment dispatches all stay 0. Branches that buy, release or ship grain are not exercised; their tests remain the guard (owner note)"
+  },
+  "src/chronicler/transport_contract.json": {
+   "identity": "tests",
+   "method": "trace+rg",
+   "tests": [
+    "tests/test_food_accounting_witness.py",
+    "viewer/src/lib/__tests__/transport.test.ts"
+   ]
+  },
+  "src/chronicler/tuning.py": {
+   "identity": [
+    "python:g_off_s42",
+    "python:g_off_proc_s7",
+    "python:g_batch_off",
+    "native:g_hybrid_s42",
+    "native:g_grain_s7",
+    "native:g_learning_s42",
+    "native:g_mobility_s1234",
+    "native:g_scaled_s42",
+    "native:g_off_s42"
+   ],
+   "method": "trace"
+  },
+  "src/chronicler/turn_artifacts.py": {
+   "identity": [
+    "python:g_off_s42",
+    "python:g_off_proc_s7",
+    "python:g_batch_off",
+    "native:g_hybrid_s42",
+    "native:g_grain_s7",
+    "native:g_learning_s42",
+    "native:g_mobility_s1234",
+    "native:g_scaled_s42",
+    "native:g_off_s42"
+   ],
+   "method": "trace"
+  },
+  "src/chronicler/what_if.py": {
+   "identity": "tests",
+   "method": "trace+rg",
+   "tests": [
+    "tests/test_what_if.py",
+    "tests/test_what_if_academy.py",
+    "tests/test_what_if_process.py",
+    "tests/test_what_if_transport.py"
+   ]
+  },
+  "tests/test_batch_manifest.py": {
+   "identity": "tests",
+   "method": "trace+rg",
+   "tests": [
+    "tests/test_batch_manifest.py (itself a test module)"
+   ]
+  },
+  "tests/test_crisis_forecast_misleading_example.py": {
+   "identity": "tests",
+   "method": "trace+rg",
+   "tests": [
+    "tests/test_crisis_forecast_misleading_example.py (itself a test module)"
+   ]
+  },
+  "viewer/src/components/CompletedRunCompare.tsx": {
+   "identity": "tests",
+   "method": "rg",
+   "tests": [
+    "viewer/src/components/__tests__/ComparisonGallery.test.tsx",
+    "viewer/src/components/__tests__/CompletedRunCompare.test.tsx",
+    "npm run lint",
+    "npm run build"
+   ]
+  },
+  "viewer/src/components/HouseholdMobilityEvidence.tsx": {
+   "evidence": "rendered through MigrationEvidence (MigrationEvidence.tsx:54); the test asserts on its 'Household mobility gate' region (lines 25, 55)",
+   "identity": "tests",
+   "method": "rg",
+   "tests": [
+    "viewer/src/components/__tests__/HouseholdMobilityEvidence.test.tsx",
+    "npm run lint",
+    "npm run build"
+   ]
+  },
+  "viewer/src/components/MigrationEvidence.tsx": {
+   "identity": "tests",
+   "method": "rg",
+   "tests": [
+    "viewer/src/components/__tests__/HouseholdMobilityEvidence.test.tsx",
+    "viewer/src/components/__tests__/MigrationEvidence.test.tsx",
+    "npm run lint",
+    "npm run build"
+   ]
+  },
+  "viewer/src/components/WhatIfPanel.tsx": {
+   "identity": "tests",
+   "method": "rg",
+   "tests": [
+    "viewer/src/components/__tests__/WhatIfPanel.test.tsx",
+    "npm run lint",
+    "npm run build"
+   ]
+  },
+  "viewer/src/components/systems/AcademyServices.tsx": {
+   "identity": "tests",
+   "method": "rg",
+   "tests": [
+    "viewer/src/components/systems/__tests__/AcademyServices.test.tsx",
+    "npm run lint",
+    "npm run build"
+   ]
+  },
+  "viewer/src/components/systems/ForecastConstruction.tsx": {
+   "evidence": "rendered through HarvestForecasts (HarvestForecasts.tsx:51, 73); the test opens its 'Underlying estimator construction' details (line 72)",
+   "identity": "tests",
+   "method": "rg",
+   "tests": [
+    "viewer/src/components/systems/__tests__/ForecastDecisions.test.tsx",
+    "npm run lint",
+    "npm run build"
+   ]
+  },
+  "viewer/src/components/systems/ForecastDecisions.tsx": {
+   "evidence": "rendered through HarvestForecasts (HarvestForecasts.tsx:44); the test asserts on its 'Forecast procurement decisions' region (lines 31, 66, 83)",
+   "identity": "tests",
+   "method": "rg",
+   "tests": [
+    "viewer/src/components/systems/__tests__/ForecastDecisions.test.tsx",
+    "npm run lint",
+    "npm run build"
+   ]
+  },
+  "viewer/src/components/systems/Granaries.tsx": {
+   "identity": "tests",
+   "method": "rg",
+   "tests": [
+    "viewer/src/components/systems/__tests__/Granaries.test.tsx",
+    "viewer/src/components/systems/__tests__/GranaryStorage.test.tsx",
+    "npm run lint",
+    "npm run build"
+   ]
+  },
+  "viewer/src/components/systems/GranaryStorage.tsx": {
+   "identity": "tests",
+   "method": "rg",
+   "tests": [
+    "viewer/src/components/systems/__tests__/RecordStates.test.tsx",
+    "npm run lint",
+    "npm run build"
+   ]
+  },
+  "viewer/src/components/systems/HarvestForecasts.tsx": {
+   "identity": "tests",
+   "method": "rg",
+   "tests": [
+    "viewer/src/components/systems/__tests__/ExpansionInspectors.test.tsx",
+    "viewer/src/components/systems/__tests__/ForecastDecisions.test.tsx",
+    "npm run lint",
+    "npm run build"
+   ]
+  },
+  "viewer/src/components/systems/LearningPanel.tsx": {
+   "identity": "tests",
+   "method": "rg",
+   "tests": [
+    "viewer/src/components/systems/__tests__/AcademyServices.test.tsx",
+    "viewer/src/components/systems/__tests__/SystemsPanel.test.tsx",
+    "npm run lint",
+    "npm run build"
+   ]
+  },
+  "viewer/src/components/systems/Transactions.tsx": {
+   "identity": "tests",
+   "method": "rg",
+   "tests": [
+    "viewer/src/components/systems/__tests__/Transactions.test.tsx",
+    "npm run lint",
+    "npm run build"
+   ]
+  },
+  "viewer/src/expansionTypes.ts": {
+   "identity": "tests",
+   "method": "rg",
+   "tests": [
+    "viewer/src/components/systems/__tests__/ForecastDecisions.test.tsx",
+    "npm run lint",
+    "npm run build"
+   ]
+  },
+  "viewer/src/hooks/useLiveConnection.ts": {
+   "identity": "tests",
+   "method": "rg",
+   "tests": [
+    "viewer/src/hooks/__tests__/useLiveConnection.parity.test.ts",
+    "viewer/src/hooks/__tests__/useLiveConnection.test.ts",
+    "npm run lint",
+    "npm run build"
+   ]
+  },
+  "viewer/src/learningServicesTypes.ts": {
+   "identity": "tests",
+   "method": "rg",
+   "tests": [
+    "viewer/src/components/__tests__/ComparisonGallery.test.tsx",
+    "viewer/src/components/systems/__tests__/AcademyServices.test.tsx",
+    "npm run lint",
+    "npm run build"
+   ]
+  },
+  "viewer/src/lib/completedRunComparison.ts": {
+   "identity": "tests",
+   "method": "rg",
+   "tests": [
+    "viewer/src/components/__tests__/EntityRunComparison.test.tsx",
+    "viewer/src/lib/__tests__/completedRunComparison.test.ts",
+    "viewer/src/lib/__tests__/entityRunComparison.test.ts",
+    "viewer/src/lib/__tests__/regionalPopulation.test.ts",
+    "npm run lint",
+    "npm run build"
+   ]
+  },
+  "viewer/src/lib/entityRunComparison.ts": {
+   "identity": "tests",
+   "method": "rg",
+   "tests": [
+    "viewer/src/lib/__tests__/entityRunComparison.test.ts",
+    "npm run lint",
+    "npm run build"
+   ]
+  },
+  "viewer/src/lib/forecastDecision.ts": {
+   "identity": "tests",
+   "method": "rg",
+   "tests": [
+    "viewer/src/components/systems/__tests__/ForecastDecisions.test.tsx",
+    "npm run lint",
+    "npm run build"
+   ]
+  },
+  "viewer/src/lib/granaries.ts": {
+   "identity": "tests",
+   "method": "rg",
+   "tests": [
+    "viewer/src/components/systems/__tests__/GranaryStorage.test.tsx",
+    "viewer/src/lib/__tests__/granaries.test.ts",
+    "npm run lint",
+    "npm run build"
+   ]
+  },
+  "viewer/src/lib/historyComparison.ts": {
+   "identity": "tests",
+   "method": "rg",
+   "tests": [
+    "viewer/src/lib/__tests__/historyComparison.test.ts",
+    "viewer/src/lib/__tests__/regionalPopulation.test.ts",
+    "npm run lint",
+    "npm run build"
+   ]
+  },
+  "viewer/src/lib/householdMobility.ts": {
+   "identity": "tests",
+   "method": "rg",
+   "tests": [
+    "viewer/src/components/__tests__/HouseholdMobilityEvidence.test.tsx",
+    "npm run lint",
+    "npm run build"
+   ]
+  },
+  "viewer/src/lib/learningServices.ts": {
+   "identity": "tests",
+   "method": "rg",
+   "tests": [
+    "viewer/src/components/systems/__tests__/AcademyServices.test.tsx",
+    "npm run lint",
+    "npm run build"
+   ]
+  },
+  "viewer/src/lib/transactions.ts": {
+   "identity": "tests",
+   "method": "rg",
+   "tests": [
+    "viewer/src/lib/__tests__/transactions.test.ts",
+    "npm run lint",
+    "npm run build"
+   ]
+  },
+  "viewer/src/lib/whatIf.ts": {
+   "identity": "tests",
+   "method": "rg",
+   "tests": [
+    "viewer/src/components/__tests__/ComparisonGallery.test.tsx",
+    "viewer/src/components/__tests__/CompletedRunCompare.test.tsx",
+    "viewer/src/components/__tests__/WhatIfPanel.test.tsx",
+    "viewer/src/lib/__tests__/academyWhatIf.test.ts",
+    "viewer/src/lib/__tests__/entityRunComparison.test.ts",
+    "viewer/src/lib/__tests__/whatIf.test.ts",
+    "npm run lint",
+    "npm run build"
+   ]
+  },
+  "viewer/src/transactionTypes.ts": {
+   "evidence": "type declarations only (no runtime export); re-exported by viewer/src/types.ts:10 and viewer/src/expansionTypes.ts:297, whose importers tsc checks",
+   "identity": "tests",
+   "method": "rg",
+   "tests": [
+    "npm run build (tsc -b)",
+    "npm run lint"
+   ]
+  },
+  "viewer/src/types.ts": {
+   "identity": "tests",
+   "method": "rg",
+   "tests": [
+    "viewer/src/__tests__/App.timeline.test.tsx",
+    "viewer/src/components/__tests__/BatchAnalytics.test.tsx",
+    "viewer/src/components/__tests__/CivilizationHistory.test.tsx",
+    "viewer/src/components/__tests__/ComparisonGallery.test.tsx",
+    "viewer/src/components/__tests__/CompletedRunCompare.test.tsx",
+    "viewer/src/components/__tests__/FeatureOptions.test.tsx",
+    "viewer/src/components/__tests__/FeatureRequests.test.tsx",
+    "viewer/src/components/__tests__/HouseholdMobilityEvidence.test.tsx",
+    "viewer/src/components/__tests__/InterventionPanel.test.tsx",
+    "viewer/src/components/__tests__/RegionHistoryInspector.test.tsx",
+    "viewer/src/components/__tests__/SetupLobby.test.tsx",
+    "viewer/src/components/__tests__/TurnChanges.test.tsx",
+    "viewer/src/components/__tests__/WhatIfPanel.test.tsx",
+    "viewer/src/components/__tests__/components.test.tsx",
+    "viewer/src/components/phase75/GroupedEventLedger.test.tsx",
+    "viewer/src/components/phase75/__tests__/AppShell.founding.test.tsx",
+    "viewer/src/components/phase75/__tests__/AppShell.lazy.test.tsx",
+    "viewer/src/components/phase75/__tests__/AppShell.live.test.tsx",
+    "viewer/src/components/phase75/__tests__/AppShell.mapLayers.test.tsx",
+    "viewer/src/components/phase75/__tests__/AppShell.navigation.test.tsx",
+    "viewer/src/components/phase75/__tests__/AppShell.pruned.test.tsx",
+    "viewer/src/components/phase75/__tests__/AppShell.scrubbed.test.tsx",
+    "viewer/src/components/phase75/__tests__/AppShell.setup.test.tsx",
+    "viewer/src/components/phase75/__tests__/AppShell.systems.test.tsx",
+    "viewer/src/components/phase75/__tests__/AppShell.worlds.test.tsx",
+    "viewer/src/components/phase75/__tests__/ChronicleSources.test.tsx",
+    "viewer/src/components/phase75/__tests__/InWorldAccounts.test.tsx",
+    "viewer/src/components/phase75/__tests__/LanguagesPanel.test.tsx",
+    "viewer/src/components/phase75/__tests__/SavedWorldDetails.test.tsx",
+    "viewer/src/components/systems/__tests__/AcademyServices.test.tsx",
+    "viewer/src/components/systems/__tests__/Apprenticeship.test.tsx",
+    "viewer/src/components/systems/__tests__/AttributionRecords.test.tsx",
+    "viewer/src/components/systems/__tests__/ClearingProtection.test.tsx",
+    "viewer/src/components/systems/__tests__/CommonsRules.test.tsx",
+    "viewer/src/components/systems/__tests__/DebtHolders.test.tsx",
+    "viewer/src/components/systems/__tests__/EpidemicCare.test.tsx",
+    "viewer/src/components/systems/__tests__/ExpansionInspectors.test.tsx",
+    "viewer/src/components/systems/__tests__/FoodAccounting.test.tsx",
+    "viewer/src/components/systems/__tests__/ForecastDecisions.test.tsx",
+    "viewer/src/components/systems/__tests__/GrainConvoys.test.tsx",
+    "viewer/src/components/systems/__tests__/Granaries.test.tsx",
+    "viewer/src/components/systems/__tests__/GranaryStorage.test.tsx",
+    "viewer/src/components/systems/__tests__/GuildLeagues.test.tsx",
+    "viewer/src/components/systems/__tests__/HouseholdRetail.test.tsx",
+    "viewer/src/components/systems/__tests__/HouseholdRetailEvidence.test.tsx",
+    "viewer/src/components/systems/__tests__/InfrastructureCondition.test.tsx",
+    "viewer/src/components/systems/__tests__/LearningCohorts.test.tsx",
+    "viewer/src/components/systems/__tests__/Livelihoods.test.tsx",
+    "viewer/src/components/systems/__tests__/LocalBudgets.test.tsx",
+    "viewer/src/components/systems/__tests__/MovementBranches.test.tsx",
+    "viewer/src/components/systems/__tests__/ProductiveRecovery.test.tsx",
+    "viewer/src/components/systems/__tests__/PublicHealth.test.tsx",
+    "viewer/src/components/systems/__tests__/RecordStates.test.tsx",
+    "viewer/src/components/systems/__tests__/RecoveryChain.test.tsx",
+    "viewer/src/components/systems/__tests__/ReformServices.test.tsx",
+    "viewer/src/components/systems/__tests__/Relocation.test.tsx",
+    "viewer/src/components/systems/__tests__/Remittances.test.tsx",
+    "viewer/src/components/systems/__tests__/RepairProjects.test.tsx",
+    "viewer/src/components/systems/__tests__/ResearchAgendas.test.tsx",
+    "viewer/src/components/systems/__tests__/ResidenceLedger.test.tsx",
+    "viewer/src/components/systems/__tests__/ScientificClaims.test.tsx",
+    "viewer/src/components/systems/__tests__/SystemsPanel.test.tsx",
+    "viewer/src/components/systems/__tests__/TimberStock.test.tsx",
+    "viewer/src/components/systems/__tests__/TitledTrade.test.tsx",
+    "viewer/src/components/systems/__tests__/Transactions.test.tsx",
+    "viewer/src/components/systems/__tests__/Veterans.test.tsx",
+    "viewer/src/components/systems/__tests__/Watershed.test.tsx",
+    "viewer/src/components/systems/__tests__/WatershedBasin.test.tsx",
+    "viewer/src/components/systems/__tests__/WealthAccounting.test.tsx",
+    "viewer/src/components/systems/__tests__/WorkshopEconomics.test.tsx",
+    "viewer/src/components/systems/__tests__/WorkshopFinance.test.tsx",
+    "viewer/src/hooks/__tests__/useLiveConnection.parity.test.ts",
+    "viewer/src/lib/__tests__/academyWhatIf.test.ts",
+    "viewer/src/lib/__tests__/apprenticeship.test.ts",
+    "viewer/src/lib/__tests__/attributionRecords.test.ts",
+    "viewer/src/lib/__tests__/bundleIndex.test.ts",
+    "viewer/src/lib/__tests__/cities.test.ts",
+    "viewer/src/lib/__tests__/civRows.test.ts",
+    "viewer/src/lib/__tests__/civilizationHistory.test.ts",
+    "viewer/src/lib/__tests__/clearingProtection.test.ts",
+    "viewer/src/lib/__tests__/commonsRules.test.ts",
+    "viewer/src/lib/__tests__/completedRunComparison.test.ts",
+    "viewer/src/lib/__tests__/debtHolders.test.ts",
+    "viewer/src/lib/__tests__/entityHistory.test.ts",
+    "viewer/src/lib/__tests__/entityHistoryInstitutions.test.ts",
+    "viewer/src/lib/__tests__/entityHouseholdFirm.test.ts",
+    "viewer/src/lib/__tests__/entityInfrastructure.test.ts",
+    "viewer/src/lib/__tests__/entityWatershed.test.ts",
+    "viewer/src/lib/__tests__/epidemicCare.test.ts",
+    "viewer/src/lib/__tests__/expansionHistory.test.ts",
+    "viewer/src/lib/__tests__/faiths.test.ts",
+    "viewer/src/lib/__tests__/food.test.ts",
+    "viewer/src/lib/__tests__/grainConvoys.test.ts",
+    "viewer/src/lib/__tests__/guildLeagues.test.ts",
+    "viewer/src/lib/__tests__/guilds.test.ts",
+    "viewer/src/lib/__tests__/harvestCover.test.ts",
+    "viewer/src/lib/__tests__/historyComparison.test.ts",
+    "viewer/src/lib/__tests__/householdRetail.test.ts",
+    "viewer/src/lib/__tests__/householdRetailEvidence.test.ts",
+    "viewer/src/lib/__tests__/infrastructureCondition.test.ts",
+    "viewer/src/lib/__tests__/learning.test.ts",
+    "viewer/src/lib/__tests__/learningCohorts.test.ts",
+    "viewer/src/lib/__tests__/livelihoods.test.ts",
+    "viewer/src/lib/__tests__/localBudgets.test.ts",
+    "viewer/src/lib/__tests__/mapLayers.population-territory.test.ts",
+    "viewer/src/lib/__tests__/mapLayers.test.ts",
+    "viewer/src/lib/__tests__/migrationEvidence.test.ts",
+    "viewer/src/lib/__tests__/movementBranches.test.ts",
+    "viewer/src/lib/__tests__/movements.test.ts",
+    "viewer/src/lib/__tests__/narrationSources.test.ts",
+    "viewer/src/lib/__tests__/personalExperience.test.ts",
+    "viewer/src/lib/__tests__/polity.test.ts",
+    "viewer/src/lib/__tests__/productiveRecovery.test.ts",
+    "viewer/src/lib/__tests__/publicHealth.test.ts",
+    "viewer/src/lib/__tests__/recordReading.test.ts",
+    "viewer/src/lib/__tests__/recoveryChain.test.ts",
+    "viewer/src/lib/__tests__/reformServices.test.ts",
+    "viewer/src/lib/__tests__/regionHistory.test.ts",
+    "viewer/src/lib/__tests__/regionalPopulation.test.ts",
+    "viewer/src/lib/__tests__/relocation.test.ts",
+    "viewer/src/lib/__tests__/remittances.test.ts",
+    "viewer/src/lib/__tests__/repairProjects.test.ts",
+    "viewer/src/lib/__tests__/researchAgendas.test.ts",
+    "viewer/src/lib/__tests__/residenceLedger.test.ts",
+    "viewer/src/lib/__tests__/scientificClaims.test.ts",
+    "viewer/src/lib/__tests__/supplyContracts.test.ts",
+    "viewer/src/lib/__tests__/systems.test.ts",
+    "viewer/src/lib/__tests__/timberStock.test.ts",
+    "viewer/src/lib/__tests__/titledTrade.test.ts",
+    "viewer/src/lib/__tests__/transport.test.ts",
+    "viewer/src/lib/__tests__/veterans.test.ts",
+    "viewer/src/lib/__tests__/watershed.test.ts",
+    "viewer/src/lib/__tests__/wealthAccounting.test.ts",
+    "viewer/src/lib/__tests__/whereToLook.test.ts",
+    "viewer/src/lib/__tests__/workshopEconomics.test.ts",
+    "viewer/src/lib/__tests__/workshopFinance.test.ts",
+    "viewer/src/lib/eventLedger.test.ts",
+    "npm run lint",
+    "npm run build"
+   ]
+  }
+ },
+ "schema_version": 1
+}

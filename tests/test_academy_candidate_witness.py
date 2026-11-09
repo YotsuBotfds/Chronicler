@@ -4,7 +4,8 @@ import json
 
 import pytest
 
-from scripts.testing.academy_candidate_witness import ROOT, WITNESS, before_academy_candidate
+from scripts.testing.frozen_sources import frozen_bytes, frozen_text
+from scripts.testing.academy_candidate_witness import WITNESS, before_academy_candidate
 
 
 def test_academy_candidate_projects_exact_reviewed_sources_and_rejects_mutations():
@@ -13,7 +14,7 @@ def test_academy_candidate_projects_exact_reviewed_sources_and_rejects_mutations
     assert witness["head"] == "6768fc5d236e03d3da98fb10b40e07c6d6d6c2ae"
     from scripts.testing.information_candidate_witness import before_information_candidate
     for path, row in witness["files"].items():
-        source = (ROOT / path).read_bytes().decode("utf-8")
+        source = frozen_text(path)
         parent = before_academy_candidate(source, path)
         assert hashlib.sha256(parent.encode()).hexdigest() == row["sha256"]
         assert before_academy_candidate(parent, path, allow_parent=True) == parent
@@ -31,4 +32,4 @@ def test_academy_candidate_projects_exact_reviewed_sources_and_rejects_mutations
                 with pytest.raises(AssertionError):
                     before_academy_candidate(changed, path)
     for path, digest in witness["new_files"].items():
-        assert hashlib.sha256((ROOT / path).read_bytes()).hexdigest() == digest
+        assert hashlib.sha256(frozen_bytes(path)).hexdigest() == digest

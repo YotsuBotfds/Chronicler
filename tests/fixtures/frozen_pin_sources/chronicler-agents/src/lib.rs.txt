@@ -1,0 +1,158 @@
+//! Chronicler agent simulation core.
+//!
+//! Provides a Rust-backed agent-based population model with PyO3 bindings
+//! and Arrow FFI for zero-copy data exchange with the Python orchestrator.
+
+use pyo3::prelude::*;
+
+mod agent;
+mod ffi;
+mod pool;
+mod region;
+pub mod behavior;
+pub mod demographics;
+pub mod satisfaction;
+pub mod signals;
+mod tick;
+pub mod named_characters;
+pub mod culture_tick;
+pub mod conversion_tick;
+pub mod memory;
+pub mod needs;
+pub mod relationships;
+pub mod formation;
+pub mod household;
+pub mod health_care;
+pub mod teaching_work;
+pub mod workshop_work;
+pub mod learning_work;
+pub mod wealth_transfer;
+pub mod wealth_observation;
+pub mod enlisted_service;
+pub mod adaptive_migration;
+pub mod adaptive_information;
+pub mod relocation;
+pub mod migration_closure;
+pub mod provisioning;
+// CAREOBS_SOURCE_BEGIN: module
+mod health_care_observation;
+// CAREOBS_SOURCE_END: module
+pub mod migration_drivers;
+pub mod community;
+pub mod credit;
+pub mod ecology;
+pub mod spatial;
+pub mod sort;
+pub mod economy;
+pub mod politics;
+pub mod merchant;
+pub mod transaction_receipts;
+pub mod decision_delivery;
+pub mod knowledge;
+pub mod movements;
+pub mod scale;
+pub mod persist;
+
+// Public re-exports for integration tests and benchmarks.
+#[doc(hidden)]
+pub use ffi::AgentSimulator;
+#[doc(hidden)]
+pub use ffi::EcologySimulator;
+#[doc(hidden)]
+pub use ffi::PoliticsSimulator;
+
+/// Re-exported FFI schemas for integration tests.
+pub mod ffi_schemas {
+    pub use crate::ffi::{ecology_region_schema, ecology_events_schema};
+    pub use crate::ffi::{
+        economy_region_input_schema, economy_trade_route_schema,
+        economy_region_result_schema, economy_civ_result_schema,
+        economy_observability_schema, economy_upstream_sources_schema,
+        economy_conservation_schema,
+    };
+    pub use crate::ffi::{
+        politics_civ_ops_schema, politics_region_ops_schema,
+        politics_relationship_ops_schema, politics_federation_ops_schema,
+        politics_vassal_ops_schema, politics_exile_ops_schema,
+        politics_proxy_war_ops_schema, politics_civ_effect_ops_schema,
+        politics_bookkeeping_schema, politics_artifact_intent_schema,
+        politics_bridge_transition_schema, politics_event_trigger_schema,
+    };
+}
+#[doc(hidden)]
+pub use agent::Occupation;
+#[doc(hidden)]
+pub use agent::BELIEF_NONE;
+#[doc(hidden)]
+pub use pool::AgentPool;
+#[doc(hidden)]
+pub use region::RegionState;
+#[doc(hidden)]
+pub use tick::{tick_agents, AgentEvent, DemographicDebug};
+#[doc(hidden)]
+pub use tick::try_tick_agents_with_options;
+pub use tick::try_tick_agents_with_movements;
+#[doc(hidden)]
+pub use tick::{assign_settlement_ids, build_settlement_grids};
+#[doc(hidden)]
+pub use named_characters::{CharacterRole, NamedCharacterRegistry};
+#[doc(hidden)]
+pub use memory::{
+    MemoryEventType, MemoryIntent, MemoryUtilityModifiers, MEMORY_SLOTS,
+    factor_from_half_life, half_life_from_factor, default_decay_factor,
+    decay_memories, write_single_memory, write_all_memories,
+    clear_memory_gates, compute_memory_satisfaction_score,
+    compute_memory_utility_modifiers, agents_share_memory, agents_share_memory_with_valence,
+    extract_legacy_memories,
+    GATE_BIT_BATTLE, GATE_BIT_PROSPERITY, GATE_BIT_FAMINE, GATE_BIT_PERSECUTION,
+};
+#[doc(hidden)]
+pub use needs::NeedUtilityModifiers;
+#[doc(hidden)]
+pub use needs::{decay_needs, restore_needs, clamp_needs, update_needs, compute_need_utility_modifiers};
+#[doc(hidden)]
+pub use signals::{CivSignals, TickSignals};
+#[doc(hidden)]
+pub use formation::{formation_scan, FormationStats, death_cleanup_sweep, belief_divergence_cleanup};
+#[doc(hidden)]
+pub use agent::{FORMATION_CADENCE, MAX_NEW_BONDS_PER_PASS, MAX_NEW_BONDS_PER_REGION, LIFE_EVENT_DISSOLUTION};
+#[doc(hidden)]
+pub use agent::{LEGACY_HALF_LIFE, LEGACY_MIN_INTENSITY, LEGACY_MAX_MEMORIES};
+#[doc(hidden)]
+pub use agent::{
+    SAFETY_DECAY, MATERIAL_DECAY, SOCIAL_DECAY, SPIRITUAL_DECAY, AUTONOMY_DECAY, PURPOSE_DECAY,
+};
+#[doc(hidden)]
+pub use agent::{URBAN_MATERIAL_SATISFACTION_BONUS, URBAN_SAFETY_SATISFACTION_PENALTY};
+#[doc(hidden)]
+pub use household::{HouseholdStats, InheritanceEvent, TransferType, household_death_transfer, consolidate_household_migrations};
+#[doc(hidden)]
+pub use agent::{AGE_ADULT, PARENT_NONE, MAX_WEALTH};
+#[doc(hidden)]
+pub use knowledge::{InfoType, KnowledgeStats, knowledge_phase, pack_type_hops, unpack_type, unpack_hops, is_empty_slot};
+#[doc(hidden)]
+pub use knowledge::{channel_weight, decay_rate, base_rate, admit_packet, AdmitResult, PacketCandidate};
+#[doc(hidden)]
+pub use knowledge::{observe_packets, propagate_packets, commit_buffered, decay_packets};
+#[doc(hidden)]
+pub use knowledge::{usable_trade_packets, strongest_threat_for_region};
+
+// jemalloc is opt-in for standalone performance runs. It is intentionally not
+// enabled by default for PyO3 extension builds because jemalloc can fail to
+// dlopen on Linux Python runners with "cannot allocate memory in static TLS
+// block".
+#[cfg(all(feature = "jemalloc", not(target_os = "windows")))]
+use tikv_jemallocator::Jemalloc;
+
+#[cfg(all(feature = "jemalloc", not(target_os = "windows")))]
+#[global_allocator]
+static GLOBAL: Jemalloc = Jemalloc;
+
+/// Python module entry point.
+#[pymodule]
+fn chronicler_agents(m: &Bound<'_, PyModule>) -> PyResult<()> {
+    m.add_class::<ffi::AgentSimulator>()?;
+    m.add_class::<ffi::EcologySimulator>()?;
+    m.add_class::<ffi::PoliticsSimulator>()?;
+    Ok(())
+}

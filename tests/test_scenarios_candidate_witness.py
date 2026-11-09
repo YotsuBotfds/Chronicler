@@ -4,7 +4,8 @@ import json
 
 import pytest
 
-from scripts.testing.scenarios_candidate_witness import ROOT, WITNESS, before_scenarios_candidate
+from scripts.testing.frozen_sources import frozen_bytes, frozen_text
+from scripts.testing.scenarios_candidate_witness import WITNESS, before_scenarios_candidate
 
 
 def test_scenarios_candidate_projects_exact_reviewed_sources_and_rejects_mutations():
@@ -14,7 +15,7 @@ def test_scenarios_candidate_projects_exact_reviewed_sources_and_rejects_mutatio
     from scripts.testing.gallery_candidate_witness import before_gallery_candidate
     from scripts.testing.restoration_candidate_witness import before_restoration_candidate
     for path, row in witness["files"].items():
-        source = (ROOT / path).read_bytes().decode("utf-8")
+        source = frozen_text(path)
         parent = before_scenarios_candidate(source, path)
         assert hashlib.sha256(parent.encode()).hexdigest() == row["sha256"]
         assert before_scenarios_candidate(parent, path, allow_parent=True) == parent
@@ -33,7 +34,7 @@ def test_scenarios_candidate_projects_exact_reviewed_sources_and_rejects_mutatio
                 with pytest.raises(AssertionError):
                     before_scenarios_candidate(changed, path)
     for path, digest in witness["new_files"].items():
-        assert hashlib.sha256((ROOT / path).read_bytes()).hexdigest() == digest
+        assert hashlib.sha256(frozen_bytes(path)).hexdigest() == digest
 
 
 def test_gallery_candidate_exact_inverse_and_historical_scenarios_composition():
@@ -44,7 +45,7 @@ def test_gallery_candidate_exact_inverse_and_historical_scenarios_composition():
     historical = json.loads(WITNESS.read_text(encoding="utf-8"))
     assert set(gallery["files"]) == {"viewer/src/components/CompletedRunCompare.tsx", "viewer/src/lib/entityRunComparison.ts"}
     for path, row in gallery["files"].items():
-        source = (ROOT / path).read_bytes().decode("utf-8")
+        source = frozen_text(path)
         parent = before_gallery_candidate(source, path)
         assert hashlib.sha256(parent.encode()).hexdigest() == row["sha256"]
         assert row["sha256"] == historical["files"][path]["current_sha256"]

@@ -4,9 +4,10 @@ Before a refactor, list the paths and read the report. The tool finds what it
 knows how to find and states what it cannot:
 
   enforced    a known check fails if the file's bytes change or the path moves:
-              source-witness fixtures (tests/fixtures/*inverse*.json), a
-              byte-identical workflow copy, or native-shard and oracle-chunk
-              ownership of a test module.
+              a byte-identical workflow copy, native-shard and oracle-chunk
+              ownership of a test module, the frozen witness snapshot
+              (tests/fixtures/frozen_pin_sources/), or a source-witness fixture
+              (tests/fixtures/*inverse*.json) in a checkout without that snapshot.
   digest      the file's current SHA-256 or Git blob id appears in test data
               (tests/, scripts/testing/). Usually a pin; find the test that
               reads it before deciding.
@@ -14,13 +15,15 @@ knows how to find and states what it cannot:
               witnesses, workflows, importers, docs). A test may read, hash or
               import it; read each hit before deciding.
   historical  a recorded hash of an older version of the file (performance and
-              reference-baseline provenance). The current file already differs,
-              so these do not pin it. Never rewrite them to match.
+              reference-baseline provenance), or a source witness verified
+              against the frozen copy. These do not pin the current file.
+              Never rewrite them to match.
 
 "No known pins" is not proof that a change is safe: see NOT_COVERED, and run
 the lanes in docs/DEVELOPMENT.md. The tool never edits, regenerates or
-re-hashes anything. Pinned witness hashes change only through a reviewed
-inverse layer, never by rewriting a fixture to match new source.
+re-hashes anything. Source-witness fixtures and their frozen copies are history:
+never edit, re-hash or regenerate them. Each report also names the identity-gate
+cases (tests/fixtures/identity/coverage.json) that execute a witnessed path.
 
     python scripts/refactor_preflight.py src/chronicler/agent_bridge.py
     python scripts/refactor_preflight.py --move scripts/a.py:scripts/tools/a.py
@@ -50,6 +53,9 @@ TEXT_SUFFIXES = {".py", ".json", ".md", ".yml", ".yaml", ".in", ".toml", ".txt",
 SKIP_PARTS = {"__pycache__", "node_modules", ".git", "dist", "target", ".venv"}
 SHARD_MANIFEST = "scripts/testing/native_shards_manifest.json"
 ORACLE_RUNNER = "scripts/run_python_oracle_checks.py"
+FROZEN_DIR = "tests/fixtures/frozen_pin_sources"
+FROZEN_MANIFEST = f"{FROZEN_DIR}/MANIFEST.json"
+IDENTITY_COVERAGE = "tests/fixtures/identity/coverage.json"
 HEX64 = re.compile(r"^[0-9a-f]{64}$")
 
 NOT_COVERED = (
@@ -60,6 +66,7 @@ NOT_COVERED = (
     "multi-line imports outside parentheses, aliases re-exported under another name, star imports",
     "behavioral pins: golden outputs, snapshot bytes, RNG streams and checkpoint identity",
     "private archives, other branches, external repositories and published receipts",
+    "identity-gate cases run only their listed switches; code reached only through other flags or modes is not compared",
 )
 
 
@@ -78,6 +85,7 @@ class Report:
     sha256: str | None
     role: str
     findings: list[Finding] = field(default_factory=list)
+    identity: str | None = None
 
     @property
     def verdict(self) -> str:
@@ -195,8 +203,22 @@ def _hash_values(value) -> list[str]:
     return []
 
 
+def _frozen_paths(repo: Repo) -> dict[str, str]:
+    """Path -> SHA-256 of each frozen witness copy (empty without a snapshot)."""
+    try:
+        return dict(json.loads(repo.text(FROZEN_MANIFEST) or "{}").get("files") or {})
+    except json.JSONDecodeError:
+        return {}
+
+
 def witness_findings(repo: Repo, path: str, sha: str | None) -> list[Finding]:
     out = []
+    if path.startswith(f"{FROZEN_DIR}/"):
+        what = "the snapshot manifest" if path == FROZEN_MANIFEST else "a frozen witness copy"
+        out.append(Finding("enforced", "frozen snapshot", FROZEN_MANIFEST,
+                           f"{what}: the integrity test in tests/test_refactor_preflight.py fails on any"
+                           " change; never edit, re-hash or regenerate it"))
+    frozen = path in _frozen_paths(repo)
     for rel in repo.files("tests/fixtures", suffixes={".json"}):
         if "inverse" not in Path(rel).name:
             continue
@@ -206,7 +228,11 @@ def witness_findings(repo: Repo, path: str, sha: str | None) -> list[Finding]:
             continue
         for section in ("files", "new_files"):
             entries = data.get(section)
-            if isinstance(entries, list) and path in entries:
+            listed = (isinstance(entries, list) and path in entries) or (isinstance(entries, dict) and path in entries)
+            if listed and frozen:
+                out.append(Finding("historical", "frozen source witness", rel,
+                                   "verified against the frozen copy; editing this file does not break it"))
+            elif isinstance(entries, list) and path in entries:
                 out.append(Finding("enforced", "source witness", rel,
                                    f"listed in '{section}': a projection test reads this file's exact bytes"))
             elif isinstance(entries, dict) and path in entries:
@@ -253,12 +279,35 @@ def json_hash_records(repo: Repo, path: str, sha: str | None, skip: set[str]) ->
     return out
 
 
+def identity_line(repo: Repo, path: str, role: str) -> str | None:
+    """Identity-gate cases that execute this path, from the coverage map."""
+    try:
+        paths = json.loads(repo.text(IDENTITY_COVERAGE) or "{}").get("paths") or {}
+    except json.JSONDecodeError:
+        return None
+    entry = paths.get(path)
+    if entry is None:
+        if role in ("python module", "rust module", "script") and paths:
+            return f"not mapped ({IDENTITY_COVERAGE} lists the witnessed paths only)"
+        return None
+    cases = entry.get("identity")
+    if isinstance(cases, list) and cases:
+        return ", ".join(cases)
+    if cases == "tests":
+        return "NO IDENTITY CASE (guarded by tests only: " + ", ".join(entry.get("tests", [])) + ")"
+    return "NO IDENTITY CASE"
+
+
 def literal_digest_findings(repo: Repo, path: str, sha: str, blob: str, skip: set[str]) -> list[Finding]:
     out = []
     files = [f for f in repo.files(*TEST_DIRS, suffixes=TEXT_SUFFIXES) if f not in skip and f != path]
+    unchanged_since_freeze = _frozen_paths(repo).get(path) == sha
     for label, value in (("SHA-256", sha), ("Git blob id", blob)):
         for hit in repo.grep(value, files):
-            out.append(Finding("digest", "literal digest", hit, f"current {label} of this file appears here"))
+            detail = f"current {label} of this file appears here"
+            if unchanged_since_freeze:
+                detail += "; the file still equals its frozen copy, so read whether the test hashes that copy"
+            out.append(Finding("digest", "literal digest", hit, detail))
     return out
 
 
@@ -386,6 +435,7 @@ def analyse(repo: Repo, path: str) -> Report:
         sha, blob = digests(target.read_bytes())
     report = Report(path=path, exists=exists, sha256=sha, role=role_of(path))
     witness_files = {f for f in repo.files("tests/fixtures", suffixes={".json"}) if "inverse" in Path(f).name}
+    witness_files |= set(repo.files(FROZEN_DIR))  # the manifest and copies record frozen bytes, not current pins
     report.findings += witness_findings(repo, path, sha)
     report.findings += manifest_findings(repo, path)
     report.findings += workflow_findings(repo, path)
@@ -399,6 +449,7 @@ def analyse(repo: Repo, path: str) -> Report:
     report.findings += test_text_findings(repo, path, {SHARD_MANIFEST})
     report.findings += import_findings(repo, path)
     report.findings += doc_findings(repo, path)
+    report.identity = identity_line(repo, path, report.role)
     return report
 
 
@@ -426,6 +477,8 @@ def render(reports: list[Report], moves: dict[str, str]) -> str:
         order = {"enforced": 0, "digest": 1, "reference": 2, "historical": 3}
         for f in sorted(r.findings, key=lambda f: (order[f.level], f.kind, f.where)):
             lines.append(f"  {f.level.upper():<10} {f.kind}: {f.where}" + (f"  ({f.detail})" if f.detail else ""))
+        if r.identity is not None:
+            lines.append(f"  identity gate: {r.identity}")
         lines.append(f"  verdict: {r.verdict}")
         lines.append("")
     lines.append("Not covered by this tool (check these by reading and by running the lanes):")

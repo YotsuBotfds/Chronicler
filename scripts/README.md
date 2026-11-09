@@ -31,7 +31,7 @@ and `setup.bat` run it last.
 | `hosted_native_functional_smoke.py`, `hosted_kin_capture.py` | Opt-in hosted workflows. |
 | `benchmark_named_context.py`, `paired_context_benchmark.py` | Opt-in compiled-context benchmark workflows. |
 | `refactor_preflight.py` | Read-only map from files you plan to change or move to the witnesses, digests, workflows, importers and manifests that pin or name them (see `docs/DEVELOPMENT.md`). |
-| `testing/` | Test-only guard (`python_oracle_guard.py`), source witnesses, the native shard manifest and the script smoke manifest with its runner (`script_smoke.py`). Never product code. |
+| `testing/` | Test-only guard (`python_oracle_guard.py`), source witnesses, the native shard manifest and the script smoke manifest with its runner (`script_smoke.py`). Never product code. The witnesses read the frozen snapshot through `frozen_sources.py`; `freeze_pin_sources.py` built it once (`--verify` checks it against the freeze commit in a full clone). `livelihoods_layer_tool.py` is retired: witnessed sources no longer need inverse layers. |
 
 ## Identity checks
 

@@ -4,8 +4,9 @@ import json
 
 import pytest
 
+from scripts.testing.frozen_sources import frozen_text
 from scripts.testing.information_qualification_witness import (
-    ROOT, WITNESS, WALKTHROUGH_WITNESS,
+    WITNESS, WALKTHROUGH_WITNESS,
     before_forecast_walkthrough, before_information_qualification,
 )
 
@@ -15,7 +16,7 @@ def test_information_qualification_projects_exact_reviewed_sources_and_rejects_m
     assert witness["base"] == "03062059a2d61c911587d4e3d2ab797520fbcb74"
     assert witness["head"] == "a3faca1385d3a8d0eac0a51c0cbdd2e1f2f8ddd0"
     for path, row in witness["files"].items():
-        source = (ROOT / path).read_bytes().decode("utf-8")
+        source = frozen_text(path)
         parent = before_information_qualification(source, path)
         assert hashlib.sha256(parent.encode()).hexdigest() == row["sha256"]
         assert before_information_qualification(parent, path, allow_parent=True) == parent
@@ -32,7 +33,7 @@ def test_information_qualification_projects_exact_reviewed_sources_and_rejects_m
                 with pytest.raises(AssertionError):
                     before_information_qualification(changed, path)
     for path, digest in witness["new_files"].items():
-        source = (ROOT / path).read_bytes().decode("utf-8")
+        source = frozen_text(path)
         historical = before_forecast_walkthrough(source, path)
         assert hashlib.sha256(historical.encode("utf-8")).hexdigest() == digest
 
@@ -49,7 +50,7 @@ def test_forecast_walkthrough_projection_preserves_frozen_helper_and_rejects_mut
     helper = "scripts/crisis_forecast_misleading_example.py"
     assert witness["files"][helper]["sha256"] == historical["new_files"][helper]
     for path, row in witness["files"].items():
-        source = (ROOT / path).read_bytes().decode("utf-8")
+        source = frozen_text(path)
         parent = before_forecast_walkthrough(source, path)
         assert hashlib.sha256(parent.encode("utf-8")).hexdigest() == row["sha256"]
         assert before_forecast_walkthrough(parent, path, allow_parent=True) == parent

@@ -4,7 +4,8 @@ import json
 
 import pytest
 
-from scripts.testing.food_accounting_witness import ROOT, WITNESS, before_food_accounting
+from scripts.testing.frozen_sources import frozen_bytes, frozen_text
+from scripts.testing.food_accounting_witness import WITNESS, before_food_accounting
 
 
 def test_food_layer_projects_exact_source_and_rejects_mutations():
@@ -15,7 +16,7 @@ def test_food_layer_projects_exact_source_and_rejects_mutations():
     assert "src/chronicler/transport_contract.json" in witness["files"]
     from scripts.testing.crisis_candidate_witness import before_crisis_candidate
     for path, row in witness["files"].items():
-        source = (ROOT / path).read_bytes().decode("utf-8")
+        source = frozen_text(path)
         parent = before_food_accounting(source, path)
         assert hashlib.sha256(parent.encode()).hexdigest() == row["sha256"]
         assert before_food_accounting(parent, path, allow_parent=True) == parent
@@ -33,4 +34,4 @@ def test_food_layer_projects_exact_source_and_rejects_mutations():
                 with pytest.raises(AssertionError):
                     before_food_accounting(changed, path)
     for path, digest in witness["new_files"].items():
-        assert hashlib.sha256((ROOT / path).read_bytes()).hexdigest() == digest
+        assert hashlib.sha256(frozen_bytes(path)).hexdigest() == digest

@@ -1,0 +1,203 @@
+name: Identity gate
+
+# Behavioural identity of the default and witnessed paths against the
+# committed goldens in tests/fixtures/identity/ (scripts/turn_speed_identity.py
+# digest/check; docs/superpowers/specs/2026-11-08-pin-policy-transition-design.md).
+# A dispatch with capture=true writes fresh goldens as artifacts instead of
+# checking; committing them is a reviewed PR.
+
+on:
+  pull_request:
+    paths:
+      - "src/chronicler/**"
+      - "chronicler-agents/src/**"
+      - "scripts/turn_speed_identity.py"
+      - "tests/fixtures/identity/**"
+  workflow_dispatch:
+    inputs:
+      capture:
+        description: "Capture new goldens (upload digests) instead of checking"
+        type: boolean
+        default: false
+  schedule:
+    - cron: "17 4 * * 1"
+
+permissions:
+  contents: read
+
+jobs:
+  python-lane:
+    name: Identity gate (Python, native absent)
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      PYTHONUNBUFFERED: "1"
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13.17"
+
+      - name: Restore uv artifacts
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/uv
+          key: uv-${{ runner.os }}-${{ runner.arch }}-py313-${{ hashFiles('uv.lock') }}
+          restore-keys: uv-${{ runner.os }}-${{ runner.arch }}-py313-
+
+      - name: Install Python dependencies from the lockfile
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install "uv>=0.5,<1"
+          uv lock --check
+          uv sync --frozen --python "$(command -v python)"
+          echo "$PWD/.venv/bin" >> "$GITHUB_PATH"
+
+      - name: Assert native extension is absent
+        run: |
+          python - <<'PY'
+          import importlib.util
+          spec = importlib.util.find_spec("chronicler_agents")
+          if spec is not None:
+              raise SystemExit(f"identity python lane unexpectedly sees chronicler_agents at {spec.origin}")
+          PY
+
+      - name: Run the Python-lane gate cases
+        run: >-
+          python scripts/turn_speed_identity.py run "$RUNNER_TEMP/id"
+          --case g_off_s42 --case g_off_proc_s7 --case g_batch_off
+
+      - name: Check against the committed goldens
+        if: ${{ !inputs.capture }}
+        run: python scripts/turn_speed_identity.py check "$RUNNER_TEMP/id" tests/fixtures/identity/python_goldens.json --lane python
+
+      - name: Capture goldens
+        if: ${{ inputs.capture }}
+        run: python scripts/turn_speed_identity.py digest "$RUNNER_TEMP/id" "$RUNNER_TEMP/python_goldens.json"
+
+      - name: Retain captured goldens
+        if: ${{ inputs.capture }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: identity-python-goldens-${{ github.sha }}
+          path: ${{ runner.temp }}/python_goldens.json
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Retain run logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: identity-python-logs-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/id/which.txt
+            ${{ runner.temp }}/id/*.log
+          if-no-files-found: warn
+          retention-days: 14
+
+  native-lane:
+    name: Identity gate (native)
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      PYTHONUNBUFFERED: "1"
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13.17"
+
+      - name: Restore uv artifacts
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/uv
+          key: uv-${{ runner.os }}-${{ runner.arch }}-py313-${{ hashFiles('uv.lock') }}
+          restore-keys: uv-${{ runner.os }}-${{ runner.arch }}-py313-
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Identify Rust compiler
+        id: compiler
+        shell: bash
+        run: echo "digest=$(rustc --version --verbose | sha256sum | cut -d ' ' -f 1)" >> "$GITHUB_OUTPUT"
+
+      - name: Restore Cargo downloads
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: cargo-downloads-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('chronicler-agents/Cargo.lock') }}
+          restore-keys: cargo-downloads-${{ runner.os }}-${{ runner.arch }}-
+
+      - name: Restore release build cache
+        uses: actions/cache@v4
+        with:
+          path: chronicler-agents/target/release
+          key: cargo-release-${{ runner.os }}-${{ runner.arch }}-py313-${{ steps.compiler.outputs.digest }}-${{ hashFiles('chronicler-agents/Cargo.lock', 'chronicler-agents/Cargo.toml') }}-${{ github.sha }}
+          restore-keys: cargo-release-${{ runner.os }}-${{ runner.arch }}-py313-${{ steps.compiler.outputs.digest }}-${{ hashFiles('chronicler-agents/Cargo.lock', 'chronicler-agents/Cargo.toml') }}-
+
+      - name: Install Python dependencies from the lockfile
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install "uv>=0.5,<1"
+          uv lock --check
+          uv sync --frozen --python "$(command -v python)"
+          uv pip install --python .venv/bin/python "maturin>=1.5,<2"
+          echo "$PWD/.venv/bin" >> "$GITHUB_PATH"
+
+      - name: Build Rust extension wheel
+        run: |
+          cd chronicler-agents
+          python -m maturin build --release --locked
+          uv pip install --python ../.venv/bin/python target/wheels/*.whl
+
+      - name: Record the native build receipt
+        shell: bash
+        run: |
+          set -euo pipefail
+          wheels=(chronicler-agents/target/wheels/*.whl)
+          test "${#wheels[@]}" -eq 1
+          python scripts/turn_speed_identity.py receipt "$RUNNER_TEMP/native-build.json" --wheel "${wheels[0]}"
+
+      - name: Run the native-lane gate cases
+        run: >-
+          python scripts/turn_speed_identity.py run "$RUNNER_TEMP/id"
+          --case g_hybrid_s42 --case g_grain_s7 --case g_learning_s42
+          --case g_mobility_s1234 --case g_scaled_s42 --case g_off_s42
+
+      - name: Check against the committed goldens
+        if: ${{ !inputs.capture }}
+        run: python scripts/turn_speed_identity.py check "$RUNNER_TEMP/id" tests/fixtures/identity/native_goldens.json --lane native --build-receipt "$RUNNER_TEMP/native-build.json"
+
+      - name: Capture goldens
+        if: ${{ inputs.capture }}
+        run: python scripts/turn_speed_identity.py digest "$RUNNER_TEMP/id" "$RUNNER_TEMP/native_goldens.json" --build-receipt "$RUNNER_TEMP/native-build.json"
+
+      - name: Retain captured goldens
+        if: ${{ inputs.capture }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: identity-native-goldens-${{ github.sha }}
+          path: ${{ runner.temp }}/native_goldens.json
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Retain build receipt and run logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: identity-native-logs-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/native-build.json
+            ${{ runner.temp }}/id/which.txt
+            ${{ runner.temp }}/id/*.log
+          if-no-files-found: warn
+          retention-days: 14

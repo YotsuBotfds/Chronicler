@@ -8,8 +8,9 @@ import json
 
 import pytest
 
+from scripts.testing.frozen_sources import frozen_text
 from scripts.testing.livelihoods_sprint_witness import (
-    LAYERS, ROOT, before_livelihoods_sprint, layer_fixture,
+    LAYERS, before_livelihoods_sprint, layer_fixture,
 )
 
 
@@ -37,7 +38,7 @@ def test_projection_reaches_each_layer_parent_and_the_baseline():
         for path, row in layer["files"].items():
             seen.setdefault(path, []).append((name, row))
     for path, rows in seen.items():
-        source = (ROOT / path).read_bytes().decode("utf-8")
+        source = frozen_text(path)
         assert _sha(source) == rows[-1][1]["current_sha256"], path
         projected = before_livelihoods_sprint(source, path, strict=True)
         # Newer layers start from the bytes the older layer produced.
@@ -50,7 +51,7 @@ def test_projection_reaches_each_layer_parent_and_the_baseline():
 
 def _at_layer(name: str, path: str) -> str:
     """The file as it stood right after layer ``name`` (newer layers inverted)."""
-    source = (ROOT / path).read_bytes().decode("utf-8")
+    source = frozen_text(path)
     for newer in reversed(LAYERS[LAYERS.index(name) + 1:]):
         row = json.loads(layer_fixture(newer).read_text(encoding="utf-8"))["files"].get(path)
         if row is None:
@@ -88,5 +89,5 @@ def test_unlisted_paths_pass_through_and_projection_is_idempotent():
     assert before_livelihoods_sprint("anything", "src/chronicler/not_in_any_layer.py") == "anything"
     for name, layer in _layers():
         for path in layer["files"]:
-            once = before_livelihoods_sprint((ROOT / path).read_bytes().decode("utf-8"), path)
+            once = before_livelihoods_sprint(frozen_text(path), path)
             assert before_livelihoods_sprint(once, path) == once

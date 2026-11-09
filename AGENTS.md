@@ -44,10 +44,15 @@ branch. Do not reset, rebase or overwrite another agent's checkout. Reconcile
 with fetched `main` without force-push. The preserved desktop foundation line
 has competing architecture and must be reviewed separately, not overlaid.
 
-Source-witness fixtures, workflow tests and the native shard manifest pin file
-contents and paths. Before refactoring, moving or deleting files, run
-`scripts/refactor_preflight.py` on them (see DEVELOPMENT.md); never rewrite a
-pinned hash to make a change pass.
+Workflow byte copies, the native shard manifest and oracle-chunk ownership pin
+paths and contents; run `scripts/refactor_preflight.py` before refactoring,
+moving or deleting files (levels in DEVELOPMENT.md, "Before refactoring").
+Source-witness fixtures and `tests/fixtures/frozen_pin_sources/` are frozen
+history: they verify the reviewed chains against the sources as of
+`pin-freeze-2026-11` (`main` c3d752fa), not the working tree. Never edit,
+re-hash or regenerate them, and never rewrite a pinned hash to make a change
+pass. Gate refactors with `scripts/turn_speed_identity.py check` (and `compare`
+for two-checkout runs) plus the oracle lane.
 
 Keep environments, credentials, personal data, generated runs, private logs and
 app/session databases outside commits. Commit source, tests and relevant project
