@@ -1,8 +1,7 @@
 import type { Bundle, TurnSnapshot } from "../../types";
 import { readOperatingWear, wearTotals } from "../../lib/operatingWear";
+import { show } from "./formatters";
 
-const show = (value: number | null | undefined, digits = 3) =>
-  value === null || value === undefined ? "Unknown" : value.toLocaleString(undefined, { maximumFractionDigits: digits });
 /** L1's operating gate: below it a worn site stops until repaired. */
 const OPERATE_CONDITION = 0.5;
 

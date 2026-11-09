@@ -1,8 +1,7 @@
 import type { Bundle, TurnSnapshot } from "../../types";
 import { payrollFunnel, units, workshopFinanceAt } from "../../lib/workshopFinance";
+import { show } from "./formatters";
 
-const show = (value: number | null | undefined) =>
-  value === null || value === undefined ? "Unknown" : value.toLocaleString(undefined, { maximumFractionDigits: 3 });
 const money = (milli: number) => show(units(milli));
 const MODE_NOTE: Record<string, string> = {
   paid: "Paid mode: an academy of the region's ruler buys the firm's wares with treasury money; sales fund wages that replace the crew's ordinary income share for their workshop time.",

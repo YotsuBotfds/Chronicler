@@ -1,8 +1,7 @@
 import type { Bundle, TurnSnapshot } from "../../types";
 import { failedClosures, readWealthAccounting, units } from "../../lib/wealthAccounting";
+import { show } from "./formatters";
 
-const show = (value: number | null | undefined, digits = 3) =>
-  value === null || value === undefined ? "Unknown" : value.toLocaleString(undefined, { maximumFractionDigits: digits });
 const CHANNEL_LABEL: Record<string, string> = {
   workshop_wage: "Workshop wages (L6a)", apprentice_stipend: "Apprentice stipends (RS1)",
   repair_wage: "Workshop repair wages (RS2)", granary_crew_wage: "Granary crew wages (PL3)",

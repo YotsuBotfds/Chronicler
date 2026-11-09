@@ -2,11 +2,9 @@ import type { Bundle, TurnSnapshot } from "../../types";
 import {
   lossCounts, readTimberSupply, refusalCounts, type ExpeditionReceiptRecord, type ExpeditionRecord, type TimberNeedRecord,
 } from "../../lib/timberSupply";
+import { show, words } from "./formatters";
 
-const show = (value: number | null | undefined, digits = 3) =>
-  value === null || value === undefined ? "Unknown" : value.toLocaleString(undefined, { maximumFractionDigits: digits });
 const coins = (milli: number) => (milli / 1000).toLocaleString(undefined, { maximumFractionDigits: 3 });
-const words = (text: string | null | undefined) => (text ?? "").replace(/_/g, " ");
 const REFUSAL: Record<string, string> = {
   no_forest: "no forest the ruler or nobody controls is reachable",
   too_far: "no forest within the hop limit",

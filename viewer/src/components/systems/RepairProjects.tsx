@@ -3,11 +3,9 @@ import { readRepairProjects } from "../../lib/recordReading";
 import {
   progress, repairFunnel, type RepairProjectRecord, type RepairReceiptRecord,
 } from "../../lib/repairProjects";
+import { show, words } from "./formatters";
 
-const show = (value: number | null | undefined) =>
-  value === null || value === undefined ? "Unknown" : value.toLocaleString(undefined, { maximumFractionDigits: 3 });
 const coins = (milli: number) => (milli / 1000).toLocaleString(undefined, { maximumFractionDigits: 3 });
-const words = (text: string | null | undefined) => (text ?? "").replace(/_/g, " ");
 const MODE_NOTE: Record<string, string> = {
   repair: "Repair mode: work delivered by a project restores its asset's condition pro rata to the deficit it was opened for.",
   cost_only: "Cost-only control: projects reserve the same crews, pay the same wages and coins and use the same timber, but condition never changes.",

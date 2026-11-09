@@ -3,10 +3,8 @@ import {
   apprenticeshipFunnel, apprenticeshipOutcomes, readApprenticeship, usefulWork, type ApprenticeshipSiteReceipt,
   type SeatRecord,
 } from "../../lib/apprenticeship";
+import { show, words } from "./formatters";
 
-const show = (value: number | null | undefined, digits = 3) =>
-  value === null || value === undefined ? "Unknown" : value.toLocaleString(undefined, { maximumFractionDigits: digits });
-const words = (text: string | null | undefined) => (text ?? "").replace(/_/g, " ");
 const people = (list: number[]) => (list.length ? list.join(", ") : "none");
 const MODE_NOTE: Record<string, string> = {
   train: "Train mode: an apprentice who attends the required turns earns a workshop qualification, kept for life wherever they live.",

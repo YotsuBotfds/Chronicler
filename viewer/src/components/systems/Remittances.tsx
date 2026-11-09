@@ -1,11 +1,9 @@
 import type { Bundle, TurnSnapshot } from "../../types";
 import { readRemittances } from "../../lib/recordReading";
 import { diasporaCounts, remittancesFunnel, units } from "../../lib/remittances";
+import { show, words } from "./formatters";
 
-const show = (value: number | null | undefined, digits = 3) =>
-  value === null || value === undefined ? "Unknown" : value.toLocaleString(undefined, { maximumFractionDigits: digits });
 const money = (milli: number | null | undefined) => (milli === null || milli === undefined ? "Unknown" : show(units(milli)));
-const words = (text: string | null | undefined) => (text ?? "").replace(/_/g, " ");
 const MODE_NOTE: Record<string, string> = {
   send: "Send: each eligible migrant sends a bounded share of their wealth to one partner at home; a courier fee is paid out of it.",
   record_only: "Record only (control): the same ledger, eligibility and amounts are computed, and nothing is sent.",

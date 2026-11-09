@@ -3,9 +3,8 @@ import type { Bundle, TurnSnapshot } from "../../types";
 import { drainsTo, readWatershed, readWatershedRun, watershedOutflow } from "../../lib/watershed";
 import { WatershedBasin } from "./WatershedBasin";
 import type { WatershedDrought, WatershedRecord, WatershedStatic } from "../../watershedTypes";
+import { show } from "./formatters";
 
-const show = (value: number | null | undefined, digits = 3) =>
-  value === null || value === undefined ? "Unknown" : value.toLocaleString(undefined, { maximumFractionDigits: digits });
 /** A signed difference at display precision ("0", never "-0"). */
 const signed = (value: number) => Math.abs(value) < 0.0005 ? "0" : `${value > 0 ? "+" : ""}${show(value)}`;
 

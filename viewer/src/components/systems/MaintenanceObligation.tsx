@@ -1,9 +1,8 @@
 import type { Bundle, TurnSnapshot } from "../../types";
 import { localBudgetsAt } from "../../lib/localBudgets";
 import { obligationTotals, readMaintenanceObligation } from "../../lib/maintenanceObligation";
+import { show } from "./formatters";
 
-const show = (value: number | null | undefined) =>
-  value === null || value === undefined ? "Unknown" : value.toLocaleString(undefined, { maximumFractionDigits: 3 });
 const MODE_NOTE: Record<string, string> = {
   reserve: "Reserve: before the budget is bargained, each ruler sets aside its planned repair charges, up to a declared share of the budget it would otherwise bargain. Repairs ask the bargained budget only for the rest and may spend the reservation beyond their envelope; each turn's charge is split between the reservation and the envelope pro rata to their amounts.",
   reserve_only: "Reserve-only control: the same reservation, and so the same smaller budget for every bargained service, but repairs stay held to their bargained envelope and the whole reservation is returned unspent. It shows the crowding-out without the repair benefit.",
