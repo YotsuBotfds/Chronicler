@@ -3388,7 +3388,7 @@ impl AgentSimulator {
         &mut self,
         region_input_batch: PyRecordBatch,
         trade_route_batch: PyRecordBatch,
-        season_id: u8,
+        _season_id: u8, // reserved for future seasonal modifiers
         is_winter: bool,
         trade_friction: f32,
     ) -> PyResult<(PyRecordBatch, PyRecordBatch, PyRecordBatch, PyRecordBatch, PyRecordBatch)> {
@@ -3397,10 +3397,8 @@ impl AgentSimulator {
             Float32Builder, UInt8Builder, UInt16Builder, BooleanBuilder,
         };
         use crate::economy::{
-            EconomyRegionInput, RegionAgentCounts, TradeRouteInput, tick_economy_core_full,
+            EconomyRegionInput, TradeRouteInput, tick_economy_core_full,
         };
-
-        let _ = season_id; // reserved for future seasonal modifiers
 
         let ri_rb: RecordBatch = region_input_batch.into_inner();
         let tr_rb: RecordBatch = trade_route_batch.into_inner();
@@ -3712,93 +3710,12 @@ impl AgentSimulator {
             }
         }
 
-        // --- Derive agent counts from live pool ---
-        // Partition by region for efficient iteration
-        let partitioned = self.pool.partition_by_region(n_regions as u16);
-        let mut agent_counts: Vec<RegionAgentCounts> = Vec::with_capacity(n_regions);
-        for rid in 0..n_regions {
-            let slots = &partitioned[rid];
-            let mut population = 0u32;
-            let mut farmer_count = 0u32;
-            let mut soldier_count = 0u32;
-            let mut merchant_count = 0u32;
-            let mut wealthy_count = 0u32;
-            for &slot in slots {
-                if !self.pool.enlisted(slot) { population += 1; }
-                match Occupation::from_u8(self.pool.occupation(slot)) {
-                    Some(Occupation::Farmer) if !self.pool.enlisted(slot) => farmer_count += 1,
-                    Some(Occupation::Soldier) => soldier_count += 1,
-                    Some(Occupation::Merchant) => {
-                        // M58a: Transit merchants counted by origin region in second pass
-                        if self.pool.trip_phase[slot] == crate::agent::TRIP_PHASE_TRANSIT {
-                            // Don't count here — counted by origin region below
-                        } else {
-                            merchant_count += 1;
-                        }
-                    }
-                    _ => {}
-                }
-                if self.pool.wealth[slot] > self.economy_config.luxury_demand_threshold {
-                    wealthy_count += 1;
-                }
-            }
-            agent_counts.push(RegionAgentCounts {
-                population,
-                farmer_count,
-                soldier_count,
-                merchant_count,
-                wealthy_count,
-            });
-        }
-
-        // M58a: Second pass — count transit merchants by their origin region (anchor counting)
-        for slot in 0..self.pool.capacity() {
-            if !self.pool.is_alive(slot) { continue; }
-            if self.pool.trip_phase[slot] != crate::agent::TRIP_PHASE_TRANSIT { continue; }
-            if self.pool.occupations[slot] != Occupation::Merchant as u8 { continue; }
-            let origin = self.pool.trip_origin_region[slot] as usize;
-            if origin < agent_counts.len() {
-                agent_counts[origin].merchant_count += 1;
-            }
-        }
-
-        // --- Derive per-civ merchant wealth and priest count ---
-        // Match Python's "living civ" semantics: fiscal outputs are keyed to civs
-        // that currently control at least one region, not every affinity present
-        // in the live pool. This keeps zero-agent controller civs explicit at 0.0
-        // and prevents Phase 10 from falling back to stale trade_income values.
-        let mut active_civ_flags = [false; 256];
-        let mut active_civ_ids: Vec<u8> = Vec::new();
-        let mut max_active_civ: Option<u8> = None;
-        for region in &self.regions {
-            let civ = region.controller_civ;
-            if civ == 255 || active_civ_flags[civ as usize] {
-                continue;
-            }
-            active_civ_flags[civ as usize] = true;
-            active_civ_ids.push(civ);
-            max_active_civ = Some(max_active_civ.map_or(civ, |prev| prev.max(civ)));
-        }
-        active_civ_ids.sort_unstable();
-
-        let n_civs = max_active_civ.map_or(0, |max_civ| max_civ as usize + 1);
-
-        let mut civ_merchant_wealth = vec![0.0f32; n_civs];
-        let mut civ_priest_count = vec![0u32; n_civs];
-        for slot in 0..self.pool.capacity() {
-            if !self.pool.is_alive(slot) { continue; }
-            let ca = self.pool.civ_affinity(slot) as usize;
-            if ca >= n_civs || !active_civ_flags[ca] { continue; }
-            match Occupation::from_u8(self.pool.occupation(slot)) {
-                Some(Occupation::Merchant) => {
-                    civ_merchant_wealth[ca] += self.pool.wealth[slot];
-                }
-                Some(Occupation::Priest) => {
-                    civ_priest_count[ca] += 1;
-                }
-                _ => {}
-            }
-        }
+        // --- Derive agent counts and per-civ fiscal inputs from the live pool ---
+        let agent_counts = crate::economy::derive_region_agent_counts(
+            &self.pool, n_regions, self.economy_config.luxury_demand_threshold);
+        let crate::economy::CivFiscalInputs {
+            active_civ_ids, n_civs, merchant_wealth: civ_merchant_wealth, priest_count: civ_priest_count,
+        } = crate::economy::derive_civ_fiscal_inputs(&self.pool, &self.regions);
 
         // Rural impairment/care removes productive work, not people or demand.
         // City craft allocation is already reflected in farm_labor_factor;

@@ -1134,6 +1134,133 @@ fn run_abstract_allocation(
 }
 
 // ---------------------------------------------------------------------------
+// Agent-pool derivations (the FFI's tick_economy inputs)
+// ---------------------------------------------------------------------------
+
+/// Derive per-region agent counts from the live pool, one row per region.
+/// Enlisted people are not counted in population or as farmers; transit
+/// merchants count in their trip-origin region (M58a anchor counting).
+pub fn derive_region_agent_counts(
+    pool: &crate::pool::AgentPool,
+    n_regions: usize,
+    luxury_demand_threshold: f32,
+) -> Vec<RegionAgentCounts> {
+    use crate::agent::Occupation;
+    // Partition by region for efficient iteration
+    let partitioned = pool.partition_by_region(n_regions as u16);
+    let mut agent_counts: Vec<RegionAgentCounts> = Vec::with_capacity(n_regions);
+    for rid in 0..n_regions {
+        let slots = &partitioned[rid];
+        let mut population = 0u32;
+        let mut farmer_count = 0u32;
+        let mut soldier_count = 0u32;
+        let mut merchant_count = 0u32;
+        let mut wealthy_count = 0u32;
+        for &slot in slots {
+            if !pool.enlisted(slot) { population += 1; }
+            match Occupation::from_u8(pool.occupation(slot)) {
+                Some(Occupation::Farmer) if !pool.enlisted(slot) => farmer_count += 1,
+                Some(Occupation::Soldier) => soldier_count += 1,
+                Some(Occupation::Merchant) => {
+                    // M58a: Transit merchants counted by origin region in second pass
+                    if pool.trip_phase[slot] == crate::agent::TRIP_PHASE_TRANSIT {
+                        // Don't count here — counted by origin region below
+                    } else {
+                        merchant_count += 1;
+                    }
+                }
+                _ => {}
+            }
+            if pool.wealth[slot] > luxury_demand_threshold {
+                wealthy_count += 1;
+            }
+        }
+        agent_counts.push(RegionAgentCounts {
+            population,
+            farmer_count,
+            soldier_count,
+            merchant_count,
+            wealthy_count,
+        });
+    }
+
+    // M58a: Second pass — count transit merchants by their origin region (anchor counting)
+    for slot in 0..pool.capacity() {
+        if !pool.is_alive(slot) { continue; }
+        if pool.trip_phase[slot] != crate::agent::TRIP_PHASE_TRANSIT { continue; }
+        if pool.occupations[slot] != Occupation::Merchant as u8 { continue; }
+        let origin = pool.trip_origin_region[slot] as usize;
+        if origin < agent_counts.len() {
+            agent_counts[origin].merchant_count += 1;
+        }
+    }
+    agent_counts
+}
+
+/// Per-civ fiscal inputs derived from the live pool and region controllers.
+pub struct CivFiscalInputs {
+    /// Civs controlling at least one region, ascending.
+    pub active_civ_ids: Vec<u8>,
+    /// One past the highest active civ id (0 with none).
+    pub n_civs: usize,
+    /// Summed merchant wealth per civ id (slot order); 0.0 for inactive civs.
+    pub merchant_wealth: Vec<f32>,
+    /// Priest count per civ id; 0 for inactive civs.
+    pub priest_count: Vec<u32>,
+}
+
+/// Derive per-civ merchant wealth and priest count.
+///
+/// Match Python's "living civ" semantics: fiscal outputs are keyed to civs
+/// that currently control at least one region, not every affinity present
+/// in the live pool. This keeps zero-agent controller civs explicit at 0.0
+/// and prevents Phase 10 from falling back to stale trade_income values.
+pub fn derive_civ_fiscal_inputs(
+    pool: &crate::pool::AgentPool,
+    regions: &[crate::region::RegionState],
+) -> CivFiscalInputs {
+    use crate::agent::Occupation;
+    let mut active_civ_flags = [false; 256];
+    let mut active_civ_ids: Vec<u8> = Vec::new();
+    let mut max_active_civ: Option<u8> = None;
+    for region in regions {
+        let civ = region.controller_civ;
+        if civ == 255 || active_civ_flags[civ as usize] {
+            continue;
+        }
+        active_civ_flags[civ as usize] = true;
+        active_civ_ids.push(civ);
+        max_active_civ = Some(max_active_civ.map_or(civ, |prev| prev.max(civ)));
+    }
+    active_civ_ids.sort_unstable();
+
+    let n_civs = max_active_civ.map_or(0, |max_civ| max_civ as usize + 1);
+
+    let mut civ_merchant_wealth = vec![0.0f32; n_civs];
+    let mut civ_priest_count = vec![0u32; n_civs];
+    for slot in 0..pool.capacity() {
+        if !pool.is_alive(slot) { continue; }
+        let ca = pool.civ_affinity(slot) as usize;
+        if ca >= n_civs || !active_civ_flags[ca] { continue; }
+        match Occupation::from_u8(pool.occupation(slot)) {
+            Some(Occupation::Merchant) => {
+                civ_merchant_wealth[ca] += pool.wealth[slot];
+            }
+            Some(Occupation::Priest) => {
+                civ_priest_count[ca] += 1;
+            }
+            _ => {}
+        }
+    }
+    CivFiscalInputs {
+        active_civ_ids,
+        n_civs,
+        merchant_wealth: civ_merchant_wealth,
+        priest_count: civ_priest_count,
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Core tick function
 // ---------------------------------------------------------------------------
 
@@ -3216,5 +3343,103 @@ mod workshop_owned_tests {
     #[should_panic(expected = "a firm's inventory must be finite and nonnegative")]
     fn a_negative_inventory_is_refused() {
         run(Some(Some(-1.0)));
+    }
+}
+
+#[cfg(test)]
+mod derivation_tests {
+    //! The FFI's agent-pool derivations against a hand-built pool.
+    use super::*;
+    use crate::agent::{Occupation, TRIP_PHASE_TRANSIT};
+    use crate::enlisted_service::EnlistedService;
+    use crate::pool::AgentPool;
+    use crate::region::RegionState;
+
+    fn spawn(pool: &mut AgentPool, region: u16, civ: u8, occ: Occupation, wealth: f32) -> usize {
+        let slot = pool.spawn(region, civ, occ, 30, 0.5, 0.5, 0.5, 0, 1, 2, 255);
+        pool.wealth[slot] = wealth;
+        slot
+    }
+
+    fn transit(pool: &mut AgentPool, slot: usize, origin: u16) {
+        pool.trip_phase[slot] = TRIP_PHASE_TRANSIT;
+        pool.trip_origin_region[slot] = origin;
+    }
+
+    /// Region 0 (civ 1): two farmers, an enlisted farmer, a soldier, a
+    /// resident merchant, a priest, and a dead merchant.
+    /// Region 1 (civ 3): a transit merchant from region 0, a wealthy farmer,
+    /// two priests, a merchant of the inactive civ 2, a wealthy soldier.
+    /// Region 2 (no controller): a transit merchant whose origin is out of
+    /// range, a scholar of civ 5 (beyond the active civs).
+    fn pool() -> AgentPool {
+        let mut pool = AgentPool::new(4);
+        spawn(&mut pool, 0, 1, Occupation::Farmer, 1.0);
+        spawn(&mut pool, 0, 1, Occupation::Farmer, 1.0);
+        let enlisted = spawn(&mut pool, 0, 1, Occupation::Farmer, 1.0);
+        spawn(&mut pool, 0, 1, Occupation::Soldier, 1.0);
+        spawn(&mut pool, 0, 1, Occupation::Merchant, 10.0);
+        spawn(&mut pool, 0, 1, Occupation::Priest, 1.0);
+        let dead = spawn(&mut pool, 0, 1, Occupation::Merchant, 40.0);
+        let mover = spawn(&mut pool, 1, 3, Occupation::Merchant, 2.5);
+        transit(&mut pool, mover, 0);
+        spawn(&mut pool, 1, 3, Occupation::Farmer, 50.0);
+        spawn(&mut pool, 1, 3, Occupation::Priest, 1.0);
+        spawn(&mut pool, 1, 3, Occupation::Priest, 1.0);
+        spawn(&mut pool, 1, 2, Occupation::Merchant, 7.0);
+        spawn(&mut pool, 1, 3, Occupation::Soldier, 30.0);
+        let lost = spawn(&mut pool, 2, 3, Occupation::Merchant, 4.0);
+        transit(&mut pool, lost, 7);
+        spawn(&mut pool, 2, 5, Occupation::Scholar, 1.0);
+        pool.kill(dead);
+        pool.enlisted_service = Some(EnlistedService {
+            turn: 0, rows: vec![(pool.ids[enlisted], 0.5)], suppress_war_mortality: false });
+        pool
+    }
+
+    fn counts(c: &RegionAgentCounts) -> [u32; 5] {
+        [c.population, c.farmer_count, c.soldier_count, c.merchant_count, c.wealthy_count]
+    }
+
+    #[test]
+    fn region_agent_counts_skip_enlisted_and_anchor_transit_merchants() {
+        let rows = derive_region_agent_counts(&pool(), 3, 20.0);
+        let got: Vec<[u32; 5]> = rows.iter().map(counts).collect();
+        // [population, farmers, soldiers, merchants, wealthy]
+        assert_eq!(got, vec![
+            [5, 2, 1, 2, 0], // resident + transit-origin merchant; enlisted farmer excluded
+            [6, 1, 1, 1, 2], // the transit merchant counts at its origin, not here
+            [2, 0, 0, 0, 0], // the out-of-range origin is not counted anywhere
+        ]);
+    }
+
+    #[test]
+    fn region_agent_counts_cover_only_the_requested_regions() {
+        let rows = derive_region_agent_counts(&pool(), 1, 0.0);
+        assert_eq!(rows.iter().map(counts).collect::<Vec<_>>(), vec![[5, 2, 1, 2, 6]]);
+        assert!(derive_region_agent_counts(&pool(), 0, 0.0).is_empty());
+    }
+
+    #[test]
+    fn civ_fiscal_inputs_are_keyed_to_controlling_civs() {
+        let mut regions: Vec<RegionState> = (0..4).map(RegionState::new).collect();
+        regions[0].controller_civ = 3;
+        regions[1].controller_civ = 1;
+        regions[3].controller_civ = 3;
+        let fiscal = derive_civ_fiscal_inputs(&pool(), &regions);
+        assert_eq!(fiscal.active_civ_ids, vec![1, 3]);
+        assert_eq!(fiscal.n_civs, 4);
+        // Civ 2's merchant and civ 5's scholar are not active; the dead merchant is gone.
+        assert_eq!(fiscal.merchant_wealth, vec![0.0, 10.0, 0.0, 6.5]);
+        assert_eq!(fiscal.priest_count, vec![0, 1, 0, 2]);
+    }
+
+    #[test]
+    fn civ_fiscal_inputs_are_empty_without_controllers() {
+        let regions: Vec<RegionState> = (0..2).map(RegionState::new).collect();
+        let fiscal = derive_civ_fiscal_inputs(&pool(), &regions);
+        assert!(fiscal.active_civ_ids.is_empty());
+        assert_eq!(fiscal.n_civs, 0);
+        assert!(fiscal.merchant_wealth.is_empty() && fiscal.priest_count.is_empty());
     }
 }
