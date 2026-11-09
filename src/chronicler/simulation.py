@@ -2008,8 +2008,8 @@ def run_turn_result(
     # --- M42/M54b: Goods economy (Phase 2 sub-sequence) ---
     # M54b: Route through Rust economy only when an agent-backed snapshot exists.
     # In --agents=off, production behavior stays frozen: there is no runtime
-    # economy_result here, and compute_economy(agent_mode=False) remains an
-    # oracle/test surface rather than an off-mode production path.
+    # economy_result here, and economy_oracle.compute_economy(agent_mode=False)
+    # remains an oracle/test surface rather than an off-mode production path.
     phase2_trade_routes = get_active_trade_routes(world, emit_events=True)
     set_active_trade_routes_snapshot(world, phase2_trade_routes)
     if _contact_ledger_on(world) and agent_bridge is None:
