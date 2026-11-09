@@ -444,7 +444,8 @@
       "status": "review",
       "spec": "docs/superpowers/specs/2026-11-08-dead-code-removal-design.md",
       "plan": "docs/superpowers/plans/2026-11-08-dead-code-removal.md",
-      "integrated": "lead branch, DEAD-5b integration 9 (reviewed head 430deecd), DEAD-5a integration 10 (reviewed head b078c579); see progress/streamline-and-deepen-ledger.md"
+      "integrated": "lead branch, DEAD-5b integration 9 (reviewed head 430deecd), DEAD-5a integration 10 (reviewed head b078c579); see progress/streamline-and-deepen-ledger.md",
+      "note": "API removal to carry into release notes: chronicler.main.run_chronicle (its docstring promised backward compatibility) is gone; tests use tests/run_chronicle_compat.py. chronicler.simulation.roll_for_event/apply_probability_cascade re-exports are gone; chronicler.events keeps both."
     },
     {
       "id": "FIX-1",
@@ -564,10 +565,11 @@
       "depends_on": [],
       "risk": "low",
       "size": "small",
-      "status": "review",
+      "status": "active",
       "spec": "docs/superpowers/specs/2026-11-08-behaviour-neutral-fixes-design.md",
       "plan": "docs/superpowers/plans/2026-11-08-behaviour-neutral-fixes.md",
-      "integrated": "lead branch claude/exciting-mayer-nolksw, integration 1 (2026-11-09), reviewed head 686c1224; see progress/streamline-and-deepen-ledger.md"
+      "integrated": "lead branch claude/exciting-mayer-nolksw, integration 1 (2026-11-09), reviewed head 686c1224; see progress/streamline-and-deepen-ledger.md",
+      "note": "2026-11-09 external review: batch_complete bypasses the usage budgets (P2, verified). Follow-up FIX-9b in progress; integration 1 part stays integrated."
     },
     {
       "id": "FIX-10",
@@ -663,10 +665,11 @@
       ],
       "risk": "med",
       "size": "new cases",
-      "status": "review",
+      "status": "active",
       "spec": "docs/superpowers/specs/2026-11-08-pin-policy-transition-design.md",
       "plan": "docs/superpowers/plans/2026-11-08-pin-policy-transition.md",
-      "integrated": "lead branch, integration 4 (2026-11-09), reviewed head 7e3907cf; see progress/streamline-and-deepen-ledger.md"
+      "integrated": "lead branch, integration 4 (2026-11-09), reviewed head 7e3907cf; see progress/streamline-and-deepen-ledger.md",
+      "note": "2026-11-09 external review: native_source_digest omits build.rs and the crate pyproject.toml, and the workflow triggers omit native/Python build inputs and the workflow file (P2, verified). Follow-up PIN-2b in progress. Goldens were captured locally; hosted validation pending."
     },
     {
       "id": "PIN-1",
@@ -1088,7 +1091,7 @@
       "status": "active",
       "spec": "docs/superpowers/specs/2026-11-08-economy-depth-and-measurement-design.md",
       "plan": "docs/superpowers/plans/2026-11-08-economy-depth-and-measurement.md",
-      "note": "Metrics module, analytics and viewer reader integrated (integration 3, reviewed head 751aae7c); switch registration waits for PIN-1 (batch_manifest.py is enforced)."
+      "note": "Metrics module, analytics and viewer reader integrated (integration 3, reviewed head 751aae7c). Switch registration (DEP-7r) is a wave-5 task; owner questions on the welfare-primary weights, P2 denominator and child shortfall share stay open."
     },
     {
       "id": "DEP-5",
@@ -1180,7 +1183,8 @@
       "size": "large",
       "status": "blocked",
       "spec": "docs/superpowers/specs/2026-11-08-economy-depth-and-measurement-design.md",
-      "plan": "docs/superpowers/plans/2026-11-08-economy-depth-and-measurement.md"
+      "plan": "docs/superpowers/plans/2026-11-08-economy-depth-and-measurement.md",
+      "note": "Before implementation, answer the open contract questions carried by the 2026-11-09 external review: the payment API shape, milli versus wealth units, and the escrow lifecycle (plan and spec unchanged since the 2026-11-08 addendum)."
     },
     {
       "id": "BRD-1",
@@ -1331,10 +1335,11 @@
     }
   ],
   "recorded_limits": [
-    "2026-11-08: owner decisions DEC-1..DEC-8 recorded (progress/streamline-and-deepen-decisions.md); COR-6, COR-7, COR-9, COR-10 approved to start. Wave 1 tasks (status active) run on the lead branch claude/exciting-mayer-nolksw; nothing is merged to main.",
-    "ENV-1, ENV-2, ENV-3 and ENV-8 are in review on branch claude/relaxed-brown-4ozgeg; no other task is started. ready = no unmet prerequisite; blocked = waits on the tasks in depends_on; proposed = owner decision or R7 brief.",
-    "Gates not run for this plan: oracle lane, native tests, viewer test/lint/build, turn_speed_identity, 200-seed gate.",
+    "2026-11-09: owner decisions DEC-1..DEC-8 are recorded and accepted (progress/streamline-and-deepen-decisions.md); corrections are integrated one at a time with baseline reports. Integrated work lives on the lead branch claude/exciting-mayer-nolksw; nothing is merged to main and no PR is open.",
+    "Local gates are recorded per integration in progress/streamline-and-deepen-ledger.md (oracle lane, Rust tests, fresh native builds, turn_speed_identity on 9 cases, both identity-gate lanes, viewer test/lint/build where the viewer changed). Not yet run: any GitHub Actions job on this branch (zero hosted runs), the hosted validation and determinism repeat of the locally captured identity goldens, the first regression-smoke run, all Python native shards together, browser QA, Node 20.19.0, the 200-seed gate, and workstation tasks ENV-5..ENV-7.",
+    "'No differences' in the ledger after integration 5 means against the post-correction baseline (COR-10 changes proc48_hybrid_s42 from turn 33 and g_learning_s42, whose golden was re-captured), not unchanged behaviour relative to main.",
+    "Status values: ready = no unmet prerequisite; active = partly integrated or in progress (the note says which part); blocked = waits on depends_on or an owner action; review = integrated on the lead branch, awaiting PR/CI; proposed = owner decision or R7 brief.",
     "Sizes are estimates from the audit; specs refine them."
   ],
-  "next": "Integrate the viewer chain and wave 3 (CON-2 unpinned batches, LAB-1); then the PIN-1 dependants (DEAD-5, FIX-1/3/10/11, COR-6c, CON-1, CON-3..7, CON-10, CON-11, COR-5, COR-8, DEP-5, DEP-7 registration), corrections COR-4, COR-3, COR-1 one at a time, then DEP-1..4, DEP-6, DEP-8."
+  "next": "2026-11-09 (after the external review of b7be5d1d): close FIX-9b and PIN-2b, then hold further merges until a CI-verified checkpoint on the owner's PR route (Tests jobs, both identity lanes on hosted runners, first regression-smoke run; investigate any golden mismatch before accepting new goldens). Then merge the approved corrections lane (COR-6c, COR-4, COR-3, COR-1a, COR-1bc) one correction at a time with baselines, the rest of the Python-core lane (CON-3b, CON-11, CON-3c, CON-4, CON-10) and wave 5 (COR-1 enforced files, COR-2, COR-5.1-5.5; DEP-5, DEP-7 registration, DEP-8, CON-1g, FIX-15). Later: CON-2 pinned states and CON-13, DEP-1..4 and their evaluation harness, DEP-6 (after its open contract questions are answered)."
 }

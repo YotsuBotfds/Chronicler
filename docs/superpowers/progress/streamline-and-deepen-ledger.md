@@ -260,3 +260,22 @@ Gates on the merged head `99b71b5b`. Rust is unchanged since integration 9, so t
 Lead rulings on the implementers' questions are in the [decision record](streamline-and-deepen-decisions.md), under "Wave-4 implementer questions". They create FIX-15 (live exit status and batch scenario path) and the CON-1g guard follow-up, both in wave 5.
 
 Not run: the 200-seed gate and GitHub CI.
+
+## 2026-11-09 — external review of `b7be5d1d` and the lead's response
+
+An independent review of the branch at `b7be5d1d` was relayed by the owner. It found no further confirmed runtime regression in the switch, state, batch, Rust and viewer slices it inspected. It raised two P2 findings, and the lead verified both against the source:
+1. **FIX-9 gap.** `AnthropicClient.batch_complete` never calls `_check_budget()` and submits every request. It counts usage only from the returned results, so an exhausted or zero budget still submits a paid batch. Follow-up **FIX-9b**.
+2. **PIN-2 gap.** `native_source_digest` covers `Cargo.toml`, `Cargo.lock` and `src/**`. It omits `build.rs`, which selects the `chronicler_avx512` cfg, and the crate `pyproject.toml`, which holds the maturin features. So a receipt taken before a build-script change still matches. The identity workflow's PR paths also omit the native and Python build inputs and the workflow file itself. Follow-up **PIN-2b**. It also gives `regression-smoke.yml` a path-limited `pull_request` trigger, because a workflow that is not yet on `main` cannot be dispatched.
+
+The lead accepted the review's steer:
+- FIX-9b and PIN-2b go first.
+- Then a CI-verified checkpoint on the owner's PR route: Tests jobs, both identity lanes on hosted runners, and the first regression-smoke run. Any golden mismatch is investigated before new goldens are accepted.
+- No further merges into this branch until that checkpoint is green.
+- Task branches already in flight keep developing: the wave-4 corrections and Python-core lanes, and wave-5 lane B with the FIX-14 diagnosis. They are integrated afterwards, one correction at a time.
+- The board's stale `next` and `recorded_limits` are rewritten, and partial tasks stay `active` with notes.
+
+Carried forward:
+- **DEP-6.** The payment API shape, milli versus wealth units, and the escrow lifecycle need answers before implementation starts.
+- **API removals for release notes.** DEAD-5a removed `chronicler.main.run_chronicle`, whose docstring promised backward compatibility; its replacement is test-only. It also removed the `chronicler.simulation` re-exports of the event-roll helpers. So import compatibility is not universal.
+- **Spec deviation recorded at integration 10.** The dead-code spec says to move the three economy helpers into the oracle if CON-7 lands first. CON-7 did merge first (integration 9), but the helpers were deleted rather than moved, because the oracle's `compute_economy` does not call them either. The H-4 zero-farmer rule stays covered through `compute_economy`.
+- **COR-9 limit.** Some non-printable Unicode names, such as NBSP and zero-width space, remain outside its repr parity, as its baseline report discloses.
