@@ -46,7 +46,7 @@ writes, rather than no kernel functions executing.
 Library calls are also default-off:
 
 ```python
-from chronicler.experiment_receipt_inspector import (
+from chronicler_lab.experiment_receipt_inspector import (
     inspect_receipts, inspection_document, inspection_json, inspection_text,
 )
 

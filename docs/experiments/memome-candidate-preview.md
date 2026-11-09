@@ -1,6 +1,6 @@
 # Explicit memome candidate preview
 
-`chronicler.memome_candidate_preview.preview_candidates` reports explicit next
+`chronicler_lab.memome_candidate_preview.preview_candidates` reports explicit next
 batch candidate choices against one complete immutable `MemomeSession`. Each
 alternative starts from the same opening ledger, with its existing membership,
 contact groups, prestige weights, traits and illustrative policy. Only proposal
@@ -55,9 +55,9 @@ import json
 import os
 from pathlib import Path
 import runpy
-from chronicler import experiment_sessions as es
-from chronicler import memome_experiment as mm
-from chronicler.memome_candidate_preview import CONTRACT
+from chronicler_lab import experiment_sessions as es
+from chronicler_lab import memome_experiment as mm
+from chronicler_lab.memome_candidate_preview import CONTRACT
 
 d = Path(os.environ['example_dir'])
 table = runpy.run_path('scripts/memome_demo.py')
