@@ -419,6 +419,7 @@
       "tests/test_refactor_preflight.py",
       "tests/test_regional_population.py",
       "tests/test_regional_population_native.py",
+      "tests/test_regression_smoke.py",
       "tests/test_relationships.py",
       "tests/test_relocation_costs_native.py",
       "tests/test_remittances_native.py",

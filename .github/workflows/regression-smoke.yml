@@ -1,0 +1,107 @@
+name: Regression smoke
+
+# Nightly drift check: 4 template seeds x 100 turns hybrid, the summary metrics
+# of their validation report compared with tests/fixtures/regression_smoke.json
+# (scripts/regression_smoke.py). Four seeds are too few for the gate verdict,
+# so the gate's exit code is recorded, not enforced; a metric that differs from
+# the fixture fails the job. The weekly full gate is validation-gate.yml.
+
+on:
+  schedule:
+    - cron: "17 3 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    name: Regression smoke (4 seeds x 100 turns, hybrid)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      PYTHONUNBUFFERED: "1"
+      SMOKE_ROOT: output/regression-smoke/${{ github.run_id }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install Python dependencies from the lockfile
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install "uv>=0.5,<1"
+          uv lock --check
+          uv sync --frozen --no-dev --python "$(command -v python)"
+          uv pip install --python .venv/bin/python "maturin>=1.5,<2"
+          echo "$PWD/.venv/bin" >> "$GITHUB_PATH"
+
+      - name: Build Rust extension wheel
+        run: |
+          cd chronicler-agents
+          python -m maturin build --release --locked
+          uv pip install --python ../.venv/bin/python target/wheels/*.whl
+
+      - name: Run the smoke batch
+        shell: bash
+        run: |
+          set +e
+          python scripts/m53b_run_validation.py \
+            --profile subset \
+            --seeds 4 \
+            --turns 100 \
+            --output-root "$SMOKE_ROOT"
+          gate_exit=$?
+          set -e
+          echo "Gate exit code (recorded, not enforced): $gate_exit"
+          if [[ "$gate_exit" != "0" && "$gate_exit" != "2" ]]; then
+            echo "The validation runner failed (exit $gate_exit), not the gate verdict." >&2
+            exit "$gate_exit"
+          fi
+
+      - name: Compare with the fixture
+        shell: bash
+        run: |
+          set -o pipefail
+          python scripts/regression_smoke.py compare "$SMOKE_ROOT/oracle_subset/batch_42" | tee "$RUNNER_TEMP/smoke-compare.txt"
+
+      - name: Publish the smoke summary
+        if: always()
+        shell: bash
+        run: |
+          batch="$SMOKE_ROOT/oracle_subset/batch_42"
+          {
+            echo "## Regression smoke"
+            if [ -f "$RUNNER_TEMP/smoke-compare.txt" ]; then
+              echo '```'
+              cat "$RUNNER_TEMP/smoke-compare.txt"
+              echo '```'
+            fi
+            if [ -f "$batch/validate_report_subset.json" ]; then
+              echo "### Needs pairings, Holm-adjusted (report only)"
+              echo '```json'
+              python -m chronicler.validation_multiplicity "$batch/validate_report_subset.json"
+              echo '```'
+            fi
+            if [ -f "$batch/gate_summary_subset.md" ]; then
+              cat "$batch/gate_summary_subset.md"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload the smoke reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: regression-smoke-${{ github.run_id }}
+          path: |
+            ${{ env.SMOKE_ROOT }}/oracle_subset/batch_42/*.json
+            ${{ env.SMOKE_ROOT }}/oracle_subset/batch_42/*.md
+          if-no-files-found: warn
+          retention-days: 14
