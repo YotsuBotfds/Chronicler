@@ -1,11 +1,11 @@
 import { isConstructedExample } from "./constructedExample";
+import { isRecord } from "./recordGuards";
 import type { RegionalPopulationSnapshot } from "../types";
 
 /** Validate the required viewer containers before they reach React. Optional
- * historical fields remain optional; this does not upgrade old file schemas. */
-export function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
+ * historical fields remain optional; this does not upgrade old file schemas.
+ * `isRecord` lives in `recordGuards.ts`; it stays exported here for existing importers. */
+export { isRecord };
 
 /** Optional additive observations fail to unknown, never make an old bundle unreadable. */
 export function validatedRegionalPopulation(value: unknown, snapshotTurn: number, regionCount: number,
