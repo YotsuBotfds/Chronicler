@@ -5,7 +5,7 @@ import type { Bundle } from "../../types";
 import {
   creedSeries, END_LABELS, leaderLabel, martyrdoms, memberSeries, movementHistory, movementKeys, movementRecord,
   movementRecordAt, movementRecordNote, movementRow,
-  movementStageRows, reformKind, reformName, reformRecord, reformsInForce, STAGE_COLORS,
+  movementStageRows, reformName, reformRecord, reformsInForce, STAGE_COLORS,
 } from "../movements";
 import { presentSystems } from "../systems";
 
@@ -52,8 +52,8 @@ describe("movement helpers", () => {
   });
 
   it("names the lasting reforms as the record does, a faith by its permanent identity", () => {
-    const relief = reforms.find((reform) => reformKind(reform) === "relief")!;
-    expect(reformName(movements, { kind: reformKind(relief) })).toBe("poor relief");
+    expect(reforms.some((reform) => reform.kind === 0)).toBe(true);   // relief, first in REFORM_NAMES order
+    expect(reformName(movements, { kind: "relief" })).toBe("poor relief");
     const regions = movements.world_state.regions;
     expect(reformName(movements, { kind: "home_rule", regions: [0, 1] }))
       .toBe(`home rule of ${regions[0].name}, ${regions[1].name}`);

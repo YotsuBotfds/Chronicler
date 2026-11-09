@@ -5,6 +5,7 @@ import {
 import type { Event } from "../../types";
 import type { SeriesRow, StripRow } from "../../lib/systems";
 import { humanize } from "../../lib/systems";
+import { usePaged } from "./usePaged";
 
 const STRIP_ROW_LIMIT = 24;
 
@@ -182,13 +183,13 @@ export function SystemEventList({
   emptyText: string;
   onSelectEvent: (event: Event) => void;
 }) {
-  const [limit, setLimit] = useState(EVENT_PAGE);
+  const { shown, more, showMore } = usePaged(events, EVENT_PAGE);
   if (events.length === 0) {
     return <div className="phase75-empty-state">{emptyText}</div>;
   }
   return (
     <div className="systems-events" role="list" aria-label={label}>
-      {events.slice(0, limit).map((event, index) => (
+      {shown.map((event, index) => (
         <button
           key={event.event_id ?? `${event.turn}-${event.event_type}-${index}`}
           type="button"
@@ -204,9 +205,9 @@ export function SystemEventList({
           <div className="phase75-event-importance">{event.importance}</div>
         </button>
       ))}
-      {events.length > limit && (
-        <button type="button" className="phase75-ghost-button systems-more" onClick={() => setLimit(limit + EVENT_PAGE)}>
-          Show {Math.min(EVENT_PAGE, events.length - limit)} more of {events.length - limit}
+      {more > 0 && (
+        <button type="button" className="phase75-ghost-button systems-more" onClick={showMore}>
+          Show {Math.min(EVENT_PAGE, more)} more of {more}
         </button>
       )}
     </div>

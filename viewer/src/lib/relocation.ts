@@ -1,3 +1,5 @@
+import { readLivelihoodRecord } from "./livelihoodRecord";
+import { isRecord as object, finite, amount, count } from "./recordGuards";
 import type { TurnSnapshot } from "../types";
 
 /** One household at the fare gate (``snapshot.livelihoods.relocation_costs.households``). Money in milli-units. */
@@ -43,13 +45,9 @@ export interface RelocationRecord {
   parameters: Record<string, number>;
 }
 
-export const GATE_REASONS = ["passed", "short", "no_local_distress", "route", "trip", "assisted"] as const;
+const GATE_REASONS = ["passed", "short", "no_local_distress", "route", "trip", "assisted"] as const;
 
-const object = (x: unknown): x is Record<string, unknown> => x !== null && typeof x === "object" && !Array.isArray(x);
-const finite = (x: unknown): x is number => typeof x === "number" && Number.isFinite(x);
-const count = (x: unknown): x is number => finite(x) && Number.isInteger(x) && x >= 0;
 const integer = (x: unknown): x is number => finite(x) && Number.isInteger(x);
-const amount = (x: unknown): x is number => finite(x) && x >= 0;
 const maybe = <T,>(check: (v: unknown) => v is T) => (x: unknown) => x === null || check(x);
 const MODES = ["paid", "assisted", "liquidity_only"];
 const ASSIST = ["charged", "controller_changed", "treasury_short"];
@@ -89,11 +87,8 @@ function validAssistance(x: unknown): boolean {
 
 /** Strict reader; null when absent, from another schema, misdated or malformed. */
 export function relocationAt(snapshot: TurnSnapshot | null, regionCount: number): RelocationRecord | null {
-  const row = snapshot as unknown as Record<string, unknown> | null;
-  const livelihoods = row?.livelihoods;
-  if (!object(livelihoods) || livelihoods.schema_version !== 1) return null;
-  const x = livelihoods.relocation_costs;
-  if (!object(x) || x.schema_version !== 1 || x.stage !== "L7" || !MODES.includes(x.mode as string)
+  const x = readLivelihoodRecord(snapshot, "relocation_costs");
+  if (!x || x.stage !== "L7" || !MODES.includes(x.mode as string)
     || !count(x.source_turn) || x.source_turn + 1 !== snapshot?.turn || !object(x.counters)
     || !Object.values(x.counters).every(amount) || !object(x.parameters)) return null;
   const mode = x.mode as string;

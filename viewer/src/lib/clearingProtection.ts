@@ -1,3 +1,5 @@
+import { readLivelihoodRecord } from "./livelihoodRecord";
+import { isRecord as object, finite, amount, count as integer } from "./recordGuards";
 import type { TurnSnapshot } from "../types";
 
 /** One protected region-turn's account (``snapshot.livelihoods.clearing_protection.receipts``). */
@@ -55,10 +57,6 @@ export interface ClearingProtectionRecord {
   counters: Record<string, number>;
 }
 
-const object = (x: unknown): x is Record<string, unknown> => x !== null && typeof x === "object" && !Array.isArray(x);
-const finite = (x: unknown): x is number => typeof x === "number" && Number.isFinite(x);
-const amount = (x: unknown): x is number => finite(x) && x >= 0;
-const integer = (x: unknown): x is number => finite(x) && Number.isInteger(x) && x >= 0;
 const share = (x: unknown): x is number => finite(x) && x >= 0 && x <= 1;
 const bool = (x: unknown): x is boolean => typeof x === "boolean";
 const PARAMETERS = ["max_regions", "warden_cost", "protection", "min_cover", "idle_limit", "unfunded_limit"] as const;
@@ -116,11 +114,8 @@ const unique = (rows: Array<{ region_id: number }>) => new Set(rows.map((r) => r
  * to another snapshot or malformed. Never borrows values from other snapshots.
  */
 export function clearingProtectionAt(snapshot: TurnSnapshot | null, regionCount: number): ClearingProtectionRecord | null {
-  const row = snapshot as unknown as Record<string, unknown> | null;
-  const livelihoods = row?.livelihoods;
-  if (!object(livelihoods) || livelihoods.schema_version !== 1) return null;
-  const x = livelihoods.clearing_protection;
-  if (!object(x) || x.schema_version !== 1 || !object(x.units) || x.units.cover !== "forest_cover" || x.units.money !== "treasury"
+  const x = readLivelihoodRecord(snapshot, "clearing_protection");
+  if (!x || !object(x.units) || x.units.cover !== "forest_cover" || x.units.money !== "treasury"
     || (x.mode !== "enforced" && x.mode !== "cost_only") || !integer(x.source_turn) || !integer(x.completed_turn)
     || x.completed_turn !== x.source_turn + 1 || x.completed_turn !== snapshot?.turn || !bool(x.observed)
     || !object(x.parameters) || !Object.values(x.parameters).every(amount)

@@ -1,10 +1,8 @@
 import type { Bundle, TurnSnapshot } from "../../types";
 import { learningCohortsAt, learningFunnel, OCCUPATIONS } from "../../lib/learningCohorts";
+import { show, words } from "./formatters";
 
-const show = (value: number | null | undefined) =>
-  value === null || value === undefined ? "Unknown" : value.toLocaleString(undefined, { maximumFractionDigits: 3 });
 const trade = (code: number) => OCCUPATIONS[code] ?? `Occupation ${code}`;
-const words = (text: string | null | undefined) => (text ?? "").replace(/_/g, " ");
 const MODE_NOTE: Record<string, string> = {
   learn: "Learn mode: a member who completes the course gains skill in the trade they practised when enrolling; the civ capacity, purpose and promotion rules that already read skill then read it.",
   no_learning: "No-learning control: cohorts attend, give up the same income and occupy the same paid teaching, and completions are recorded, but nobody's skill changes.",

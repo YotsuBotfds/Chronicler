@@ -7,7 +7,7 @@
  * snapshot is not living there.
  */
 import type {
-  AgentMovementsSnapshot, Bundle, Event, MovementRecord, MovementSnapshotRow, ReformRecord,
+  Bundle, Event, MovementRecord, MovementSnapshotRow, ReformRecord,
   ReformSnapshotRow, TurnSnapshot,
 } from "../types";
 import { faithLabel, faithTable, resolveFaith } from "./faiths";
@@ -21,13 +21,12 @@ export const CREED_LABELS = ["commons", "liberty", "sect", "guild"] as const;
 /** `agent_movements_state.END_NAMES` (0 while living). */
 export const END_LABELS = ["", "faded", "won", "seceded", "schism", "crushed", "dissolved"] as const;
 /** `agent_movements_state.REFORM_NAMES`, as the record names them. */
-export const REFORM_LABELS: Record<string, string> = {
+const REFORM_LABELS: Record<string, string> = {
   relief: "poor relief",
   home_rule: "home rule",
   toleration: "toleration",
   guild_charter: "guild charter",
 };
-const REFORM_KINDS = ["relief", "home_rule", "toleration", "guild_charter"] as const;
 /** `agent_movements_state.REPEAL_NAMES` (0 in force). */
 export const REPEAL_LABELS = ["", "neglect", "opposition", "ruler", "fiscal", "inquisition", "lapsed"] as const;
 const INSTITUTION_LABELS: Record<string, string> = {
@@ -64,10 +63,6 @@ export const MOVEMENT_COUNTERS: Array<[string, string]> = [
   ["restored", "Reforms restored"],
   ["leaders", "Leaders raised"],
 ];
-
-export function movementsOf(snapshot: TurnSnapshot | null | undefined): AgentMovementsSnapshot | null {
-  return snapshot?.agent_movements ?? null;
-}
 
 export interface MovementKey {
   id: number;
@@ -318,11 +313,6 @@ export function movementRecordNote(
 /** The reform's final record in `world_state.agent_movements`, if the bundle carries it. */
 export function reformRecord(bundle: Bundle, id: number): ReformRecord | null {
   return bundle.world_state.agent_movements?.reforms?.[id] ?? null;
-}
-
-/** The reform's kind name from its record (`REFORM_NAMES` order). */
-export function reformKind(record: ReformRecord): string {
-  return REFORM_KINDS[record.kind] ?? `reform ${record.kind}`;
 }
 
 function eventIndex(bundle: Bundle): Map<string, Event> {

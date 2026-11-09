@@ -1,3 +1,4 @@
+import { isRecord as object, finite, amount, count } from "./recordGuards";
 import type { TurnSnapshot } from "../types";
 
 export type CrewOrigin = "site_city" | "urban_farmer" | "rural_farmer" | "veteran";
@@ -52,13 +53,9 @@ export type RecoveryCrewsReading =
   | { status: "malformed"; reason: string }
   | { status: "ok"; record: RecoveryCrewsRecord };
 
-const object = (x: unknown): x is Record<string, unknown> => x !== null && typeof x === "object" && !Array.isArray(x);
-const finite = (x: unknown): x is number => typeof x === "number" && Number.isFinite(x);
-const count = (x: unknown): x is number => finite(x) && Number.isInteger(x) && x >= 0;
-const amount = (x: unknown): x is number => finite(x) && x >= 0;
 const unit = (x: unknown): x is number => finite(x) && x >= 0 && x <= 1 + 1e-9;
 const EPS = 1e-6;
-export const ORIGINS: readonly CrewOrigin[] = ["site_city", "urban_farmer", "rural_farmer", "veteran"];
+const ORIGINS: readonly CrewOrigin[] = ["site_city", "urban_farmer", "rural_farmer", "veteran"];
 const MODES = ["paid", "unpaid"];
 const MAX_CREW = 4;
 

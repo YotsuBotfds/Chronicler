@@ -20,4 +20,15 @@ export default defineConfig([
       globals: globals.browser,
     },
   },
+  {
+    // Node scripts. The Playwright QA scripts are out of scope until their
+    // page.evaluate callbacks get browser globals (139 no-undef findings).
+    files: ['scripts/validate-connected-records.mjs', 'scripts/lib/*.mjs'],
+    extends: [js.configs.recommended],
+    languageOptions: {
+      ecmaVersion: 2022,
+      sourceType: 'module',
+      globals: globals.node,
+    },
+  },
 ])

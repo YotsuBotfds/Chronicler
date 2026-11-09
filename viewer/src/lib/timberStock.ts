@@ -1,3 +1,5 @@
+import { readLivelihoodRecord } from "./livelihoodRecord";
+import { isRecord as object, amount, count as integer } from "./recordGuards";
 import type { TurnSnapshot } from "../types";
 
 /** One timber slot's completed-turn account (``snapshot.livelihoods.timber_stock``). */
@@ -21,10 +23,6 @@ export interface TimberStockRecord {
   regions: TimberStockRow[] | null; totals: TimberStockTotals | null;
 }
 
-const object = (x: unknown): x is Record<string, unknown> => x !== null && typeof x === "object" && !Array.isArray(x);
-const finite = (x: unknown): x is number => typeof x === "number" && Number.isFinite(x);
-const amount = (x: unknown): x is number => finite(x) && x >= 0;
-const integer = (x: unknown): x is number => finite(x) && Number.isInteger(x) && x >= 0;
 const FLOWS = ["opening", "cleared", "extraction", "overdraft", "regrowth", "removed", "stock", "capacity"] as const;
 const PARAMETERS = ["regrowth_rate", "seed_fraction", "reference_crews_at_msy"] as const;
 
@@ -53,11 +51,8 @@ function validRow(x: unknown, regionCount: number, enforced: boolean): x is Timb
  * another snapshot or malformed. Never borrows observations from other snapshots.
  */
 export function timberStockAt(snapshot: TurnSnapshot | null, regionCount: number): TimberStockRecord | null {
-  const row = snapshot as unknown as Record<string, unknown> | null;
-  const livelihoods = row?.livelihoods;
-  if (!object(livelihoods) || livelihoods.schema_version !== 1) return null;
-  const x = livelihoods.timber_stock;
-  if (!object(x) || x.schema_version !== 1 || x.units !== "timber_goods" || !integer(x.source_turn)
+  const x = readLivelihoodRecord(snapshot, "timber_stock");
+  if (!x || x.units !== "timber_goods" || !integer(x.source_turn)
     || !integer(x.completed_turn) || x.completed_turn !== x.source_turn + 1 || x.completed_turn !== snapshot?.turn
     || typeof x.enforce_cap !== "boolean" || typeof x.observed !== "boolean"
     || !object(x.parameters) || !PARAMETERS.every((key) => amount((x.parameters as Record<string, unknown>)[key]))) return null;

@@ -1,4 +1,5 @@
 /** A6/D3 strict dated observations. No inferred residence, knowledge or individual share. */
+import { isRecord as object, finite, amount as nonnegative, safeCount as count } from "./recordGuards";
 import type { Bundle, TurnSnapshot } from "../types";
 import { readRecord } from "./recordReading";
 export interface WorkExperience {
@@ -8,7 +9,7 @@ export interface WorkExperience {
 export interface OfferExperience { turn: number; id: number; kind: string; would_decline: boolean; accepted: boolean }
 export interface MoveExperience { turn: number; id: number; kind: "refused" | "left_soon"; region: number; origin?: number; gate?: number }
 export interface TradeExperience { turn: number; id: number; region: number; kind: "shipment"; outcome: string; cause: string | null; shipment: number; package?: "titled_trade" | "timber_orders" }
-export const DECISION_CHANNELS = ["all", "no_migration_experience", "no_information", "no_work", "no_trade"] as const;
+const DECISION_CHANNELS = ["all", "no_migration_experience", "no_information", "no_work", "no_trade"] as const;
 export type DecisionChannels = typeof DECISION_CHANNELS[number];
 export interface AdaptiveRecord {
   schema_version: 1; stage: "A6"; source_turn: number; mode: "adapt" | "record_only" | "shuffled"; rules: "1" | "2" | "3";
@@ -32,11 +33,7 @@ export interface WarConsequencesRecord {
     separation_source: string; injury_authority: "health_care"; wound_share: number; local_threats?: number; return_experiences?: number };
   history: WarExperience[]; history_dropped: number; counters: Record<string,number>;
 }
-const object = (x: unknown): x is Record<string,unknown> => x !== null && typeof x === "object" && !Array.isArray(x);
-const finite = (x: unknown): x is number => typeof x === "number" && Number.isFinite(x);
-const count = (x: unknown): x is number => finite(x) && Number.isSafeInteger(x) && x >= 0;
 const signedInt = (x: unknown): x is number => finite(x) && Number.isSafeInteger(x);
-const nonnegative = (x: unknown): x is number => finite(x) && x >= 0;
 const counters = (x: unknown) => object(x) && Object.values(x).every(nonnegative);
 const carries = (key: string) => (s: TurnSnapshot) => { const l = (s as unknown as Record<string,unknown>).livelihoods; return object(l) && l[key] != null; };
 function packageAt(s: TurnSnapshot, key: string, stage: string): Record<string,unknown> | null {

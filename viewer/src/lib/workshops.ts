@@ -1,3 +1,5 @@
+import { readLivelihoodRecord } from "./livelihoodRecord";
+import { isRecord as object, amount, count } from "./recordGuards";
 import type { TurnSnapshot } from "../types";
 
 /** A selected workshop site (``snapshot.livelihoods.workshops.sites``). */
@@ -30,10 +32,6 @@ export interface WorkshopsRecord {
   counters: Record<string, number>;
 }
 
-const object = (x: unknown): x is Record<string, unknown> => x !== null && typeof x === "object" && !Array.isArray(x);
-const finite = (x: unknown): x is number => typeof x === "number" && Number.isFinite(x);
-const count = (x: unknown): x is number => finite(x) && Number.isInteger(x) && x >= 0;
-const amount = (x: unknown): x is number => finite(x) && x >= 0;
 const MODES = ["operate", "observe", "cost_only"];
 
 function validSite(x: unknown, regions: number): boolean {
@@ -54,11 +52,8 @@ function validReceipt(x: unknown, regions: number, source: number): boolean {
 
 /** Strict reader; null when absent, from another schema, misdated or malformed. */
 export function workshopsAt(snapshot: TurnSnapshot | null, regionCount: number): WorkshopsRecord | null {
-  const row = snapshot as unknown as Record<string, unknown> | null;
-  const livelihoods = row?.livelihoods;
-  if (!object(livelihoods) || livelihoods.schema_version !== 1) return null;
-  const x = livelihoods.workshops;
-  if (!object(x) || x.schema_version !== 1 || !MODES.includes(x.mode as string) || !count(x.source_turn)
+  const x = readLivelihoodRecord(snapshot, "workshops");
+  if (!x || !MODES.includes(x.mode as string) || !count(x.source_turn)
     || x.source_turn + 1 !== snapshot?.turn || !Array.isArray(x.sites) || !Array.isArray(x.closed)
     || x.sites.length > 4 || !x.sites.every((s) => validSite(s, regionCount))
     || !x.closed.every((s) => validSite(s, regionCount)) || !object(x.counters)) return null;

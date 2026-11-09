@@ -3,7 +3,7 @@ import { cleanup, fireEvent, render, screen, within } from "@testing-library/rea
 import systemsFixture from "../../../__fixtures__/systems_bundle.json";
 import sampleFixture from "../../../__fixtures__/sample_bundle.json";
 import type { Bundle } from "../../../types";
-import { crisesAtSnapshot, famineSpans, FAMINE_COLOR } from "../../../lib/food";
+import { crisesAtSnapshot, FAMINE_COLOR, foodCrisisSpans, spansOfKind } from "../../../lib/food";
 import { AppShell, type AppSurface } from "../AppShell";
 import { preloadPanels } from "../lazyPanels";
 import { NO_DATA_OPACITY } from "../../../lib/mapLayers";
@@ -73,7 +73,7 @@ describe("AppShell map layers", () => {
   });
 
   it("recolours regions by famine on the food layer and explains it in a legend", () => {
-    const spans = famineSpans(systems.events_timeline);
+    const spans = spansOfKind(foodCrisisSpans(systems.events_timeline), "famine");
     const snapshot = systems.history.find((entry) => crisesAtSnapshot(spans, entry.turn).length > 0)!;
     const span = crisesAtSnapshot(spans, snapshot.turn)[0];
     renderShell(systems, snapshot.turn);

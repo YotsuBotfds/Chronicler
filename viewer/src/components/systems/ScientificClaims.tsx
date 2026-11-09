@@ -6,9 +6,8 @@ import { eventsOfTypes, type SystemPanelProps } from "../../lib/systems";
 import { CivLineChart, StatTile, SystemEventList } from "./SystemParts";
 import { researchAgendasAt } from "../../lib/researchAgendas";
 import { ResearchAgendas } from "./ResearchAgendas";
+import { percent, show } from "./formatters";
 
-const show = (n: number) => n.toLocaleString(undefined, { maximumFractionDigits: 3 });
-const percent = (n: number) => `${show(100 * n)}%`;
 const HISTORY_LIMIT = 40;
 const SCIENCE_EVENTS = new Set<string>(SCIENTIFIC_EVENT_TYPES);
 

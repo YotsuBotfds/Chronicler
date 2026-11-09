@@ -1,3 +1,4 @@
+import { isRecord as object, finite, amount, count } from "./recordGuards";
 import type { TurnSnapshot } from "../types";
 
 /** A workshop qualification held by one person (``livelihoods.apprenticeship.qualifications``). */
@@ -95,10 +96,6 @@ export type ApprenticeshipReading =
   | { status: "malformed"; reason: string }
   | { status: "ok"; record: ApprenticeshipSnapshotRecord };
 
-const object = (x: unknown): x is Record<string, unknown> => x !== null && typeof x === "object" && !Array.isArray(x);
-const finite = (x: unknown): x is number => typeof x === "number" && Number.isFinite(x);
-const count = (x: unknown): x is number => finite(x) && Number.isInteger(x) && x >= 0;
-const amount = (x: unknown): x is number => finite(x) && x >= 0;
 const unit = (x: unknown): x is number => finite(x) && x >= 0 && x <= 1;
 const ids = (x: unknown, max: number): x is number[] => Array.isArray(x) && x.length <= max && x.every(count)
   && new Set(x).size === x.length;
@@ -329,12 +326,6 @@ export function readApprenticeship(snapshot: TurnSnapshot | null, regionCount: n
       || c.qualified_in_site_regions + c.qualified_elsewhere !== c.qualified_alive) return bad("continuity does not close");
   }
   return { status: "ok", record: x as unknown as ApprenticeshipSnapshotRecord };
-}
-
-/** The record, or null when absent or malformed. */
-export function apprenticeshipAt(snapshot: TurnSnapshot | null, regionCount: number): ApprenticeshipSnapshotRecord | null {
-  const reading = readApprenticeship(snapshot, regionCount);
-  return reading.status === "ok" ? reading.record : null;
 }
 
 /** Lifetime activation funnel from the scalar counters (zero only once the record exists). */

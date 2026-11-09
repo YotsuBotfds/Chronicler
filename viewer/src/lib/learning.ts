@@ -15,7 +15,7 @@ export const LEVEL_LABELS = ["fallen", "modest", "renowned", "great"] as const;
 /** `scholarship_state.KIND_NAMES`. */
 export const KIND_LABELS = ["academy", "temple school", "library"] as const;
 /** `scholarship_state.FALL_CAUSES`. */
-export const FALL_LABELS = ["sacked", "famine", "persecution", "loss of patronage"] as const;
+const FALL_LABELS = ["sacked", "famine", "persecution", "loss of patronage"] as const;
 /** Who keeps a seat, by kind. */
 export const PATRON_LABELS: Record<string, string> = {
   academy: "its ruler",

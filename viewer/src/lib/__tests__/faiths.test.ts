@@ -6,7 +6,7 @@ import sampleFixture from "../../__fixtures__/sample_bundle.json";
 import type { Bundle } from "../../types";
 import {
   faithAt, faithEvents, faithLabel, faithsKnownAt, faithTable, hasFaithRecord, parseSchism, reconstructFaiths,
-  resolveFaith, slotSharers, successorInSlot, templeEventText,
+  resolveFaith, slotSharers, successorInSlot,
 } from "../faiths";
 import { faithName, movementRecordAt, reformName } from "../movements";
 import { presentSystems } from "../systems";
@@ -116,17 +116,10 @@ describe("faith table", () => {
     expect(rows[0].legacy).toBe("unresolved");
   });
 
-  it("finds a faith's own events and tells its temples by name", () => {
+  it("finds a faith's own events", () => {
     const table = faithTable(faiths);
     const founding = faithEvents(faiths, table, 16, LAST);
     expect(founding.map((event) => [event.turn, event.event_type])).toContainEqual([37, "Schism"]);
-    const temples = faiths.events_timeline.filter((event) => event.event_type === "temple_destroyed");
-    expect(temples.length).toBeGreaterThan(0);
-    const text = templeEventText(table, temples[0])!;
-    expect(text).toMatch(/^The temple of the .+ \(founded turn \d+\) is (destroyed|replaced) in /);
-    // The older bundle's slot is resolved at the event's turn: the same faith.
-    expect(templeEventText(faithTable(legacy), legacy.events_timeline.find(
-      (event) => event.event_type === "temple_destroyed")!)).toBe(text);
   });
 
   it("is a systems tab for a recorded table or an older run with a schism, not for older founding faiths only", () => {

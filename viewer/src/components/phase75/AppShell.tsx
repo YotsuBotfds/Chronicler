@@ -7,22 +7,25 @@ import type {
   Command,
   Event,
   LobbyInit,
-  NewChronicleEntry,
   PauseContext,
   StartCommand,
-  TurnSnapshot,
   WorldState,
 } from "../../types";
-import { isLegacyBundle } from "../../types";
 import { isObservationEventType, observationEventKnown } from "../../lib/observedSystems";
 import type { BatchConfig, FeatureSelection } from "../../types";
 import { liveStartFeatures } from "../../lib/featureWorld";
 import type { BatchState } from "../../hooks/useBatchConnection";
-import { ERA_LABELS } from "../../lib/format";
 import {
   buildCivilizationViews, isFounded, type CivilizationEntry, type CivilizationView,
 } from "../../lib/civilizationViews";
-import { snapshotPositionAt } from "../../lib/civRows";
+import {
+  buildChronicleFeed, buildEraBands, buildNarratedSpans, findCurrentSnapshot, selectionDescription, totalTurnsFor,
+  type ChronicleFeedItem,
+} from "../../lib/shellFeed";
+import {
+  buildCampaignLinks, buildRegionConnections, computeAtlasLayout, computeControllerCentroids, dominantCivilization,
+  sortCivilizations,
+} from "../../lib/atlasLayout";
 import type { ArtifactIdentity } from "../../lib/artifactIdentity";
 import { SavedWorldDetails } from "./SavedWorldDetails";
 import { accountsForEvent, decodeAccounts } from "../../lib/historiography";
@@ -36,7 +39,7 @@ import { foodCrisisSpans } from "../../lib/food";
 import {
   availableMapLayers, buildMapLayer, defaultTechnique, practisedTechniquesBy, type MapLayerKey,
 } from "../../lib/mapLayers";
-import { eventByKey } from "../../lib/bundleIndex";
+import { eventByKey, snapshotAtTurn } from "../../lib/bundleIndex";
 import {
   atlasPoint,
   buildEventFeed,
@@ -48,9 +51,8 @@ import {
   pinFrame,
   terrainAt,
   UNAVAILABLE,
-  type PinFrame,
 } from "./appShellHelpers";
-import type { AppSurface, LiveTimelineControls, MapNode, OverlayKey, RegionLike, SelectedEntity } from "./appShellTypes";
+import type { AppSurface, LiveTimelineControls, OverlayKey, RegionLike, SelectedEntity } from "./appShellTypes";
 import { MapViewport } from "./MapViewport";
 // The lazy panels' styles stay in the entry stylesheet, in the cascade order
 // they had when the panels were static imports (before the shell's own).
@@ -66,7 +68,7 @@ import { InterestingPeriods } from "../InterestingPeriods";
 import { TerritoryChanges } from "../TerritoryChanges";
 import { HistoricalSearch } from "../HistoricalSearch";
 import type { HistoricalSearchResult } from "../../lib/historicalSearch";
-import { exactSnapshot, type HistoryEntity } from "../../lib/historyComparison";
+import type { HistoryEntity } from "../../lib/historyComparison";
 // The inspector's civilization history styles keep their place in the entry
 // stylesheet (before InstitutionHistory's), as when this file imported it.
 import "../civilization-history.css";
@@ -124,17 +126,6 @@ interface AppShellProps {
   liveReconnecting?: boolean;
 }
 
-interface ChronicleFeedItem {
-  id: string;
-  turn: number;
-  title: string;
-  body: string;
-  eyebrow: string;
-  accent: "gold" | "cyan" | "ember" | "stone";
-  /** A narrated entry (its provenance lists the passage's sources). */
-  entry?: NewChronicleEntry;
-}
-
 const FLOW_STEPS: { surface: AppSurface; label: string; index: string }[] = [
   { surface: "setup", label: "Setup", index: "01" },
   { surface: "progress", label: "Progress", index: "02" },
@@ -147,349 +138,6 @@ const FLOW_STEPS: { surface: AppSurface; label: string; index: string }[] = [
 
 /** The timeline of a shell without a bundle (one array, so its index is built once). */
 const NO_EVENTS: Event[] = [];
-
-/**
- * The snapshot shown at `currentTurn`: the latest at or before it. Null
- * without history and before the first snapshot (a resumed run's history
- * starts late): a later snapshot never stands in, and the shell shows no
- * per-turn values there.
- */
-function findCurrentSnapshot(bundle: Bundle | null, currentTurn: number): TurnSnapshot | null {
-  if (!bundle) {
-    return null;
-  }
-  const position = snapshotPositionAt(bundle.history, currentTurn);
-  return position >= 0 ? bundle.history[position] : null;
-}
-
-function dominantCivilization(civilizations: CivilizationView[]): CivilizationView | null {
-  if (civilizations.length === 0) {
-    return null;
-  }
-
-  return [...civilizations].sort((left, right) => {
-    const leftTotal = left.population + left.military + left.economy + left.culture + left.stability;
-    const rightTotal = right.population + right.military + right.economy + right.culture + right.stability;
-    return rightTotal - leftTotal;
-  })[0];
-}
-
-function buildEraBands(history: TurnSnapshot[], maxTurn: number): { label: string; start: number; end: number }[] {
-  if (history.length === 0) {
-    const fallbackLabels = ["Founding", "Expansion", "Maturity", "Fracture", "Late Age"];
-    const step = Math.max(1, Math.floor(maxTurn / fallbackLabels.length));
-    return fallbackLabels.map((label, index) => ({
-      label,
-      start: Math.max(1, index * step + 1),
-      end: index === fallbackLabels.length - 1 ? maxTurn : Math.min(maxTurn, (index + 1) * step),
-    }));
-  }
-
-  const boundaries: { turn: number; label: string }[] = [];
-  const seen = new Set<string>();
-  for (const snapshot of history) {
-    for (const civ of Object.values(snapshot.civ_stats)) {
-      if (!seen.has(civ.tech_era)) {
-        seen.add(civ.tech_era);
-        boundaries.push({
-          turn: snapshot.turn,
-          label: ERA_LABELS[civ.tech_era as keyof typeof ERA_LABELS] ?? civ.tech_era,
-        });
-      }
-    }
-  }
-
-  const ordered = boundaries.sort((left, right) => left.turn - right.turn);
-  if (ordered.length === 0) {
-    return [{ label: "Recorded Era", start: 1, end: maxTurn }];
-  }
-
-  return ordered.map((boundary, index) => ({
-    label: boundary.label,
-    start: boundary.turn,
-    end: ordered[index + 1] ? ordered[index + 1].turn - 1 : maxTurn,
-  }));
-}
-
-function buildNarratedSpans(chronicleEntries: Bundle["chronicle_entries"] | undefined): { start: number; end: number }[] {
-  if (!chronicleEntries) {
-    return [];
-  }
-
-  if (isLegacyBundle(chronicleEntries)) {
-    return Object.keys(chronicleEntries)
-      .map((turnString) => Number(turnString))
-      .filter((turn) => !Number.isNaN(turn))
-      .map((turn) => ({ start: turn, end: turn }))
-      .sort((left, right) => left.start - right.start);
-  }
-
-  return chronicleEntries
-    .map((entry) => ({
-      start: entry.covers_turns[0],
-      end: entry.covers_turns[1],
-    }))
-    .sort((left, right) => left.start - right.start);
-}
-
-function buildChronicleFeed(bundle: Bundle | null, currentTurn: number): ChronicleFeedItem[] {
-  if (!bundle) {
-    return [];
-  }
-
-  if (isLegacyBundle(bundle.chronicle_entries)) {
-    const items: ChronicleFeedItem[] = [];
-    for (const [turnString, reflection] of Object.entries(bundle.era_reflections)) {
-      const turn = Number(turnString);
-      if (!Number.isNaN(turn) && turn <= currentTurn) {
-        items.push({
-          id: `reflection-${turn}`,
-          turn,
-          title: `Reflection at Turn ${turn}`,
-          body: reflection,
-          eyebrow: "Era Reflection",
-          accent: "gold",
-        });
-      }
-    }
-
-    for (const [turnString, narrative] of Object.entries(bundle.chronicle_entries)) {
-      const turn = Number(turnString);
-      if (!Number.isNaN(turn) && turn <= currentTurn) {
-        items.push({
-          id: `chronicle-${turn}`,
-          turn,
-          title: `Turn ${turn}`,
-          body: narrative,
-          eyebrow: "Chronicle",
-          accent: "cyan",
-        });
-      }
-    }
-
-    return items.sort((left, right) => left.turn - right.turn).slice(-14);
-  }
-
-  // A curated entry narrates its moment through its last turn (the narrator
-  // reads the record after it), so it appears once that turn has passed.
-  const items = bundle.chronicle_entries
-    .filter((entry) => entry.covers_turns[1] <= currentTurn)
-    .map<ChronicleFeedItem>((entry, index) => ({
-      id: `segment-${index}`,
-      turn: entry.covers_turns[0],
-      title: `Turns ${entry.covers_turns[0]}-${entry.covers_turns[1]}`,
-      body: entry.narrative,
-      eyebrow: entry.narrative_role,
-      accent:
-        entry.narrative_role === "climax"
-          ? "ember"
-          : entry.narrative_role === "resolution"
-            ? "gold"
-            : "cyan",
-      entry,
-    }));
-
-  const reflections = Object.entries(bundle.era_reflections)
-    .map(([turnString, text]) => ({
-      id: `reflection-${turnString}`,
-      turn: Number(turnString),
-      title: `Reflection at Turn ${turnString}`,
-      body: text,
-      eyebrow: "Era Reflection",
-      accent: "gold" as const,
-    }))
-    .filter((item) => !Number.isNaN(item.turn) && item.turn <= currentTurn);
-
-  // A gap's summary counts every turn of the gap: shown once the gap has passed.
-  const gaps = (bundle.gap_summaries ?? [])
-    .filter((gap) => gap.turn_range[1] <= currentTurn)
-    .map<ChronicleFeedItem>((gap, index) => ({
-      id: `gap-${index}`,
-      turn: gap.turn_range[0],
-      title: `Mechanical window ${gap.turn_range[0]}-${gap.turn_range[1]}`,
-      body: `${gap.event_count} events, ${gap.territory_changes} territorial shifts, dominant type ${gap.top_event_type}.`,
-      eyebrow: "Mechanical Gap",
-      accent: "stone",
-    }));
-
-  return [...items, ...reflections, ...gaps]
-    .sort((left, right) => left.turn - right.turn)
-    .slice(-14);
-}
-
-function buildRunSignalSummary(summary: BatchRunSummary | null): string {
-  if (!summary) {
-    return "Ranked run summaries appear here after a batch completes.";
-  }
-  if (summary.signal_flags.length === 0) {
-    return "Balanced run with no standout anomaly signals.";
-  }
-  return summary.signal_flags.join(" · ");
-}
-
-function computeAtlasLayout(
-  regions: RegionLike[],
-  controllers: Record<string, string | null>,
-  frame: PinFrame,
-): MapNode[] {
-  if (regions.length === 0) {
-    return [];
-  }
-
-  const hasPins = regions.some((region) => region.x !== null && region.y !== null);
-  if (hasPins) {
-    return regions.map((region) => ({
-      region,
-      controller: controllers[region.name],
-      ...atlasPoint(region.x ?? frame.x0 + frame.sx / 2, region.y ?? frame.y0 + frame.sy / 2, frame),
-    }));
-  }
-
-  const grouped = new Map<string, RegionLike[]>();
-  for (const region of regions) {
-    const key = controllers[region.name] ?? "__uncontrolled__";
-    if (!grouped.has(key)) {
-      grouped.set(key, []);
-    }
-    grouped.get(key)?.push(region);
-  }
-
-  const groupKeys = [...grouped.keys()];
-  const centerX = 500;
-  const centerY = 310;
-  const radiusX = 280;
-  const radiusY = 180;
-  const nodes: MapNode[] = [];
-
-  groupKeys.forEach((groupKey, groupIndex) => {
-    const groupRegions = grouped.get(groupKey) ?? [];
-    const angle = (Math.PI * 2 * groupIndex) / Math.max(groupKeys.length, 1) - Math.PI / 2;
-    const groupCenterX = centerX + Math.cos(angle) * radiusX;
-    const groupCenterY = centerY + Math.sin(angle) * radiusY;
-    const localRadius = Math.max(32, 26 + groupRegions.length * 6);
-
-    groupRegions.forEach((region, regionIndex) => {
-      const localAngle = (Math.PI * 2 * regionIndex) / Math.max(groupRegions.length, 1) - Math.PI / 2;
-      nodes.push({
-        region,
-        controller: controllers[region.name],
-        x: groupCenterX + Math.cos(localAngle) * localRadius,
-        y: groupCenterY + Math.sin(localAngle) * localRadius,
-      });
-    });
-  });
-
-  return nodes;
-}
-
-function buildRegionConnections(nodes: MapNode[]): Array<{ source: MapNode; target: MapNode }> {
-  const grouped = new Map<string, MapNode[]>();
-  for (const node of nodes) {
-    const key = node.controller ?? "__uncontrolled__";
-    if (!grouped.has(key)) {
-      grouped.set(key, []);
-    }
-    grouped.get(key)?.push(node);
-  }
-
-  const connections: Array<{ source: MapNode; target: MapNode }> = [];
-  for (const group of grouped.values()) {
-    for (let index = 1; index < group.length; index += 1) {
-      connections.push({ source: group[index - 1], target: group[index] });
-    }
-  }
-  return connections;
-}
-
-function computeControllerCentroids(nodes: MapNode[]): Record<string, { x: number; y: number }> {
-  const grouped = new Map<string, MapNode[]>();
-  for (const node of nodes) {
-    if (!node.controller) {
-      continue;
-    }
-    if (!grouped.has(node.controller)) {
-      grouped.set(node.controller, []);
-    }
-    grouped.get(node.controller)?.push(node);
-  }
-
-  const centroids: Record<string, { x: number; y: number }> = {};
-  for (const [controller, group] of grouped.entries()) {
-    const totalX = group.reduce((sum, node) => sum + node.x, 0);
-    const totalY = group.reduce((sum, node) => sum + node.y, 0);
-    centroids[controller] = {
-      x: totalX / group.length,
-      y: totalY / group.length,
-    };
-  }
-  return centroids;
-}
-
-function buildCampaignLinks(
-  centroids: Record<string, { x: number; y: number }>,
-  relationships: Record<string, Record<string, { disposition: string }>> | null,
-  civNames: string[],
-): Array<{ key: string; source: { x: number; y: number }; target: { x: number; y: number }; disposition: string }> {
-  const links: Array<{ key: string; source: { x: number; y: number }; target: { x: number; y: number }; disposition: string }> = [];
-  const seen = new Set<string>();
-
-  for (const civName of civNames) {
-    const relationMap = relationships?.[civName] ?? {};
-    for (const [other, relation] of Object.entries(relationMap)) {
-      const key = [civName, other].sort().join("--");
-      if (seen.has(key) || !centroids[civName] || !centroids[other]) {
-        continue;
-      }
-      if (relation.disposition !== "hostile" && relation.disposition !== "suspicious") {
-        continue;
-      }
-      seen.add(key);
-      links.push({
-        key,
-        source: centroids[civName],
-        target: centroids[other],
-        disposition: relation.disposition,
-      });
-    }
-  }
-
-  return links;
-}
-
-function selectionDescription(
-  surface: AppSurface,
-  selection: SelectedEntity | null,
-  summary: BatchRunSummary | null,
-  currentTurn: number,
-  eventRecorded = true,
-): string {
-  if (surface === "batch") {
-    return buildRunSignalSummary(summary);
-  }
-  if (!selection) {
-    return "Choose a region, civilization, or event to view its recorded details.";
-  }
-  if (selection.kind === "event") {
-    // An event pinned at a later turn is not described before it happens.
-    if (!eventRecorded || (selection.turn !== undefined && selection.turn > currentTurn)) {
-      return `Pinned event not yet recorded at turn ${currentTurn}.`;
-    }
-    return `Pinned to ${selection.label} at turn ${selection.turn ?? "?"}.`;
-  }
-  return `${selection.kind === "region" ? "Region" : "Focus"} selected: ${selection.label}.`;
-}
-
-function totalTurnsFor(bundle: Bundle | null): number {
-  return bundle?.metadata.total_turns ?? bundle?.history.length ?? 1;
-}
-
-function sortCivilizations(civilizations: CivilizationView[]): CivilizationView[] {
-  return [...civilizations].sort((left, right) => {
-    const leftScore = left.economy + left.culture + left.military + left.population + left.stability;
-    const rightScore = right.economy + right.culture + right.military + right.population + right.stability;
-    return rightScore - leftScore;
-  });
-}
 
 type LeftRailProps = {
   surface: AppSurface;
@@ -653,7 +301,10 @@ export function AppShell({
   const currentSnapshot = findCurrentSnapshot(bundle, currentTurn);
   // Every world civ at the snapshot; only those founded by then rank, show
   // chips and summaries and can be the default focus.
-  const civilizationEntries = buildCivilizationViews(bundle, currentSnapshot);
+  // Per-render work is memoised on its real inputs: a live turn publishes a new
+  // bundle object with new history and timeline arrays (it never mutates them
+  // in place), so the bundle's identity changes with every recorded turn.
+  const civilizationEntries = useMemo(() => buildCivilizationViews(bundle, currentSnapshot), [bundle, currentSnapshot]);
   const civilizations = sortCivilizations(civilizationEntries.filter(isFounded));
   const leadCivilization = dominantCivilization(civilizations);
   const totalTurns = totalTurnsFor(bundle);
@@ -662,7 +313,7 @@ export function AppShell({
   const eraBands = useMemo(() => buildEraBands(bundleHistory ?? [], totalTurns), [bundleHistory, totalTurns]);
   const chronicleEntries = bundle?.chronicle_entries;
   const narratedSpans = useMemo(() => buildNarratedSpans(chronicleEntries), [chronicleEntries]);
-  const chronicleFeed = buildChronicleFeed(bundle, currentTurn);
+  const chronicleFeed = useMemo(() => buildChronicleFeed(bundle, currentTurn), [bundle, currentTurn]);
   const selectedScenario = scenarios.find((entry) => entry.file === scenario) ?? null;
   const civsDisabled = resumeState !== null || (selectedScenario?.civs?.length ?? 0) > 0;
   const regionsDisabled = resumeState !== null || (selectedScenario?.regions?.length ?? 0) > 0;
@@ -680,9 +331,6 @@ export function AppShell({
       resources: undefined,
       carrying_capacity: undefined,
     })) ?? [];
-  const previewControllers = resumeState
-    ? Object.fromEntries(resumeState.regions.map((region) => [region.name, region.controller]))
-    : {};
   const previewCivilizations = resumeState
     ? resumeState.civilizations.map((civilization) => ({
       name: civilization.name,
@@ -693,13 +341,16 @@ export function AppShell({
   // live session before its first turn); before the first snapshot of a
   // recorded history no controller is known.
   const worldIsPresent = !!bundle && bundle.history.length === 0;
-  const mapSnapshot = bundle ? exactSnapshot(bundle, currentTurn) : null;
-  const regionControllers = mapSnapshot?.region_control
+  const mapSnapshot = bundle ? snapshotAtTurn(bundle.history, currentTurn) : null;
+  // Stable between renders (the atlas layout below is memoised on it).
+  const regionControllers = useMemo<Record<string, string | null>>(() => mapSnapshot?.region_control
     ?? (bundle
       ? (worldIsPresent
         ? Object.fromEntries(bundle.world_state.regions.map((region) => [region.name, region.controller]))
         : {})
-      : previewControllers);
+      : (resumeState
+        ? Object.fromEntries(resumeState.regions.map((region) => [region.name, region.controller]))
+        : {})), [mapSnapshot, bundle, worldIsPresent, resumeState]);
   const atlasRegions: RegionLike[] = bundle
     ? bundle.world_state.regions
     : previewRegions;
@@ -709,7 +360,10 @@ export function AppShell({
     ...atlasRegions.filter((region) => region.x !== null && region.y !== null),
     ...(seaZones ?? []),
   ]), [atlasRegions, seaZones]);
-  const atlasNodes = computeAtlasLayout(atlasRegions, regionControllers, atlasFrame);
+  const atlasNodes = useMemo(
+    () => computeAtlasLayout(atlasRegions, regionControllers, atlasFrame),
+    [atlasRegions, regionControllers, atlasFrame],
+  );
   const mapLayers = useMemo(() => availableMapLayers(bundle), [bundle]);
   const mapLayer: MapLayerKey = bundle && mapLayers.includes(mapLayerSelection) ? mapLayerSelection : "control";
   const famine = useMemo(() => (bundle ? foodCrisisSpans(bundle.events_timeline) : []), [bundle]);
@@ -723,7 +377,7 @@ export function AppShell({
     ? techniqueSelection
     : (mapLayer === "techniques" ? defaultTechnique(currentSnapshot, techniqueOptions) : null);
   const mapLayerView = bundle
-    ? buildMapLayer(mapLayer, { bundle, snapshot: exactSnapshot(bundle, currentTurn), famine, technique,
+    ? buildMapLayer(mapLayer, { bundle, snapshot: mapSnapshot, famine, technique,
       territoryFromTurn: territoryChoice?.world === worldKey && territoryChoice.turn === currentTurn ? territoryChoice.from ?? undefined : undefined,
       territoryCivilizationIndex: territoryChoice?.world === worldKey && territoryChoice.turn === currentTurn ? territoryChoice.civ
         : selectedEntity?.kind === "civilization" ? bundle.world_state.civilizations.findIndex((row) => row.name === selectedEntity.id) : null,
@@ -746,11 +400,11 @@ export function AppShell({
     civilizations.map((civilization) => civilization.name),
   );
   const observationSourceTurn = (currentSnapshot?.turn ?? currentTurn) - 1;
-  const eventFeed = buildEventFeed(
-    bundle?.events_timeline ?? NO_EVENTS,
-    currentTurn,
-    selectedEntity?.kind === "civilization" ? selectedEntity.id : null,
-    observationSourceTurn,
+  const eventsTimeline = bundle?.events_timeline ?? NO_EVENTS;
+  const feedCivilization = selectedEntity?.kind === "civilization" ? selectedEntity.id : null;
+  const eventFeed = useMemo(
+    () => buildEventFeed(eventsTimeline, currentTurn, feedCivilization, observationSourceTurn),
+    [eventsTimeline, currentTurn, feedCivilization, observationSourceTurn],
   );
   const batchSummaries = batchReport?.run_summaries ?? [];
   const leftRailTab = surface === "setup"

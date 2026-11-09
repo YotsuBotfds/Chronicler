@@ -1,3 +1,4 @@
+import { isRecord as object, finite, count } from "./recordGuards";
 import type { TurnSnapshot } from "../types";
 
 /**
@@ -70,9 +71,6 @@ export interface WorkshopEconomicsRecord {
   parameters: Record<string, number>;
 }
 
-const object = (x: unknown): x is Record<string, unknown> => x !== null && typeof x === "object" && !Array.isArray(x);
-const finite = (x: unknown): x is number => typeof x === "number" && Number.isFinite(x);
-const count = (x: unknown): x is number => finite(x) && Number.isInteger(x) && x >= 0;
 const MODES = ["market", "free_inputs", "academy_only"];
 const ABSENCE = ["no_inventory", "no_controller", "no_academy", "academy_full", "commons_covers",
   "households_cannot_pay", "depopulated", "price_unknown", "academy_only_mode", "no_customer_mode"];

@@ -1,3 +1,5 @@
+import { readLivelihoodRecord } from "./livelihoodRecord";
+import { isRecord as object, finite, amount, count } from "./recordGuards";
 import type { TurnSnapshot } from "../types";
 
 /** One candidate expenditure of a civ-turn (``decisions[].proposals``). */
@@ -48,10 +50,6 @@ export interface LocalBudgetsRecord {
   parameters: Record<string, unknown>;
 }
 
-const object = (x: unknown): x is Record<string, unknown> => x !== null && typeof x === "object" && !Array.isArray(x);
-const finite = (x: unknown): x is number => typeof x === "number" && Number.isFinite(x);
-const count = (x: unknown): x is number => finite(x) && Number.isInteger(x) && x >= 0;
-const amount = (x: unknown): x is number => finite(x) && x >= 0;
 const nullable = <T>(x: unknown, check: (v: unknown) => v is T) => x === null || check(x);
 const numbers = (x: unknown, check: (v: unknown) => boolean) => object(x) && Object.values(x).every(check);
 const MODES = ["bargained", "fixed_shares"];
@@ -110,11 +108,8 @@ function validResponse(x: unknown, source: number, civs: number): x is BudgetRes
 /** Strict reader of ``snapshot.livelihoods.local_budgets``; null when absent,
  * from another schema, misdated or malformed. Unknown values stay null. */
 export function localBudgetsAt(snapshot: TurnSnapshot | null, civCount: number): LocalBudgetsRecord | null {
-  const row = snapshot as unknown as Record<string, unknown> | null;
-  const livelihoods = row?.livelihoods;
-  if (!object(livelihoods) || livelihoods.schema_version !== 1) return null;
-  const x = livelihoods.local_budgets;
-  if (!object(x) || x.schema_version !== 1 || x.stage !== "L9" || !MODES.includes(x.mode as string)
+  const x = readLivelihoodRecord(snapshot, "local_budgets");
+  if (!x || x.stage !== "L9" || !MODES.includes(x.mode as string)
     || !count(x.source_turn) || x.source_turn + 1 !== snapshot?.turn || !object(x.counters)
     || !numbers(x.counters, finite) || !object(x.parameters) || !Array.isArray(x.open)) return null;
   const source = x.source_turn;

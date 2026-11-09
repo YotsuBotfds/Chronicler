@@ -2,11 +2,10 @@ import { useMemo } from "react";
 import type { Bundle, TurnSnapshot } from "../../types";
 import { conditionSeries, infrastructureOn, readInfrastructure, worksStory } from "../../lib/infrastructureCondition";
 import type { InfraAsset, InfraConditionPoint, InfraReceipt, InfraWork } from "../../infrastructureConditionTypes";
+import { show, words } from "./formatters";
+import { SystemTable } from "./SystemTable";
 
-const show = (value: number | null | undefined, digits = 3) =>
-  value === null || value === undefined ? "Unknown" : value.toLocaleString(undefined, { maximumFractionDigits: digits });
 const coins = (milli: number) => (milli / 1000).toLocaleString(undefined, { maximumFractionDigits: 3 });
-const words = (text: string | null | undefined) => (text ?? "").replace(/_/g, " ");
 const KIND: Record<string, string> = { irrigation: "Irrigation works", roads: "Road" };
 const REASON: Record<string, string> = {
   no_timber: "no free timber", no_coins: "treasury short", no_labor: "not enough farm labour",
@@ -91,15 +90,15 @@ export function InfrastructureCondition({ bundle, snapshot, currentTurn, onSelec
   return <section className="systems-section" aria-label="Infrastructure condition">
     {header}
     <p className="systems-note">{named ? `Named farm crews (${record.receipts?.find(r => r.crew_mode)?.crew_mode}): reserved adult farmers give only their available farm time; ordinary income for that work is withheld. Accepted wages go to the named workers and ceiling refusals return to the payer. Materials remain a public-works sink. Paid bills reserve one extra coin for separate rounding; cost-only keeps the same work and spending.` : MODE_NOTE[record.mode]} Serving works wear each turn (irrigation {show(0.01)}, roads {show(0.005)}); service is min(1, condition ÷ 0.5); {named ? "materials leave the economy through the public-works sink" : "the works' coins go to a public-works sink that pays no one and the farmers are unpaid"}; food at risk is the food an irrigation work's region would lose over the budget horizon without repair (the arable ceiling lost × observed production ÷ arable capacity); irrigation's arable bonus scales with service, and irrigation's water effect and a road's two-hop trade range need service of at least 0.5. Constants are declared, not calibrated.</p>
-    <div className="systems-table-wrap"><table className="systems-table" aria-label={`Infrastructure assets at snapshot ${at}`}>
+    <SystemTable label={`Infrastructure assets at snapshot ${at}`}>
       <thead><tr><th>Id</th><th>Kind</th><th>Region</th><th>Responsible</th><th>Condition</th><th>Service</th><th>Status</th><th>Food at risk</th><th>History</th></tr></thead>
       <tbody>{record.assets.length === 0 && record.terminal.length === 0
         ? <tr><td colSpan={9}>No irrigation work or road is recorded (recorded: none).</td></tr>
         : [...record.assets, ...record.terminal].map(assetRow)}</tbody>
-    </table></div>
+    </SystemTable>
     {reading.frame === "no_works" ? <p className="systems-note">This mode opens no works: there are no repair receipts to show.</p> : <>
       {reading.frame === "unsettled" ? <p className="systems-note">No Phase 2 was settled in simulation turn {record.source_turn}: this turn's works, receipts and charges are unknown, not zero.</p> : null}
-      <div className="systems-table-wrap"><table className="systems-table" aria-label={`Infrastructure works at snapshot ${at}`}>
+      <SystemTable label={`Infrastructure works at snapshot ${at}`}>
         <thead><tr><th>Work</th><th>Asset</th><th>Cause</th><th>Progress</th><th>This turn</th><th>Stall turns</th><th>Funding</th></tr></thead>
         <tbody>{record.works.length === 0 ? <tr><td colSpan={7}>No open work (recorded: none).</td></tr>
           : record.works.map((w) => <tr key={w.wid}>
@@ -108,41 +107,41 @@ export function InfrastructureCondition({ bundle, snapshot, currentTurn, onSelec
             <td>{show(w.delivered)} of {show(w.scope)} work</td><td>{thisTurn(receipts.get(w.wid))}</td>
             <td>{stallText(w)}</td><td>{coins(w.coin_cost_milli)} coins, {show(w.timber_used)} timber; {civ(w.controller)} pays</td>
           </tr>)}</tbody>
-      </table></div>
-      {record.ledger && record.ledger.length > 0 ? <div className="systems-table-wrap"><table className="systems-table" aria-label={`Works charges at snapshot ${at}`}>
+      </SystemTable>
+      {record.ledger && record.ledger.length > 0 ? <SystemTable label={`Works charges at snapshot ${at}`}>
         <thead><tr><th>Civilization</th><th>Work</th><th>Coins (cost)</th><th>Treasury charged</th><th>RS2 charged</th><th>Works envelope</th></tr></thead>
         <tbody>{record.ledger.map((row) => <tr key={row.civ}>
           <td>{civ(row.civ)}</td><td>{show(row.work_delivered)}</td><td>{coins(row.coin_cost_milli)}</td><td>{row.charged}</td>
           <td>{row.rs2_charged}</td><td>{row.envelope === null ? "No budget rule" : row.envelope}</td>
         </tr>)}</tbody>
-      </table></div> : null}
+      </SystemTable> : null}
     </>}
     {named ? <>
       <h4>Named public-works crews</h4>
-      <div className="systems-table-wrap"><table className="systems-table" aria-label={`Infrastructure crews at snapshot ${at}`}>
+      <SystemTable label={`Infrastructure crews at snapshot ${at}`}>
         <thead><tr><th>Work / person</th><th>Region</th><th>Reserved / worked</th><th>Wages accepted / refused</th><th>Ordinary income withheld</th></tr></thead>
         <tbody>{record.receipts?.flatMap(r=>(r.members ?? []).map(m=><tr key={`${r.wid}-${m.agent_id}`}>
           <td>{r.wid} / person {m.agent_id}</td><td>{region(r.region)}</td><td>{show(m.share)} / {show(m.worked)}</td>
           <td>{coins(m.wages_milli)} / {coins(m.wage_refused_milli)}</td><td>{show(m.income_replaced)}</td>
         </tr>))}</tbody>
-      </table></div>
+      </SystemTable>
     </> : null}
     {record.timber_needs !== undefined ? <>
       <h4>Timber asked of the woodcutters</h4>
       <p className="systems-note">Recorded at this snapshot's Phase 10: the open works' timber for one turn, asked of PL1's woodcutting expeditions only after every RS2 need of the turn (RS2's want in the same region counts first), with the same forests, crews, wages and work reservation.{(record.timber_needs_dropped ?? 0) > 0 ? ` ${record.timber_needs_dropped} more rows were not kept.` : ""}</p>
       {record.timber_needs.length === 0 ? <p className="systems-note">No work asked for timber at this snapshot (recorded: none).</p>
-        : <div className="systems-table-wrap"><table className="systems-table" aria-label={`Works timber need at snapshot ${at}`}>
+        : <SystemTable label={`Works timber need at snapshot ${at}`}>
           <thead><tr><th>Region</th><th>Works</th><th>Want</th><th>RS2 want first</th><th>Free + on the way</th><th>Gap</th><th>Woodcutters</th></tr></thead>
           <tbody>{record.timber_needs.map((r) => <tr key={r.region}>
             <td>{region(r.region)}</td><td>{r.works.join(", ")}</td><td>{show(r.want)}</td><td>{show(r.rs2_want)}</td>
             <td>{show(r.free)} + {show(r.in_transit)}</td><td>{show(r.gap)}</td>
             <td>{TIMBER[r.status]}{r.eid !== null ? ` (expedition ${r.eid})` : ""}{r.reason ? `: ${words(r.reason)}` : ""}</td>
           </tr>)}</tbody>
-        </table></div>}
+        </SystemTable>}
     </> : null}
     <h4>Damage</h4>
     {record.damages.length === 0 && (record.skipped_damages ?? []).length === 0 ? <p className="systems-note">No war or flood damage is recorded (recorded: none).</p>
-      : <div className="systems-table-wrap"><table className="systems-table" aria-label={`Infrastructure damage to snapshot ${at}`}>
+      : <SystemTable label={`Infrastructure damage to snapshot ${at}`}>
         <thead><tr><th>Turn</th><th>Asset</th><th>Cause</th><th>Condition lost</th></tr></thead>
         <tbody>{[...record.damages].reverse().map((d) => <tr key={d.did}>
           <td>{d.turn}</td><td>{KIND[d.kind]} {d.aid} in {region(d.region)}</td>
@@ -154,11 +153,11 @@ export function InfrastructureCondition({ bundle, snapshot, currentTurn, onSelec
           <td>{CAUSE[d.event] ?? words(d.event)}{d.ref ? ` (event ${d.ref})` : ""}: skipped, already damaged this turn (damage {d.kept})</td>
           <td>None ({show(d.amount)} not taken)</td>
         </tr>)}</tbody>
-      </table></div>}
+      </SystemTable>}
     <h4>Underfunded public works</h4>
     {story === null ? <p className="systems-note">No work has stalled up to this snapshot (recorded).</p>
       : <p className="systems-note">Directly recorded: work {story.work.wid} on {KIND[story.work.kind].toLowerCase()} {story.work.aid} in {region(story.work.region)} opened at turn {story.work.opened_turn} (condition {show(story.work.opened_condition)}, cause {words(story.work.cause)}); by snapshot {story.seen_turn} it had stalled {story.work.stalled_turns} turn{story.work.stalled_turns === 1 ? "" : "s"} ({story.stalls.map(([k, v]) => `${REASON[k] ?? words(k)} ${v}`).join(", ")}) and delivered {show(story.work.delivered)} of {show(story.work.scope)} work for {coins(story.work.coin_cost_milli)} coins{story.work.status !== "open" ? `; it ended ${words(story.work.status)}${story.work.closed_reason ? ` (${words(story.work.closed_reason)})` : ""} at turn ${story.work.closed_turn}` : ""}.{story.failed_turn !== null ? ` The asset failed (condition 0) at turn ${story.failed_turn}.` : ""}{story.asset ? ` Its condition is ${show(story.asset.condition)} now.` : ""}</p>}
-    <div className="systems-table-wrap"><table className="systems-table" aria-label={`Infrastructure counters to snapshot ${at}`}><tbody>
+    <SystemTable label={`Infrastructure counters to snapshot ${at}`}><tbody>
       <tr><th scope="row">Assets opened / failed / restored</th><td>{show(counters.assets_opened ?? 0)} / {show(counters.assets_failed ?? 0)} / {show(counters.assets_restored ?? 0)}</td></tr>
       <tr><th scope="row">Inactive / destroyed</th><td>{show(counters.assets_inactive ?? 0)} / {show(counters.assets_destroyed ?? 0)}</td></tr>
       <tr><th scope="row">Condition lost to wear / damage</th><td>{show(counters.wear ?? 0)} / {show(counters.damage ?? 0)}</td></tr>
@@ -169,6 +168,6 @@ export function InfrastructureCondition({ bundle, snapshot, currentTurn, onSelec
           .map((k) => `${REASON[k]} ${show(counters[`stalled_${k}`] ?? 0)}`).join("; ")}</td></tr>
         <tr><th scope="row">Charged to treasuries, paid to no one (public works)</th><td>{coins(record.sink_milli)} coins</td></tr>
       </> : null}
-    </tbody></table></div>
+    </tbody></SystemTable>
   </section>;
 }

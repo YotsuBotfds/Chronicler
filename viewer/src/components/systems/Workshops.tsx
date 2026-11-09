@@ -1,8 +1,7 @@
 import type { Bundle, TurnSnapshot } from "../../types";
 import { workshopsAt } from "../../lib/workshops";
+import { show } from "./formatters";
 
-const show = (value: number | null | undefined) =>
-  value === null || value === undefined ? "Unknown" : value.toLocaleString(undefined, { maximumFractionDigits: 3 });
 const MODE_NOTE: Record<string, string> = {
   observe: "Observe mode: crews are resolved and the region's actual craft inputs reported; nobody is employed, nothing is paid and the legacy craft ceiling stays.",
   operate: "Operate mode: the region's controller pays construction and upkeep from its treasury as a public cost (no wages, no private recipient); a funded open workshop's crew work replaces the region's craft ceiling.",

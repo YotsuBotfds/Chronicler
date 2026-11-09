@@ -13,7 +13,7 @@
  */
 import type { Bundle, Event, FaithRecord } from "../types";
 
-export const NO_FAITH = 255;
+const NO_FAITH = 255;
 
 export interface FaithTable {
   faiths: FaithRecord[];
@@ -158,16 +158,6 @@ export function faithEvents(bundle: Bundle, table: FaithTable, id: number, turn:
     }
     return false;
   });
-}
-
-/** A `Temple of faith <id> destroyed in <region>` record told by the faith's name. */
-export function templeEventText(table: FaithTable, event: Event): string | null {
-  const match = event.event_type === "temple_destroyed" ? TEMPLE.exec(event.description) : null;
-  if (!match) {
-    return null;
-  }
-  const label = faithLabel(table, resolveFaith(table, Number(match[1]), event.turn));
-  return label ? `The temple of the ${label} is ${match[2]} in ${match[3]}` : null;
 }
 
 // --- Rebuilding an older bundle's table (chronicler.faiths.reconstruct) ---

@@ -1,3 +1,4 @@
+import { isRecord as object, amount, count } from "./recordGuards";
 import type { Bundle, TurnSnapshot } from "../types";
 import { readRecord, type RecordReading } from "./recordReading";
 
@@ -19,7 +20,7 @@ import { readRecord, type RecordReading } from "./recordReading";
  * bounded per region, never attributed to persons. Never reads final-world state.
  */
 export const MODES = ["service", "cost_only"] as const;
-export const PATHS = ["upkeep", "institution"] as const;
+const PATHS = ["upkeep", "institution"] as const;
 export type ReliefMode = (typeof MODES)[number];
 
 export interface CivRelief {
@@ -50,9 +51,6 @@ export interface ReliefRecord {
   log_dropped: number; parameters: Record<string, unknown>;
 }
 
-const object = (x: unknown): x is Record<string, unknown> => x !== null && typeof x === "object" && !Array.isArray(x);
-const count = (x: unknown): x is number => typeof x === "number" && Number.isInteger(x) && x >= 0;
-const amount = (x: unknown): x is number => typeof x === "number" && Number.isFinite(x) && x >= 0;
 const index = (x: unknown, n: number): x is number => count(x) && x < n;
 const maybe = (x: unknown) => x === null || amount(x);
 const TOL = 1e-6;
@@ -133,12 +131,12 @@ const carries = (snapshot: TurnSnapshot) => {
 };
 
 /** Whether nothing moved in an observed frame (recorded zero). */
-export function reliefEmpty(frame: ReliefFrame): boolean {
+function reliefEmpty(frame: ReliefFrame): boolean {
   return frame.purchases.length === 0 && frame.deliveries.length === 0
     && frame.civs.every((c) => c.to_fund_milli === 0 && c.spent_milli === 0 && c.refunded_milli === 0 && c.sunk_units === 0);
 }
 
-export const REFORM_SERVICES = {
+const REFORM_SERVICES = {
   key: "reform_services", label: "Poor relief services", flag: "--reform-services", livelihoods: true,
   carries, read: (s: TurnSnapshot, regions: number, civs: number) => reliefRecordAt(s, regions, civs).record,
   observed: (r: ReliefRecord) => r.frame !== null,

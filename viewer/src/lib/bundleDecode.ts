@@ -37,7 +37,7 @@ export const WORKER_MIN_BYTES = 1024 * 1024;
 /** Snapshots per history part. */
 export const HISTORY_SLICE = 25;
 /** Events per event-timeline part. */
-export const EVENT_SLICE = 2000;
+const EVENT_SLICE = 2000;
 
 export interface DecodeRequest {
   file: Blob & { name?: string };
@@ -196,7 +196,7 @@ function defaultWorkerFactory(): WorkerFactory {
 
 let workerFactory: WorkerFactory | undefined;
 
-/** Replace the worker constructor (tests); `undefined` restores the default. */
+/** Test seam. Replace the worker constructor (tests); `undefined` restores the default. */
 export function setDecodeWorkerFactory(factory: WorkerFactory | undefined): void {
   workerFactory = factory;
 }

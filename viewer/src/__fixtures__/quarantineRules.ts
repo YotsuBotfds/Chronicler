@@ -5,7 +5,7 @@
  * and aggregate (`--agents off`) snapshot 7 (no agent merchant graph and no
  * delivery record: those fields are recorded as null, not as zero).
  */
-export const HYBRID_CLOSURE_RECORD = {
+const HYBRID_CLOSURE_RECORD = {
   "schema_version": 1,
   "mode": "closure",
   "channels": [
@@ -238,7 +238,7 @@ export const AGGREGATE_CLOSURE_RECORD = {
  * civs, hybrid, 30 turns, `--quarantine-mode closure --quarantine-channels
  * trade,migration`), snapshot 6: migrants refused at two closed borders.
  */
-export const MIGRATION_CLOSURE_RECORD = {
+const MIGRATION_CLOSURE_RECORD = {
   "schema_version": 1,
   "mode": "closure",
   "channels": [

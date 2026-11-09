@@ -25,7 +25,7 @@ export const SHORT_OF_FOOD = 1;
 export type FoodCrisisKind = "famine" | "dearth";
 
 /** Food-crisis report types and the ends of their episodes. */
-export const FOOD_CRISIS_TYPES: readonly FoodCrisisKind[] = ["famine", "dearth"];
+const FOOD_CRISIS_TYPES: readonly FoodCrisisKind[] = ["famine", "dearth"];
 const FOOD_CRISIS_ENDS = new Set(["famine_ended", "dearth_ended"]);
 
 function isCrisisKind(type: string): type is FoodCrisisKind {
@@ -84,11 +84,6 @@ export function foodCrisisSpans(events: Event[]): FamineSpan[] {
   }
   spans.push(...open.values());
   return spans.sort((left, right) => left.start - right.start || left.region.localeCompare(right.region));
-}
-
-/** Famine spans only (see `foodCrisisSpans`). */
-export function famineSpans(events: Event[]): FamineSpan[] {
-  return foodCrisisSpans(events).filter((span) => span.kind === "famine");
 }
 
 /** Spans of one label. */
@@ -228,7 +223,7 @@ export function migrationFlows(
  * moves, `Event.driver`) means for the people moving. Terms are the
  * native migration budget's (`migration_drivers.rs`).
  */
-export const MIGRATION_DRIVER_KINDS: Record<string, string> = {
+const MIGRATION_DRIVER_KINDS: Record<string, string> = {
   frontier: "settling new land",
   wage: "seeking work",
   chain: "joining kin",

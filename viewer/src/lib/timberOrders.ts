@@ -1,4 +1,5 @@
 /** A4-3 actual timber cargo and treasury escrow. Milli-timber/milli-money are distinct. */
+import { isRecord as object, finite, safeCount as count } from "./recordGuards";
 import type { TurnSnapshot } from "../types";
 export interface TimberOrder {
   id: number; holder: number; origin: number; dest: number; seller: number; payer: number;
@@ -20,9 +21,6 @@ export interface TimberOrdersRecord {
     dispatched: Record<string, number>; spent: Record<string, number> };
   counters: Record<string, number>; parameters: Record<string, number>;
 }
-const object = (x: unknown): x is Record<string, unknown> => x !== null && typeof x === "object" && !Array.isArray(x);
-const finite = (x: unknown): x is number => typeof x === "number" && Number.isFinite(x);
-const count = (x: unknown): x is number => finite(x) && Number.isSafeInteger(x) && x >= 0;
 const outcomes = ["delivered", "holder_died", "carrier_released", "recipient_lost", "expired", "route_lost", "seized", "pool_reset", "switched_off"];
 export function timberOrdersAt(snapshot: TurnSnapshot | null, regions: number, civs: number):
   { status: "absent" | "malformed" | "unobserved" | "observed"; record: TimberOrdersRecord | null } {

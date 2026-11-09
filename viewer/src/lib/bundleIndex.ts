@@ -239,6 +239,7 @@ export function provenanceOf<E extends IndexedEvent>(
 interface HistoryIndex {
   length: number;
   techniques: Array<{ key: string; firstTurn: number }> | null;
+  byTurn: Map<number, TurnSnapshot[]> | null;
 }
 
 const historyIndexes = new WeakMap<readonly TurnSnapshot[], HistoryIndex>();
@@ -248,7 +249,7 @@ function historyIndex(history: readonly TurnSnapshot[]): HistoryIndex {
   if (cached && cached.length === history.length) {
     return cached;
   }
-  const index: HistoryIndex = { length: history.length, techniques: null };
+  const index: HistoryIndex = { length: history.length, techniques: null, byTurn: null };
   historyIndexes.set(history, index);
   return index;
 }
@@ -281,4 +282,31 @@ export function techniquesPractisedBy(
       .sort((left, right) => compare(left.key, right.key));
   }
   return index.techniques.filter((entry) => entry.firstTurn <= turn).map((entry) => entry.key);
+}
+
+/**
+ * The one snapshot recorded at exactly `turn`
+ * (`history.filter((s) => s.turn === turn)` when it holds one row), else null:
+ * duplicate turns are ambiguous rather than an arbitrary choice
+ * (`historyComparison.exactSnapshot`).
+ */
+export function snapshotAtTurn(history: readonly TurnSnapshot[], turn: number): TurnSnapshot | null {
+  const index = historyIndex(history);
+  if (!index.byTurn) {
+    const byTurn = new Map<number, TurnSnapshot[]>();
+    for (const snapshot of history) {
+      // A Map key matches NaN to NaN; the filter's `===` never does.
+      if (!Number.isNaN(snapshot.turn)) {
+        const rows = byTurn.get(snapshot.turn);
+        if (rows) {
+          rows.push(snapshot);
+        } else {
+          byTurn.set(snapshot.turn, [snapshot]);
+        }
+      }
+    }
+    index.byTurn = byTurn;
+  }
+  const rows = index.byTurn.get(turn);
+  return rows?.length === 1 ? rows[0] : null;
 }

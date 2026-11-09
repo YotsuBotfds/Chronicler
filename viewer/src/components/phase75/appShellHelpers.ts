@@ -176,7 +176,7 @@ export function eventProvenance<E extends ProvenanceEventLike>(
 }
 
 /** Events the Event Log lists. */
-export const EVENT_FEED_LIMIT = 24;
+const EVENT_FEED_LIMIT = 24;
 /** A focused civilization with fewer events by the turn has the latest others added. */
 const EVENT_FEED_FOCUS_MIN = 8;
 

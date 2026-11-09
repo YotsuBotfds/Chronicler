@@ -1,8 +1,9 @@
 /** Local, artifact-bound investigation bookmarks. Notes never enter reference exports. */
+import { safeCount as safeInteger } from "./recordGuards";
 import type { ArtifactIdentity } from "./artifactIdentity";
 
 export const INVESTIGATION_BOOKMARKS_KEY = "chronicler.investigation-bookmarks.v1";
-export const MAX_INVESTIGATION_BOOKMARKS = 50;
+const MAX_INVESTIGATION_BOOKMARKS = 50;
 export const MAX_BOOKMARK_NOTE_LENGTH = 1000;
 export type InvestigationPanel = "map" | "history" | "conditions";
 export interface InvestigationTarget { kind: "region" | "civilization"; index: number; name: string }
@@ -21,14 +22,13 @@ const object = (value: unknown): Record<string, unknown> | null => value !== nul
 const keysAre = (row: Record<string, unknown>, required: string[], optional: string[] = []) => required.every((key) => Object.hasOwn(row, key))
   && Object.keys(row).every((key) => required.includes(key) || optional.includes(key));
 const hash = (value: unknown): value is string => typeof value === "string" && /^[a-f0-9]{64}$/.test(value);
-const safeInteger = (value: unknown): value is number => typeof value === "number" && Number.isSafeInteger(value) && value >= 0;
 const label = (value: unknown, max: number): value is string => typeof value === "string" && value.trim().length > 0 && value.length <= max && !/\p{Cc}/u.test(value);
 export function validInvestigationTarget(value: unknown): value is InvestigationTarget {
   const row = object(value);
   return !!row && keysAre(row, ["kind", "index", "name"]) && (row.kind === "region" || row.kind === "civilization")
     && safeInteger(row.index) && label(row.name, 200);
 }
-export function validInvestigationPanel(value: unknown): value is InvestigationPanel { return value === "map" || value === "history" || value === "conditions"; }
+function validInvestigationPanel(value: unknown): value is InvestigationPanel { return value === "map" || value === "history" || value === "conditions"; }
 export function validInvestigationBookmark(value: unknown): value is InvestigationBookmark {
   const row = object(value), world = object(row?.world);
   return !!row && !!world && keysAre(row, ["world", "target", "turn", "panel"], ["notes"])
@@ -155,10 +155,4 @@ export async function saveInvestigationBookmark(storage: BookmarkStorage | null,
     try { const channel = new BroadcastChannel(BOOKMARKS_CHANNEL); channel.postMessage("changed"); channel.close(); } catch { /* persisted; other tabs can reload */ }
   }
   return result;
-}
-
-/** Safe reference for optional future sharing. Private notes are excluded by construction. */
-export function investigationBookmarkReference(bookmark: InvestigationBookmark): Omit<InvestigationBookmark, "notes"> | null {
-  return validInvestigationBookmark(bookmark) ? { world: { sha256: bookmark.world.sha256, filename: bookmark.world.filename },
-    target: { kind: bookmark.target.kind, index: bookmark.target.index, name: bookmark.target.name }, turn: bookmark.turn, panel: bookmark.panel } : null;
 }

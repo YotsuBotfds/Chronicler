@@ -2,11 +2,10 @@ import type { Bundle, TurnSnapshot } from "../../types";
 import {
   lossCounts, readTimberSupply, refusalCounts, type ExpeditionReceiptRecord, type ExpeditionRecord, type TimberNeedRecord,
 } from "../../lib/timberSupply";
+import { show, words } from "./formatters";
+import { SystemTable } from "./SystemTable";
 
-const show = (value: number | null | undefined, digits = 3) =>
-  value === null || value === undefined ? "Unknown" : value.toLocaleString(undefined, { maximumFractionDigits: digits });
 const coins = (milli: number) => (milli / 1000).toLocaleString(undefined, { maximumFractionDigits: 3 });
-const words = (text: string | null | undefined) => (text ?? "").replace(/_/g, " ");
 const REFUSAL: Record<string, string> = {
   no_forest: "no forest the ruler or nobody controls is reachable",
   too_far: "no forest within the hop limit",
@@ -85,7 +84,7 @@ export function TimberSupply({ bundle, snapshot, currentTurn, onSelectRegion }: 
     <h3>Timber supply · snapshot {turn}</h3>
     <p className="systems-note">Simulation turn {record.source_turn}. {MODE_NOTE[record.mode]}</p>
     <p className="systems-note">Crews of at most {show(p.crew_cap)} adults stay residents of their home region: each turn away they are reserved for the whole turn, paid {coins(p.wage_milli)} a person-turn from the ruler&apos;s treasury in place of their ordinary income, and their farm labour leaves the home land. A trip takes one turn a hop each way (at most {show(p.max_hops)} hops) and {show(p.cut_turns)} turns of cutting; cutting stops below {show(p.guard_share)} of the forest&apos;s capacity. The harvest is debited from the forest&apos;s timber stock; {show(p.transit_decay * 100)}% a hop decays on the way home. Cargo of a crew lost on the way is left at the forest as commons (at home if home changed hands), never destroyed.</p>
-    <div className="systems-table-wrap"><table className="systems-table" aria-label={`Timber supply accounts to snapshot ${turn}`}>
+    <SystemTable label={`Timber supply accounts to snapshot ${turn}`}>
       <thead><tr><th>Lifetime</th><th>Amount</th></tr></thead>
       <tbody>
         <tr><td>Expeditions launched (veterans aboard)</td><td>{show(c("launched") + c("launched_works"))} ({show(c("launched_veterans"))}){c("launched_works") > 0 ? `; ${show(c("launched_works"))} of them for infrastructure works' timber, after every repair-project need` : ""}</td></tr>
@@ -103,19 +102,19 @@ export function TimberSupply({ bundle, snapshot, currentTurn, onSelectRegion }: 
         <tr><td>Crew person-turns: outbound · cutting · returning</td><td>{show(c("crew_turns_outbound"))} · {show(c("crew_turns_cutting"))} · {show(c("crew_turns_returning"))}</td></tr>
         <tr><td>Recalls · return turns walked unpaid</td><td>{show(c("recalls"))} · {show(c("unpaid_turns"))}</td></tr>
       </tbody>
-    </table></div>
+    </SystemTable>
     {per === null ? <p className="systems-note">No expedition has ended yet; per-expedition costs are unknown.</p> :
-      <div className="systems-table-wrap"><table className="systems-table" aria-label={`Per ended expedition to snapshot ${turn}`}>
+      <SystemTable label={`Per ended expedition to snapshot ${turn}`}>
         <thead><tr><th>Ended</th><th>Wages</th><th>Person-turns</th><th>Farm labour away</th><th>Unpaid turns</th><th>Cut</th><th>Delivered</th></tr></thead>
         <tbody><tr><td>{show(per.ended)}</td><td>{coins(per.wages_milli)}</td><td>{show(per.person_turns, 2)}</td><td>{show(per.farm_labor_away, 2)}</td>
           <td>{show(per.unpaid_turns, 2)}</td><td>{show(per.cut)}</td><td>{show(per.delivered)}</td></tr></tbody>
-      </table></div>}
+      </SystemTable>}
     {per !== null ? <p className="systems-note">Means over ended expeditions{control ? ": the comparison the cost-only control supports (it matches one expedition's cost, not the total)" : ""}.</p> : null}
     <p className="systems-note">Refused launches (lifetime): {refusals.length ? refusals.map(([k, v]) => `${REFUSAL[k] ?? words(k)} ${v}`).join("; ") : "none"}. Ended without delivering: {losses.abandoned.length ? losses.abandoned.map(([k, v]) => `${END[k] ?? words(k)} ${v}`).join(", ") : "none"}. Crew members who left: {losses.dropped.length ? losses.dropped.map(([k, v]) => `${words(k)} ${v}`).join(", ") : "none"}.</p>
     {record.receipts === null || record.ledger === null
       ? <p className="systems-note">No completed Phase 2 was recorded in simulation turn {record.source_turn}; this turn&apos;s crews, wages, farm labour and harvest are unknown, not zero.</p>
       : record.receipts.length === 0 ? <p className="systems-note">No expedition worked this turn.</p> : <>
-        <div className="systems-table-wrap"><table className="systems-table" aria-label={`Expeditions this turn at snapshot ${turn}`}>
+        <SystemTable label={`Expeditions this turn at snapshot ${turn}`}>
           <thead><tr><th>Expedition</th><th>Route</th><th>Stage</th><th>Crew</th><th>Farm labour away (removed of asked)</th><th>On the forest · cut</th><th>Forest stock (L3)</th><th>Wages · income withheld</th><th>Notes</th></tr></thead>
           <tbody>{record.receipts.map((r) => <tr key={r.eid}>
             <td>#{r.eid} ({civ(r.civ)})</td><td>{route(r)}</td><td>{r.stage}</td>
@@ -126,18 +125,18 @@ export function TimberSupply({ bundle, snapshot, currentTurn, onSelectRegion }: 
             <td>{r.unpaid ? "unpaid" : `${coins(r.wages_milli)}${r.wage_residual_milli ? ` (+${coins(r.wage_residual_milli)} refused)` : ""}`} · {show(r.income_withheld)}</td>
             <td>{flags(r)}</td>
           </tr>)}</tbody>
-        </table></div>
-        {record.ledger.length > 0 ? <div className="systems-table-wrap"><table className="systems-table" aria-label={`Expedition wages at snapshot ${turn}`}>
+        </SystemTable>
+        {record.ledger.length > 0 ? <SystemTable label={`Expedition wages at snapshot ${turn}`}>
           <thead><tr><th>Ruler</th><th>Expeditions</th><th>Person-turns</th><th>Wages</th><th>Charged (whole units, prepaid remainder)</th></tr></thead>
           <tbody>{record.ledger.map((l) => <tr key={l.civ}>
             <td>{civ(l.civ)}</td><td>{l.expeditions}</td><td>{l.person_turns}</td>
             <td>{coins(l.wages_applied_milli)}{l.wage_residual_milli ? ` (+${coins(l.wage_residual_milli)} refused)` : ""}</td>
             <td>{`${l.charged} (prepaid ${coins(l.prepaid_before_milli)} → ${coins(l.prepaid_after_milli)})`}</td>
           </tr>)}</tbody>
-        </table></div> : <p className="systems-note">Every expedition walked unpaid this turn: nothing was charged.</p>}
+        </SystemTable> : <p className="systems-note">Every expedition walked unpaid this turn: nothing was charged.</p>}
       </>}
     {record.expeditions.length === 0 ? <p className="systems-note">No expedition is under way.</p> :
-      <div className="systems-table-wrap"><table className="systems-table" aria-label={`Live expeditions at snapshot ${turn}`}>
+      <SystemTable label={`Live expeditions at snapshot ${turn}`}>
         <thead><tr><th>Expedition</th><th>Route (hops)</th><th>Stage</th><th>Crew now / launched</th><th>Cargo · cut</th><th>Wages so far</th><th>Farm labour away so far</th><th>Unpaid turns</th></tr></thead>
         <tbody>{record.expeditions.map((e: ExpeditionRecord) => <tr key={e.eid}>
           <td>#{e.eid} ({civ(e.civ)}, launched turn {e.launched_turn})</td><td>{route(e)} ({e.hops})</td>
@@ -145,25 +144,25 @@ export function TimberSupply({ bundle, snapshot, currentTurn, onSelectRegion }: 
           <td>{e.crew.length} / {e.launched_crew.length}</td><td>{show(e.cargo)} · {show(e.cut)}</td>
           <td>{coins(e.wages_milli)}</td><td>{show(e.away_delivered)}</td><td>{e.unpaid_turns}</td>
         </tr>)}</tbody>
-      </table></div>}
+      </SystemTable>}
     {record.needs === null ? <p className="systems-note">The timber needs of simulation turn {record.source_turn} were not recorded; needs, stores and deposits are unknown, not zero.</p> : <>
       {acted.length === 0 ? <p className="systems-note">{needs.length ? `All ${needs.length} regions with open repairs had their timber (no gap worth an expedition).` : "No region has open repairs needing timber."}</p> :
-        <div className="systems-table-wrap"><table className="systems-table" aria-label={`Timber needs at snapshot ${turn}`}>
+        <SystemTable label={`Timber needs at snapshot ${turn}`}>
           <thead><tr><th>Region</th><th>Ruler</th><th>Repairs could use</th><th>Free (of it in store)</th><th>In transit</th><th>Gap</th><th>Outcome</th></tr></thead>
           <tbody>{acted.map((n) => <tr key={n.region}>
             <td>{link(n.region)}</td><td>{civ(n.civ)}</td><td>{show(n.want)}</td><td>{show(n.free)} ({show(n.store)})</td>
             <td>{show(n.in_transit)}</td><td>{show(n.gap)}</td><td>{needText(n)}</td>
           </tr>)}</tbody>
-        </table></div>}
+        </SystemTable>}
       {acted.length > 0 && needs.length > acted.length ? <p className="systems-note">{needs.length - acted.length} more regions with open repairs had their timber.</p> : null}
       {record.needs_dropped ? <p className="systems-note">{record.needs_dropped} need rows beyond the bound were not recorded.</p> : null}
-      {(record.stores ?? []).length > 0 ? <div className="systems-table-wrap"><table className="systems-table" aria-label={`Timber stores at snapshot ${turn}`}>
+      {(record.stores ?? []).length > 0 ? <SystemTable label={`Timber stores at snapshot ${turn}`}>
         <thead><tr><th>Region</th><th>Opening</th><th>Held by repairs</th><th>Returned unused</th><th>Delivered</th><th>Released to stockpile</th><th>Closing</th></tr></thead>
         <tbody>{(record.stores ?? []).map((s) => <tr key={s.region}>
           <td>{link(s.region)}</td><td>{show(s.opening)}</td><td>{show(s.held)}</td><td>{show(s.returned)}</td>
           <td>{show(s.delivered)}</td><td>{show(s.released)}</td><td>{show(s.closing)}</td>
         </tr>)}</tbody>
-      </table></div> : <p className="systems-note">No region holds timber reserved for repairs.</p>}
+      </SystemTable> : <p className="systems-note">No region holds timber reserved for repairs.</p>}
       {(record.deposits ?? []).length > 0 ? <p className="systems-note">Cargo left as commons this turn: {(record.deposits ?? []).map(([, eid, rid, amount]) =>
         `${show(amount)} from expedition #${eid} in ${region(rid)}`).join("; ")}.</p> : null}
     </>}

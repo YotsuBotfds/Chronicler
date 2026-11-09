@@ -1,6 +1,7 @@
 import { useState } from "react";
 import type { Bundle } from "../types";
 import type { ArtifactIdentity } from "../lib/artifactIdentity";
+import { downloadText } from "../lib/download";
 import { investigationMarkdown, investigationPacket, type InvestigationTarget } from "../lib/investigationPacket";
 
 export function InvestigationPacket({ bundle, identity, target, turn }: {
@@ -12,10 +13,7 @@ export function InvestigationPacket({ bundle, identity, target, turn }: {
     try {
       const packet = investigationPacket(bundle, identity, target, turn);
       const text = format === "json" ? JSON.stringify(packet, null, 2) : investigationMarkdown(packet);
-      const url = URL.createObjectURL(new Blob([text], { type: format === "json" ? "application/json" : "text/markdown" }));
-      const link = document.createElement("a");
-      link.href = url; link.download = `chronicler-investigation-turn-${turn}.${format}`; link.click();
-      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+      downloadText(`chronicler-investigation-turn-${turn}.${format}`, text, format === "json" ? "application/json" : "text/markdown");
       setStatus("Investigation exported with exact values and source references. Private bookmark notes are excluded.");
     } catch (error) { setStatus(error instanceof Error ? error.message : "Investigation export failed. Your world and notes are kept."); }
   };

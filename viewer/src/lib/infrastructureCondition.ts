@@ -1,3 +1,4 @@
+import { isRecord as object, amount, count } from "./recordGuards";
 import type { TurnSnapshot } from "../types";
 import {
   INFRA_DAMAGE_EVENTS, INFRA_END_CAUSES, INFRA_KINDS, INFRA_LIVE, INFRA_MODES, INFRA_REASONS, INFRA_TERMINAL,
@@ -13,16 +14,12 @@ import {
  * is a recorded zero) stay distinct. Never reads final state.
  */
 
-const object = (x: unknown): x is Record<string, unknown> => x !== null && typeof x === "object" && !Array.isArray(x);
-const finite = (x: unknown): x is number => typeof x === "number" && Number.isFinite(x);
-const amount = (x: unknown): x is number => finite(x) && x >= 0;
-const count = (x: unknown): x is number => Number.isInteger(x) && (x as number) >= 0;
 const unit = (x: unknown): x is number => amount(x) && x <= 1;
 const civ = (x: unknown): x is number => Number.isInteger(x) && (x as number) >= -1;
 const one = <T extends string>(list: readonly T[], x: unknown): x is T => typeof x === "string" && (list as readonly string[]).includes(x);
 const EPS = 1e-9;
 /** Condition at which service is full (`chronicler.infrastructure_condition.SERVICE_FULL`). */
-export const SERVICE_FULL = 0.5;
+const SERVICE_FULL = 0.5;
 export const serviceOf = (condition: number) => Math.min(1, Math.max(0, condition) / SERVICE_FULL);
 
 /** Whether a snapshot carries the record at all (a presence test; the reader parses). */

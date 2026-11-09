@@ -1,3 +1,5 @@
+import { readLivelihoodRecord } from "./livelihoodRecord";
+import { isRecord as object, count } from "./recordGuards";
 import type { TurnSnapshot } from "../types";
 
 /**
@@ -16,13 +18,12 @@ import type { TurnSnapshot } from "../types";
  * `observed_from` is unknown, not zero. Never reads final-world state.
  */
 export const CAUSES = ["flight", "hunger"] as const;
-export const ANCHORS = ["war", "famine", "persecution", "none"] as const;
-export const MOVE_GROUPS = ["flight", "hunger", "voluntary", "other"] as const;
+const ANCHORS = ["war", "famine", "persecution", "none"] as const;
 /** Optional physical-arrival diagnostics added after the original X1 records. */
-export const ARRIVAL_COUNT_KEYS = ["recent_residence_arrivals", "recent_residence_arrivals_unknown_reason"] as const;
-export const CLOSURES = ["returned", "resettled", "died", "pool_reset", "unobserved_gap"] as const;
+const ARRIVAL_COUNT_KEYS = ["recent_residence_arrivals", "recent_residence_arrivals_unknown_reason"] as const;
+const CLOSURES = ["returned", "resettled", "died", "pool_reset", "unobserved_gap"] as const;
 /** ``residence_ledger_state.REGION_KEYS`` (declaration order). */
-export const REGION_KEYS = [
+const REGION_KEYS = [
   "region", "residents",
   "displaced", "displaced_flight", "displaced_hunger",
   "displaced_war", "displaced_famine", "displaced_persecution", "displaced_none",
@@ -97,8 +98,6 @@ export interface ResidenceLedgerRecord {
   labels: Record<string, string>; parameters: Record<string, unknown>;
 }
 
-const object = (x: unknown): x is Record<string, unknown> => x !== null && typeof x === "object" && !Array.isArray(x);
-const count = (x: unknown): x is number => Number.isInteger(x) && (x as number) >= 0;
 const among = <T extends string>(values: readonly T[], x: unknown): x is T => values.includes(x as T);
 
 function validRegion(r: unknown, regions: number): boolean {
@@ -146,11 +145,8 @@ function validFrame(f: unknown, regions: number, source: number): f is Residence
 
 /** The residence ledger record of one snapshot, or null when it is absent or malformed. */
 export function residenceLedgerAt(snapshot: TurnSnapshot | null, regions: number): ResidenceLedgerRecord | null {
-  const row = snapshot as unknown as Record<string, unknown> | null;
-  const livelihoods = row?.livelihoods;
-  if (!object(livelihoods) || livelihoods.schema_version !== 1) return null;
-  const x = livelihoods.residence_ledger;
-  if (!object(x) || x.schema_version !== 1 || x.stage !== "X1" || !count(x.source_turn)
+  const x = readLivelihoodRecord(snapshot, "residence_ledger");
+  if (!x || x.stage !== "X1" || !count(x.source_turn)
     || x.source_turn + 1 !== snapshot?.turn || !object(x.counters) || !Object.values(x.counters).every(count)
     || !Array.isArray(x.log) || !count(x.log_dropped) || !object(x.labels) || !object(x.parameters)
     || !count(x.events_dropped) || !(x.observed_from === null || count(x.observed_from))) return null;

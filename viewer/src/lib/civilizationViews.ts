@@ -57,7 +57,7 @@ export function isFounded(entry: CivilizationEntry): entry is CivilizationView {
   return entry.founded;
 }
 
-export function civilizationStatus(found: CivRowAt): string {
+function civilizationStatus(found: CivRowAt): string {
   if (!found.recorded) {
     return `Fallen (final record, turn ${found.turn})`;
   }

@@ -6,6 +6,7 @@ import {
 import {
   COHORT_GROUPS, COHORT_LABEL, readCohorts, readWarLosses, rulesVersion, WAR_CAUSES, type CohortField, type CohortGroup,
 } from "../../lib/householdRetailEvidence";
+import { words } from "./formatters";
 
 const number = (value: number, digits = 3) =>
   (Math.abs(value) < 5e-7 ? 0 : value).toLocaleString(undefined, { maximumFractionDigits: digits });
@@ -14,7 +15,6 @@ const show = (value: number | null | undefined, digits = 3) => value === null ||
 const food = (milli: number | null | undefined) => milli === null || milli === undefined ? "Unknown" : number(milli / 1000);
 /** Milli-units as wealth units. */
 const coins = (milli: number | null | undefined) => milli === null || milli === undefined ? "Unknown" : number(milli / 1000);
-const words = (text: string | null | undefined) => (text ?? "").replace(/_/g, " ");
 
 const MODE_NOTE: Record<string, string> = {
   retail: "Retail: in each pilot region most of every new harvest belongs to its farmers by stable id. Owners' households eat their own food first, within their fair share, and sell the rest to neighbours at the clamped market price; buyers pay from their wealth, and farmers' ordinary farm income is replaced by what they sell. The commons and granary releases stay free, means-tested first.",

@@ -20,15 +20,15 @@ export function warLeader(war: CampaignWar): string | null {
 }
 
 /** War identity across snapshots: one war per war key and start turn. */
-export function warId(war: CampaignWar): string {
+function warId(war: CampaignWar): string {
   return `${war.war}@${war.start_turn}`;
 }
 
-export function warTitle(war: CampaignWar): string {
+function warTitle(war: CampaignWar): string {
   return `${war.attacker} vs ${war.defender}`;
 }
 
-export function warAim(war: CampaignWar): string {
+function warAim(war: CampaignWar): string {
   const aim = war.aim.replace(/_/g, " ");
   return war.aim_region ? `${aim} of ${war.aim_region}` : aim;
 }

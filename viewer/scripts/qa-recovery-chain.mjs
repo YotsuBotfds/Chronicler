@@ -56,14 +56,13 @@
  * `report.json`, screenshots (JPEG, device scale 1), the runs and the variant
  * go there. Exits 1 when a check fails.
  */
-import { createRequire } from "node:module";
+import { loadPlaywright } from "./lib/playwright.mjs";
 import { createServer } from "node:http";
 import { spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-const require = createRequire(import.meta.url);
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.resolve(HERE, "..", "..");
 const VIEWER = path.resolve(HERE, "..");
@@ -649,7 +648,7 @@ function prepareOut(out) {
 async function main() {
   prepareOut(options.out);
   nativeIdentity();
-  const { chromium } = require("playwright");
+  const { chromium } = loadPlaywright();
   const server = await serve(options.build);
   const url = `http://127.0.0.1:${server.address().port}/`;
   const browser = await chromium.launch();

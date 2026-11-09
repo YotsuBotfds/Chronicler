@@ -3,10 +3,9 @@ import {
   apprenticeshipFunnel, apprenticeshipOutcomes, readApprenticeship, usefulWork, type ApprenticeshipSiteReceipt,
   type SeatRecord,
 } from "../../lib/apprenticeship";
+import { show, words } from "./formatters";
+import { SystemTable } from "./SystemTable";
 
-const show = (value: number | null | undefined, digits = 3) =>
-  value === null || value === undefined ? "Unknown" : value.toLocaleString(undefined, { maximumFractionDigits: digits });
-const words = (text: string | null | undefined) => (text ?? "").replace(/_/g, " ");
 const people = (list: number[]) => (list.length ? list.join(", ") : "none");
 const MODE_NOTE: Record<string, string> = {
   train: "Train mode: an apprentice who attends the required turns earns a workshop qualification, kept for life wherever they live.",
@@ -69,23 +68,23 @@ export function Apprenticeship({ bundle, snapshot, currentTurn, onSelectRegion }
     <p className="systems-note">Simulation turn {record.source_turn}. {MODE_NOTE[record.mode]}</p>
     <p className="systems-note">{RULES_NOTE[record.schema_version]}</p>
     <p className="systems-note">A qualification is a dated record by person, not occupation skill. Qualified crew members of an operating workshop spend part of their crew time on upkeep against its wear and teach up to {show(record.parameters.per_mentor)} named apprentices each; a site with nobody qualified on its crew wears down. Apprentices give up part of their ordinary income; a firm with payroll pays a stipend from its cash.</p>
-    <div className="systems-table-wrap"><table className="systems-table" aria-label={`Apprenticeship funnel at snapshot ${turn}`}>
+    <SystemTable label={`Apprenticeship funnel at snapshot ${turn}`}>
       <thead><tr><th>Stage (lifetime)</th><th>Count</th></tr></thead>
       <tbody>{apprenticeshipFunnel(record).map(([label, value]) => <tr key={label}><td>{label}</td><td>{show(value)}</td></tr>)}
         <tr><td>Income given up by apprentices</td><td>{show(record.counters.income_forgone ?? 0)}</td></tr>
         <tr><td>Stipends paid (units)</td><td>{show((record.counters.stipends_paid ?? 0) / 1000)}</td></tr>
       </tbody>
-    </table></div>
-    {useful !== null ? <div className="systems-table-wrap"><table className="systems-table" aria-label={`Apprenticeship useful work to snapshot ${turn}`}>
+    </SystemTable>
+    {useful !== null ? <SystemTable label={`Apprenticeship useful work to snapshot ${turn}`}>
       <thead><tr><th>Who kept the sites (lifetime)</th><th>Amount</th></tr></thead>
       <tbody>{useful.map(([label, value]) => <tr key={label}><td>{label}</td><td>{show(value)}</td></tr>)}</tbody>
-    </table></div> : null}
+    </SystemTable> : null}
     {c === null ? <p className="systems-note">No apprenticeship pass was recorded in simulation turn {record.source_turn}; continuity this turn is unknown, not zero.</p> :
       <p className="systems-note" aria-label="Continuity">Retained by people: {c.qualified_alive} qualified alive anywhere, {c.qualified_elsewhere} of them away from every workshop region. Community teaching capacity: {c.qualified_in_site_regions} in workshop regions, {c.qualified_in_site_cities} in the workshop cities, {c.qualified_on_crews} on this turn's crews. {c.sites_without_qualified.length
         ? `Unmet: ${c.sites_without_qualified.map(site).join(", ")} ${c.sites_without_qualified.length === 1 ? "has" : "have"} no qualified person in the region.`
         : "Every site has a qualified person in its region."}</p>}
     {record.receipts === null ? null : record.receipts.length === 0 ? <p className="systems-note">No workshop site is open.</p> :
-      <div className="systems-table-wrap"><table className="systems-table" aria-label={`Apprenticeship sites at snapshot ${turn}`}>
+      <SystemTable label={`Apprenticeship sites at snapshot ${turn}`}>
         <thead><tr><th>Site</th><th>Region</th><th>Operating</th><th>Condition</th><th>Wear − upkeep</th><th>Qualified (city / on crew)</th><th>Mentors</th><th>Apprentices this turn</th><th>Stipends</th>{v2 ? <th>Who kept it</th> : null}</tr></thead>
         <tbody>{record.receipts.map((r) => <tr key={r.site}>
           <td>{site(r.site)}{r.teaching_lost ? " · teaching lost" : ""}</td>
@@ -99,9 +98,9 @@ export function Apprenticeship({ bundle, snapshot, currentTurn, onSelectRegion }
           <td>{stipendText(r)}</td>
           {v2 ? <td>{keep(r)}</td> : null}
         </tr>)}</tbody>
-      </table></div>}
+      </SystemTable>}
     {record.apprenticeships.length > 0 ?
-      <div className="systems-table-wrap"><table className="systems-table" aria-label={`Open apprenticeships at snapshot ${turn}`}>
+      <SystemTable label={`Open apprenticeships at snapshot ${turn}`}>
         <thead><tr><th>Apprentice</th><th>Site</th><th>Since</th><th>Attended</th><th>Missed in a row</th>{v2 ? <><th>Absent in a row</th><th>On crew / attached</th><th>Transfers</th></> : null}<th>Mentors</th><th>Income given up</th></tr></thead>
         <tbody>{record.apprenticeships.map((a) => <tr key={a.agent_id}>
           <td>{a.agent_id}{a.veteran ? " (veteran)" : ""}{v2 && a.entry_age !== undefined ? `, entered at ${a.entry_age}` : ""}</td><td>{site(a.site)}</td><td>turn {a.started_turn}</td>
@@ -111,7 +110,7 @@ export function Apprenticeship({ bundle, snapshot, currentTurn, onSelectRegion }
           <td>{people(a.mentors)}</td>
           <td>{show(a.income_forgone)}</td>
         </tr>)}</tbody>
-      </table></div> : <p className="systems-note">No apprenticeship is open.</p>}
+      </SystemTable> : <p className="systems-note">No apprenticeship is open.</p>}
     {record.archive.length > 0 ? <p className="systems-note">Recent endings: {record.archive.slice(-8).map((a) =>
       `${a.agent_id} at ${site(a.site)} (turn ${a.ended_turn}, ${words(a.ended_reason)}${a.status === "completed" ? (a.granted ? ", qualified" : ", not granted") : ""})`).join("; ")}.</p> : null}
     {outcomes.missed.length || outcomes.ended.length ? <p className="systems-note">Interruptions: {outcomes.missed.map(([k, v]) => `${words(k)} ${v}`).join(", ") || "none"}. Endings: {outcomes.ended.map(([k, v]) => `${words(k)} ${v}`).join(", ") || "none"}.</p> : null}

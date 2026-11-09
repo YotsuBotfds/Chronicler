@@ -1,3 +1,4 @@
+import { isRecord as object, finite, count } from "./recordGuards";
 import type { TurnSnapshot } from "../types";
 
 /**
@@ -21,10 +22,9 @@ export type TitledTradeStatus = "absent" | "disabled" | "malformed" | "unobserve
 /** ``released_returned``: the carrier was released in transit, so the shipment went back to its
  * origin at once (the holder keeps title there; its cause is the release reason). */
 export const OUTCOMES = ["delivered", "returned", "escheated", "pool_reset", "switched_off", "released_returned"] as const;
-export const RETURN_CAUSES = ["destination_conquered", "quarantine_closure", "route_lost",
+const RETURN_CAUSES = ["destination_conquered", "quarantine_closure", "route_lost",
   "destination_left_pilot"] as const;
-export const RELEASE_REASONS = ["migrated", "occupation", "enlisted", "on_trip", "other_work"] as const;
-export const DEPOSIT_REASONS = ["claims_refused", "not_pilot", "holder_died", "pool_reset", "switched_off"] as const;
+const RELEASE_REASONS = ["migrated", "occupation", "enlisted", "on_trip", "other_work"] as const;
 const EVENTS = ["moved", ...OUTCOMES];
 export const GOODS = ["grain", "fish", "salt", "botanicals", "exotic"] as const;
 
@@ -72,9 +72,6 @@ export interface TitledTradeRecord {
   parameters: Record<string, unknown>;
 }
 
-const object = (x: unknown): x is Record<string, unknown> => x !== null && typeof x === "object" && !Array.isArray(x);
-const finite = (x: unknown): x is number => typeof x === "number" && Number.isFinite(x);
-const count = (x: unknown): x is number => finite(x) && Number.isInteger(x) && x >= 0;
 const sum = (xs: number[]) => xs.reduce((a, b) => a + b, 0);
 const goods = (x: unknown): x is number[] => Array.isArray(x) && x.length === GOODS.length && x.every(count);
 

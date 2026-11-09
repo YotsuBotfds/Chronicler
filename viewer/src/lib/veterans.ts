@@ -1,3 +1,5 @@
+import { readLivelihoodRecord } from "./livelihoodRecord";
+import { isRecord as object } from "./recordGuards";
 import type { TurnSnapshot } from "../types";
 
 /** A dated outcome of one veteran record. */
@@ -63,14 +65,13 @@ export interface VeteransRecord {
 export const CAUSES = ["desertion", "scattered", "demobilised", "destroyed", "dissolved"] as const;
 export const OUTCOMES = ["placed:crew", "placed:apprentice", "placed:repair", "waiting", "remobilised",
   "died", "migrated", "control_lost", "expired", "pool_reset"] as const;
-export const PLACEMENTS = ["placed:crew", "placed:apprentice", "placed:repair"] as const;
-export const CLOSING = ["remobilised", "died", "expired", "pool_reset"] as const;
-export const INELIGIBLE = ["control_lost", "minor", "unobserved"] as const;
+const PLACEMENTS = ["placed:crew", "placed:apprentice", "placed:repair"] as const;
+const CLOSING = ["remobilised", "died", "expired", "pool_reset"] as const;
+const INELIGIBLE = ["control_lost", "minor", "unobserved"] as const;
 export const UNMET = ["no_site", "site_idle", "not_crew_eligible", "crew_full", "unplaced"] as const;
 /** Unmet reasons that mean no opening existed for the veteran this turn. */
 export const NO_OPENING: ReadonlyArray<string> = ["no_site", "site_idle"];
 
-const object = (x: unknown): x is Record<string, unknown> => x !== null && typeof x === "object" && !Array.isArray(x);
 const integer = (x: unknown): x is number => typeof x === "number" && Number.isInteger(x);
 const count = (x: unknown): x is number => integer(x) && x >= 0;
 const within = (x: unknown, n: number): x is number => count(x) && x < n;
@@ -146,11 +147,8 @@ function validFrame(x: unknown, regions: number, source: number, control: boolea
 
 /** Strict reader; null when absent, from another schema, misdated or malformed. */
 export function veteransAt(snapshot: TurnSnapshot | null, regionCount: number): VeteransRecord | null {
-  const row = snapshot as unknown as Record<string, unknown> | null;
-  const livelihoods = row?.livelihoods;
-  if (!object(livelihoods) || livelihoods.schema_version !== 1) return null;
-  const x = livelihoods.veteran_reintegration;
-  if (!object(x) || x.schema_version !== 1 || x.stage !== "RS3" || typeof x.enabled !== "boolean"
+  const x = readLivelihoodRecord(snapshot, "veteran_reintegration");
+  if (!x || x.stage !== "RS3" || typeof x.enabled !== "boolean"
     || !among(["priority", "record_only"])(x.mode) || !count(x.source_turn) || x.source_turn + 1 !== snapshot?.turn
     || !count(x.veterans_omitted) || !object(x.counters) || !Object.values(x.counters).every(count)
     || !object(x.parameters)) return null;

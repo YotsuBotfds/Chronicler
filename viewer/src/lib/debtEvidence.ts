@@ -1,3 +1,4 @@
+import { amount as finite } from "./recordGuards";
 import type { Bundle, Event, FinanceCivSnapshot } from "../types";
 import { eventKey, eventKeyCount } from "./bundleIndex";
 
@@ -39,7 +40,6 @@ export interface DebtEvidenceReading {
   events: DebtEventEvidence[];
   coverage: string[];
 }
-const finite = (value: unknown): value is number => typeof value === "number" && Number.isFinite(value) && value >= 0;
 const turn = (value: unknown): value is number => finite(value) && Number.isInteger(value);
 const pointer = (value: string) => value.replace(/~/g, "~0").replace(/\//g, "~1");
 const val = (value: unknown) => finite(value) ? value : null;

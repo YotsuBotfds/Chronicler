@@ -8,6 +8,8 @@
  * record whose ``transitions`` is null knows the convoys on the road but not
  * what happened in its turn (unknown); an empty list means nothing happened.
  */
+import { readLivelihoodRecord } from "./livelihoodRecord";
+import { amount } from "./recordGuards";
 import type { TurnSnapshot } from "../types";
 
 export const CONVOY_COUNTERS = [
@@ -20,9 +22,9 @@ export const CONVOY_COUNTERS = [
 ] as const;
 export type ConvoyCounter = typeof CONVOY_COUNTERS[number];
 
-export const CONVOY_POLICIES = ["adaptive", "cheapest", "safest"] as const;
-export const CONVOY_STATUSES = ["en_route", "waiting", "returning"] as const;
-export const CONVOY_OPERATIONS = ["dispatched", "advanced", "waited", "turned_back",
+const CONVOY_POLICIES = ["adaptive", "cheapest", "safest"] as const;
+const CONVOY_STATUSES = ["en_route", "waiting", "returning"] as const;
+const CONVOY_OPERATIONS = ["dispatched", "advanced", "waited", "turned_back",
   "arrived", "captured", "lost", "returned", "stranded"] as const;
 const FINAL = new Set<string>(["arrived", "captured", "lost", "returned", "stranded"]);
 const MAX_ACTIVE = 64;
@@ -62,7 +64,6 @@ export interface GrainConvoysRecord {
 type Row = Record<string, unknown>;
 const object = (v: unknown): v is Row => typeof v === "object" && v !== null && !Array.isArray(v);
 const integer = (v: unknown, min = 0): v is number => Number.isSafeInteger(v) && (v as number) >= min;
-const amount = (v: unknown): v is number => typeof v === "number" && Number.isFinite(v) && v >= 0;
 const name = (v: unknown): v is string => typeof v === "string" && v.length > 0 && v.length <= 512;
 const optional = <T>(v: unknown, check: (x: unknown) => x is T) => v === null || check(v);
 const oneOf = <T extends string>(values: readonly T[]) => (v: unknown): v is T => values.includes(v as T);
@@ -115,10 +116,8 @@ function transitionRow(v: unknown, source: number): v is GrainConvoyTransition {
 /** The dated convoy record of a snapshot, or null (absent, stale or malformed). */
 export function readGrainConvoys(snapshot: TurnSnapshot | null | undefined): GrainConvoysRecord | null {
   if (!snapshot) return null;
-  const livelihoods = (snapshot as unknown as Row).livelihoods;
-  if (!object(livelihoods) || livelihoods.schema_version !== 1) return null;
-  const r = livelihoods.grain_convoys;
-  if (!object(r) || r.schema_version !== 1 || !integer(r.source_turn) || r.source_turn !== snapshot.turn - 1) return null;
+  const r = readLivelihoodRecord(snapshot, "grain_convoys");
+  if (!r || !integer(r.source_turn) || r.source_turn !== snapshot.turn - 1) return null;
   const source = r.source_turn;
   if (typeof r.enabled !== "boolean" || !oneOf(CONVOY_POLICIES)(r.route_policy) || typeof r.moved !== "boolean"
     || typeof r.dispatch_ran !== "boolean" || !integer(r.active_count) || r.active_count > MAX_ACTIVE

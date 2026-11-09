@@ -1,3 +1,5 @@
+import { readLivelihoodRecord } from "./livelihoodRecord";
+import { isRecord as object, finite, amount, count as integer } from "./recordGuards";
 import type { TurnSnapshot } from "../types";
 
 /** The owner's dated knowledge of a stand: the timber account settled in ``turn``. */
@@ -34,10 +36,6 @@ export interface CommonsRulesRecord {
   rules: CommonsRule[]; counters: Record<string, number>;
 }
 
-const object = (x: unknown): x is Record<string, unknown> => x !== null && typeof x === "object" && !Array.isArray(x);
-const finite = (x: unknown): x is number => typeof x === "number" && Number.isFinite(x);
-const amount = (x: unknown): x is number => finite(x) && x >= 0;
-const integer = (x: unknown): x is number => finite(x) && Number.isInteger(x) && x >= 0;
 const share = (x: unknown): x is number => finite(x) && x >= 0 && x <= 1;
 const optional = (x: unknown) => x === null || finite(x);
 const STATUS = new Set(["quota", "rest"]);
@@ -95,11 +93,8 @@ function unique<T extends { region_id: number; slot: number }>(rows: T[]): boole
  * another snapshot or malformed. Never borrows observations from other snapshots.
  */
 export function commonsRulesAt(snapshot: TurnSnapshot | null, regionCount: number): CommonsRulesRecord | null {
-  const row = snapshot as unknown as Record<string, unknown> | null;
-  const livelihoods = row?.livelihoods;
-  if (!object(livelihoods) || livelihoods.schema_version !== 1) return null;
-  const x = livelihoods.commons_rules;
-  if (!object(x) || x.schema_version !== 1 || !object(x.units) || x.units.timber !== "timber_goods" || x.units.money !== "treasury"
+  const x = readLivelihoodRecord(snapshot, "commons_rules");
+  if (!x || !object(x.units) || x.units.timber !== "timber_goods" || x.units.money !== "treasury"
     || (x.mode !== "enforced" && x.mode !== "cost_only") || !integer(x.source_turn) || !integer(x.completed_turn)
     || x.completed_turn !== x.source_turn + 1 || x.completed_turn !== snapshot?.turn || typeof x.observed !== "boolean"
     || !object(x.parameters) || !PARAMETERS.every((key) => amount((x.parameters as Record<string, unknown>)[key]))

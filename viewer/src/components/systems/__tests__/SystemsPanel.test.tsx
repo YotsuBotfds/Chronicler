@@ -28,7 +28,7 @@ import { NomadsPanel } from "../NomadsPanel";
 import { RegionSystemsDetail } from "../RegionSystemsDetail";
 import { SystemsPanel } from "../SystemsPanel";
 import { WarsPanel } from "../WarsPanel";
-import { crisesAtSnapshot, famineSpans, foodCrisisSpans } from "../../../lib/food";
+import { crisesAtSnapshot, foodCrisisSpans, spansOfKind } from "../../../lib/food";
 import { cityRecord, cityRecordAt } from "../../../lib/cities";
 import { movementRecord } from "../../../lib/movements";
 import { seatKeys } from "../../../lib/learning";
@@ -1241,7 +1241,7 @@ describe("RegionSystemsDetail", () => {
   });
 
   it("shows a region's food, famine and the armies in it", () => {
-    const spans = famineSpans(fixture.events_timeline);
+    const spans = spansOfKind(foodCrisisSpans(fixture.events_timeline), "famine");
     const names = fixture.world_state.regions.map((region) => region.name);
     const snapshot = at(101);
     const army = snapshot.campaign!.armies[0];

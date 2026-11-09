@@ -1,8 +1,7 @@
 import type { Bundle, TurnSnapshot } from "../../types";
 import { crewTotals, isShort, readRecoveryCrews, type CrewMemberRecord, type CrewReceiptRecord } from "../../lib/recoveryCrews";
+import { show } from "./formatters";
 
-const show = (value: number | null | undefined, digits = 3) =>
-  value === null || value === undefined ? "Unknown" : value.toLocaleString(undefined, { maximumFractionDigits: digits });
 const coins = (milli: number) => (milli / 1000).toLocaleString(undefined, { maximumFractionDigits: 3 });
 const ORIGIN: Record<string, string> = {
   site_city: "farmer of the site's city", urban_farmer: "farmer of another city", rural_farmer: "rural farmer",

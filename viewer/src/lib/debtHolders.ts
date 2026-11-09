@@ -58,9 +58,9 @@ export const HOLDER_COLORS: Record<HolderGroup, string> = {
 };
 
 /** Status colours of the trouble strip (each row is also named). */
-export const ARREARS_COLOR = "#fab219";
-export const DEFAULT_COLOR = "#d03b3b";
-export const WRITE_OFF_COLOR = "#ec835a";
+const ARREARS_COLOR = "#fab219";
+const DEFAULT_COLOR = "#d03b3b";
+const WRITE_OFF_COLOR = "#ec835a";
 
 /** Snapshot kind names (`domestic_credit_state.KIND_NAMES`) to holder groups. */
 const KIND_GROUPS: Record<string, HolderGroup> = {

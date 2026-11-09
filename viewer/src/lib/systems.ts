@@ -274,9 +274,9 @@ export interface StripRow {
 // --- Epidemics ---
 
 /** Pathogens in the simulation's registry order (`epidemiology.PATHOGENS`). */
-export const PATHOGEN_ORDER = ["plague", "pox", "fever", "flux", "pestilence"] as const;
+const PATHOGEN_ORDER = ["plague", "pox", "fever", "flux", "pestilence"] as const;
 
-export const PATHOGEN_LABELS: Record<string, string> = {
+const PATHOGEN_LABELS: Record<string, string> = {
   plague: "Plague",
   pox: "Pox",
   fever: "Marsh fever",
@@ -285,7 +285,7 @@ export const PATHOGEN_LABELS: Record<string, string> = {
 };
 
 /** Categorical slots, fixed per pathogen (validated for the dark surface). */
-export const PATHOGEN_COLORS: Record<string, string> = {
+const PATHOGEN_COLORS: Record<string, string> = {
   plague: "#3987e5",
   pox: "#d95926",
   fever: "#199e70",
@@ -293,7 +293,7 @@ export const PATHOGEN_COLORS: Record<string, string> = {
   pestilence: "#d55181",
 };
 
-export const OTHER_COLOR = "#898781";
+const OTHER_COLOR = "#898781";
 
 export function pathogenLabel(name: string): string {
   return PATHOGEN_LABELS[name] ?? name;
@@ -428,7 +428,7 @@ export function civInitials(name: string): string {
 }
 
 /** Text ink for a label drawn on a ramp fill. */
-export function inkOn(fill: string): string {
+function inkOn(fill: string): string {
   return LIGHT_FILLS.has(fill) ? DARK_INK : LIGHT_INK;
 }
 

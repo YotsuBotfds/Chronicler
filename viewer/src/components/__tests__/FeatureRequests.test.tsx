@@ -1,6 +1,6 @@
 /**
  * Feature options in the requests the viewer sends: Batch Lab's batch_start
- * config, the legacy lobby's and the shell's start command. Nothing selected
+ * config and the shell's start command. Nothing selected
  * (or an older server without a catalog) sends exactly what it sent before.
  */
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -8,7 +8,6 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import served from "../../__fixtures__/featureCatalog.json";
 import type { LobbyInit, WorldState } from "../../types";
 import { BatchPanel } from "../BatchPanel";
-import { SetupLobby } from "../SetupLobby";
 import { AppShell } from "../phase75/AppShell";
 
 afterEach(() => { cleanup(); vi.restoreAllMocks(); });
@@ -63,27 +62,6 @@ const LOBBY: LobbyInit = {
   defaults: { turns: 50, civs: 4, regions: 8, seed: null },
   feature_catalog: served,
 };
-
-describe("the legacy setup lobby", () => {
-  it("launches a new world with the selected features", () => {
-    const onLaunch = vi.fn();
-    render(<SetupLobby lobbyInit={LOBBY} onLaunch={onLaunch} starting={false} error={null} />);
-    openFeatures();
-    fireEvent.click(screen.getByRole("checkbox", { name: /^Food allocation/ }));
-    fireEvent.click(screen.getByRole("button", { name: /launch/i }));
-    expect(onLaunch.mock.calls[0][0].features).toEqual({ food_allocation: true });
-  });
-
-  it("sends no features field when nothing is selected or the server sent no catalog", () => {
-    for (const lobby of [LOBBY, { ...LOBBY, feature_catalog: undefined }]) {
-      const onLaunch = vi.fn();
-      render(<SetupLobby lobbyInit={lobby} onLaunch={onLaunch} starting={false} error={null} />);
-      fireEvent.click(screen.getByRole("button", { name: /launch/i }));
-      expect("features" in onLaunch.mock.calls[0][0]).toBe(false);
-      cleanup();
-    }
-  });
-});
 
 describe("the shell's setup form", () => {
   function shell(onLaunch = vi.fn(), lobbyInit: LobbyInit = LOBBY) {

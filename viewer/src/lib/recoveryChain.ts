@@ -21,6 +21,7 @@
  * join it to the chain by stable id or only by region (``LINKS``); see
  * docs/integration/recovery-chain-view.md.
  */
+import { isRecord as object } from "./recordGuards";
 import type { Bundle, GrainStorageSnapshot, TurnSnapshot } from "../types";
 import { foodAllocationAt, type FoodAllocationRecord } from "./foodAllocation";
 import { granaryStorageAt } from "./granaries";
@@ -63,7 +64,7 @@ export const PACKAGE_INFO: Record<ChainPackage, { label: string; flag: string }>
 };
 
 /** The packages whose presence makes the chain view worth mounting. */
-export const ANCHOR_PACKAGES: readonly ChainPackage[] = ["repair_projects", "timber_supply", "recovery_crews", "household_retail"];
+const ANCHOR_PACKAGES: readonly ChainPackage[] = ["repair_projects", "timber_supply", "recovery_crews", "household_retail"];
 
 type Records = {
   repair_projects: RepairProjectsRecord; timber_supply: TimberSupplyRecord; timber_stock: TimberStockRecord;
@@ -71,7 +72,6 @@ type Records = {
   remittances: RemittancesRecord; food_allocation: FoodAllocationRecord;
 };
 
-const object = (x: unknown): x is Record<string, unknown> => x !== null && typeof x === "object" && !Array.isArray(x);
 
 /** Whether a snapshot carries a package's record at all (a presence test; the readers parse). */
 export function carries(snapshot: TurnSnapshot, key: ChainPackage): boolean {

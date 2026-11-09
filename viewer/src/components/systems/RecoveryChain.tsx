@@ -9,13 +9,13 @@ import type { TimberStoreRecord } from "../../lib/timberSupply";
 import { StripLegend, TurnStrip } from "./SystemParts";
 import { requestEntityHistory } from "../../lib/entityHistoryNavigation";
 import { entityKey,entityLabel,type EntityRef } from "../../lib/entityHistory";
+import { words } from "./formatters";
 
 const num = (value: number, digits = 2) =>
   (Math.abs(value) < 5e-7 ? 0 : value).toLocaleString(undefined, { maximumFractionDigits: digits });
 /** Milli-units as coins (wealth units). */
 const coins = (milli: number) => num(milli / 1000, 3);
 const pct = (share: number) => `${num(100 * share, 1)}%`;
-const words = (text: string | null | undefined) => (text ?? "").replace(/_/g, " ");
 const ids = (people: number[]) => people.length ? people.join(", ") : "nobody";
 
 const REASON: Record<string, string> = {

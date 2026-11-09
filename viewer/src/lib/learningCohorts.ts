@@ -1,3 +1,5 @@
+import { readLivelihoodRecord } from "./livelihoodRecord";
+import { isRecord as object, finite, amount, count } from "./recordGuards";
 import type { TurnSnapshot } from "../types";
 
 /** One enrolled person (``snapshot.livelihoods.learning_cohorts.cohorts[].members``). */
@@ -52,10 +54,6 @@ export interface LearningCohortsRecord {
 
 export const OCCUPATIONS = ["Farmer", "Soldier", "Merchant", "Scholar", "Priest"] as const;
 
-const object = (x: unknown): x is Record<string, unknown> => x !== null && typeof x === "object" && !Array.isArray(x);
-const finite = (x: unknown): x is number => typeof x === "number" && Number.isFinite(x);
-const count = (x: unknown): x is number => finite(x) && Number.isInteger(x) && x >= 0;
-const amount = (x: unknown): x is number => finite(x) && x >= 0;
 const skill = (x: unknown): x is number => finite(x) && x >= 0 && x <= 1;
 const ids = (x: unknown, max = 8): x is number[] => Array.isArray(x) && x.length <= max && x.every(count);
 const maybe = <T,>(check: (v: unknown) => v is T) => (x: unknown) => x === null || check(x);
@@ -110,11 +108,8 @@ function validReceipt(x: unknown, regions: number, source: number): boolean {
 
 /** Strict reader; null when absent, from another schema, misdated or malformed. */
 export function learningCohortsAt(snapshot: TurnSnapshot | null, regionCount: number): LearningCohortsRecord | null {
-  const row = snapshot as unknown as Record<string, unknown> | null;
-  const livelihoods = row?.livelihoods;
-  if (!object(livelihoods) || livelihoods.schema_version !== 1) return null;
-  const x = livelihoods.learning_cohorts;
-  if (!object(x) || x.schema_version !== 1 || x.stage !== "L5" || !MODES.includes(x.mode as string)
+  const x = readLivelihoodRecord(snapshot, "learning_cohorts");
+  if (!x || x.stage !== "L5" || !MODES.includes(x.mode as string)
     || !count(x.source_turn) || x.source_turn + 1 !== snapshot?.turn
     || !Array.isArray(x.cohorts) || x.cohorts.length > 8 || !x.cohorts.every((c) => validCohort(c, regionCount))
     || !Array.isArray(x.archive) || x.archive.length > 16 || !x.archive.every((c) => validArchived(c, regionCount))

@@ -2,9 +2,7 @@ import { useState, useCallback, useEffect, useRef } from "react";
 import type { Bundle } from "../types";
 import type { ArtifactIdentity } from "../lib/artifactIdentity";
 import { decodeInWorker, type DecodeJob, type DecodeReply } from "../lib/bundleDecode";
-import { decodeBundleBytes, parseBundle } from "../lib/bundleFile";
-
-export { parseBundle };
+import { decodeBundleBytes } from "../lib/bundleFile";
 
 /**
  * The uploaded bundle. A large file is read and decoded in a worker

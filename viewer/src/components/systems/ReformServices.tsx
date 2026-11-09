@@ -3,10 +3,9 @@ import type { Bundle, TurnSnapshot } from "../../types";
 import {
   readReformServices, reliefByRegion, reliefRecordAt, type ReliefFrame,
 } from "../../lib/reformServices";
+import { show } from "./formatters";
 
 const units = (milli: number) => (milli / 1000).toLocaleString(undefined, { maximumFractionDigits: 3 });
-const show = (value: number | null | undefined, digits = 3) =>
-  value === null || value === undefined ? "Unknown" : value.toLocaleString(undefined, { maximumFractionDigits: digits });
 const PATH_LABEL: Record<string, string> = {
   upkeep: "the relief's upkeep", institution: "Commons Management's share of the enforcement payment",
 };

@@ -1,3 +1,5 @@
+import { readLivelihoodRecord } from "./livelihoodRecord";
+import { isRecord as object, finite, count } from "./recordGuards";
 import type { TurnSnapshot } from "../types";
 
 /** One sender's row (``snapshot.livelihoods.remittances.receipts``). Money in milli-units. */
@@ -50,14 +52,11 @@ export interface RemittancesRecord {
   parameters: Record<string, number>;
 }
 
-export const RECEIPT_STATUSES = ["applied", "limited", "absent", "not_sent"] as const;
-export const UNLINKED_REASONS = ["no_bond", "recipient_away", "recipient_on_trip"] as const;
-export const CLOSE_REASONS = ["return", "death", "pool_reset", "unobserved_gap"] as const;
-export const MOVE_KINDS = ["departure", "onward", "return", "unrecorded"] as const;
+const RECEIPT_STATUSES = ["applied", "limited", "absent", "not_sent"] as const;
+const UNLINKED_REASONS = ["no_bond", "recipient_away", "recipient_on_trip"] as const;
+const CLOSE_REASONS = ["return", "death", "pool_reset", "unobserved_gap"] as const;
+const MOVE_KINDS = ["departure", "onward", "return", "unrecorded"] as const;
 
-const object = (x: unknown): x is Record<string, unknown> => x !== null && typeof x === "object" && !Array.isArray(x);
-const finite = (x: unknown): x is number => typeof x === "number" && Number.isFinite(x);
-const count = (x: unknown): x is number => finite(x) && Number.isInteger(x) && x >= 0;
 const integer = (x: unknown): x is number => finite(x) && Number.isInteger(x);
 const among = (list: readonly string[], x: unknown) => typeof x === "string" && list.includes(x);
 const counts = (x: unknown): x is Record<string, number> => object(x) && Object.values(x).every(count);
@@ -113,11 +112,8 @@ const list = <T,>(x: unknown, max: number, check: (v: unknown) => boolean): x is
 
 /** Strict reader; null when absent, from another schema, misdated or malformed. */
 export function remittancesAt(snapshot: TurnSnapshot | null, regionCount: number): RemittancesRecord | null {
-  const row = snapshot as unknown as Record<string, unknown> | null;
-  const livelihoods = row?.livelihoods;
-  if (!object(livelihoods) || livelihoods.schema_version !== 1) return null;
-  const x = livelihoods.remittances;
-  if (!object(x) || x.schema_version !== 1 || x.stage !== "RS4" || !among(MODES, x.mode)
+  const x = readLivelihoodRecord(snapshot, "remittances");
+  if (!x || x.stage !== "RS4" || !among(MODES, x.mode)
     || !count(x.source_turn) || x.source_turn + 1 !== snapshot?.turn || !counts(x.counters)
     || !object(x.parameters) || !Object.values(x.parameters).every(count)) return null;
   const source = x.source_turn as number;

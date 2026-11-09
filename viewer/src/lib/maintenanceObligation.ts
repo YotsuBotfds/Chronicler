@@ -1,3 +1,4 @@
+import { isRecord as object, finite, amount, count } from "./recordGuards";
 import type { TurnSnapshot } from "../types";
 
 /** One ruler's reservation, decided in Phase 10 of ``turn`` for the next turn (whole treasury units). */
@@ -25,7 +26,7 @@ export interface ReservationUseRecord {
 }
 
 /** PL3 review C: the charge split pro rata, as ``maintenance_obligation.split_charge``. */
-export function splitCharge(charged: number, reserved: number, envelope: number): [number, number] {
+function splitCharge(charged: number, reserved: number, envelope: number): [number, number] {
   const whole = reserved + envelope;
   if (reserved <= 0 || whole <= 0) return [0, 1];
   return [Math.floor(charged * reserved / whole), envelope / whole];
@@ -46,10 +47,6 @@ export type MaintenanceObligationReading =
   | { status: "malformed"; reason: string }
   | { status: "ok"; record: MaintenanceObligationRecord };
 
-const object = (x: unknown): x is Record<string, unknown> => x !== null && typeof x === "object" && !Array.isArray(x);
-const finite = (x: unknown): x is number => typeof x === "number" && Number.isFinite(x);
-const count = (x: unknown): x is number => finite(x) && Number.isInteger(x) && x >= 0;
-const amount = (x: unknown): x is number => finite(x) && x >= 0;
 const MODES = ["reserve", "reserve_only"];
 
 function decisionProblem(x: unknown, civs: number, source: number, share: number): string | null {

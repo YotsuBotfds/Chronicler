@@ -14,7 +14,7 @@ const DARK_INK = "#0b0b0b";
 /** Subsistence modes in `nomads.SUBSISTENCE_MODES` order. */
 export const MODE_ORDER = ["sedentary", "agro_pastoral", "nomadic"] as const;
 
-export const MODE_LABELS: Record<string, string> = {
+const MODE_LABELS: Record<string, string> = {
   sedentary: "Sedentary",
   agro_pastoral: "Agro-pastoral",
   nomadic: "Nomadic",
@@ -129,11 +129,6 @@ export function civNameAt(bundle: Bundle, index: number): string {
 
 export function governanceOf(snapshot: TurnSnapshot | null, civ: string): GovernanceSnapshot | null {
   return snapshot?.civ_stats[civ]?.governance ?? null;
-}
-
-/** True when any civilization row carries governance stats. */
-export function hasGovernanceRecord(history: TurnSnapshot[]): boolean {
-  return history.some((snapshot) => Object.values(snapshot.civ_stats).some((row) => row.governance != null));
 }
 
 /** Civilizations with governance stats anywhere, in world order. */

@@ -1,3 +1,4 @@
+import { isRecord as object, finite, amount, count } from "./recordGuards";
 import type { TurnSnapshot } from "../types";
 
 /** One funded operating site's wear in a completed turn (``livelihoods.operating_wear.receipts``). */
@@ -27,10 +28,6 @@ export type OperatingWearReading =
   | { status: "malformed"; reason: string }
   | { status: "ok"; record: OperatingWearRecord };
 
-const object = (x: unknown): x is Record<string, unknown> => x !== null && typeof x === "object" && !Array.isArray(x);
-const finite = (x: unknown): x is number => typeof x === "number" && Number.isFinite(x);
-const count = (x: unknown): x is number => finite(x) && Number.isInteger(x) && x >= 0;
-const amount = (x: unknown): x is number => finite(x) && x >= 0;
 const unit = (x: unknown): x is number => finite(x) && x >= 0 && x <= 1;
 const ids = (x: unknown, max: number): x is number[] => Array.isArray(x) && x.length <= max && x.every(count)
   && new Set(x).size === x.length;

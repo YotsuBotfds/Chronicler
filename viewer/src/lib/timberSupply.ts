@@ -1,3 +1,4 @@
+import { isRecord as object, finite, amount, count } from "./recordGuards";
 import type { TurnSnapshot } from "../types";
 
 export type ExpeditionStage = "outbound" | "cutting" | "returning";
@@ -77,10 +78,6 @@ export type TimberSupplyReading =
   | { status: "malformed"; reason: string }
   | { status: "ok"; record: TimberSupplyRecord };
 
-const object = (x: unknown): x is Record<string, unknown> => x !== null && typeof x === "object" && !Array.isArray(x);
-const finite = (x: unknown): x is number => typeof x === "number" && Number.isFinite(x);
-const count = (x: unknown): x is number => finite(x) && Number.isInteger(x) && x >= 0;
-const amount = (x: unknown): x is number => finite(x) && x >= 0;
 const ids = (x: unknown, max: number): x is number[] => Array.isArray(x) && x.length <= max && x.every(count)
   && new Set(x).size === x.length;
 const maybe = <T,>(check: (v: unknown) => v is T) => (x: unknown) => x === null || check(x);
@@ -88,12 +85,12 @@ const close = (a: number, b: number, scale = 1) => Math.abs(a - b) <= 1e-6 * Mat
 const subset = (a: number[], b: number[]) => a.every((v) => b.includes(v));
 
 const MODES = ["supply", "cost_only"];
-export const STAGES: readonly ExpeditionStage[] = ["outbound", "cutting", "returning"];
+const STAGES: readonly ExpeditionStage[] = ["outbound", "cutting", "returning"];
 /** Why no expedition was launched for a region with a gap, in check order. */
-export const REFUSALS = ["no_forest", "too_far", "forest_depleted", "forest_busy", "no_crew", "no_coins"] as const;
-export const DROP_REASONS = ["died", "migrated", "enlisted", "on_trip", "other_work"] as const;
+const REFUSALS = ["no_forest", "too_far", "forest_depleted", "forest_busy", "no_crew", "no_coins"] as const;
+const DROP_REASONS = ["died", "migrated", "enlisted", "on_trip", "other_work"] as const;
 export const END_REASONS = ["crew_lost", "no_coins", "home_lost", "forest_lost", "pool_reset", "switched_off"] as const;
-export const CUT_ENDS = ["completed", "forest_depleted", "forest_lost", "recalled"] as const;
+const CUT_ENDS = ["completed", "forest_depleted", "forest_lost", "recalled"] as const;
 const NEED_STATUSES = ["supplied", "expedition", "launched", "refused"];
 const MAX_CLOSED = 32;
 const MAX_NEEDS = 128;

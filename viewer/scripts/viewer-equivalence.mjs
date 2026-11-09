@@ -18,12 +18,10 @@
  * panel's loading placeholder must be gone. The script compares the
  * captures pairwise and exits non-zero on any difference.
  */
-import { createRequire } from "node:module";
+import { loadPlaywright } from "./lib/playwright.mjs";
 import { createServer } from "node:http";
 import { readFile, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
-
-const require = createRequire(import.meta.url);
 
 const MIME = {
   ".html": "text/html; charset=utf-8",
@@ -211,7 +209,7 @@ function firstDifference(left, right) {
 
 async function main() {
   const options = parseArgs(process.argv.slice(2));
-  const { chromium } = require("playwright");
+  const { chromium } = loadPlaywright();
   const servers = [];
   const urls = [];
   for (const build of options.builds) {

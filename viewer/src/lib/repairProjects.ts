@@ -1,3 +1,5 @@
+import { readLivelihoodRecord } from "./livelihoodRecord";
+import { isRecord as object, finite, amount, count } from "./recordGuards";
 import type { TurnSnapshot } from "../types";
 
 /** One repair or reconstruction project (``snapshot.livelihoods.repair_projects``). */
@@ -63,7 +65,7 @@ export interface RepairProjectsRecord {
 
 /** Declaration order (append only); ``no_people`` is the PL3 correction: a granary
  * project suspended while its region has no farmer. */
-export const REASONS = ["no_timber", "no_coins", "no_labor", "no_envelope", "unqualified", "no_people"] as const;
+const REASONS = ["no_timber", "no_coins", "no_labor", "no_envelope", "unqualified", "no_people"] as const;
 const KINDS = ["granary", "workshop"];
 const CAUSES = ["wear", "war"];
 const MODES = ["repair", "cost_only"];
@@ -73,11 +75,7 @@ const UNMET = ["no_controller", "zero_capacity", "building", "no_people"];
 const MAX_CREW = 4;
 const EPS = 1e-6;
 
-const object = (x: unknown): x is Record<string, unknown> => x !== null && typeof x === "object" && !Array.isArray(x);
-const finite = (x: unknown): x is number => typeof x === "number" && Number.isFinite(x);
-const count = (x: unknown): x is number => finite(x) && Number.isInteger(x) && x >= 0;
 const integer = (x: unknown): x is number => finite(x) && Number.isInteger(x);
-const amount = (x: unknown): x is number => finite(x) && x >= 0;
 const unit = (x: unknown): x is number => finite(x) && x >= 0 && x <= 1;
 const ids = (x: unknown, max = MAX_CREW): x is number[] =>
   Array.isArray(x) && x.length <= max && x.every(count) && new Set(x).size === x.length;
@@ -153,11 +151,8 @@ function validUnmet(x: unknown, regions: number): boolean {
 
 /** Strict reader; null when absent, from another schema, misdated or malformed. */
 export function repairProjectsAt(snapshot: TurnSnapshot | null, regionCount: number, civCount: number): RepairProjectsRecord | null {
-  const row = snapshot as unknown as Record<string, unknown> | null;
-  const livelihoods = row?.livelihoods;
-  if (!object(livelihoods) || livelihoods.schema_version !== 1) return null;
-  const x = livelihoods.repair_projects;
-  if (!object(x) || x.schema_version !== 1 || x.stage !== "RS2" || !MODES.includes(x.mode as string)
+  const x = readLivelihoodRecord(snapshot, "repair_projects");
+  if (!x || x.stage !== "RS2" || !MODES.includes(x.mode as string)
     || !count(x.source_turn) || x.source_turn + 1 !== snapshot?.turn || !object(x.units)
     || !Array.isArray(x.projects) || x.projects.length > regionCount + 4
     || !x.projects.every((p) => validProject(p, regionCount, true))

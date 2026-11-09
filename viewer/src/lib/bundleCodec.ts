@@ -20,7 +20,7 @@
  * Large files are decoded in a worker (lib/bundleDecode.ts).
  */
 
-export const HISTORY_DELTA_KEY = "history_delta";
+const HISTORY_DELTA_KEY = "history_delta";
 const SHARED_WORLD_FIELDS = ["events_timeline", "named_events"] as const;
 
 const DEL = "~d";
@@ -87,7 +87,7 @@ function applyPatch(previous: unknown, patch: unknown): unknown {
 
 let fastObjectPatches = true;
 
-/** Tests: decode object patches with the reference implementation only (the format as defined). */
+/** Test seam. Tests: decode object patches with the reference implementation only (the format as defined). */
 export function setReferenceObjectPatches(reference: boolean): void {
   fastObjectPatches = !reference;
 }

@@ -13,8 +13,9 @@ import { beforeAll, describe, expect, it } from "vitest";
 import type { Bundle, Event, TurnSnapshot } from "../../types";
 import { buildEventFeed, eventProvenance, terrainAt } from "../../components/phase75/appShellHelpers";
 import {
-  actorEventsUpTo, eventByKey, eventKey, eventKeyCount, eventsOfType, eventsUpTo, typedEventsUpTo,
+  actorEventsUpTo, eventByKey, eventKey, eventKeyCount, eventsOfType, eventsUpTo, snapshotAtTurn, typedEventsUpTo,
 } from "../bundleIndex";
+import { exactSnapshot } from "../historyComparison";
 import { decodeBundlePayload } from "../bundleCodec";
 import { massMigrations } from "../food";
 import { practisedTechniques, practisedTechniquesBy } from "../mapLayers";
@@ -362,5 +363,37 @@ describe("index invalidation", () => {
       history = [...history, snapshot];
       expect(practisedTechniquesBy(history, snapshot.turn)).toEqual(practisedTechniques(history));
     }
+  });
+});
+
+describe("snapshot at a turn", () => {
+  const row = (turn: number) => ({ turn, civ_stats: {}, region_control: {}, relationships: {} }) as unknown as TurnSnapshot;
+
+  it("returns the one row of a turn, and null for a missing or duplicated turn", () => {
+    const history = [row(1), row(2), row(2), row(4), row(Number.NaN)];
+    expect(snapshotAtTurn(history, 1)).toBe(history[0]);
+    expect(snapshotAtTurn(history, 4)).toBe(history[3]);
+    expect(snapshotAtTurn(history, 2)).toBeNull();
+    expect(snapshotAtTurn(history, 3)).toBeNull();
+    expect(snapshotAtTurn(history, Number.NaN)).toBeNull();
+    expect(snapshotAtTurn([], 1)).toBeNull();
+  });
+
+  it("matches the exact-snapshot filter at every turn of each fixture", () => {
+    for (const [, bundle] of fixtures) {
+      const last = Math.max(0, ...bundle.history.map((snapshot) => snapshot.turn));
+      for (let turn = -1; turn <= last + 1; turn += 1) {
+        expect(snapshotAtTurn(bundle.history, turn)).toBe(exactSnapshot(bundle, turn));
+      }
+    }
+  });
+
+  it("indexes each new history array and an array appended in place", () => {
+    let history = [row(1)];
+    expect(snapshotAtTurn(history, 2)).toBeNull();
+    history = [...history, row(2)];
+    expect(snapshotAtTurn(history, 2)).toBe(history[1]);
+    history.push(row(2));
+    expect(snapshotAtTurn(history, 2)).toBeNull();
   });
 });

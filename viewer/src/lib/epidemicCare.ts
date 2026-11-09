@@ -12,11 +12,12 @@
  * `frame` is the carers named in turn N - 1 and `capacity` what they provide
  * to the tick of turn N. Region and civilization identities are indices.
  */
+import { isRecord as object, finite as num } from "./recordGuards";
 import type { Bundle, TurnSnapshot } from "../types";
 import { readRecord, type RecordReading } from "./recordReading";
 
 export type CareMode = "care" | "cost_only";
-export const CARE_LIMITS = ["need_met", "envelope", "treasury", "labour", "no_patients", "recipient_lost"] as const;
+const CARE_LIMITS = ["need_met", "envelope", "treasury", "labour", "no_patients", "recipient_lost"] as const;
 export type CareLimit = (typeof CARE_LIMITS)[number];
 
 export interface CareApplied {
@@ -120,8 +121,6 @@ export const CARE_LIMIT_LABEL: Record<CareLimit, string> = {
   recipient_lost: "region changed hands",
 };
 
-const object = (x: unknown): x is Record<string, unknown> => x !== null && typeof x === "object" && !Array.isArray(x);
-const num = (x: unknown): x is number => typeof x === "number" && Number.isFinite(x);
 const int = (x: unknown): x is number => Number.isInteger(x);
 const nonneg = (x: unknown): x is number => num(x) && x >= 0;
 const index = (x: unknown, n: number) => int(x) && (x as number) >= 0 && (x as number) < n;
@@ -214,7 +213,7 @@ const carries = (snapshot: TurnSnapshot) => {
   return object(livelihoods) && livelihoods.epidemic_care !== undefined && livelihoods.epidemic_care !== null;
 };
 
-export const EPIDEMIC_CARE = {
+const EPIDEMIC_CARE = {
   key: "epidemic_care", label: "Epidemic care", flag: "--epidemic-care", livelihoods: true,
   carries, read: epidemicCareAt,
   observed: (r: EpidemicCareRecord) => r.tick !== null && r.frame !== null,

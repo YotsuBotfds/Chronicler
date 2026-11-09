@@ -1,3 +1,4 @@
+import { isRecord as object, finite as number } from "./recordGuards";
 import type { Bundle, TurnSnapshot } from "../types";
 import { readRecord, type RecordReading } from "./recordReading";
 
@@ -36,8 +37,6 @@ export interface PublicHealthGuard {
   members: { agent_id: number; region: number; share: number; wage_due_milli: number; wage_paid_milli: number;
     wage_residual_milli: number; income_withheld: number | null }[];
 }
-const object = (v: unknown): v is Record<string, unknown> => v !== null && typeof v === "object" && !Array.isArray(v);
-const number = (v: unknown): v is number => typeof v === "number" && Number.isFinite(v);
 const nonnegative = (v: unknown): v is number => number(v) && v >= 0;
 const integer = (v: unknown): v is number => nonnegative(v) && Number.isInteger(v);
 const idx = (v: unknown, size: number): boolean => integer(v) && v < size;

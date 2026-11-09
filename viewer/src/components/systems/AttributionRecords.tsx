@@ -3,9 +3,8 @@ import type { Bundle, TurnSnapshot } from "../../types";
 import {
   attributionOn, BURDEN_LABEL, NATURE_LABEL, readAttribution, UNIT_LABEL, type AttributionFrame,
 } from "../../lib/attributionRecords";
+import { show } from "./formatters";
 
-const show = (value: number | null | undefined, digits = 3) =>
-  value === null || value === undefined ? "Unknown" : value.toLocaleString(undefined, { maximumFractionDigits: digits });
 const CAUSE_LABEL: Record<string, string> = {
   battle: "battle", trapped: "trapped after a lost battle", revolt: "occupation revolt", attrition: "attrition",
   natural: "natural death while enlisted", war_drain: "war drain (siege, garrison, occupation or revolt)",
