@@ -115,7 +115,6 @@ LEDGER_READS: dict[tuple[str, str, str], tuple[int, str]] = {
     ("feature_catalog", "<module>", "const:residence_ledger"): (4, "wiring"),
     # The manifest's simulation keys (recorded only when given).
     ("batch_manifest", "<module>", "const:residence_ledger"): (1, "wiring"),
-    ("batch_manifest", "simulation_config", "const:residence_ledger"): (1, "wiring"),
 }
 
 #: Modules that may name the bridge's displaced share (narration only, audit 11.5).
