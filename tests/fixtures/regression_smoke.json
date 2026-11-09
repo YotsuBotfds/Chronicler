@@ -1,0 +1,64 @@
+{
+  "schema_version": 1,
+  "provenance": {
+    "commit": "78ed4a2",
+    "platform": "Linux 6.18.44 x86_64 (Intel Xeon @ 2.10GHz, 4 CPUs, Ubuntu glibc 2.39); CPython 3.13.18; rustc 1.97.0; chronicler_agents release wheel built locally with maturin --release --locked from the same commit; --parallel 2",
+    "note": "One local run on the DEP-9 branch (simulation and native source identical to 35307b6). Not yet reproduced on a hosted runner: the first dispatch of regression-smoke.yml checks it."
+  },
+  "invocation": {
+    "profile": "subset",
+    "seed_start": 42,
+    "seeds": 4,
+    "turns": 100,
+    "worldgen": "template",
+    "pythonhashseed": "0"
+  },
+  "statuses": {
+    "arcs": "FAIL",
+    "artifacts": "PARTIAL",
+    "cohort": "PASS",
+    "community": "PASS",
+    "determinism": "SKIP",
+    "era": "PASS",
+    "needs": "FAIL",
+    "regression": "FAIL"
+  },
+  "metrics": {
+    "regression.satisfaction_mean": 0.6002,
+    "regression.satisfaction_std": 0.1909,
+    "regression.latest_satisfaction_mean": 0.5553,
+    "regression.latest_satisfaction_std": 0.1863,
+    "regression.final_sample_satisfaction_mean": 0.6191,
+    "regression.migration_rate_per_agent_turn": 0.066833,
+    "regression.rebellion_rate_per_agent_turn": 0.050869,
+    "regression.gini_in_range_fraction": 1.0,
+    "regression.occupation_violation_fraction": 0.0013,
+    "regression.latest_occupation_violation_fraction": 0.0274,
+    "regression.final_living_population_counts": [
+      160,
+      175,
+      138,
+      185
+    ],
+    "regression.civ_survival_counts": [
+      3,
+      3,
+      4,
+      4
+    ],
+    "regression.extinct_world_count": 0,
+    "regression.treasury_bad_seed_count": 0,
+    "needs.analyzed_seeds": 4,
+    "needs.total_pairs": 82,
+    "needs.informative_pairs": 45,
+    "needs.concordant_pairs": 27,
+    "needs.discordant_pairs": 18,
+    "needs.net_concordance": 0.2,
+    "era.collapse_episode_count": 25,
+    "era.seeds_with_inflections": 4,
+    "artifacts.total_artifacts": 64,
+    "artifacts.loss_destruction_count": 1,
+    "arcs.family_count": 5,
+    "community.qualifying_seed_count": 4
+  }
+}

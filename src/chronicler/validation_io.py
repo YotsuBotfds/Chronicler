@@ -2156,6 +2156,9 @@ def run_needs_oracle(
             "concordant": seed_concordant,
             "discordant": seed_discordant,
             "net_concordance": round((seed_concordant - seed_discordant) / informative, 4) if informative else None,
+            # One seed's pairs, all pairings, unadjusted. Per-pairing sign tests
+            # over seeds, Holm-adjusted for the family of the five NEEDS_PAIRINGS,
+            # are reported by chronicler.validation_multiplicity (never deciding).
             "sign_test_p": round(_sign_test_p(seed_concordant, seed_discordant), 4),
             "by_pairing": seed_by_pairing,
         }
@@ -2398,6 +2401,13 @@ def run_needs_oracle_best_of(
     Per seed, the best (snapshot, pairing) candidate by ``_needs_candidate_priority``;
     PASS when 60% of seeds have a positive rate difference with |d| > 0.10 and
     the median |d| exceeds 0.10. Output equals the method 1 reports.
+
+    Selection-biased: re-scoring only; never a gate. Picking each seed's best
+    of every snapshot and pairing inflates its effect size and the share of
+    seeds that pass, so its PASS overstates the evidence. No gate
+    path (``validate.ORACLE_RUNNERS``, ``validation_gate``,
+    ``scripts/m53b_run_validation.py``) calls it; tests/test_validation_multiplicity.py
+    checks that.
     """
     if not seed_runs:
         return {"status": "SKIP", "reason": "no_bundles"}

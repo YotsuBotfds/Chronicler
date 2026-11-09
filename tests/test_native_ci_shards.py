@@ -305,15 +305,15 @@ def test_checked_in_partition_preserves_historical_assignment_with_explicit_new_
         'tests/test_household_retail_war.py': '0',
         'tests/test_household_retail_war_native.py': '0',
         'tests/test_household_retail_evidence.py': '0',
-        'tests/test_household_retail_evidence_native.py': '0',
+        'tests/test_household_retail_evidence_native.py': '1',
         'tests/test_wealth_accounting.py': '0',
-        'tests/test_wealth_accounting_native.py': '0',
+        'tests/test_wealth_accounting_native.py': '1',
         'tests/test_money.py': '0',
         'tests/test_workshop_economics.py': '0',
         'tests/test_workshop_economics_native.py': '0',
         'tests/test_harvest_cover.py': '0',
         'tests/test_infrastructure_condition.py': '0',
-        'tests/test_infrastructure_condition_native.py': '0',
+        'tests/test_infrastructure_condition_native.py': '1',
         'tests/test_attribution_records.py': '0',
         'tests/test_attribution_records_native.py': '0',
         'tests/test_provenance_decision_guard.py': '0',
@@ -321,13 +321,13 @@ def test_checked_in_partition_preserves_historical_assignment_with_explicit_new_
         'tests/test_epidemic_care_native.py': '0',
         'tests/test_cw5c_screen.py': '0',
         'tests/test_titled_trade.py': '0',
-        'tests/test_titled_trade_native.py': '0',
+        'tests/test_titled_trade_native.py': '1',
         'tests/test_cw2_screen.py': '0',
         'tests/test_cw5_screen.py': '0',
         'tests/test_reform_services.py': '0',
         'tests/test_reform_services_native.py': '0',
         'tests/test_guild_leagues.py': '0',
-        'tests/test_guild_leagues_native.py': '0',
+        'tests/test_guild_leagues_native.py': '1',
         'tests/test_residence_ledger.py': '0',
         'tests/test_residence_ledger_guard.py': '0',
         'tests/test_movement_branches.py': '0',
@@ -354,8 +354,14 @@ def test_checked_in_partition_preserves_historical_assignment_with_explicit_new_
         'tests/test_residence_exposure.py': '1',
         'tests/test_residence_exposure_native.py': '1',
 
+        'tests/test_screen_frozen_evidence.py': '0',
+
+        'tests/test_batch_parallel_real.py': '1',
+        'tests/test_regression_smoke.py': '1',
+        'tests/test_seed_registry_check.py': '1',
+        'tests/test_validation_multiplicity.py': '1',
     }
-    assert len(owners) == 461
+    assert len(owners) == 466
     assert {name: owners[name] for name in additions} == additions
     old_owners = {name: shard for name, shard in owners.items() if name not in additions}
     assert len(old_owners) == 300

@@ -297,6 +297,9 @@ CHUNKS = {
         "tests/test_decision_ablation.py",
         "tests/test_ablation_output.py",
         "tests/test_spec_communities.py",
+        "tests/test_seed_registry_check.py",
+        "tests/test_validation_multiplicity.py",
+        "tests/test_regression_smoke.py",
     ],
     "learning": [
         "tests/test_scholarship.py",
@@ -401,6 +404,7 @@ CHUNKS = {
         "tests/test_cw1_screen.py",
         "tests/test_cw2_screen.py",
         "tests/test_cw5_screen.py",
+        "tests/test_screen_frozen_evidence.py",
     ],
     "connected-world-b": [
         "tests/test_watershed.py",

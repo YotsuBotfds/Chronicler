@@ -7,6 +7,7 @@ import multiprocessing
 import os
 import sys
 import threading
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, Callable
 
@@ -49,6 +50,39 @@ def parallel_workers(parallel: Any, cpu_count: int | None = None) -> int:
     return automatic_workers() if cpu_count is None else max(1, cpu_count - 1)
 
 
+# ``multiprocessing.Pool`` as imported. Tests replace it with an in-process
+# pool, which ``_worker_pool`` then uses as given.
+_DEFAULT_POOL = multiprocessing.Pool
+
+
+@contextmanager
+def _worker_hash_seed(parallel: bool):
+    """Give spawned batch workers hash seed 0 unless the user chose one.
+
+    Until COR-1 removes set-order iteration, parallel workers run with hash
+    seed 0 on every platform. Spawned workers read ``PYTHONHASHSEED`` at
+    start; the batch manifest's environment capture, made inside this scope,
+    records the value they use. The parent's own hash seed is unchanged and its
+    environment is restored when the batch ends. Sequential runs are untouched.
+    """
+    added = parallel and "PYTHONHASHSEED" not in os.environ
+    if added:
+        os.environ["PYTHONHASHSEED"] = "0"
+    try:
+        yield
+    finally:
+        if added:
+            os.environ.pop("PYTHONHASHSEED", None)
+
+
+def _worker_pool(workers: int):
+    """A ``spawn`` pool: workers start fresh and read ``PYTHONHASHSEED``."""
+    if multiprocessing.Pool is _DEFAULT_POOL:
+        ctx = multiprocessing.get_context("spawn")
+        return ctx.Pool(workers, initializer=_init_parallel_worker)
+    return multiprocessing.Pool(workers, initializer=_init_parallel_worker)
+
+
 def run_batch(
     args: argparse.Namespace,
     sim_client: Any = None,
@@ -59,6 +93,12 @@ def run_batch(
     tuning_overrides_dict: dict[str, float] | None = None,
 ) -> Path:
     """Run N chronicles with sequential seeds. Returns the batch directory path.
+
+    A parallel batch (``args.parallel``) runs its seeds in a ``spawn`` worker
+    pool. Until COR-1 removes set-order iteration, parallel workers run with
+    hash seed 0 on every platform: a parent without ``PYTHONHASHSEED`` gives
+    them ``"0"`` for the batch (``_worker_hash_seed``), so a parallel batch
+    equals the sequential batch run with ``PYTHONHASHSEED=0``.
 
     The batch directory (``batch_<first seed>`` next to ``args.output``) must
     be new or empty (``BatchDestinationError`` otherwise): validation reads
@@ -73,6 +113,23 @@ def run_batch(
     finalized as ``failed``, and the original exception is re-raised.
     tuning_overrides_dict : optional in-memory overrides (bypasses YAML file I/O).
     """
+    with _worker_hash_seed(bool(args.parallel)):
+        return _run_batch(
+            args, sim_client, narrative_client, scenario_config,
+            progress_cb, cancel_event, tuning_overrides_dict,
+        )
+
+
+def _run_batch(
+    args: argparse.Namespace,
+    sim_client: Any,
+    narrative_client: Any,
+    scenario_config: Any,
+    progress_cb: ProgressCallback | None,
+    cancel_event: threading.Event | None,
+    tuning_overrides_dict: dict[str, float] | None,
+) -> Path:
+    """``run_batch`` inside the worker hash-seed scope."""
     base_seed = 42 if args.seed is None else args.seed
     count = args.batch
     base_output = Path(args.output).parent if hasattr(args, 'output') else Path("output")
@@ -119,7 +176,7 @@ def run_batch(
                 child_args.tuning_overrides = tuning_overrides
                 run_args.append((child_args, scenario_config))
 
-            with multiprocessing.Pool(workers, initializer=_init_parallel_worker) as pool:
+            with _worker_pool(workers) as pool:
                 async_results = [pool.apply_async(_run_single_no_llm, a) for a in run_args]
                 for i, ar in enumerate(async_results):
                     if cancel_event and cancel_event.is_set():

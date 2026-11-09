@@ -27,6 +27,7 @@ pythonpath = ["src"]
 markers = [
     "slow: marks tests as slow-running multi-seed simulations (deselect with -m 'not slow')",
     "native: marks tests that require the chronicler_agents Rust extension",
+    "real_process: starts real child processes (a multiprocessing batch); outside the offline oracle lane",
 ]
 
 [build-system]

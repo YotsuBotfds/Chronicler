@@ -50,7 +50,7 @@ Set these in `~/.profile` or `~/.bashrc`.
 
 | Variable | Setting | Why |
 |---|---|---|
-| `PYTHONHASHSEED` | `0` | Some code still iterates sets in hash order, for example `war_requisition.py:183` and the goods-economy sums in `economy.py`; COR-1 removes that. Linux batch workers are forked and inherit the parent's hash seed, so one invocation is internally consistent. Two invocations can still differ unless the seed is fixed. `what_if` exact runs require it (`what_if.py:224`), and every identity tool uses 0. |
+| `PYTHONHASHSEED` | `0` | Some code still iterates sets in hash order, for example `war_requisition.py:183` and the goods-economy sums in `economy.py`; COR-1 removes that. Parallel batch workers are spawned and run with hash seed 0 when the parent has no `PYTHONHASHSEED` (ENV-4), so a parallel batch equals the sequential batch run with 0. Sequential runs and other tools still use the parent's seed, so two invocations without it can differ. `what_if` exact runs require it (`what_if.py:224`), and every identity tool uses 0. |
 | `RAYON_NUM_THREADS` | unset | Batch and ablation workers set it to 1 each (`batch.py:203`). A single large hybrid run uses every thread when it is unset. |
 | `RUSTFLAGS` | unset for builds you compare or share | See "Native builds". |
 | `CHRONICLER_NATIVE_VENV` | optional | Moves the native venv. |
@@ -196,4 +196,4 @@ memory=160GB
 networkingMode=mirrored
 ```
 
-The last line lets `localhost` reach a narration server on the Windows host. `setup.bat` supports native Windows for the viewer and interactive runs; the POSIX session suites do not run there. Batch workers on Windows are spawned rather than forked, so each draws its own hash seed unless `PYTHONHASHSEED` is set (ENV-4).
+The last line lets `localhost` reach a narration server on the Windows host. `setup.bat` supports native Windows for the viewer and interactive runs; the POSIX session suites do not run there. Batch workers are spawned on every platform and run with hash seed 0 unless `PYTHONHASHSEED` is set (ENV-4).
