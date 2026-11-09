@@ -432,3 +432,194 @@ class TestCreateClients:
                 narrator="gemini", narrative_model="gemini-2.5-flash"
             )
             assert narrative_client.model == "gemini-2.5-flash"
+
+
+class TestClientSafeguards:
+    """FIX-9: timeouts, truncation counts, budgets and the batch deadline."""
+
+    @staticmethod
+    def _anthropic_response(text="ok", stop_reason="end_turn", tokens=(10, 5)):
+        return MagicMock(
+            content=[MagicMock(text=text)],
+            usage=MagicMock(input_tokens=tokens[0], output_tokens=tokens[1]),
+            stop_reason=stop_reason,
+        )
+
+    def test_local_client_passes_timeout_to_openai(self):
+        import unittest.mock as mock
+        from chronicler.llm import DEFAULT_TIMEOUT_S
+
+        mock_openai_module = MagicMock()
+        with mock.patch.dict("sys.modules", {"openai": mock_openai_module}):
+            LocalClient(base_url="http://localhost:1234/v1", model="m")
+        kwargs = mock_openai_module.OpenAI.call_args.kwargs
+        assert kwargs["timeout"] == DEFAULT_TIMEOUT_S == 120.0
+        assert kwargs["base_url"] == "http://localhost:1234/v1"
+
+    def test_create_clients_api_passes_timeout_and_no_sdk_retries(self):
+        import unittest.mock as mock
+        from chronicler.llm import DEFAULT_TIMEOUT_S
+
+        mock_anthropic_module = MagicMock()
+        with mock.patch.dict("sys.modules", {
+            "anthropic": mock_anthropic_module,
+            "openai": MagicMock(),
+        }):
+            _, narrative_client = create_clients(
+                narrator="api", max_total_tokens=1000, max_calls=7
+            )
+        mock_anthropic_module.Anthropic.assert_called_once_with(
+            timeout=DEFAULT_TIMEOUT_S, max_retries=0
+        )
+        assert narrative_client.max_total_tokens == 1000
+        assert narrative_client.max_calls == 7
+
+    def test_create_clients_gemini_passes_timeout_in_milliseconds(self):
+        import unittest.mock as mock
+
+        mock_genai_module = MagicMock()
+        mock_google_module = MagicMock()
+        mock_google_module.genai = mock_genai_module
+        with mock.patch.dict("sys.modules", {
+            "google": mock_google_module,
+            "google.genai": mock_genai_module,
+            "openai": MagicMock(),
+        }):
+            _, narrative_client = create_clients(narrator="gemini")
+        mock_genai_module.Client.assert_called_once_with(
+            http_options={"timeout": 120000}
+        )
+        assert narrative_client.max_total_tokens is None
+        assert narrative_client.max_calls is None
+
+    def test_anthropic_max_tokens_stop_counts_truncation_and_keeps_text(self, caplog):
+        mock_sdk = MagicMock()
+        mock_sdk.messages.create.side_effect = [
+            self._anthropic_response("Partial one", stop_reason="max_tokens"),
+            self._anthropic_response("Whole", stop_reason="end_turn"),
+            self._anthropic_response("Partial two", stop_reason="max_tokens"),
+        ]
+        client = AnthropicClient(client=mock_sdk)
+        assert client.truncated_count == 0
+
+        with caplog.at_level("WARNING", logger="chronicler.llm"):
+            results = [client.complete(p, max_tokens=20) for p in ("a", "b", "c")]
+
+        assert results == ["Partial one", "Whole", "Partial two"]
+        assert client.truncated_count == 2
+        warnings = [r for r in caplog.records if r.name == "chronicler.llm"]
+        assert len(warnings) == 1
+        assert "max_tokens=20" in warnings[0].getMessage()
+
+    def test_gemini_max_tokens_finish_counts_truncation(self):
+        import enum
+        import unittest.mock as mock
+
+        class FinishReason(enum.Enum):
+            STOP = "STOP"
+            MAX_TOKENS = "MAX_TOKENS"
+
+        def response(text, reason):
+            return MagicMock(
+                text=text,
+                usage_metadata=MagicMock(
+                    prompt_token_count=1, candidates_token_count=1, thoughts_token_count=0
+                ),
+                candidates=[MagicMock(finish_reason=reason)],
+            )
+
+        mock_sdk = MagicMock()
+        mock_sdk.models.generate_content.side_effect = [
+            response("Cut", FinishReason.MAX_TOKENS),
+            response("Done", FinishReason.STOP),
+            response("Cut again", "MAX_TOKENS"),
+        ]
+        client = GeminiClient(client=mock_sdk)
+        with mock.patch("time.sleep"):
+            results = [client.complete(p) for p in ("a", "b", "c")]
+
+        assert results == ["Cut", "Done", "Cut again"]
+        assert client.truncated_count == 2
+
+    def test_errors_are_runtime_errors_for_narrator_fallback(self):
+        from chronicler.llm import LLMBudgetExceeded, LLMTruncated
+
+        assert issubclass(LLMBudgetExceeded, RuntimeError)
+        assert issubclass(LLMTruncated, RuntimeError)
+
+    def test_call_budget_stops_third_call_before_sdk(self):
+        from chronicler.llm import LLMBudgetExceeded
+
+        mock_sdk = MagicMock()
+        mock_sdk.messages.create.return_value = self._anthropic_response()
+        client = AnthropicClient(client=mock_sdk, max_calls=2)
+
+        client.complete("one")
+        client.complete("two")
+        with pytest.raises(LLMBudgetExceeded, match="call budget"):
+            client.complete("three")
+        assert mock_sdk.messages.create.call_count == 2
+        assert client.call_count == 2
+
+    def test_token_budget_stops_call_once_reached(self):
+        import unittest.mock as mock
+        from chronicler.llm import LLMBudgetExceeded
+
+        mock_sdk = MagicMock()
+        mock_sdk.models.generate_content.return_value = MagicMock(
+            text="ok",
+            usage_metadata=MagicMock(
+                prompt_token_count=60, candidates_token_count=30, thoughts_token_count=10
+            ),
+        )
+        client = GeminiClient(client=mock_sdk, max_total_tokens=200)
+        with mock.patch("time.sleep"):
+            client.complete("one")  # 100 used
+            client.complete("two")  # 200 used
+            with pytest.raises(LLMBudgetExceeded, match="token budget"):
+                client.complete("three")
+        assert mock_sdk.models.generate_content.call_count == 2
+
+    def test_no_budget_by_default(self):
+        mock_sdk = MagicMock()
+        mock_sdk.messages.create.return_value = self._anthropic_response(
+            tokens=(10**6, 10**6)
+        )
+        client = AnthropicClient(client=mock_sdk)
+        for _ in range(5):
+            client.complete("again")
+        assert client.call_count == 5
+
+    def test_batch_deadline_ends_endless_in_progress_batch(self, capsys):
+        from chronicler.llm import BATCH_DEADLINE_S
+
+        assert BATCH_DEADLINE_S == 86400.0
+        mock_sdk = MagicMock()
+        in_progress = MagicMock(
+            id="batch-slow",
+            processing_status="in_progress",
+            request_counts=MagicMock(succeeded=0),
+        )
+        mock_sdk.messages.batches.create.return_value = in_progress
+        mock_sdk.messages.batches.retrieve.return_value = in_progress
+
+        now = [0.0]
+        sleeps: list[float] = []
+
+        def fake_sleep(seconds):
+            sleeps.append(seconds)
+            now[0] += seconds
+
+        client = AnthropicClient(client=mock_sdk)
+        result = client.batch_complete(
+            [{"prompt": "One"}, {"prompt": "Two"}],
+            poll_interval=10.0,
+            deadline_s=35.0,
+            sleep=fake_sleep,
+            clock=lambda: now[0],
+        )
+
+        assert result == [None, None]
+        assert sleeps == [10.0, 10.0, 10.0, 10.0]
+        mock_sdk.messages.batches.results.assert_not_called()
+        assert "batch-slow" in capsys.readouterr().out
