@@ -8,6 +8,7 @@
  * record whose ``transitions`` is null knows the convoys on the road but not
  * what happened in its turn (unknown); an empty list means nothing happened.
  */
+import { amount } from "./recordGuards";
 import type { TurnSnapshot } from "../types";
 
 export const CONVOY_COUNTERS = [
@@ -62,7 +63,6 @@ export interface GrainConvoysRecord {
 type Row = Record<string, unknown>;
 const object = (v: unknown): v is Row => typeof v === "object" && v !== null && !Array.isArray(v);
 const integer = (v: unknown, min = 0): v is number => Number.isSafeInteger(v) && (v as number) >= min;
-const amount = (v: unknown): v is number => typeof v === "number" && Number.isFinite(v) && v >= 0;
 const name = (v: unknown): v is string => typeof v === "string" && v.length > 0 && v.length <= 512;
 const optional = <T>(v: unknown, check: (x: unknown) => x is T) => v === null || check(v);
 const oneOf = <T extends string>(values: readonly T[]) => (v: unknown): v is T => values.includes(v as T);

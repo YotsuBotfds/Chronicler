@@ -1,11 +1,11 @@
 /** Selected-turn observations, not a predictive or causal ranking. */
+import { finite } from "./recordGuards";
 import type { Bundle } from "../types";
 import { comparisonTurns, exactSnapshot, type HistoryEntity } from "./historyComparison";
 import { readRegionalPopulation } from "./regionalPopulation";
 
 export interface LookReason { kind: string; window: string; values: string; reason: string }
 export interface LookItem { entity: HistoryEntity; reasons: LookReason[] }
-const finite = (v: unknown): v is number => typeof v === "number" && Number.isFinite(v);
 const show = (v: number) => v.toLocaleString(undefined, { maximumFractionDigits: 2 });
 
 export function whereToLook(bundle: Bundle, turn: number): { items: LookItem[]; coverage: string[]; status: string } {

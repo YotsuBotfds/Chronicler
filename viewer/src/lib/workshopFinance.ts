@@ -1,3 +1,4 @@
+import { isRecord as object, finite, amount, count } from "./recordGuards";
 import type { TurnSnapshot } from "../types";
 
 /**
@@ -54,10 +55,6 @@ export interface WorkshopFinanceRecord {
   parameters: Record<string, number>;
 }
 
-const object = (x: unknown): x is Record<string, unknown> => x !== null && typeof x === "object" && !Array.isArray(x);
-const finite = (x: unknown): x is number => typeof x === "number" && Number.isFinite(x);
-const count = (x: unknown): x is number => finite(x) && Number.isInteger(x) && x >= 0;
-const amount = (x: unknown): x is number => finite(x) && x >= 0;
 const MODES = ["paid", "unpaid_labor", "no_customer"];
 // A3 (workshop economics) appends capital, input purchases, household sales and deliveries.
 const MONEY = ["sale", "wage", "distribution", "write_off", "stipend", "capital", "input_purchase", "household_sale"];

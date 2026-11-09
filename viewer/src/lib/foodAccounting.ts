@@ -1,8 +1,6 @@
+import { isRecord as object, finite, count as integer } from "./recordGuards";
 import type { FoodAccountingSnapshot, TurnSnapshot } from "../types";
 
-const object = (x: unknown): x is Record<string, unknown> => x !== null && typeof x === "object" && !Array.isArray(x);
-const finite = (x: unknown): x is number => typeof x === "number" && Number.isFinite(x);
-const integer = (x: unknown): x is number => finite(x) && Number.isInteger(x) && x >= 0;
 const nullableNumber = (x: unknown) => x === null || finite(x);
 const nativeFields = ["opening", "produced", "transport_net", "craft_input", "clamp_correction", "pre_consumption", "consumed", "storage_loss", "cap_overflow", "closing", "demand", "sufficiency", "balance_residual", "balance_tolerance"];
 const publicFields = ["released", "spoiled", "abandoned", "captured", "after_open"];

@@ -1,3 +1,4 @@
+import { isRecord as object, finite, amount, count } from "./recordGuards";
 import type { TurnSnapshot } from "../types";
 
 /** One enrolled person (``snapshot.livelihoods.learning_cohorts.cohorts[].members``). */
@@ -52,10 +53,6 @@ export interface LearningCohortsRecord {
 
 export const OCCUPATIONS = ["Farmer", "Soldier", "Merchant", "Scholar", "Priest"] as const;
 
-const object = (x: unknown): x is Record<string, unknown> => x !== null && typeof x === "object" && !Array.isArray(x);
-const finite = (x: unknown): x is number => typeof x === "number" && Number.isFinite(x);
-const count = (x: unknown): x is number => finite(x) && Number.isInteger(x) && x >= 0;
-const amount = (x: unknown): x is number => finite(x) && x >= 0;
 const skill = (x: unknown): x is number => finite(x) && x >= 0 && x <= 1;
 const ids = (x: unknown, max = 8): x is number[] => Array.isArray(x) && x.length <= max && x.every(count);
 const maybe = <T,>(check: (v: unknown) => v is T) => (x: unknown) => x === null || check(x);

@@ -1,4 +1,5 @@
 /** D4 source-dated physical food transfers and liabilities; arrears are not money. */
+import { isRecord as object, finite, safeCount as count } from "./recordGuards";
 import type { TurnSnapshot } from "../types";
 export interface RequisitionEvent {
   source_turn: number; kind: "requisition" | "cargo_seizure" | "refill" | "forage" | "initial" | "consumption";
@@ -15,9 +16,6 @@ export interface WarRequisitionRecord {
     claims_dropped: number; claims_open: number; claims_due_milli: number };
   counters: Record<string, number>;
 }
-const object = (x: unknown): x is Record<string, unknown> => x !== null && typeof x === "object" && !Array.isArray(x);
-const finite = (x: unknown): x is number => typeof x === "number" && Number.isFinite(x);
-const count = (x: unknown): x is number => finite(x) && Number.isSafeInteger(x) && x >= 0;
 export function warRequisitionAt(snapshot: TurnSnapshot | null, regions: number, civs: number):
   { status: "absent" | "disabled" | "malformed" | "unobserved" | "observed"; record: WarRequisitionRecord | null } {
   const lh = (snapshot as unknown as Record<string, unknown> | null)?.livelihoods;

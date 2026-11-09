@@ -12,6 +12,7 @@
  * `frame` is the carers named in turn N - 1 and `capacity` what they provide
  * to the tick of turn N. Region and civilization identities are indices.
  */
+import { isRecord as object, finite as num } from "./recordGuards";
 import type { Bundle, TurnSnapshot } from "../types";
 import { readRecord, type RecordReading } from "./recordReading";
 
@@ -120,8 +121,6 @@ export const CARE_LIMIT_LABEL: Record<CareLimit, string> = {
   recipient_lost: "region changed hands",
 };
 
-const object = (x: unknown): x is Record<string, unknown> => x !== null && typeof x === "object" && !Array.isArray(x);
-const num = (x: unknown): x is number => typeof x === "number" && Number.isFinite(x);
 const int = (x: unknown): x is number => Number.isInteger(x);
 const nonneg = (x: unknown): x is number => num(x) && x >= 0;
 const index = (x: unknown, n: number) => int(x) && (x as number) >= 0 && (x as number) < n;

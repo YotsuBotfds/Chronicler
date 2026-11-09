@@ -1,3 +1,4 @@
+import { finite } from "./recordGuards";
 import type { Bundle } from "../types";
 import { readRegionalPopulation } from "./regionalPopulation";
 import { readWatershedRun, watershedOn, watershedRegionValue, watershedRunMode, type WatershedRegionKey } from "./watershed";
@@ -26,7 +27,6 @@ export interface RegionHistoryEvent {
 }
 
 const pointer = (name: string) => name.replace(/~/g, "~0").replace(/\//g, "~1");
-const finite = (value: unknown): value is number => typeof value === "number" && Number.isFinite(value);
 
 export function regionNames(bundle: Bundle): string[] {
   return [...new Set([

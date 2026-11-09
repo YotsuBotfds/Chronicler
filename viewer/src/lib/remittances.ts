@@ -1,3 +1,4 @@
+import { isRecord as object, finite, count } from "./recordGuards";
 import type { TurnSnapshot } from "../types";
 
 /** One sender's row (``snapshot.livelihoods.remittances.receipts``). Money in milli-units. */
@@ -55,9 +56,6 @@ const UNLINKED_REASONS = ["no_bond", "recipient_away", "recipient_on_trip"] as c
 const CLOSE_REASONS = ["return", "death", "pool_reset", "unobserved_gap"] as const;
 const MOVE_KINDS = ["departure", "onward", "return", "unrecorded"] as const;
 
-const object = (x: unknown): x is Record<string, unknown> => x !== null && typeof x === "object" && !Array.isArray(x);
-const finite = (x: unknown): x is number => typeof x === "number" && Number.isFinite(x);
-const count = (x: unknown): x is number => finite(x) && Number.isInteger(x) && x >= 0;
 const integer = (x: unknown): x is number => finite(x) && Number.isInteger(x);
 const among = (list: readonly string[], x: unknown) => typeof x === "string" && list.includes(x);
 const counts = (x: unknown): x is Record<string, number> => object(x) && Object.values(x).every(count);

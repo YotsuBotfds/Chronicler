@@ -1,3 +1,4 @@
+import { isRecord as object, finite, count } from "./recordGuards";
 import type { TurnSnapshot } from "../types";
 
 /**
@@ -111,9 +112,6 @@ export type AttributionReading =
   | { state: "recorded_zero"; record: AttributionRecord; frame: AttributionFrame }
   | { state: "recorded"; record: AttributionRecord; frame: AttributionFrame };
 
-const object = (x: unknown): x is Record<string, unknown> => x !== null && typeof x === "object" && !Array.isArray(x);
-const finite = (x: unknown): x is number => typeof x === "number" && Number.isFinite(x);
-const count = (x: unknown): x is number => Number.isInteger(x) && (x as number) >= 0;
 const text = (x: unknown): x is string => typeof x === "string";
 const optionalText = (x: unknown) => x === null || text(x);
 const index = (x: unknown, size: number) => x === null || (count(x) && x < size);

@@ -1,3 +1,4 @@
+import { isRecord as object, amount, count as integer } from "./recordGuards";
 import type { TurnSnapshot } from "../types";
 
 /** One timber slot's completed-turn account (``snapshot.livelihoods.timber_stock``). */
@@ -21,10 +22,6 @@ export interface TimberStockRecord {
   regions: TimberStockRow[] | null; totals: TimberStockTotals | null;
 }
 
-const object = (x: unknown): x is Record<string, unknown> => x !== null && typeof x === "object" && !Array.isArray(x);
-const finite = (x: unknown): x is number => typeof x === "number" && Number.isFinite(x);
-const amount = (x: unknown): x is number => finite(x) && x >= 0;
-const integer = (x: unknown): x is number => finite(x) && Number.isInteger(x) && x >= 0;
 const FLOWS = ["opening", "cleared", "extraction", "overdraft", "regrowth", "removed", "stock", "capacity"] as const;
 const PARAMETERS = ["regrowth_rate", "seed_fraction", "reference_crews_at_msy"] as const;
 

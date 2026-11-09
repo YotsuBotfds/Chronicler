@@ -1,3 +1,4 @@
+import { isRecord as object, finite, count } from "./recordGuards";
 import type { TurnSnapshot } from "../types";
 
 /**
@@ -71,9 +72,6 @@ export interface TitledTradeRecord {
   parameters: Record<string, unknown>;
 }
 
-const object = (x: unknown): x is Record<string, unknown> => x !== null && typeof x === "object" && !Array.isArray(x);
-const finite = (x: unknown): x is number => typeof x === "number" && Number.isFinite(x);
-const count = (x: unknown): x is number => finite(x) && Number.isInteger(x) && x >= 0;
 const sum = (xs: number[]) => xs.reduce((a, b) => a + b, 0);
 const goods = (x: unknown): x is number[] => Array.isArray(x) && x.length === GOODS.length && x.every(count);
 

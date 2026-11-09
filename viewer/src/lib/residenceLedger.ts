@@ -1,3 +1,4 @@
+import { isRecord as object, count } from "./recordGuards";
 import type { TurnSnapshot } from "../types";
 
 /**
@@ -96,8 +97,6 @@ export interface ResidenceLedgerRecord {
   labels: Record<string, string>; parameters: Record<string, unknown>;
 }
 
-const object = (x: unknown): x is Record<string, unknown> => x !== null && typeof x === "object" && !Array.isArray(x);
-const count = (x: unknown): x is number => Number.isInteger(x) && (x as number) >= 0;
 const among = <T extends string>(values: readonly T[], x: unknown): x is T => values.includes(x as T);
 
 function validRegion(r: unknown, regions: number): boolean {

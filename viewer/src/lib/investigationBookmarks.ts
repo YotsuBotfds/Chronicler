@@ -1,4 +1,5 @@
 /** Local, artifact-bound investigation bookmarks. Notes never enter reference exports. */
+import { safeCount as safeInteger } from "./recordGuards";
 import type { ArtifactIdentity } from "./artifactIdentity";
 
 export const INVESTIGATION_BOOKMARKS_KEY = "chronicler.investigation-bookmarks.v1";
@@ -21,7 +22,6 @@ const object = (value: unknown): Record<string, unknown> | null => value !== nul
 const keysAre = (row: Record<string, unknown>, required: string[], optional: string[] = []) => required.every((key) => Object.hasOwn(row, key))
   && Object.keys(row).every((key) => required.includes(key) || optional.includes(key));
 const hash = (value: unknown): value is string => typeof value === "string" && /^[a-f0-9]{64}$/.test(value);
-const safeInteger = (value: unknown): value is number => typeof value === "number" && Number.isSafeInteger(value) && value >= 0;
 const label = (value: unknown, max: number): value is string => typeof value === "string" && value.trim().length > 0 && value.length <= max && !/\p{Cc}/u.test(value);
 export function validInvestigationTarget(value: unknown): value is InvestigationTarget {
   const row = object(value);

@@ -1,3 +1,4 @@
+import { isRecord as object } from "./recordGuards";
 import type { TurnSnapshot } from "../types";
 
 /** A dated outcome of one veteran record. */
@@ -70,7 +71,6 @@ export const UNMET = ["no_site", "site_idle", "not_crew_eligible", "crew_full", 
 /** Unmet reasons that mean no opening existed for the veteran this turn. */
 export const NO_OPENING: ReadonlyArray<string> = ["no_site", "site_idle"];
 
-const object = (x: unknown): x is Record<string, unknown> => x !== null && typeof x === "object" && !Array.isArray(x);
 const integer = (x: unknown): x is number => typeof x === "number" && Number.isInteger(x);
 const count = (x: unknown): x is number => integer(x) && x >= 0;
 const within = (x: unknown, n: number): x is number => count(x) && x < n;

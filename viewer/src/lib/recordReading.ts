@@ -23,6 +23,7 @@
  * pinned by the crisis-candidate witness through livelihoods layer `cwe1`)
  * renders `readGranaryStorage`; `granaries.ts` is unchanged.
  */
+import { isRecord as object } from "./recordGuards";
 import type { Bundle, TurnSnapshot } from "../types";
 import { foodAllocationAt, type FoodAllocationRecord } from "./foodAllocation";
 import { granaryStorageAt } from "./granaries";
@@ -53,7 +54,6 @@ interface RecordSpec<T> {
   zero: string | ((snapshot: TurnSnapshot) => string);
 }
 
-const object = (x: unknown): x is Record<string, unknown> => x !== null && typeof x === "object" && !Array.isArray(x);
 
 function inLivelihoods(key: string) {
   return (snapshot: TurnSnapshot) => {

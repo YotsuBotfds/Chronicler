@@ -1,3 +1,4 @@
+import { isRecord as object, amount, count } from "./recordGuards";
 import type { HouseholdRetailRecord, RetailRegionFrame } from "./householdRetail";
 
 /**
@@ -59,9 +60,6 @@ export type RetailCohortReading =
   | { status: "malformed"; reason: string }
   | { status: "ok"; cohorts: RetailCohorts };
 
-const object = (x: unknown): x is Record<string, unknown> => x !== null && typeof x === "object" && !Array.isArray(x);
-const count = (x: unknown): x is number => typeof x === "number" && Number.isInteger(x) && x >= 0;
-const amount = (x: unknown): x is number => typeof x === "number" && Number.isFinite(x) && x >= 0;
 const name = (x: unknown) => x === null || typeof x === "string";
 const sum = (xs: number[]) => xs.reduce((a, b) => a + b, 0);
 

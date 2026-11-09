@@ -1,3 +1,4 @@
+import { finite as number, count as validTurn } from "./recordGuards";
 import type { Bundle, CitySnapshotRow, Event } from "../types";
 import type { HistoricalSearchResult } from "./historicalSearch";
 import { charterLabel, rankLabel } from "./cities";
@@ -40,8 +41,6 @@ export interface InstitutionHistoryReading {
   related: Array<{ kind: "region" | "civilization"; name: string }>;
   coverage: string[];
 }
-const validTurn = (value: unknown): value is number => typeof value === "number" && Number.isInteger(value) && value >= 0;
-const number = (value: unknown): value is number => typeof value === "number" && Number.isFinite(value);
 const str = (value: unknown): value is string => typeof value === "string" && value.trim().length > 0;
 const valueLabel = (value: unknown) => value == null || (typeof value === "number" && !number(value)) ? "Not recorded" : String(value);
 

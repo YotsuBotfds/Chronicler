@@ -1,3 +1,4 @@
+import { isRecord as object } from "./recordGuards";
 import type { TurnSnapshot } from "../types";
 
 export interface BranchRow {
@@ -8,7 +9,6 @@ export interface BranchRecord {
   schema_version: 1; stage: "D1c"; source_turn: number; mode: "funded" | "record_only" | "cost_only";
   frame: { turn: number; rows: BranchRow[]; new_identities_refused: number } | null;
 }
-const object = (x: unknown): x is Record<string, unknown> => !!x && typeof x === "object" && !Array.isArray(x);
 const integer = (x: unknown, min = 0): x is number => typeof x === "number" && Number.isSafeInteger(x) && x >= min;
 const modes = ["funded", "record_only", "cost_only"];
 const statuses = ["record_only", "funded", "cost_only", "too_few", "poor", "capacity", "hostile", "quarantined", "ended", "empty", "payment_refused"];

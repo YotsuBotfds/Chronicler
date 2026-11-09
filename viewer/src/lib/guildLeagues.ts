@@ -1,3 +1,4 @@
+import { isRecord as object, count } from "./recordGuards";
 import type { Bundle, TurnSnapshot } from "../types";
 import { readRecord, type RecordReading } from "./recordReading";
 
@@ -48,8 +49,6 @@ export interface LeagueRecord {
   parameters: Record<string, unknown>;
 }
 
-const object = (x: unknown): x is Record<string, unknown> => x !== null && typeof x === "object" && !Array.isArray(x);
-const count = (x: unknown): x is number => typeof x === "number" && Number.isInteger(x) && x >= 0;
 const has = <T extends string>(list: readonly T[], x: unknown): x is T => typeof x === "string" && (list as readonly string[]).includes(x);
 
 function memberProblem(x: unknown, regions: number, civs: number): string | null {

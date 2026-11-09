@@ -1,3 +1,4 @@
+import { isRecord as object, amount, count } from "./recordGuards";
 import type { Bundle, TurnSnapshot } from "../types";
 import { readRecord, type RecordReading } from "./recordReading";
 
@@ -50,9 +51,6 @@ export interface ReliefRecord {
   log_dropped: number; parameters: Record<string, unknown>;
 }
 
-const object = (x: unknown): x is Record<string, unknown> => x !== null && typeof x === "object" && !Array.isArray(x);
-const count = (x: unknown): x is number => typeof x === "number" && Number.isInteger(x) && x >= 0;
-const amount = (x: unknown): x is number => typeof x === "number" && Number.isFinite(x) && x >= 0;
 const index = (x: unknown, n: number): x is number => count(x) && x < n;
 const maybe = (x: unknown) => x === null || amount(x);
 const TOL = 1e-6;

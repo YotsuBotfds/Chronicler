@@ -1,3 +1,4 @@
+import { isRecord as object, finite, amount, count } from "./recordGuards";
 import type { TurnSnapshot } from "../types";
 
 /** One candidate expenditure of a civ-turn (``decisions[].proposals``). */
@@ -48,10 +49,6 @@ export interface LocalBudgetsRecord {
   parameters: Record<string, unknown>;
 }
 
-const object = (x: unknown): x is Record<string, unknown> => x !== null && typeof x === "object" && !Array.isArray(x);
-const finite = (x: unknown): x is number => typeof x === "number" && Number.isFinite(x);
-const count = (x: unknown): x is number => finite(x) && Number.isInteger(x) && x >= 0;
-const amount = (x: unknown): x is number => finite(x) && x >= 0;
 const nullable = <T>(x: unknown, check: (v: unknown) => v is T) => x === null || check(x);
 const numbers = (x: unknown, check: (v: unknown) => boolean) => object(x) && Object.values(x).every(check);
 const MODES = ["bargained", "fixed_shares"];

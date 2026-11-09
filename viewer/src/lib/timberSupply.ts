@@ -1,3 +1,4 @@
+import { isRecord as object, finite, amount, count } from "./recordGuards";
 import type { TurnSnapshot } from "../types";
 
 export type ExpeditionStage = "outbound" | "cutting" | "returning";
@@ -77,10 +78,6 @@ export type TimberSupplyReading =
   | { status: "malformed"; reason: string }
   | { status: "ok"; record: TimberSupplyRecord };
 
-const object = (x: unknown): x is Record<string, unknown> => x !== null && typeof x === "object" && !Array.isArray(x);
-const finite = (x: unknown): x is number => typeof x === "number" && Number.isFinite(x);
-const count = (x: unknown): x is number => finite(x) && Number.isInteger(x) && x >= 0;
-const amount = (x: unknown): x is number => finite(x) && x >= 0;
 const ids = (x: unknown, max: number): x is number[] => Array.isArray(x) && x.length <= max && x.every(count)
   && new Set(x).size === x.length;
 const maybe = <T,>(check: (v: unknown) => v is T) => (x: unknown) => x === null || check(x);

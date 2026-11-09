@@ -1,3 +1,4 @@
+import { isRecord as object, finite, amount, count } from "./recordGuards";
 import type { TurnSnapshot } from "../types";
 
 /**
@@ -122,10 +123,6 @@ export type WealthAccountingReading =
   | { status: "unobserved"; record: WealthAccountingRecord }
   | { status: "observed"; record: WealthAccountingRecord; frame: WealthFrame };
 
-const object = (x: unknown): x is Record<string, unknown> => x !== null && typeof x === "object" && !Array.isArray(x);
-const finite = (x: unknown): x is number => typeof x === "number" && Number.isFinite(x);
-const count = (x: unknown): x is number => finite(x) && Number.isInteger(x) && x >= 0;
-const amount = (x: unknown): x is number => finite(x) && x >= 0;
 const milli = (x: unknown): x is number => count(x);
 /** Unlocated flows are a package's total minus what it located by region: negative when a
  * package's rows exceed its own total, which the ledger records as a failed closure (still observed). */

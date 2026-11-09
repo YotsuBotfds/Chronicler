@@ -1,4 +1,5 @@
 /** Linked saved observations. Identity joins never imply causation or allocate a regional total. */
+import { isRecord as object } from "./recordGuards";
 import type { Bundle, TurnSnapshot } from "../types";
 import { readRecoveryCrews } from "./recoveryCrews";
 import { readTimberSupply } from "./timberSupply";
@@ -34,7 +35,6 @@ interface PackageFrame { state: HistoryState; reason: string; rows: Observation[
 interface SnapshotIndex { snapshot: TurnSnapshot; epoch?: number; frames: Record<Package, PackageFrame> }
 export interface EntityHistoryIndex { snapshots: SnapshotIndex[]; entities: EntityRef[] }
 const livelihoods = (s: TurnSnapshot): unknown => (s as unknown as Record<string, unknown>).livelihoods;
-const object = (x: unknown): x is Record<string, unknown> => x !== null && typeof x === "object" && !Array.isArray(x);
 export const entityKey = (e: EntityRef) => `${e.kind}:${e.id}${e.epoch !== undefined ? `:since${e.epoch}` : ""}`;
 export const entityLabel = (e: EntityRef) => `${e.kind[0].toUpperCase()}${e.kind.slice(1).replace(/_/g, " ")} #${e.id}${e.epoch !== undefined ? ` (identity segment since turn ${e.epoch})` : ""}`;
 const ref = (kind: EntityKind, id: number | string): EntityRef => ({ kind, id });

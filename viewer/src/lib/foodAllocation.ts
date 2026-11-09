@@ -1,3 +1,4 @@
+import { isRecord as object, finite, amount, count } from "./recordGuards";
 import type { TurnSnapshot } from "../types";
 
 /** One scarce region's allocation (``snapshot.livelihoods.food_allocation.regions``). */
@@ -22,14 +23,10 @@ export interface FoodAllocationRecord {
   counters: Record<string, number>;
 }
 
-const object = (x: unknown): x is Record<string, unknown> => x !== null && typeof x === "object" && !Array.isArray(x);
-const finite = (x: unknown): x is number => typeof x === "number" && Number.isFinite(x);
 const REGIMES = ["equal", "floor_means", "targeted_relief"];
 const NUMBERS = ["phase2_alive", "alive", "households", "sufficiency", "rations_available",
   "allocated", "unallocated", "shortfall", "below_floor", "min_ration", "max_ration",
   "people_poorer_half", "shortfall_poorer_half", "people_richer_half", "shortfall_richer_half"] as const;
-const count = (x: unknown): x is number => finite(x) && Number.isInteger(x) && x >= 0;
-const amount = (x: unknown): x is number => finite(x) && x >= 0;
 /** Totals the panel shows; each must be present (missing is unknown, never zero). */
 const TOTAL_COUNTS = ["scarce_regions", "alive", "people_poorer_half", "people_richer_half", "children"] as const;
 const TOTAL_AMOUNTS = ["allocated", "unallocated", "shortfall", "shortfall_poorer_half",

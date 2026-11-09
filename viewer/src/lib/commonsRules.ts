@@ -1,3 +1,4 @@
+import { isRecord as object, finite, amount, count as integer } from "./recordGuards";
 import type { TurnSnapshot } from "../types";
 
 /** The owner's dated knowledge of a stand: the timber account settled in ``turn``. */
@@ -34,10 +35,6 @@ export interface CommonsRulesRecord {
   rules: CommonsRule[]; counters: Record<string, number>;
 }
 
-const object = (x: unknown): x is Record<string, unknown> => x !== null && typeof x === "object" && !Array.isArray(x);
-const finite = (x: unknown): x is number => typeof x === "number" && Number.isFinite(x);
-const amount = (x: unknown): x is number => finite(x) && x >= 0;
-const integer = (x: unknown): x is number => finite(x) && Number.isInteger(x) && x >= 0;
 const share = (x: unknown): x is number => finite(x) && x >= 0 && x <= 1;
 const optional = (x: unknown) => x === null || finite(x);
 const STATUS = new Set(["quota", "rest"]);

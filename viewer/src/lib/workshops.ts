@@ -1,3 +1,4 @@
+import { isRecord as object, amount, count } from "./recordGuards";
 import type { TurnSnapshot } from "../types";
 
 /** A selected workshop site (``snapshot.livelihoods.workshops.sites``). */
@@ -30,10 +31,6 @@ export interface WorkshopsRecord {
   counters: Record<string, number>;
 }
 
-const object = (x: unknown): x is Record<string, unknown> => x !== null && typeof x === "object" && !Array.isArray(x);
-const finite = (x: unknown): x is number => typeof x === "number" && Number.isFinite(x);
-const count = (x: unknown): x is number => finite(x) && Number.isInteger(x) && x >= 0;
-const amount = (x: unknown): x is number => finite(x) && x >= 0;
 const MODES = ["operate", "observe", "cost_only"];
 
 function validSite(x: unknown, regions: number): boolean {

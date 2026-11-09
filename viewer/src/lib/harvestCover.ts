@@ -1,3 +1,4 @@
+import { isRecord as object, amount } from "./recordGuards";
 import type { TurnSnapshot } from "../types";
 
 export interface CoverRow {
@@ -5,8 +6,6 @@ export interface CoverRow {
   cover_before: number; supported_cover: number; proposed_loss: number; loss: number; cover_after: number;
 }
 export interface CoverRecord { schema_version: 1; stage: "B4"; source_turn: number; mode: "loss" | "record_only"; rows: CoverRow[] | null }
-const object = (x: unknown): x is Record<string, unknown> => !!x && typeof x === "object" && !Array.isArray(x);
-const amount = (x: unknown): x is number => typeof x === "number" && Number.isFinite(x) && x >= 0;
 export function harvestCoverAt(snapshot: TurnSnapshot | null, regions: number): { status: "absent" | "malformed" | "unobserved" | "recorded"; record?: CoverRecord } {
   const livelihoods = (snapshot as unknown as Record<string, unknown> | null)?.livelihoods;
   const x = object(livelihoods) ? livelihoods.harvest_cover : undefined;

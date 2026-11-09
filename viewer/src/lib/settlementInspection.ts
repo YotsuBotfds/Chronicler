@@ -1,3 +1,4 @@
+import { finite } from "./recordGuards";
 import type { TurnSnapshot } from "../types";
 
 // The historical export is intentionally narrower than the terminal Settlement.
@@ -36,7 +37,6 @@ export interface SettlementInspection {
 const turn = (value: unknown): value is number => typeof value === "number"
   && Number.isSafeInteger(value) && value >= 0;
 export const isSettlementId = (value: unknown): value is number => turn(value) && value > 0;
-const finite = (value: unknown): value is number => typeof value === "number" && Number.isFinite(value);
 const text = (value: unknown): value is string => typeof value === "string" && value.trim() !== "";
 const record = (value: unknown): value is Record<string, unknown> => !!value
   && typeof value === "object" && !Array.isArray(value);

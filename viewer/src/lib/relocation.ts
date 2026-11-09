@@ -1,3 +1,4 @@
+import { isRecord as object, finite, amount, count } from "./recordGuards";
 import type { TurnSnapshot } from "../types";
 
 /** One household at the fare gate (``snapshot.livelihoods.relocation_costs.households``). Money in milli-units. */
@@ -45,11 +46,7 @@ export interface RelocationRecord {
 
 const GATE_REASONS = ["passed", "short", "no_local_distress", "route", "trip", "assisted"] as const;
 
-const object = (x: unknown): x is Record<string, unknown> => x !== null && typeof x === "object" && !Array.isArray(x);
-const finite = (x: unknown): x is number => typeof x === "number" && Number.isFinite(x);
-const count = (x: unknown): x is number => finite(x) && Number.isInteger(x) && x >= 0;
 const integer = (x: unknown): x is number => finite(x) && Number.isInteger(x);
-const amount = (x: unknown): x is number => finite(x) && x >= 0;
 const maybe = <T,>(check: (v: unknown) => v is T) => (x: unknown) => x === null || check(x);
 const MODES = ["paid", "assisted", "liquidity_only"];
 const ASSIST = ["charged", "controller_changed", "treasury_short"];

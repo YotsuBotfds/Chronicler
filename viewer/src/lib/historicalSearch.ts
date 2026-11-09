@@ -1,3 +1,4 @@
+import { amount as dated } from "./recordGuards";
 import type { Bundle } from "../types";
 
 export type HistoricalSearchKind = "region" | "civilization" | "city" | "institution" | "actor";
@@ -24,7 +25,6 @@ export interface HistoricalSearchIndex {
   visitActors?: (visit: (name: string, turn: number, sourceRef: string, role: string, civ: string) => void) => void;
 }
 const pointer = (value: string) => value.replace(/~/g, "~0").replace(/\//g, "~1");
-const dated = (value: unknown): value is number => typeof value === "number" && Number.isFinite(value) && value >= 0;
 const sourceTurn = (value: unknown): value is number => typeof value === "number" && Number.isFinite(value) && Number.isInteger(value);
 const id = (value: unknown): value is number => dated(value) && Number.isInteger(value);
 const text = (value: unknown): value is string => typeof value === "string" && value.trim().length > 0;

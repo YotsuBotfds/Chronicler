@@ -1,3 +1,4 @@
+import { isRecord as object, finite, amount, count } from "./recordGuards";
 import type { TurnSnapshot } from "../types";
 import {
   WATERSHED_COLUMNS, type WatershedDrought, type WatershedFlood, type WatershedGraph, type WatershedReading,
@@ -15,10 +16,6 @@ import {
  * state-file resume or a fork) reads on its own. Never reads final state.
  */
 
-const object = (x: unknown): x is Record<string, unknown> => x !== null && typeof x === "object" && !Array.isArray(x);
-const finite = (x: unknown): x is number => typeof x === "number" && Number.isFinite(x);
-const amount = (x: unknown): x is number => finite(x) && x >= 0;
-const count = (x: unknown): x is number => Number.isInteger(x) && (x as number) >= 0;
 const PHASES = ["temperate", "warming", "drought", "cooling"];
 const FLOW_KEYS = ["precipitation", "external_in", "external_out", "evaporation", "withdrawal", "to_sea", "to_sink",
   "to_lake", "transfer"];
