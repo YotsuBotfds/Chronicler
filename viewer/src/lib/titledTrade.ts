@@ -21,9 +21,9 @@ export type TitledTradeStatus = "absent" | "disabled" | "malformed" | "unobserve
 /** ``released_returned``: the carrier was released in transit, so the shipment went back to its
  * origin at once (the holder keeps title there; its cause is the release reason). */
 export const OUTCOMES = ["delivered", "returned", "escheated", "pool_reset", "switched_off", "released_returned"] as const;
-export const RETURN_CAUSES = ["destination_conquered", "quarantine_closure", "route_lost",
+const RETURN_CAUSES = ["destination_conquered", "quarantine_closure", "route_lost",
   "destination_left_pilot"] as const;
-export const RELEASE_REASONS = ["migrated", "occupation", "enlisted", "on_trip", "other_work"] as const;
+const RELEASE_REASONS = ["migrated", "occupation", "enlisted", "on_trip", "other_work"] as const;
 const EVENTS = ["moved", ...OUTCOMES];
 export const GOODS = ["grain", "fish", "salt", "botanicals", "exotic"] as const;
 

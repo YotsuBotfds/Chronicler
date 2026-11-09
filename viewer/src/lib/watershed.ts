@@ -30,7 +30,7 @@ const EVENT_COUNTER_KEYS = ["floods_started", "floods_ended", "terrain_cap_chang
 /** Counters of flow mode only. */
 const FLOW_COUNTER_KEYS = ["flood_consequences", "flood_consequences_withheld", "superseded_river_floods"];
 /** In flow mode the native write-back rounds the index the account wrote to 4 decimals. */
-export const NATIVE_ROUNDING = 5e-5;
+const NATIVE_ROUNDING = 5e-5;
 const COUNTER_KEYS = ["planned_turns", "settled_turns", "abandoned_plans", "flood_region_turns", "drought_region_turns",
   "droughts_declared", "droughts_ended", "external_out_unmet_turns", "stale_baseline_turns"];
 const SEA = -1;
@@ -47,7 +47,7 @@ const LAKE = -3;
  * an arbitrary margin.
  */
 export const HALF_DIGIT = 5e-7;
-export const CLOSURE_TOLERANCE = 1e-9;
+const CLOSURE_TOLERANCE = 1e-9;
 
 /** Worst use of the allowance across the checks of one reading (diagnostics and tests). */
 export interface WatershedAudit { worst: number; check: string }

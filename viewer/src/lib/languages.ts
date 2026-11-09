@@ -147,7 +147,7 @@ export function nativeNameAt(field: LanguagesField, language: LanguageInfo, turn
 }
 
 /** The English meaning of a word ("green plain"), following loans to their source. */
-export function glossOf(field: LanguagesField, word: LanguageWord, byId: Map<number, LanguageWord>): string | null {
+function glossOf(field: LanguagesField, word: LanguageWord, byId: Map<number, LanguageWord>): string | null {
   if (word.kind === "person") {
     const title = word.parts.find(([, g]) => g && g === g.toLowerCase());
     return title ? title[1] : null;
@@ -166,7 +166,7 @@ export function glossOf(field: LanguagesField, word: LanguageWord, byId: Map<num
 }
 
 /** The language an entity's own people speak at a turn. */
-export function ownLanguage(field: LanguagesField, kind: string, ref: number | string,
+function ownLanguage(field: LanguagesField, kind: string, ref: number | string,
                             turn: number, words: LanguageWord[]): number | null {
   if (kind === "civ") {
     const rows = field.civs.find((c) => c.civ === ref)?.lang ?? [];

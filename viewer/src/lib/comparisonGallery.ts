@@ -36,4 +36,5 @@ export function keepComparison(left: CompletedRun, right: CompletedRun, turn: nu
   return "Comparison kept for this browser session.";
 }
 export function removeComparison(id: number) { publish(cases.filter((row) => row.id !== id)); }
+/** Test seam. */
 export function clearComparisonGallery() { publish([]); }

@@ -36,7 +36,7 @@ export const MAP_LAYER_LABELS: Record<MapLayerKey, string> = {
 const LAYER_ORDER: MapLayerKey[] = ["control", "population", "territory", "food", "epidemics", "wars", "migration", "techniques", "sea"];
 
 /** Turns of agent migration summed on the migration layer. */
-export const MIGRATION_WINDOW = 10;
+const MIGRATION_WINDOW = 10;
 /** Flows drawn on the migration layer (largest first). */
 const MIGRATION_FLOW_LIMIT = 40;
 

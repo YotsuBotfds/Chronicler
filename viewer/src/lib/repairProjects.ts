@@ -63,7 +63,7 @@ export interface RepairProjectsRecord {
 
 /** Declaration order (append only); ``no_people`` is the PL3 correction: a granary
  * project suspended while its region has no farmer. */
-export const REASONS = ["no_timber", "no_coins", "no_labor", "no_envelope", "unqualified", "no_people"] as const;
+const REASONS = ["no_timber", "no_coins", "no_labor", "no_envelope", "unqualified", "no_people"] as const;
 const KINDS = ["granary", "workshop"];
 const CAUSES = ["wear", "war"];
 const MODES = ["repair", "cost_only"];

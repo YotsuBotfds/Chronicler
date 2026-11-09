@@ -47,7 +47,7 @@ export function snapshotFromMessage(message: Message): TurnSnapshot {
 }
 
 /** The bundle systems and carriers a message or bundle holds (present, not null). */
-export function bundleSystemsOf(source: Message): Partial<Bundle> {
+function bundleSystemsOf(source: Message): Partial<Bundle> {
   const out: Message = {};
   for (const key of [...BUNDLE_SYSTEMS, ...BUNDLE_CARRIERS]) {
     if (source[key] !== undefined && source[key] !== null) {

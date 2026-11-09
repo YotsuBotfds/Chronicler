@@ -83,7 +83,7 @@ export interface WealthTreasury {
   by_civ: ({ civ: number } & Record<string, number>)[];
 }
 
-export const NATIVE_COMPONENTS = ["income_gross", "withheld_enlisted", "withheld_teaching", "withheld_learning",
+const NATIVE_COMPONENTS = ["income_gross", "withheld_enlisted", "withheld_teaching", "withheld_learning",
   "withheld_paid_work", "withheld_retail", "withheld_health", "income_applied", "income_rounding", "decay",
   "ceiling_floor", "birth_endowment", "estate_out", "inheritance_in", "estate_unclaimed", "estate_overflow",
   "transfer_actual", "transfer_nominal", "transfer_rounding"] as const;

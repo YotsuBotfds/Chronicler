@@ -16,12 +16,12 @@ import type { TurnSnapshot } from "../types";
  * `observed_from` is unknown, not zero. Never reads final-world state.
  */
 export const CAUSES = ["flight", "hunger"] as const;
-export const ANCHORS = ["war", "famine", "persecution", "none"] as const;
+const ANCHORS = ["war", "famine", "persecution", "none"] as const;
 /** Optional physical-arrival diagnostics added after the original X1 records. */
-export const ARRIVAL_COUNT_KEYS = ["recent_residence_arrivals", "recent_residence_arrivals_unknown_reason"] as const;
-export const CLOSURES = ["returned", "resettled", "died", "pool_reset", "unobserved_gap"] as const;
+const ARRIVAL_COUNT_KEYS = ["recent_residence_arrivals", "recent_residence_arrivals_unknown_reason"] as const;
+const CLOSURES = ["returned", "resettled", "died", "pool_reset", "unobserved_gap"] as const;
 /** ``residence_ledger_state.REGION_KEYS`` (declaration order). */
-export const REGION_KEYS = [
+const REGION_KEYS = [
   "region", "residents",
   "displaced", "displaced_flight", "displaced_hunger",
   "displaced_war", "displaced_famine", "displaced_persecution", "displaced_none",

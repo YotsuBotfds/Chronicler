@@ -19,7 +19,7 @@ import { readRecord, type RecordReading } from "./recordReading";
  * bounded per region, never attributed to persons. Never reads final-world state.
  */
 export const MODES = ["service", "cost_only"] as const;
-export const PATHS = ["upkeep", "institution"] as const;
+const PATHS = ["upkeep", "institution"] as const;
 export type ReliefMode = (typeof MODES)[number];
 
 export interface CivRelief {
@@ -133,12 +133,12 @@ const carries = (snapshot: TurnSnapshot) => {
 };
 
 /** Whether nothing moved in an observed frame (recorded zero). */
-export function reliefEmpty(frame: ReliefFrame): boolean {
+function reliefEmpty(frame: ReliefFrame): boolean {
   return frame.purchases.length === 0 && frame.deliveries.length === 0
     && frame.civs.every((c) => c.to_fund_milli === 0 && c.spent_milli === 0 && c.refunded_milli === 0 && c.sunk_units === 0);
 }
 
-export const REFORM_SERVICES = {
+const REFORM_SERVICES = {
   key: "reform_services", label: "Poor relief services", flag: "--reform-services", livelihoods: true,
   carries, read: (s: TurnSnapshot, regions: number, civs: number) => reliefRecordAt(s, regions, civs).record,
   observed: (r: ReliefRecord) => r.frame !== null,

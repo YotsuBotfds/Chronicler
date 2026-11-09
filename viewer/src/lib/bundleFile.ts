@@ -48,7 +48,7 @@ export function parseBundle(jsonString: string): {
 }
 
 /** The file's text, as `readAsText` would decode it (a UTF-16 byte order mark is honoured). */
-export function decodeBundleText(bytes: ArrayBuffer): string {
+function decodeBundleText(bytes: ArrayBuffer): string {
   const prefix = new Uint8Array(bytes, 0, Math.min(2, bytes.byteLength));
   const encoding = prefix[0] === 0xff && prefix[1] === 0xfe ? "utf-16le"
     : prefix[0] === 0xfe && prefix[1] === 0xff ? "utf-16be" : "utf-8";

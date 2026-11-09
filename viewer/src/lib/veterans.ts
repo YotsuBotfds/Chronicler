@@ -63,9 +63,9 @@ export interface VeteransRecord {
 export const CAUSES = ["desertion", "scattered", "demobilised", "destroyed", "dissolved"] as const;
 export const OUTCOMES = ["placed:crew", "placed:apprentice", "placed:repair", "waiting", "remobilised",
   "died", "migrated", "control_lost", "expired", "pool_reset"] as const;
-export const PLACEMENTS = ["placed:crew", "placed:apprentice", "placed:repair"] as const;
-export const CLOSING = ["remobilised", "died", "expired", "pool_reset"] as const;
-export const INELIGIBLE = ["control_lost", "minor", "unobserved"] as const;
+const PLACEMENTS = ["placed:crew", "placed:apprentice", "placed:repair"] as const;
+const CLOSING = ["remobilised", "died", "expired", "pool_reset"] as const;
+const INELIGIBLE = ["control_lost", "minor", "unobserved"] as const;
 export const UNMET = ["no_site", "site_idle", "not_crew_eligible", "crew_full", "unplaced"] as const;
 /** Unmet reasons that mean no opening existed for the veteran this turn. */
 export const NO_OPENING: ReadonlyArray<string> = ["no_site", "site_idle"];

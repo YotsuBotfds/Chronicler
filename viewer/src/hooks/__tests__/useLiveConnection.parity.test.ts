@@ -8,7 +8,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, renderHook } from "@testing-library/react";
 import fixture from "../../__fixtures__/transport_bundle.json";
-import { parseBundle } from "../useBundle";
+import { parseBundle } from "../../lib/bundleFile";
 import { useLiveConnection } from "../useLiveConnection";
 import type { Bundle } from "../../types";
 

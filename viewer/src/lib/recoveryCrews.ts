@@ -58,7 +58,7 @@ const count = (x: unknown): x is number => finite(x) && Number.isInteger(x) && x
 const amount = (x: unknown): x is number => finite(x) && x >= 0;
 const unit = (x: unknown): x is number => finite(x) && x >= 0 && x <= 1 + 1e-9;
 const EPS = 1e-6;
-export const ORIGINS: readonly CrewOrigin[] = ["site_city", "urban_farmer", "rural_farmer", "veteran"];
+const ORIGINS: readonly CrewOrigin[] = ["site_city", "urban_farmer", "rural_farmer", "veteran"];
 const MODES = ["paid", "unpaid"];
 const MAX_CREW = 4;
 

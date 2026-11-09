@@ -25,7 +25,7 @@ export interface ReservationUseRecord {
 }
 
 /** PL3 review C: the charge split pro rata, as ``maintenance_obligation.split_charge``. */
-export function splitCharge(charged: number, reserved: number, envelope: number): [number, number] {
+function splitCharge(charged: number, reserved: number, envelope: number): [number, number] {
   const whole = reserved + envelope;
   if (reserved <= 0 || whole <= 0) return [0, 1];
   return [Math.floor(charged * reserved / whole), envelope / whole];

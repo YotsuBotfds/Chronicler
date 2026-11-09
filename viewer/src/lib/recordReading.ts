@@ -125,7 +125,7 @@ export function readRecord<T>(spec: RecordSpec<T>, bundle: Bundle | null | undef
   return { state: "recorded", record, note: "" };
 }
 
-export const REPAIR_PROJECTS: RecordSpec<RepairProjectsRecord> = {
+const REPAIR_PROJECTS: RecordSpec<RepairProjectsRecord> = {
   key: "repair_projects", label: "Repair projects", flag: "--repair-projects", livelihoods: true,
   carries: inLivelihoods("repair_projects"), read: repairProjectsAt,
   observed: (r) => r.receipts !== null,
@@ -135,7 +135,7 @@ export const REPAIR_PROJECTS: RecordSpec<RepairProjectsRecord> = {
 
 const TIMBER_FLOWS = ["cleared", "extraction", "overdraft", "regrowth", "removed"] as const;
 
-export const TIMBER_STOCK: RecordSpec<TimberStockRecord> = {
+const TIMBER_STOCK: RecordSpec<TimberStockRecord> = {
   key: "timber_stock", label: "Timber stock", flag: "--timber-stock", livelihoods: true,
   carries: inLivelihoods("timber_stock"), read: (s, regions) => timberStockAt(s, regions),
   observed: (r) => r.observed && r.totals !== null && r.regions !== null,
@@ -143,7 +143,7 @@ export const TIMBER_STOCK: RecordSpec<TimberStockRecord> = {
   zero: "no timber cut, cleared, regrown or removed",
 };
 
-export const REMITTANCES: RecordSpec<RemittancesRecord> = {
+const REMITTANCES: RecordSpec<RemittancesRecord> = {
   key: "remittances", label: "Remittances", flag: "--remittances", livelihoods: true,
   carries: inLivelihoods("remittances"), read: (s, regions) => remittancesAt(s, regions),
   observed: (r) => r.receipts !== null,
@@ -166,7 +166,7 @@ export function retailProvisioned(snapshot: TurnSnapshot): boolean {
     && retail.regions.some((row) => object(row) && row.provisioning !== null && row.provisioning !== undefined);
 }
 
-export const FOOD_ALLOCATION: RecordSpec<FoodAllocationRecord> = {
+const FOOD_ALLOCATION: RecordSpec<FoodAllocationRecord> = {
   key: "food_allocation", label: "Food allocation", flag: "--food-allocation", livelihoods: true,
   carries: inLivelihoods("food_allocation"), read: (s, regions) => foodAllocationAt(s, regions),
   observed: (r) => r.totals !== null && r.regions !== null,
@@ -175,7 +175,7 @@ export const FOOD_ALLOCATION: RecordSpec<FoodAllocationRecord> = {
     : "no region was short of food",
 };
 
-export const GRANARY_STORAGE: RecordSpec<GranaryStorageFrame> = {
+const GRANARY_STORAGE: RecordSpec<GranaryStorageFrame> = {
   key: "grain_storage", label: "Granary storage", flag: "--grain-storage", livelihoods: false,
   carries: (s) => s.grain_reserves?.storage != null, read: granaryStorageAt,
   observed: () => true,
@@ -184,7 +184,7 @@ export const GRANARY_STORAGE: RecordSpec<GranaryStorageFrame> = {
   zero: "no storage work delivered or paid and no grain returned to market",
 };
 
-export const RESIDENCE_LEDGER: RecordSpec<ResidenceLedgerRecord> = {
+const RESIDENCE_LEDGER: RecordSpec<ResidenceLedgerRecord> = {
   key: "residence_ledger", label: "Residence ledger", flag: "--residence-ledger", livelihoods: true,
   carries: inLivelihoods("residence_ledger"), read: (s, regions) => residenceLedgerAt(s, regions),
   observed: (r) => r.frame !== null,

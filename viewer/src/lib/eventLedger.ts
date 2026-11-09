@@ -40,7 +40,7 @@ export interface EventLedgerPage {
 }
 
 export const EVENT_LEDGER_PAGE_SIZE = 24;
-export const EVENT_LEDGER_MAX_PAGE_SIZE = 100;
+const EVENT_LEDGER_MAX_PAGE_SIZE = 100;
 
 /** Newest turn first, then original input order. No actor backfill or deduplication.
  * Source indices identify records within one immutable artifact array. Integrators

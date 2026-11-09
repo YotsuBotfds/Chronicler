@@ -27,7 +27,7 @@ export function surfaceForWorld(surface: FeatureSurface, surfaceName: FeatureSur
 }
 
 /** Catalog settings that depend on the world a start requests. */
-export const WORLD_SETTINGS: readonly string[] = ["procedural_world"];
+const WORLD_SETTINGS: readonly string[] = ["procedural_world"];
 
 /**
  * A live start's `features`: the selection, plus every switch the server's

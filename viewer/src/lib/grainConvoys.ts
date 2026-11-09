@@ -20,9 +20,9 @@ export const CONVOY_COUNTERS = [
 ] as const;
 export type ConvoyCounter = typeof CONVOY_COUNTERS[number];
 
-export const CONVOY_POLICIES = ["adaptive", "cheapest", "safest"] as const;
-export const CONVOY_STATUSES = ["en_route", "waiting", "returning"] as const;
-export const CONVOY_OPERATIONS = ["dispatched", "advanced", "waited", "turned_back",
+const CONVOY_POLICIES = ["adaptive", "cheapest", "safest"] as const;
+const CONVOY_STATUSES = ["en_route", "waiting", "returning"] as const;
+const CONVOY_OPERATIONS = ["dispatched", "advanced", "waited", "turned_back",
   "arrived", "captured", "lost", "returned", "stranded"] as const;
 const FINAL = new Set<string>(["arrived", "captured", "lost", "returned", "stranded"]);
 const MAX_ACTIVE = 64;

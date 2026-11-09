@@ -13,7 +13,7 @@ const DARK_INK = "#0b0b0b";
 /** `cities_state.RANK_NAMES` (rank 0 is a settlement below town size). */
 export const RANK_LABELS = ["settlement", "town", "city", "great city"] as const;
 /** `cities_state.CHARTER_NAMES`. */
-export const CHARTER_LABELS = ["none", "market rights", "self-government", "free city"] as const;
+const CHARTER_LABELS = ["none", "market rights", "self-government", "free city"] as const;
 
 /** Ordinal by rank: town light, great city strongest. */
 export const RANK_COLORS: Record<number, string> = {

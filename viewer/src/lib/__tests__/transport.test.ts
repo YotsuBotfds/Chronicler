@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import fixture from "../../__fixtures__/transport_bundle.json";
-import { parseBundle } from "../../hooks/useBundle";
+import { parseBundle } from "../bundleFile";
 import type { Bundle } from "../../types";
 import {
   applyCompletedMessage, BUNDLE_CARRIERS, BUNDLE_SYSTEMS, bundleFromInitMessage, SNAPSHOT_FIELDS,

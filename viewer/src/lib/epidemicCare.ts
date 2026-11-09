@@ -16,7 +16,7 @@ import type { Bundle, TurnSnapshot } from "../types";
 import { readRecord, type RecordReading } from "./recordReading";
 
 export type CareMode = "care" | "cost_only";
-export const CARE_LIMITS = ["need_met", "envelope", "treasury", "labour", "no_patients", "recipient_lost"] as const;
+const CARE_LIMITS = ["need_met", "envelope", "treasury", "labour", "no_patients", "recipient_lost"] as const;
 export type CareLimit = (typeof CARE_LIMITS)[number];
 
 export interface CareApplied {
@@ -214,7 +214,7 @@ const carries = (snapshot: TurnSnapshot) => {
   return object(livelihoods) && livelihoods.epidemic_care !== undefined && livelihoods.epidemic_care !== null;
 };
 
-export const EPIDEMIC_CARE = {
+const EPIDEMIC_CARE = {
   key: "epidemic_care", label: "Epidemic care", flag: "--epidemic-care", livelihoods: true,
   carries, read: epidemicCareAt,
   observed: (r: EpidemicCareRecord) => r.tick !== null && r.frame !== null,

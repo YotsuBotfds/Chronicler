@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { parseBundle } from "../useBundle";
+import { parseBundle } from "../../lib/bundleFile";
 import sampleBundle from "../../__fixtures__/sample_bundle.json";
 
 describe("parseBundle", () => {

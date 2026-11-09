@@ -14,10 +14,10 @@ import { readRecord, type RecordReading } from "./recordReading";
  * fund pays only recorded losses. Never reads final-world state.
  */
 export const MODES = ["mutual", "dues_only"] as const;
-export const CLAIM_KINDS = ["levy", "sack"] as const;
-export const CHANGE_KINDS = ["founded", "joined", "left", "dissolved"] as const;
-export const LEAVE_REASONS = ["guild_dissolved", "city_fallen", "lord_changed"] as const;
-export const DISSOLVE_REASONS = ["war_between_members", "too_few_members", "one_realm", "dormant", "switched_off"] as const;
+const CLAIM_KINDS = ["levy", "sack"] as const;
+const CHANGE_KINDS = ["founded", "joined", "left", "dissolved"] as const;
+const LEAVE_REASONS = ["guild_dissolved", "city_fallen", "lord_changed"] as const;
+const DISSOLVE_REASONS = ["war_between_members", "too_few_members", "one_realm", "dormant", "switched_off"] as const;
 
 export interface LeagueMember {
   guild: number; city: number; region: number; lord: number; joined_turn: number;
@@ -129,7 +129,7 @@ const carries = (snapshot: TurnSnapshot) => {
   return object(livelihoods) && livelihoods.guild_leagues !== undefined && livelihoods.guild_leagues !== null;
 };
 
-export const GUILD_LEAGUES = {
+const GUILD_LEAGUES = {
   key: "guild_leagues", label: "Guild leagues", flag: "--guild-leagues", livelihoods: true,
   carries, read: (s: TurnSnapshot, regions: number, civs: number) => leagueRecordAt(s, regions, civs).record,
   observed: (r: LeagueRecord) => r.frame !== null,

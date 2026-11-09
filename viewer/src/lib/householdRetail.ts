@@ -11,12 +11,12 @@ import type { TurnSnapshot } from "../types";
  * rations in fractions of one ration. ``null`` is unknown, never zero.
  */
 
-export const RETAIL_GOODS = ["grain", "fish", "salt", "botanicals", "exotic"] as const;
-export const RETAIL_MODES = ["retail", "no_relief", "free_exchange", "record_only"] as const;
+const RETAIL_GOODS = ["grain", "fish", "salt", "botanicals", "exotic"] as const;
+const RETAIL_MODES = ["retail", "no_relief", "free_exchange", "record_only"] as const;
 /** ``schedule`` (A2R): a frozen schedule (``--household-retail-schedule``): exact intervals
  * ``{region: [[open, close], ..., [open, null]]}`` (S1), or the approximate first-turn
  * ``{region: opening turn}`` map. */
-export const RETAIL_BOUNDARIES = ["market", "paid_work", "all", "schedule"] as const;
+const RETAIL_BOUNDARIES = ["market", "paid_work", "all", "schedule"] as const;
 export type RetailMode = typeof RETAIL_MODES[number];
 export type RetailBoundary = typeof RETAIL_BOUNDARIES[number];
 /** The modes, plainly. */
@@ -27,7 +27,7 @@ export const RETAIL_MODE_LABEL: Record<RetailMode, string> = {
   record_only: "record_only (identity control, nothing applied)",
 };
 /** Flows of the owned pool (``FLOW_KINDS``) and their signs in close = open + Σ sign × flow. */
-export const FLOW_SIGNS = {
+const FLOW_SIGNS = {
   titled: 1, own_eaten: -1, sold: -1, procured: -1, decay: -1, overflow: -1, war_loss: -1, to_commons: -1,
   inherited_in: 1, inherited_out: -1,
   /** Rules version 2 (A2R, RL4): owned grain above the storage cap, lost before Phase 10 procurement. */
@@ -43,7 +43,7 @@ const FLOW_KINDS = Object.keys(FLOW_SIGNS) as FlowKind[];
 /** Why owned food went to the region's commons (``COMMONS_REASONS``). */
 export const COMMONS_REASONS = ["untitled", "claims_refused", "escheat", "pilot_closed", "pool_reset", "switch_off"] as const;
 export type CommonsReason = typeof COMMONS_REASONS[number];
-export const RECORD_KINDS = ["pilot_opened", "pilot_closed", "war_loss", "inherited", "escheat", "pool_reset",
+const RECORD_KINDS = ["pilot_opened", "pilot_closed", "war_loss", "inherited", "escheat", "pool_reset",
   "claims_refused", "switch_off"] as const;
 /** Person statuses in the native provisioning sample, in code order. */
 export const RETAIL_STATUSES = ["fed", "priced_out", "offer_short", "withheld_dead"] as const;
@@ -52,12 +52,12 @@ const SAMPLE_COLUMNS = ["agent_id", "region", "household", "ration", "fair_share
 const MAX_SAMPLE = 24;
 const MAX_LOG = 64;
 /** The economy's Phase 2 retail columns per pilot region (food units). */
-export const PHASE2_COLUMNS = [
+const PHASE2_COLUMNS = [
   ...["titled", "owned_close", "owned_decay", "owned_overflow"].flatMap((kind) => RETAIL_GOODS.map((g) => `retail_${kind}_${g}`)),
   "commons_consumed", "commons_sufficiency",
 ];
 /** The native provisioning row (``RETAIL_REGION_COLUMNS``) as Python copies it. */
-export const PROVISIONING_COLUMNS = [
+const PROVISIONING_COLUMNS = [
   "region", "mode", "phase2_alive", "persons", "households", "children", "sufficiency", "fair_share",
   "price_quoted_milli", "price_milli", "milli_food_per_ration", "free_rations", "free_living", "free_given",
   "free_unallocated", "free_to_priority", "priority_households", "claims", "present_claims", "withheld_dead_claims",

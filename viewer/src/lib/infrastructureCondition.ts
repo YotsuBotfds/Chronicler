@@ -22,7 +22,7 @@ const civ = (x: unknown): x is number => Number.isInteger(x) && (x as number) >=
 const one = <T extends string>(list: readonly T[], x: unknown): x is T => typeof x === "string" && (list as readonly string[]).includes(x);
 const EPS = 1e-9;
 /** Condition at which service is full (`chronicler.infrastructure_condition.SERVICE_FULL`). */
-export const SERVICE_FULL = 0.5;
+const SERVICE_FULL = 0.5;
 export const serviceOf = (condition: number) => Math.min(1, Math.max(0, condition) / SERVICE_FULL);
 
 /** Whether a snapshot carries the record at all (a presence test; the reader parses). */

@@ -14,7 +14,7 @@ const DARK_INK = "#0b0b0b";
 /** Subsistence modes in `nomads.SUBSISTENCE_MODES` order. */
 export const MODE_ORDER = ["sedentary", "agro_pastoral", "nomadic"] as const;
 
-export const MODE_LABELS: Record<string, string> = {
+const MODE_LABELS: Record<string, string> = {
   sedentary: "Sedentary",
   agro_pastoral: "Agro-pastoral",
   nomadic: "Nomadic",

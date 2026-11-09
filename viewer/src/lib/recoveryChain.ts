@@ -63,7 +63,7 @@ export const PACKAGE_INFO: Record<ChainPackage, { label: string; flag: string }>
 };
 
 /** The packages whose presence makes the chain view worth mounting. */
-export const ANCHOR_PACKAGES: readonly ChainPackage[] = ["repair_projects", "timber_supply", "recovery_crews", "household_retail"];
+const ANCHOR_PACKAGES: readonly ChainPackage[] = ["repair_projects", "timber_supply", "recovery_crews", "household_retail"];
 
 type Records = {
   repair_projects: RepairProjectsRecord; timber_supply: TimberSupplyRecord; timber_stock: TimberStockRecord;

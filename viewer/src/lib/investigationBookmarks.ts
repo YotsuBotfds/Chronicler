@@ -2,7 +2,7 @@
 import type { ArtifactIdentity } from "./artifactIdentity";
 
 export const INVESTIGATION_BOOKMARKS_KEY = "chronicler.investigation-bookmarks.v1";
-export const MAX_INVESTIGATION_BOOKMARKS = 50;
+const MAX_INVESTIGATION_BOOKMARKS = 50;
 export const MAX_BOOKMARK_NOTE_LENGTH = 1000;
 export type InvestigationPanel = "map" | "history" | "conditions";
 export interface InvestigationTarget { kind: "region" | "civilization"; index: number; name: string }
@@ -28,7 +28,7 @@ export function validInvestigationTarget(value: unknown): value is Investigation
   return !!row && keysAre(row, ["kind", "index", "name"]) && (row.kind === "region" || row.kind === "civilization")
     && safeInteger(row.index) && label(row.name, 200);
 }
-export function validInvestigationPanel(value: unknown): value is InvestigationPanel { return value === "map" || value === "history" || value === "conditions"; }
+function validInvestigationPanel(value: unknown): value is InvestigationPanel { return value === "map" || value === "history" || value === "conditions"; }
 export function validInvestigationBookmark(value: unknown): value is InvestigationBookmark {
   const row = object(value), world = object(row?.world);
   return !!row && !!world && keysAre(row, ["world", "target", "turn", "panel"], ["notes"])

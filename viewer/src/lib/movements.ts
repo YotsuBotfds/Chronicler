@@ -21,7 +21,7 @@ export const CREED_LABELS = ["commons", "liberty", "sect", "guild"] as const;
 /** `agent_movements_state.END_NAMES` (0 while living). */
 export const END_LABELS = ["", "faded", "won", "seceded", "schism", "crushed", "dissolved"] as const;
 /** `agent_movements_state.REFORM_NAMES`, as the record names them. */
-export const REFORM_LABELS: Record<string, string> = {
+const REFORM_LABELS: Record<string, string> = {
   relief: "poor relief",
   home_rule: "home rule",
   toleration: "toleration",

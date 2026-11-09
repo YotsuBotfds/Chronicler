@@ -8,7 +8,7 @@ export interface WorkExperience {
 export interface OfferExperience { turn: number; id: number; kind: string; would_decline: boolean; accepted: boolean }
 export interface MoveExperience { turn: number; id: number; kind: "refused" | "left_soon"; region: number; origin?: number; gate?: number }
 export interface TradeExperience { turn: number; id: number; region: number; kind: "shipment"; outcome: string; cause: string | null; shipment: number; package?: "titled_trade" | "timber_orders" }
-export const DECISION_CHANNELS = ["all", "no_migration_experience", "no_information", "no_work", "no_trade"] as const;
+const DECISION_CHANNELS = ["all", "no_migration_experience", "no_information", "no_work", "no_trade"] as const;
 export type DecisionChannels = typeof DECISION_CHANNELS[number];
 export interface AdaptiveRecord {
   schema_version: 1; stage: "A6"; source_turn: number; mode: "adapt" | "record_only" | "shuffled"; rules: "1" | "2" | "3";

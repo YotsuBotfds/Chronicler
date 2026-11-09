@@ -43,7 +43,7 @@ export interface RelocationRecord {
   parameters: Record<string, number>;
 }
 
-export const GATE_REASONS = ["passed", "short", "no_local_distress", "route", "trip", "assisted"] as const;
+const GATE_REASONS = ["passed", "short", "no_local_distress", "route", "trip", "assisted"] as const;
 
 const object = (x: unknown): x is Record<string, unknown> => x !== null && typeof x === "object" && !Array.isArray(x);
 const finite = (x: unknown): x is number => typeof x === "number" && Number.isFinite(x);

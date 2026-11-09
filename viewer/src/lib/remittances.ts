@@ -50,10 +50,10 @@ export interface RemittancesRecord {
   parameters: Record<string, number>;
 }
 
-export const RECEIPT_STATUSES = ["applied", "limited", "absent", "not_sent"] as const;
-export const UNLINKED_REASONS = ["no_bond", "recipient_away", "recipient_on_trip"] as const;
-export const CLOSE_REASONS = ["return", "death", "pool_reset", "unobserved_gap"] as const;
-export const MOVE_KINDS = ["departure", "onward", "return", "unrecorded"] as const;
+const RECEIPT_STATUSES = ["applied", "limited", "absent", "not_sent"] as const;
+const UNLINKED_REASONS = ["no_bond", "recipient_away", "recipient_on_trip"] as const;
+const CLOSE_REASONS = ["return", "death", "pool_reset", "unobserved_gap"] as const;
+const MOVE_KINDS = ["departure", "onward", "return", "unrecorded"] as const;
 
 const object = (x: unknown): x is Record<string, unknown> => x !== null && typeof x === "object" && !Array.isArray(x);
 const finite = (x: unknown): x is number => typeof x === "number" && Number.isFinite(x);

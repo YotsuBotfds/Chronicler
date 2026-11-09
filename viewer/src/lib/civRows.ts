@@ -126,7 +126,7 @@ export function civDisplayRow(history: TurnSnapshot[], civName: string, turn: nu
  * (`models.FactionType`); burghers appear only for realms that have them
  * (`--guilds`).
  */
-export const FACTION_ORDER = ["military", "merchant", "cultural", "clergy", "burgher"] as const;
+const FACTION_ORDER = ["military", "merchant", "cultural", "clergy", "burgher"] as const;
 
 /** A civ's faction influence at a snapshot row, in declaration order ([] unrecorded). */
 export function factionShares(influence: Record<string, number> | undefined | null): [string, number][] {

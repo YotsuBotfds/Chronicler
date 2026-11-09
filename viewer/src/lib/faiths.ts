@@ -13,7 +13,7 @@
  */
 import type { Bundle, Event, FaithRecord } from "../types";
 
-export const NO_FAITH = 255;
+const NO_FAITH = 255;
 
 export interface FaithTable {
   faiths: FaithRecord[];

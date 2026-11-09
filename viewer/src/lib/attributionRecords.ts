@@ -14,12 +14,12 @@ import type { TurnSnapshot } from "../types";
  * unknown (a granary `unattributed` of null: granaries inactive). Never reads
  * final-world state.
  */
-export const CASUALTY_CAUSES = ["battle", "trapped", "revolt", "attrition", "natural", "war_drain",
+const CASUALTY_CAUSES = ["battle", "trapped", "revolt", "attrition", "natural", "war_drain",
   "possibly_enemy"] as const;
-export const CASUALTY_CLASSES = ["combat", "attrition", "natural", "war_drain"] as const;
-export const NATURES = ["transfer", "minted", "destroyed", "restriction"] as const;
-export const UNITS = ["treasury", "food", "goods", "grain", "milli_food", "routes", "condition"] as const;
-export const IDENTITY_KINDS = ["restored", "revived", "name_reused", "renamed"] as const;
+const CASUALTY_CLASSES = ["combat", "attrition", "natural", "war_drain"] as const;
+const NATURES = ["transfer", "minted", "destroyed", "restriction"] as const;
+const UNITS = ["treasury", "food", "goods", "grain", "milli_food", "routes", "condition"] as const;
+const IDENTITY_KINDS = ["restored", "revived", "name_reused", "renamed"] as const;
 
 export type CasualtyCause = (typeof CASUALTY_CAUSES)[number];
 export type CasualtyClass = (typeof CASUALTY_CLASSES)[number];
@@ -27,7 +27,7 @@ export type BurdenNature = (typeof NATURES)[number];
 export type BurdenUnit = (typeof UNITS)[number];
 export type IdentityKind = (typeof IDENTITY_KINDS)[number];
 /** The class of each cause (``attribution_records_state.CASUALTY_CLASS``). */
-export const CLASS_OF: Record<CasualtyCause, CasualtyClass> = {
+const CLASS_OF: Record<CasualtyCause, CasualtyClass> = {
   battle: "combat", trapped: "combat", revolt: "combat", attrition: "attrition", natural: "natural",
   war_drain: "war_drain", possibly_enemy: "war_drain",
 };
@@ -120,7 +120,7 @@ const index = (x: unknown, size: number) => x === null || (count(x) && x < size)
 const one = <T extends string>(values: readonly T[], x: unknown): x is T => values.includes(x as T);
 
 /** Whether a snapshot carries the record at all (a presence test; the reader parses). */
-export function carriesAttribution(snapshot: TurnSnapshot | null | undefined): boolean {
+function carriesAttribution(snapshot: TurnSnapshot | null | undefined): boolean {
   const livelihoods = (snapshot as unknown as Record<string, unknown> | null)?.livelihoods;
   return object(livelihoods) && livelihoods.attribution_records !== undefined && livelihoods.attribution_records !== null;
 }
