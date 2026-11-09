@@ -230,10 +230,6 @@ def local_preparation_discount(state, report, turn, observer_index=None):
             / (CREDIBILITY_PRIOR + len(eligible)), [row.report_id for row in eligible])
 
 
-def harvest_forecasts_enabled(world) -> bool:
-    return harvest_forecasts_on(world)
-
-
 def validate_harvest_forecasts(world, *, agent_mode: str | None = None) -> None:
     if not harvest_forecasts_on(world):
         return
