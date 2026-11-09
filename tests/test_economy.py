@@ -12,14 +12,12 @@ from chronicler.economy import (
     RegionGoods,
     EconomyResult,
     _empty_category_dict,
-    compute_production,
     compute_demand,
     compute_prices,
     compute_economy,
     BASE_PRICE,
     decompose_trade_routes,
     allocate_trade_flow,
-    derive_farmer_income_modifier,
     derive_merchant_margin,
     derive_merchant_trade_income,
     FARMER_INCOME_MODIFIER_FLOOR,
@@ -86,37 +84,6 @@ def test_economy_result_construction():
     assert er.tithe_base == {}
 
 
-# --- Task 3: Production ---
-
-def test_compute_production_grain_region():
-    """Grain region (type 0) with 50 farmers and yield 1.2 → food = 60.0."""
-    result = compute_production(resource_type=0, resource_yield=1.2, farmer_count=50)
-    assert result == ("food", 60.0)
-
-
-def test_compute_production_ore_region():
-    """Ore region (type 5) with 30 farmers and yield 0.8 → raw_material = 24.0."""
-    result = compute_production(resource_type=5, resource_yield=0.8, farmer_count=30)
-    assert result == ("raw_material", 24.0)
-
-
-def test_compute_production_precious_region():
-    """Precious region (type 6) with 10 farmers and yield 0.5 → luxury = 5.0."""
-    result = compute_production(resource_type=6, resource_yield=0.5, farmer_count=10)
-    assert result == ("luxury", 5.0)
-
-
-def test_compute_production_zero_farmers():
-    """Zero farmers → zero production regardless of yield."""
-    result = compute_production(resource_type=0, resource_yield=1.5, farmer_count=0)
-    assert result == ("food", 0.0)
-
-
-def test_compute_production_empty_slot_is_safe():
-    result = compute_production(resource_type=255, resource_yield=1.5, farmer_count=10)
-    assert result == (None, 0.0)
-
-
 # --- Task 4: Demand ---
 
 def test_compute_demand_food():
@@ -135,16 +102,6 @@ def test_compute_demand_luxury():
     """Luxury demand = wealthy_count × LUXURY_PER_WEALTHY_AGENT."""
     demand = compute_demand(population=100, soldier_count=20, wealthy_count=5)
     assert demand["luxury"] == 5 * 0.2  # LUXURY_PER_WEALTHY_AGENT = 0.2
-
-
-def test_farmer_income_modifier_is_neutral_for_unknown_resource():
-    modifier = derive_farmer_income_modifier(
-        255,
-        {"food": 10.0, "raw_material": 5.0, "luxury": 2.0},
-        {"food": 10.0, "raw_material": 5.0, "luxury": 2.0},
-        farmer_count=10,
-    )
-    assert modifier == 1.0
 
 
 def test_compute_demand_zero_pop():
@@ -303,30 +260,6 @@ def test_allocate_zero_merchants():
 
 
 # --- Task 8: Signal derivation ---
-
-def test_farmer_income_modifier_balanced():
-    mod = derive_farmer_income_modifier(
-        resource_type=0, post_trade_supply={"food": 50.0}, demand={"food": 50.0},
-    )
-    assert mod == 1.0
-
-def test_farmer_income_modifier_surplus():
-    mod = derive_farmer_income_modifier(
-        resource_type=0, post_trade_supply={"food": 100.0}, demand={"food": 50.0},
-    )
-    assert mod == FARMER_INCOME_MODIFIER_FLOOR  # 0.5 < floor
-
-def test_farmer_income_modifier_floor():
-    mod = derive_farmer_income_modifier(
-        resource_type=0, post_trade_supply={"food": 1000.0}, demand={"food": 1.0},
-    )
-    assert mod == FARMER_INCOME_MODIFIER_FLOOR
-
-def test_farmer_income_modifier_cap():
-    mod = derive_farmer_income_modifier(
-        resource_type=0, post_trade_supply={"food": 1.0}, demand={"food": 100.0},
-    )
-    assert mod == FARMER_INCOME_MODIFIER_CAP
 
 def test_merchant_margin_no_routes():
     m = derive_merchant_margin(total_raw_margin=10.0, route_count=0)

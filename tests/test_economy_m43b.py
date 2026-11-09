@@ -119,11 +119,11 @@ def test_economy_tracker_separate_regions():
 
 
 # ---------------------------------------------------------------------------
-# Task 5: detect_supply_shocks() and classify_upstream_source()
+# Task 5: detect_supply_shocks()
 # ---------------------------------------------------------------------------
 
 from chronicler.economy import (
-    detect_supply_shocks, classify_upstream_source,
+    detect_supply_shocks,
     SHOCK_DELTA_THRESHOLD, SHOCK_SEVERITY_FLOOR,
 )
 from chronicler.models import Region, Civilization, WorldState, Leader
