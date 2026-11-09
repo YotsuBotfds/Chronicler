@@ -38,6 +38,9 @@ FARMER_INCOME_MODIFIER_FLOOR: float = 0.5
 FARMER_INCOME_MODIFIER_CAP: float = 3.0
 MERCHANT_MARGIN_NORMALIZER: float = 5.0
 TAX_RATE: float = 0.05
+#: Average food sufficiency below which the tithe base is scaled down (H-2).
+#: Mirrors Rust ``economy::TITHE_FOOD_GATE``.
+TITHE_FOOD_GATE: float = 0.5
 
 CATEGORIES: tuple[str, ...] = ("food", "raw_material", "luxury", "craft")
 #: Categories whose stock drops are reported as supply shocks (wares are left
@@ -2121,7 +2124,6 @@ def compute_economy(
             if civ_regions:
                 suff_values = [result.food_sufficiency.get(rn, 1.0) for rn in civ_regions]
                 avg_food_suff = sum(suff_values) / len(suff_values)
-            TITHE_FOOD_GATE = 0.5
             tithe_scale = avg_food_suff / TITHE_FOOD_GATE if avg_food_suff < TITHE_FOOD_GATE else 1.0
             scaled_tithe_base = merchant_wealth * tithe_scale
 

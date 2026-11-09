@@ -478,6 +478,9 @@ def test_tithe_constants_match_rust_economy():
     rust = rs_path.read_text(encoding="utf-8")
     assert _rust_f32_const(rust, "TITHE_RATE") == pytest.approx(factions.TITHE_RATE)
 
-    py_gates = re.findall(r"^\s*TITHE_FOOD_GATE\s*=\s*([0-9.]+)\s*$", inspect.getsource(economy), re.M)
+    py_gates = re.findall(
+        r"^\s*TITHE_FOOD_GATE\s*(?::\s*float\s*)?=\s*([0-9.]+)\s*$", inspect.getsource(economy), re.M,
+    )
     assert len(py_gates) == 1, f"expected one TITHE_FOOD_GATE literal in economy.py, found {py_gates}"
-    assert _rust_f32_const(rust, "TITHE_FOOD_GATE") == pytest.approx(float(py_gates[0]))
+    assert float(py_gates[0]) == economy.TITHE_FOOD_GATE
+    assert _rust_f32_const(rust, "TITHE_FOOD_GATE") == pytest.approx(economy.TITHE_FOOD_GATE)

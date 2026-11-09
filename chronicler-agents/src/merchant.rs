@@ -531,13 +531,13 @@ pub const MIN_CARGO: f32 = 0.01;
 /// Sufficiency floor in the planner's food price, the economy's supply floor
 /// (`SUPPLY_FLOOR`) applied to sufficiency: a region with no food at all
 /// prices it at 10.
-pub const FOOD_PRICE_SUFFICIENCY_FLOOR: f32 = 0.1;
+pub const FOOD_PRICE_SUFFICIENCY_FLOOR: f32 = crate::economy::SUPPLY_FLOOR;
 /// Scales a price gap into the units of `merchant_route_margin` (the
 /// economy's default `merchant_margin_normalizer`), so `MIN_TRIP_PROFIT`
 /// keeps its meaning for every good.
 pub const PRICE_GAP_SCALE: f32 = 5.0;
 /// The economy's supply floor in the planner's non-food prices.
-pub const PRICE_SUPPLY_FLOOR: f32 = 0.1;
+pub const PRICE_SUPPLY_FLOOR: f32 = crate::economy::SUPPLY_FLOOR;
 /// The highest price the planner gives any good: food's with no food at all.
 pub const MAX_PLANNER_PRICE: f32 = 1.0 / FOOD_PRICE_SUFFICIENCY_FLOOR;
 /// The economy's base price: a market whose supply equals its demand.

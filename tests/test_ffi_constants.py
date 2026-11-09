@@ -219,10 +219,14 @@ def test_tithe_and_supply_floor_constants_match_python():
     from chronicler import economy, factions, grain_reserves
 
     assert rsc.const("economy.rs", "TITHE_RATE") == pytest.approx(factions.TITHE_RATE)
-    # Python keeps the gate as a local in compute_economy until CON-5b hoists it.
-    assert rsc.const("economy.rs", "TITHE_FOOD_GATE") == 0.5
+    assert rsc.const("economy.rs", "TITHE_FOOD_GATE") == economy.TITHE_FOOD_GATE == 0.5
     supply_floor = rsc.const("economy.rs", "SUPPLY_FLOOR")
     assert supply_floor == economy._SUPPLY_FLOOR == grain_reserves.PRICE_SUPPLY_FLOOR
+    # One literal per language: grain reserves import the economy's floor and the
+    # merchant planner's floors are the economy's constant.
+    assert grain_reserves.PRICE_SUPPLY_FLOOR is economy._SUPPLY_FLOOR
+    for name in ("FOOD_PRICE_SUFFICIENCY_FLOOR", "PRICE_SUPPLY_FLOOR"):
+        assert rsc.const_expr("merchant.rs", name) == "crate::economy::SUPPLY_FLOOR", name
     assert (
         rsc.const("merchant.rs", "FOOD_PRICE_SUFFICIENCY_FLOOR")
         == rsc.const("merchant.rs", "PRICE_SUPPLY_FLOOR")

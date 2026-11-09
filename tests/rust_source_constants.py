@@ -8,7 +8,9 @@ item and the file when it finds no match, so a renamed Rust item fails loudly.
 
 Values are evaluated by a small whitelisted evaluator: numeric literals (with
 Rust type suffixes and ``_`` separators), ``u8::MAX``-style bounds, unary minus
-and ``* / + -``. Anything else is rejected.
+and ``* / + -``. Anything else is rejected, except that a scalar ``const`` whose
+whole value is another crate constant (``crate::economy::SUPPLY_FLOOR``) is
+read from that module.
 """
 
 from __future__ import annotations
@@ -101,8 +103,10 @@ def _is_float_type(rust_type: str) -> bool:
     return rust_type.strip().startswith("f")
 
 
-def const(path: str | Path, name: str) -> float | int:
-    """The value of a scalar ``const``/``pub const`` item; float for ``f32``/``f64``."""
+_CRATE_CONST = re.compile(r"crate::([a-z_][a-z0-9_]*)::([A-Z_][A-Z0-9_]*)")
+
+
+def _const_decl(path: str | Path, name: str) -> tuple[str, str]:
     text = _strip_comments(read_source(path))
     matches = re.findall(
         rf"^\s*(?:pub(?:\([^)]*\))?\s+)?const\s+{re.escape(name)}\s*:\s*([^=]+?)\s*=\s*([^;]+);",
@@ -114,7 +118,23 @@ def const(path: str | Path, name: str) -> float | int:
     if len(matches) > 1:
         raise AssertionError(f"{name} declared {len(matches)} times in {path}")
     rust_type, expr = matches[0]
-    value = evaluate(expr)
+    return rust_type, expr.strip()
+
+
+def const_expr(path: str | Path, name: str) -> str:
+    """The right-hand side of a scalar ``const`` item, as written (comments stripped)."""
+    return _const_decl(path, name)[1]
+
+
+def const(path: str | Path, name: str) -> float | int:
+    """The value of a scalar ``const``/``pub const`` item; float for ``f32``/``f64``.
+
+    A value that is exactly another crate constant (``crate::module::NAME``) is
+    read from ``module.rs``.
+    """
+    rust_type, expr = _const_decl(path, name)
+    alias = _CRATE_CONST.fullmatch(expr)
+    value = const(f"{alias.group(1)}.rs", alias.group(2)) if alias else evaluate(expr)
     return float(value) if _is_float_type(rust_type) else int(value)
 
 

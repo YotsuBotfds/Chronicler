@@ -113,11 +113,14 @@ const WINTER_MODIFIER: f32 = 1.5;
 const TITHE_RATE: f32 = 0.10;
 
 /// Food sufficiency threshold below which tithe collection is reduced.
-/// Matches Python economy.py H-2 food gate: `tithe_scale = min(avg_food_suff / 0.5, 1.0)`.
+/// Matches Python `economy.TITHE_FOOD_GATE` (H-2 food gate):
+/// `tithe_scale = min(avg_food_suff / TITHE_FOOD_GATE, 1.0)`.
 const TITHE_FOOD_GATE: f32 = 0.5;
 
-/// Supply floor for price computation (avoid division by zero).
-const SUPPLY_FLOOR: f32 = 0.1;
+/// Supply floor for price computation (avoid division by zero). The merchant
+/// planner's price floors (`merchant::PRICE_SUPPLY_FLOOR`,
+/// `merchant::FOOD_PRICE_SUFFICIENCY_FLOOR`) are this constant.
+pub const SUPPLY_FLOOR: f32 = 0.1;
 
 // ---------------------------------------------------------------------------
 // Config
