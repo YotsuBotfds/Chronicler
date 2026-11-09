@@ -12,9 +12,9 @@ from types import SimpleNamespace
 
 import pytest
 
-from chronicler import artifact_budget as budget_module
+from chronicler_lab import artifact_budget as budget_module
 from chronicler import artifact_io
-from chronicler.artifact_budget import (
+from chronicler_lab.artifact_budget import (
     ArtifactBudget, ArtifactBudgetError, MonotonicArtifactLedger,
     ORDINARY_BYTE_CAP, CARE_BYTE_CAP, TOTAL_BYTE_CAP,
     ORDINARY_TERMINAL_RESERVE, CARE_METADATA_RESERVE,
