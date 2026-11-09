@@ -10,8 +10,6 @@ use arrow::datatypes::{DataType, Field, Schema};
 use arrow::record_batch::RecordBatch;
 use crate::{migration_drivers::{Mobility, VoluntaryPull}, needs::NeedUtilityTrace, pool::AgentPool};
 
-pub const DEFAULT_AGENT_LIMIT: usize = 4096;
-pub const DEFAULT_CANDIDATE_LIMIT: usize = 16384;
 pub const DEFAULT_MOVE_LIMIT: usize = 16384;
 pub const MAX_LIMIT: usize = 65536;
 pub const SCHEMA_VERSION: u16 = 1;

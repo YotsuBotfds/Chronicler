@@ -24,6 +24,14 @@ use crate::signals::TickSignals;
 use rand::Rng;
 use rand_chacha::ChaCha8Rng;
 
+/// Total order on `f32` keys that agrees with `partial_cmp` on every non-NaN
+/// pair: adding `+0.0` maps `-0.0` to `+0.0`, so the two zeros stay `Equal`
+/// and a tie still resolves as before; NaN gets a fixed place instead of
+/// comparing `Equal` to everything.
+fn cmp_f32(a: f32, b: f32) -> std::cmp::Ordering {
+    (a + 0.0).total_cmp(&(b + 0.0))
+}
+
 // ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------
@@ -88,7 +96,7 @@ pub fn personality_modifier(dimension: f32, weight: f32) -> f32 {
 fn gumbel_argmax(utilities: &[f32], rng: &mut ChaCha8Rng, temperature: f32) -> usize {
     if temperature <= 0.0 {
         return utilities.iter().enumerate()
-            .max_by(|(_, a), (_, b)| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal))
+            .max_by(|(_, a), (_, b)| cmp_f32(**a, **b))
             .map(|(i, _)| i)
             .unwrap_or(0);
     }
@@ -1272,132 +1280,6 @@ fn evaluate_region_decisions_observer<L: crate::pool::SlotLookup, O: DecisionObs
 }
 
 // ---------------------------------------------------------------------------
-// evaluate_region_decisions_v1 — Phase 5 short-circuit (preserved for regression)
-// ---------------------------------------------------------------------------
-
-/// Phase 5 short-circuit decision model. Preserved for regression comparison.
-#[cfg(test)]
-#[allow(dead_code)]
-fn evaluate_region_decisions_v1(
-    pool: &AgentPool,
-    slots: &[usize],
-    region: &RegionState,
-    stats: &RegionStats,
-    region_id: usize,
-) -> PendingDecisions {
-    let mut pending = PendingDecisions::new();
-
-    for &slot in slots {
-        if !pool.is_alive(slot) {
-            continue;
-        }
-
-        let sat = pool.satisfaction(slot);
-        let loy = pool.loyalty(slot);
-        let civ = pool.civ_affinity(slot);
-        let occ = pool.occupation(slot) as usize;
-
-        // 1. Rebel?
-        if loy < REBEL_LOYALTY_THRESHOLD
-            && sat < REBEL_SATISFACTION_THRESHOLD
-            && stats.rebel_eligible[region_id] >= REBEL_MIN_COHORT
-        {
-            pending.rebellions.push((slot, region_id as u16));
-            continue;
-        }
-
-        // 2. Migrate?
-        if sat < MIGRATE_SATISFACTION_THRESHOLD && !region.adjacency.is_empty() {
-            let current_mean = stats.mean_satisfaction[region_id];
-            let mut best_region: Option<u16> = None;
-            let mut best_sat: f32 = current_mean + 0.05;
-
-            for &adj_id in &region.adjacency {
-                let adj = adj_id as usize;
-                if adj < stats.mean_satisfaction.len()
-                    && stats.mean_satisfaction[adj] > best_sat
-                {
-                    best_sat = stats.mean_satisfaction[adj];
-                    best_region = Some(adj as u16);
-                }
-            }
-
-            if let Some(target) = best_region {
-                pending.migrations.push((slot, region_id as u16, target));
-                continue;
-            }
-        }
-
-        // 3. Switch occupation?
-        let supply = stats.occupation_supply[region_id][occ] as f32;
-        let demand = stats.occupation_demand[region_id][occ];
-        let oversupply_threshold = demand * (1.0 / crate::agent::OCCUPATION_SWITCH_OVERSUPPLY);
-
-        let mut switched = false;
-        if supply > oversupply_threshold {
-            let mut best_occ: Option<u8> = None;
-            let mut best_gap: f32 = 0.0;
-
-            for alt in 0..OCCUPATION_COUNT {
-                if alt == occ {
-                    continue;
-                }
-                let alt_supply = stats.occupation_supply[region_id][alt] as f32;
-                let alt_demand = stats.occupation_demand[region_id][alt];
-                if alt_demand > alt_supply * crate::agent::OCCUPATION_SWITCH_UNDERSUPPLY {
-                    let gap = alt_demand - alt_supply;
-                    if gap > best_gap {
-                        best_gap = gap;
-                        best_occ = Some(alt as u8);
-                    }
-                }
-            }
-
-            if let Some(new_occ) = best_occ {
-                pending.occupation_switches.push((slot, new_occ));
-                switched = true;
-            }
-        }
-
-        if switched {
-            continue;
-        }
-
-        // 4. Loyalty drift (only when multiple civs present)
-        if stats.civ_counts[region_id].len() > 1 {
-            let own_mean = stats
-                .civ_mean_satisfaction[region_id]
-                .iter()
-                .find(|(c, _)| *c == civ)
-                .map(|(_, m)| *m)
-                .unwrap_or(0.0);
-
-            let mut best_other_civ: Option<u8> = None;
-            let mut best_other_mean: f32 = own_mean;
-
-            for &(c, mean) in &stats.civ_mean_satisfaction[region_id] {
-                if c != civ && mean > best_other_mean {
-                    best_other_mean = mean;
-                    best_other_civ = Some(c);
-                }
-            }
-
-            if let Some(other_civ) = best_other_civ {
-                if loy - LOYALTY_DRIFT_RATE < LOYALTY_FLIP_THRESHOLD {
-                    pending.loyalty_flips.push((slot, other_civ));
-                } else {
-                    pending.loyalty_drifts.push((slot, -LOYALTY_DRIFT_RATE));
-                }
-            } else {
-                pending.loyalty_drifts.push((slot, LOYALTY_RECOVERY_RATE));
-            }
-        }
-    }
-
-    pending
-}
-
-// ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
 
@@ -1408,6 +1290,39 @@ mod tests {
     use crate::pool::AgentPool;
     use crate::region::RegionState;
     use crate::signals::TickSignals;
+
+    #[test]
+    fn cmp_f32_is_total_and_keeps_the_zeros_equal() {
+        use std::cmp::Ordering;
+        assert_eq!(cmp_f32(-0.0, 0.0), Ordering::Equal);
+        assert_eq!(cmp_f32(0.0, -0.0), Ordering::Equal);
+        assert_ne!(cmp_f32(f32::NAN, 1.0), Ordering::Equal);
+        assert_ne!(cmp_f32(1.0, f32::NAN), Ordering::Equal);
+        // A finite list with both zeros and ties sorts as `partial_cmp` sorted it,
+        // so the tie-break key still decides between -0.0 and 0.0.
+        let keys: [f32; 10] = [3.5, -0.0, 1.0, 0.0, -2.25, 1.0, f32::INFINITY, -0.0, f32::NEG_INFINITY, 7.0];
+        let mut before: Vec<usize> = (0..keys.len()).collect();
+        before.sort_by(|&a, &b| keys[a].partial_cmp(&keys[b]).unwrap().then(a.cmp(&b)));
+        let mut after: Vec<usize> = (0..keys.len()).collect();
+        after.sort_by(|&a, &b| cmp_f32(keys[a], keys[b]).then(a.cmp(&b)));
+        assert_eq!(after, before);
+        let mut descending: Vec<usize> = (0..keys.len()).collect();
+        descending.sort_by(|&a, &b| cmp_f32(keys[b], keys[a]));
+        let mut descending_before: Vec<usize> = (0..keys.len()).collect();
+        descending_before.sort_by(|&a, &b| keys[b].partial_cmp(&keys[a]).unwrap());
+        assert_eq!(descending, descending_before);
+        // `max_by` keeps its direction and picks the same (last) maximum.
+        let max_before = keys.iter().enumerate()
+            .max_by(|(_, a), (_, b)| a.partial_cmp(b).unwrap_or(Ordering::Equal)).map(|(i, _)| i);
+        let max_after = keys.iter().enumerate().max_by(|(_, a), (_, b)| cmp_f32(**a, **b)).map(|(i, _)| i);
+        assert_eq!(max_after, max_before);
+        let zeros: [f32; 3] = [0.0, -0.0, -1.0];
+        assert_eq!(zeros.iter().enumerate().max_by(|(_, a), (_, b)| cmp_f32(**a, **b)).map(|(i, _)| i), Some(1));
+        // NaN keys sort without a panic.
+        let mut with_nan: Vec<f32> = vec![1.0, f32::NAN, -0.0, 0.0, -f32::NAN, 2.0];
+        with_nan.sort_by(|a, b| cmp_f32(*a, *b));
+        assert_eq!(with_nan.iter().filter(|x| x.is_nan()).count(), 2);
+    }
 
     fn default_signals(num_regions: usize) -> TickSignals {
         TickSignals {
