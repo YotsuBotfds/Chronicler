@@ -15,7 +15,7 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'src'))
-from chronicler.evidence_admission import (
+from chronicler_lab.evidence_admission import (
     AdmissionError, sha256, validate_evidence, validate_identity, validate_policy, validate_receipts, validate_source, validate_table,
 )
 
@@ -220,7 +220,7 @@ class EvidenceAdmissionTests(unittest.TestCase):
 
     def test_full_tree_verification_independent_of_git_status_cache(self):
         from unittest.mock import patch
-        import chronicler.evidence_admission as module
+        import chronicler_lab.evidence_admission as module
         (self.repo / 'unanchored.py').write_text('VALUE = 1\n')
         self.git('add', 'unanchored.py')
         self.git('-c', 'user.name=fixture', '-c', 'user.email=fixture@example.invalid', 'commit', '-qm', 'unanchored')
@@ -270,7 +270,7 @@ class EvidenceAdmissionTests(unittest.TestCase):
         validate_source(source, self.repo, 'historical')
 
     def test_git_inspection_does_not_refresh_index_or_run_fsmonitor(self):
-        import chronicler.evidence_admission as module
+        import chronicler_lab.evidence_admission as module
         from unittest.mock import patch
         with patch.object(module.subprocess, 'run', return_value=subprocess.CompletedProcess([], 0, b'', b'')) as invoke:
             module._git(self.repo, 'status', '--porcelain')

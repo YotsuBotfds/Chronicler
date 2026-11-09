@@ -5,9 +5,9 @@ from pathlib import Path
 
 import pytest
 
-from chronicler.expansion_audit import Limits, audit_bundle, render_markdown
+from chronicler_lab.expansion_audit import Limits, audit_bundle, render_markdown
 from chronicler.historical_context import AsOf
-from chronicler.scientific_research_audit import research_agenda_identity
+from chronicler_lab.scientific_research_audit import research_agenda_identity
 
 
 @pytest.fixture

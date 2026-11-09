@@ -5,8 +5,8 @@ import json
 from pathlib import Path
 import pytest
 from chronicler.bundle_codec import dumps_bundle
-from chronicler.expansion_audit import AuditError, Limits
-from chronicler.expansion_compare import compare_paths, main, render_markdown
+from chronicler_lab.expansion_audit import AuditError, Limits
+from chronicler_lab.expansion_compare import compare_paths, main, render_markdown
 
 
 def identity():
@@ -450,7 +450,7 @@ def test_control_equality_alone_cannot_label_changed_derived_mode_a_noop(finite_
 
 
 def test_new_postintervention_cycle_rosters_are_outcomes_not_pairing_lineage():
-    from chronicler.expansion_compare import _science_research_context
+    from chronicler_lab.expansion_compare import _science_research_context
 
     def snapshot(source, *, opened=False, participants=(0, 1)):
         section = copy.deepcopy(_FINITE_RESEARCH_SOURCE0)
@@ -485,7 +485,7 @@ def test_new_postintervention_cycle_rosters_are_outcomes_not_pairing_lineage():
 
 
 def test_activation_epoch_is_distinct_from_matching_enabled_mode():
-    from chronicler.expansion_compare import _science_research_context
+    from chronicler_lab.expansion_compare import _science_research_context
 
     def history(enabled_turn):
         rows = []
@@ -560,7 +560,7 @@ def test_nonfinite_unknown_boundary_does_not_crash_or_produce_an_identity(finite
 def test_activation_in_window_requires_preboundary_finite_program_even_with_known_paid_topics(
         finite_research_runs, claim_ids_recorded, different_activation_roster):
     from chronicler.bundle_codec import load_bundle
-    from chronicler.expansion_audit import audit_bundle
+    from chronicler_lab.expansion_audit import audit_bundle
 
     def activate_after_legacy_paid_phase(bundle):
         # Synthetic reader fixture: legacy paid work at source1 is followed by

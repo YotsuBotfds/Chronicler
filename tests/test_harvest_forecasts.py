@@ -850,7 +850,8 @@ class TestLocalForecastCredibility:
         import ast
         from collections.abc import Mapping
         from pathlib import Path
-        path = Path(H.__file__).with_name("expansion_compare.py")
+        import chronicler_lab
+        path = Path(chronicler_lab.__file__).with_name("expansion_compare.py")
         tree = ast.parse(path.read_text())
         node = next(n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name == "_controls")
         namespace = {"Mapping": Mapping}
