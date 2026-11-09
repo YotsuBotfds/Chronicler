@@ -6,13 +6,30 @@ name: Identity gate
 # A dispatch with capture=true writes fresh goldens as artifacts instead of
 # checking; committing them is a reviewed PR.
 
+# The pull_request paths are the gate's inputs: the simulation source, every
+# native build input that scripts/turn_speed_identity.py digests into a build
+# receipt (NATIVE_SOURCE_FILES, NATIVE_OPTIONAL_FILES, chronicler-agents/src),
+# the Python dependency and build inputs of both lanes, the gate script and
+# what it imports, the goldens and this workflow.
 on:
   pull_request:
     paths:
       - "src/chronicler/**"
       - "chronicler-agents/src/**"
+      - "chronicler-agents/Cargo.toml"
+      - "chronicler-agents/Cargo.lock"
+      - "chronicler-agents/build.rs"
+      - "chronicler-agents/pyproject.toml"
+      - "chronicler-agents/.cargo/**"
+      - "chronicler-agents/rust-toolchain*"
+      - ".cargo/**"
+      - "rust-toolchain*"
+      - "pyproject.toml"
+      - "uv.lock"
       - "scripts/turn_speed_identity.py"
+      - "scripts/cities_identity.py"
       - "tests/fixtures/identity/**"
+      - ".github/workflows/identity-gate.yml"
   workflow_dispatch:
     inputs:
       capture:

@@ -346,9 +346,12 @@ byte-for-byte unchanged when moving the files it names.
 
 ### Identity gate
 
-`.github/workflows/identity-gate.yml` runs on pull requests that touch
-`src/chronicler/`, `chronicler-agents/src/`, `scripts/turn_speed_identity.py`
-or `tests/fixtures/identity/`, and weekly. Each lane runs its cases with
+`.github/workflows/identity-gate.yml` runs weekly and on pull requests that
+touch `src/chronicler/`, a native build input (`chronicler-agents/src/`, its
+`Cargo.toml`, `Cargo.lock`, `build.rs` and `pyproject.toml`, and Cargo or
+rustup configuration), the root `pyproject.toml` or `uv.lock`,
+`scripts/turn_speed_identity.py` or `scripts/cities_identity.py`,
+`tests/fixtures/identity/` or the workflow itself. Each lane runs its cases with
 `scripts/turn_speed_identity.py run`, then `check` compares the output digests
 with the committed goldens in `tests/fixtures/identity/`:
 
@@ -366,7 +369,13 @@ with the committed goldens in `tests/fixtures/identity/`:
 
 `check` refuses a native build that is not the checkout's (build receipt) and a
 runtime whose Python minor version, platform or Rust channel differs from the
-goldens'; a rebuilt extension with identical outputs passes. Locally, gate a
+goldens'; a rebuilt extension with identical outputs passes. The receipt's
+source digest covers the same native build inputs as the trigger
+(`NATIVE_SOURCE_FILES`, `NATIVE_OPTIONAL_FILES` and `src`), so a build from
+before a `build.rs` or packaging change is refused as stale. Receipts record
+the inventory version; one taken before `build.rs` and `pyproject.toml` were
+included (no `source_inventory`) is refused, so take a new one. A golden's
+recorded source digest is provenance only and is never compared. Locally, gate a
 refactor with `check` against the goldens or with `compare` between two
 checkouts' `run` directories, plus the oracle lane. The cases run only their
 listed switches: the preflight's `identity gate:` line shows which cases reach a

@@ -96,7 +96,11 @@ def _workflow(path: Path) -> dict:
 
 def test_smoke_workflow_runs_the_fixture_invocation(RS):
     workflow = _workflow(SMOKE_WORKFLOW)
-    assert set(workflow["on"]) == {"schedule", "workflow_dispatch"}
+    assert set(workflow["on"]) == {"schedule", "workflow_dispatch", "pull_request"}
+    # A pull request that changes the smoke gets one hosted run; nothing else triggers it.
+    assert workflow["on"]["pull_request"] == {"paths": [
+        ".github/workflows/regression-smoke.yml", "scripts/regression_smoke.py",
+        "tests/fixtures/regression_smoke.json"]}
     steps = workflow["jobs"]["smoke"]["steps"]
     run = next(s["run"] for s in steps if s.get("name") == "Run the smoke batch")
     inv = RS.EXPECTED_INVOCATION

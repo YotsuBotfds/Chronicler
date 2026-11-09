@@ -174,6 +174,8 @@ def _native_checkout(root, lib="pub fn f() {}\n"):
     (crate / "src" / "ffi").mkdir(parents=True)
     (crate / "Cargo.toml").write_text("[package]\nname = 'x'\n")
     (crate / "Cargo.lock").write_text("# lock\n")
+    (crate / "build.rs").write_text("fn main() {}\n")
+    (crate / "pyproject.toml").write_text("[tool.maturin]\n")
     (crate / "src" / "lib.rs").write_text(lib)
     (crate / "src" / "ffi" / "mod.rs").write_text("// ffi\n")
     return root
@@ -228,7 +230,7 @@ def test_identity_digest_is_stable_and_ignores_the_wall_clock(tmp_path):
     assert data["environment"] == {
         "compat": {"python_minor": "3.13", "platform": "linux-x86_64", "rust_channel": None},
         "provenance": {"python_full": "3.13.17", "rustc": None, "native_sha256": None,
-                       "native_source_digest": None}}
+                       "native_source_digest": None, "native_source_inventory": None}}
     assert M.check(tmp_path / "b", a) == 0
 
 
@@ -301,6 +303,95 @@ def test_identity_check_refuses_a_build_that_is_not_the_checkouts(tmp_path, caps
     assert "python lane loaded a native extension" in capsys.readouterr().out
 
 
+def _copy_native_inputs(dest):
+    """The real native build inputs of this checkout, copied to ``dest``."""
+    import shutil
+    from pathlib import Path
+    M = _identity_script()
+    repo = Path(__file__).resolve().parents[1]
+    for rel in M.NATIVE_SOURCE_FILES + tuple(r for r in M.NATIVE_OPTIONAL_FILES if (repo / r).is_file()):
+        (dest / rel).parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(repo / rel, dest / rel)
+    shutil.copytree(repo / M.NATIVE_SOURCE_DIR, dest / M.NATIVE_SOURCE_DIR)
+    assert M.native_source_digest(dest) == M.native_source_digest(repo)
+    return dest
+
+
+@pytest.mark.parametrize("rel, old, new", [
+    ("chronicler-agents/build.rs", "(major, minor) >= (1, 89)", "(major, minor) >= (1, 999)"),
+    ("chronicler-agents/pyproject.toml", 'features = ["pyo3/extension-module"]',
+     'features = ["pyo3/extension-module", "jemalloc"]'),
+])
+def test_identity_check_rejects_a_receipt_from_before_a_build_input_change(tmp_path, capsys, rel, old, new):
+    M = _identity_script()
+    root = _copy_native_inputs(tmp_path / "repo")
+    receipt = _receipt(tmp_path, root, b"build")
+    golden = _golden(tmp_path, _identity_run(tmp_path / "a", native=b"build"), receipt)
+    _identity_run(tmp_path / "b", native=b"build")
+    assert M.check(tmp_path / "b", golden, "native", receipt, root) == 0
+    capsys.readouterr()
+    path = root / rel
+    text = path.read_text(encoding="utf-8")
+    assert text.count(old) == 1, rel
+    path.write_text(text.replace(old, new), encoding="utf-8")
+    assert M.check(tmp_path / "b", golden, "native", receipt, root) == 1
+    out = capsys.readouterr().out
+    assert "receipt built from native source" in out and "refused" in out
+
+
+@pytest.mark.parametrize("rel", ["chronicler-agents/.cargo/config.toml", ".cargo/config.toml",
+                                 "rust-toolchain.toml", "chronicler-agents/rust-toolchain"])
+def test_native_source_digest_covers_optional_build_configuration(tmp_path, rel):
+    M = _identity_script()
+    root = _native_checkout(tmp_path / "repo")
+    before = M.native_source_digest(root)
+    (root / rel).parent.mkdir(parents=True, exist_ok=True)
+    (root / rel).write_text("[build]\n")
+    added = M.native_source_digest(root)
+    (root / rel).write_text("[build]\nrustflags = []\n")
+    assert len({before, added, M.native_source_digest(root)}) == 3
+    (root / rel).unlink()
+    assert M.native_source_digest(root) == before
+
+
+def test_identity_check_refuses_a_receipt_of_the_first_source_inventory(tmp_path, capsys):
+    import json
+    M = _identity_script()
+    root = _native_checkout(tmp_path / "repo")
+    receipt = _receipt(tmp_path, root, b"build")
+    data = json.loads(receipt.read_text())
+    assert data["source_inventory"] == M.NATIVE_SOURCE_INVENTORY == 2
+    golden = _golden(tmp_path, _identity_run(tmp_path / "a", native=b"build"), receipt)
+    assert json.loads(golden.read_text())["environment"]["provenance"]["native_source_inventory"] == 2
+    _identity_run(tmp_path / "b", native=b"build")
+    # A receipt written before the inventory included build.rs and packaging.
+    del data["source_inventory"]
+    receipt.write_text(json.dumps(data))
+    assert M.check(tmp_path / "b", golden, "native", receipt, root) == 1
+    assert "native source inventory 1" in capsys.readouterr().out
+
+
+def test_committed_goldens_keep_their_source_digest_as_provenance_only(tmp_path, capsys):
+    """The native golden was captured from a receipt under inventory 1; its
+    recorded digest is provenance and never compared, so it stays valid."""
+    import json
+    from pathlib import Path
+    M = _identity_script()
+    repo = Path(__file__).resolve().parents[1]
+    golden = repo / "tests" / "fixtures" / "identity" / "native_goldens.json"
+    provenance = json.loads(golden.read_text())["environment"]["provenance"]
+    assert provenance["native_source_digest"] != M.native_source_digest(repo)
+    root = _native_checkout(tmp_path / "repo")
+    receipt = _receipt(tmp_path, root, b"build")
+    run = _identity_run(tmp_path / "b", native=b"build")
+    data = json.loads(golden.read_text())
+    data["cases"] = M.digest_tree(run, json.loads(receipt.read_text()))["cases"]
+    synthetic = tmp_path / "golden.json"
+    synthetic.write_text(json.dumps(data))
+    assert M.check(run, synthetic, "native", receipt, root) == 0
+    assert "native rebuilt" in capsys.readouterr().out
+
+
 def test_identity_gate_cases_and_native_source_digest():
     from pathlib import Path
     M = _identity_script()
@@ -323,6 +414,29 @@ def test_identity_gate_cases_and_native_source_digest():
     for lane, cases in (("python", M.GATE_PYTHON), ("native", M.GATE_NATIVE)):
         golden = json.loads((repo / "tests" / "fixtures" / "identity" / f"{lane}_goldens.json").read_text())
         assert sorted(golden["cases"]) == sorted(cases)
+
+
+def test_identity_gate_runs_on_pull_requests_that_change_its_inputs():
+    import re
+    from pathlib import Path
+    import yaml
+    M = _identity_script()
+    repo = Path(__file__).resolve().parents[1]
+    workflow = yaml.load((repo / ".github" / "workflows" / "identity-gate.yml").read_text(encoding="utf-8"),
+                         Loader=yaml.BaseLoader)
+    paths = workflow["on"]["pull_request"]["paths"]
+    assert set(paths) >= {
+        "src/chronicler/**", "chronicler-agents/src/**", "chronicler-agents/Cargo.toml",
+        "chronicler-agents/Cargo.lock", "chronicler-agents/build.rs", "chronicler-agents/pyproject.toml",
+        "pyproject.toml", "uv.lock", "scripts/turn_speed_identity.py", "tests/fixtures/identity/**",
+        ".github/workflows/identity-gate.yml"}
+
+    def matched(rel):  # GitHub path filters: ``**`` crosses directories, ``*`` does not
+        return any(re.fullmatch(re.escape(p).replace(r"\*\*", ".*").replace(r"\*", "[^/]*"), rel) for p in paths)
+
+    for rel in M.NATIVE_SOURCE_FILES + M.NATIVE_OPTIONAL_FILES + (f"{M.NATIVE_SOURCE_DIR}/ffi/mod.rs",):
+        assert matched(rel), rel
+    assert not matched("chronicler-agents/benches/tick_bench.rs")
 
 
 def test_identity_coverage_map_names_every_witnessed_path():

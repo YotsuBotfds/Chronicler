@@ -40,7 +40,9 @@
 
 ``receipt PATH [--extension SO] [--wheel WHL]``
     The build receipt: extension and wheel SHA-256, native source digest
-    (``chronicler-agents`` Cargo files and ``src``) and ``rustc --version``.
+    (the build inputs in ``NATIVE_SOURCE_FILES``: Cargo files, ``build.rs``,
+    the crate's ``pyproject.toml``, Cargo/rustup configuration when present,
+    and ``src``), its inventory version and ``rustc --version``.
 
 ``GATE_PYTHON`` and ``GATE_NATIVE`` name the ``g_*`` cases of each lane;
 ``run`` without ``--case`` runs the original speed matrix only.
@@ -397,8 +399,23 @@ def compare(base: Path, new: Path, faith_ids: bool = False) -> int:
 # Fields of a batch manifest that describe the machine, the clock or the
 # commit rather than the runs (``chronicler.batch_manifest``).
 _BATCH_MANIFEST_VOLATILE = ("created_at", "completed_at", "environment", "source", "native")
-NATIVE_SOURCE_FILES = ("chronicler-agents/Cargo.toml", "chronicler-agents/Cargo.lock")
+# The native build inputs a receipt's ``source_digest`` covers: the crate's
+# manifest and lockfile, its build script (it selects the ``chronicler_avx512``
+# cfg of the spatial kernel), its maturin configuration (``pyproject.toml``:
+# the extension features) and its ``src`` tree, plus Cargo and rustup
+# configuration in the checkout when present (an optional file that appears
+# changes the digest because its path is listed).
+NATIVE_SOURCE_FILES = ("chronicler-agents/Cargo.toml", "chronicler-agents/Cargo.lock",
+                       "chronicler-agents/build.rs", "chronicler-agents/pyproject.toml")
+NATIVE_OPTIONAL_FILES = tuple(f"{base}{name}" for base in ("", "chronicler-agents/") for name in (
+    ".cargo/config", ".cargo/config.toml", "rust-toolchain", "rust-toolchain.toml"))
 NATIVE_SOURCE_DIR = "chronicler-agents/src"
+# Version of that inventory, recorded in each receipt. Version 1 (no
+# ``source_inventory`` key) hashed the manifest, lockfile and ``src`` only, so
+# its digests cannot show a stale build script or packaging change: ``check``
+# refuses such a receipt and asks for a new one. Goldens keep their recorded
+# digest as provenance only; it is never compared.
+NATIVE_SOURCE_INVENTORY = 2
 INCOMPATIBLE = "incompatible runtime: re-capture the goldens in a reviewed PR"
 
 
@@ -459,10 +476,12 @@ def output_digests(case_dir: Path) -> dict[str, str]:
 
 
 def native_source_digest(root: Path) -> str:
-    """SHA-256 over the native crate's manifest, lockfile and ``src`` tree of
-    a checkout: each file's relative path and content digest, in path order."""
+    """SHA-256 over the native build inputs of a checkout (``NATIVE_SOURCE_FILES``,
+    the ``NATIVE_OPTIONAL_FILES`` present and the ``src`` tree): each file's
+    relative path and content digest, in that order."""
     root = Path(root)
-    rels = list(NATIVE_SOURCE_FILES) + sorted(
+    rels = list(NATIVE_SOURCE_FILES) + [rel for rel in NATIVE_OPTIONAL_FILES if (root / rel).is_file()]
+    rels += sorted(
         p.relative_to(root).as_posix() for p in (root / NATIVE_SOURCE_DIR).rglob("*") if p.is_file())
     lines = []
     for rel in rels:
@@ -511,7 +530,8 @@ def environment(out: Path, receipt: dict | None) -> dict:
                    "rust_channel": _rust_channel(rustc)},
         "provenance": {"python_full": runtime["python_full"], "rustc": rustc,
                        "native_sha256": native,
-                       "native_source_digest": (receipt or {}).get("source_digest") if native else None},
+                       "native_source_digest": (receipt or {}).get("source_digest") if native else None,
+                       "native_source_inventory": (receipt or {}).get("source_inventory") if native else None},
     }
 
 
@@ -551,6 +571,12 @@ def provenance_problems(out: Path, lane: str, receipt: dict | None, source_root:
     if receipt.get("extension_sha256") != loaded:
         problems.append(f"provenance: loaded extension {loaded} is not the receipt's "
                         f"{receipt.get('extension_sha256')}")
+    inventory = receipt.get("source_inventory", 1)
+    if inventory != NATIVE_SOURCE_INVENTORY:
+        problems.append(f"provenance: receipt digests native source inventory {inventory}, "
+                        f"this checker uses {NATIVE_SOURCE_INVENTORY} (build script and packaging "
+                        f"included): take a new receipt from the build")
+        return problems
     candidate = native_source_digest(source_root)
     if receipt.get("source_digest") != candidate:
         problems.append(f"provenance: receipt built from native source {receipt.get('source_digest')}, "
@@ -612,7 +638,8 @@ def write_receipt(path: Path, extension: Path, source_root: Path, wheel: Path | 
     receipt = {"extension": str(extension), "extension_sha256": _sha256_file(extension),
                "wheel": None if wheel is None else Path(wheel).name,
                "wheel_sha256": None if wheel is None else _sha256_file(wheel),
-               "source_digest": native_source_digest(source_root), "rustc": rustc}
+               "source_digest": native_source_digest(source_root),
+               "source_inventory": NATIVE_SOURCE_INVENTORY, "rustc": rustc}
     Path(path).write_text(json.dumps(receipt, indent=1, sort_keys=True) + "\n", encoding="utf-8")
     return receipt
 
